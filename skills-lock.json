@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "geckoui": {
+      "source": "geckoui/skills",
+      "sourceType": "github",
+      "skillPath": "skills/geckoui/SKILL.md",
+      "computedHash": "2085730089b659024dcbd65b12f521b6f61136ba0eed466bb4061740fdf0175b"
+    }
+  }
+}

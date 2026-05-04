@@ -1,0 +1,61 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.4.14/schema.json",
+	"formatter": {
+		"enabled": true,
+		"indentStyle": "tab",
+		"indentWidth": 2,
+		"lineWidth": 120
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true,
+			"style": {
+				"useConst": "error"
+			},
+			"suspicious": {
+				"noExplicitAny": "off"
+			}
+		}
+	},
+	"files": {
+		"includes": [
+			"src/**/*.ts",
+			"src/**/*.tsx",
+			"web-ui/src/**/*.ts",
+			"web-ui/src/**/*.tsx",
+			"!dist/**/*",
+			"!node_modules/**/*"
+		]
+	},
+	"overrides": [
+		{
+			"includes": ["web-ui/src/**/*.ts", "web-ui/src/**/*.tsx"],
+			"linter": {
+				"rules": {
+					"a11y": {
+						"noNoninteractiveTabindex": "off",
+						"noStaticElementInteractions": "off",
+						"noSvgWithoutTitle": "off",
+						"useAriaPropsForRole": "off",
+						"useFocusableInteractive": "off",
+						"useKeyWithClickEvents": "off",
+						"useSemanticElements": "off"
+					},
+					"complexity": {
+						"noUselessFragments": "off"
+					},
+					"correctness": {
+						"useExhaustiveDependencies": "off"
+					},
+					"style": {
+						"noNonNullAssertion": "off"
+					},
+					"suspicious": {
+						"noArrayIndexKey": "off"
+					}
+				}
+			}
+		}
+	]
+}

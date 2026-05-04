@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs ls *)",
+      "Bash(npm install *)",
+      "Bash(npm --prefix web-ui install)",
+      "Bash(npx tsc *)",
+      "Bash(pnpm install)",
+      "Bash(pnpm approve-builds *)",
+      "Bash(pnpm install *)",
+      "Bash(node -e ' *)",
+      "Bash(pnpm typecheck *)",
+      "Bash(pnpm web:typecheck)",
+      "Bash(pnpm --filter @kanbom/web add @geckoui/geckoui)",
+      "Bash(xargs cat *)",
+      "Bash(pnpm exec *)",
+      "Bash(pnpm add *)",
+      "Bash(pnpm tsc *)",
+      "Bash(pnpm run *)"
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+node_modules
+dist
+
+GEMINI.md
+CLAUDE.md
+.cursorrules
+.clinerules
+.windsurfrules
+.trae/rules/project_rules.md
