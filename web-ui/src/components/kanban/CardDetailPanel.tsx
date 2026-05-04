@@ -1,4 +1,4 @@
-import { Button, ConfirmDialog, toast } from "@geckoui/geckoui";
+import { Button, ConfirmDialog, Textarea, toast } from "@geckoui/geckoui";
 import type { RuntimeBoardCard, RuntimeTaskSessionSummary } from "@runtime-contract";
 import { ArrowLeft, ExternalLink, Play, Square, TerminalSquare, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -12,6 +12,20 @@ interface Props {
 	onClose: () => void;
 	onRefresh: () => void;
 }
+
+const COMMENT_TYPE_LABEL: Record<string, string> = {
+	dev: "Dev Summary",
+	code_review: "Code Review",
+	qa: "QA",
+	human: "Your Feedback",
+};
+
+const COMMENT_TYPE_COLOR: Record<string, string> = {
+	dev: "text-blue-400 border-blue-900 bg-blue-950/30",
+	code_review: "text-purple-400 border-purple-900 bg-purple-950/30",
+	qa: "text-cyan-400 border-cyan-900 bg-cyan-950/30",
+	human: "text-yellow-400 border-yellow-900 bg-yellow-950/30",
+};
 
 const SESSION_STATE_LABEL: Record<string, string> = {
 	running: "Running",
@@ -32,6 +46,25 @@ export function CardDetailPanel({ card, workspaceId, session, onClose, onRefresh
 	const [activeStreamId, setActiveStreamId] = useState<string>(
 		() => card.terminalSessions?.at(-1)?.streamId ?? card.id,
 	);
+	const [feedback, setFeedback] = useState("");
+	const [submitting, setSubmitting] = useState(false);
+
+	const isReadyForReview = card.columnId === "ready_for_review";
+
+	const handleSubmitFeedback = async () => {
+		if (!feedback.trim()) return;
+		setSubmitting(true);
+		try {
+			await trpc.cards.submitHumanFeedback.mutate({ workspaceId, cardId: card.id, comment: feedback.trim() });
+			toast.success("Feedback submitted — card moved to Reopened");
+			setFeedback("");
+			onRefresh();
+		} catch {
+			toast.error("Failed to submit feedback");
+		} finally {
+			setSubmitting(false);
+		}
+	};
 
 	// Reset to latest session when a different card is opened
 	const prevCardIdRef = useRef(card.id);
@@ -240,17 +273,39 @@ export function CardDetailPanel({ card, workspaceId, session, onClose, onRefresh
 					{/* Review feedback */}
 					{card.reviewComments && card.reviewComments.length > 0 && (
 						<div>
-							<h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Review Feedback</h4>
+							<h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Comments</h4>
 							<div className="space-y-2">
 								{card.reviewComments.map((comment, i) => (
-									<div key={i} className="bg-gray-900 border border-gray-800 rounded-lg p-3 text-xs">
-										<p className="text-gray-500 mb-1.5">
-											{comment.type === "code_review" ? "Code Review" : "QA"} · {comment.agent}
+									<div key={i} className={`border rounded-lg p-3 text-xs ${COMMENT_TYPE_COLOR[comment.type] ?? "border-gray-800 bg-gray-900"}`}>
+										<p className="font-medium mb-1.5 opacity-70">
+											{COMMENT_TYPE_LABEL[comment.type] ?? comment.type} · {comment.agent}
 										</p>
 										<p className="text-gray-300 whitespace-pre-wrap leading-relaxed">{comment.content}</p>
 									</div>
 								))}
 							</div>
+						</div>
+					)}
+
+					{/* Human feedback form */}
+					{isReadyForReview && (
+						<div>
+							<h4 className="text-xs font-medium text-yellow-500 uppercase tracking-wide mb-2">Request Changes</h4>
+							<Textarea
+								value={feedback}
+								onChange={(e) => setFeedback(e.target.value)}
+								placeholder="Describe what needs to be fixed or improved…"
+								rows={3}
+								autoResize
+							/>
+							<Button
+								size="sm"
+								className="mt-2 w-full"
+								onClick={handleSubmitFeedback}
+								disabled={!feedback.trim() || submitting}
+							>
+								{submitting ? "Submitting…" : "Submit & Reopen"}
+							</Button>
 						</div>
 					)}
 				</div>

@@ -33,8 +33,8 @@ export const BOARD_COLUMNS: Array<{ id: RuntimeBoardColumnId; title: string }> =
 // ─── Review ───────────────────────────────────────────────────────────────────
 
 export const runtimeReviewCommentSchema = z.object({
-	type: z.enum(["code_review", "qa"]),
-	agent: runtimeAgentIdSchema,
+	type: z.enum(["dev", "code_review", "qa", "human"]),
+	agent: z.string(),
 	content: z.string(),
 	createdAt: z.number(),
 });

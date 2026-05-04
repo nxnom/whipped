@@ -5,6 +5,7 @@ import { Plus } from "lucide-react";
 import { useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
 import { CardDetailPanel } from "./CardDetailPanel";
+import { CardQuickViewDialog } from "./CardQuickViewDialog";
 import { KanbanColumn } from "./KanbanColumn";
 
 interface KanbanBoardProps {
@@ -13,8 +14,10 @@ interface KanbanBoardProps {
 }
 
 export function KanbanBoard({ state, onRefresh }: KanbanBoardProps) {
-	const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
-	const selectedCard = selectedCardId ? (state.board.cards[selectedCardId] ?? null) : null;
+	const [quickViewCardId, setQuickViewCardId] = useState<string | null>(null);
+	const [detailCardId, setDetailCardId] = useState<string | null>(null);
+	const quickViewCard = quickViewCardId ? (state.board.cards[quickViewCardId] ?? null) : null;
+	const detailCard = detailCardId ? (state.board.cards[detailCardId] ?? null) : null;
 	const [showCreate, setShowCreate] = useState(false);
 
 	const handleDragEnd = async (result: DropResult) => {
@@ -61,7 +64,8 @@ export function KanbanBoard({ state, onRefresh }: KanbanBoardProps) {
 									column={column}
 									cards={cards}
 									sessions={state.sessions}
-									onCardClick={(card) => setSelectedCardId(card.id)}
+									onCardClick={(card) => setQuickViewCardId(card.id)}
+									onCardDetail={(card) => { setDetailCardId(card.id); setQuickViewCardId(null); }}
 								/>
 							);
 						})}
@@ -69,12 +73,23 @@ export function KanbanBoard({ state, onRefresh }: KanbanBoardProps) {
 				</DragDropContext>
 			</div>
 
-			{selectedCard && (
-				<CardDetailPanel
-					card={selectedCard}
+			{quickViewCard && (
+				<CardQuickViewDialog
+					card={quickViewCard}
 					workspaceId={state.workspaceId}
-					session={state.sessions[selectedCard.id]}
-					onClose={() => setSelectedCardId(null)}
+					session={state.sessions[quickViewCard.id]}
+					onClose={() => setQuickViewCardId(null)}
+					onOpenDetail={() => { setDetailCardId(quickViewCard.id); setQuickViewCardId(null); }}
+					onRefresh={onRefresh}
+				/>
+			)}
+
+			{detailCard && (
+				<CardDetailPanel
+					card={detailCard}
+					workspaceId={state.workspaceId}
+					session={state.sessions[detailCard.id]}
+					onClose={() => setDetailCardId(null)}
 					onRefresh={onRefresh}
 				/>
 			)}

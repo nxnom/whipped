@@ -16,9 +16,11 @@ import type { BoardPoller } from "../daemon/poller.js";
 import type { TaskScheduler } from "../daemon/scheduler.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import {
+	appendActivityLog,
 	createCard,
 	deleteCard,
 	listWorkspaces,
+	loadBoard,
 	loadProjectConfig,
 	loadWorkspaceContext,
 	loadWorkspaceState,
@@ -27,6 +29,7 @@ import {
 	saveWorkspaceState,
 	setAutonomousMode,
 	updateCard,
+	updateSession,
 } from "../state/workspace-state.js";
 import { getDefaultBranch } from "../worktree/worktree-manager.js";
 
@@ -157,6 +160,10 @@ export const appRouter = router({
 			.mutation(async ({ ctx, input }) => {
 				const { workspaceId, cardId, targetColumnId, targetIndex } = input;
 				const board = await moveCard(workspaceId, cardId, targetColumnId, targetIndex);
+				// Reset session so the poller can pick up cards moved back to work columns
+				if (targetColumnId === "reopened" || targetColumnId === "ready_for_dev") {
+					await updateSession(workspaceId, cardId, { state: "idle" });
+				}
 				ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 				return board;
 			}),
@@ -166,6 +173,58 @@ export const appRouter = router({
 			.mutation(async ({ ctx, input }) => {
 				ctx.getScheduler(input.workspaceId)?.stopTask(input.cardId);
 				await deleteCard(input.workspaceId, input.cardId);
+				ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
+				return { ok: true };
+			}),
+
+		addReviewComment: publicProcedure
+			.input(
+				z.object({
+					workspaceId: z.string(),
+					cardId: z.string(),
+					content: z.string().min(1),
+					type: z.enum(["dev", "code_review", "qa"]),
+					agent: z.string().default("claude"),
+					passed: z.boolean().optional(),
+				}),
+			)
+			.mutation(async ({ ctx, input }) => {
+				const board = await loadBoard(input.workspaceId);
+				const card = board.cards[input.cardId];
+				if (!card) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
+
+				const comment = {
+					type: input.type,
+					agent: input.agent,
+					content: input.content,
+					createdAt: Date.now(),
+				};
+				const updatedComments = [...(card.reviewComments ?? []), comment];
+				await updateCard(input.workspaceId, input.cardId, { reviewComments: updatedComments });
+				ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
+				return { ok: true, comment };
+			}),
+
+		submitHumanFeedback: publicProcedure
+			.input(z.object({ workspaceId: z.string(), cardId: z.string(), comment: z.string().min(1) }))
+			.mutation(async ({ ctx, input }) => {
+				const board = await loadBoard(input.workspaceId);
+				const card = board.cards[input.cardId];
+				if (!card) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
+
+				const updatedComments = [
+					...(card.reviewComments ?? []),
+					{
+						type: "human" as const,
+						agent: "human",
+						content: input.comment,
+						createdAt: Date.now(),
+					},
+				];
+				await updateCard(input.workspaceId, input.cardId, { reviewComments: updatedComments });
+				await moveCard(input.workspaceId, input.cardId, "reopened");
+				await updateSession(input.workspaceId, input.cardId, { state: "idle" });
+				await appendActivityLog(input.workspaceId, input.cardId, "Human feedback submitted → moved to Reopened");
 				ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
 				return { ok: true };
 			}),

@@ -9,7 +9,7 @@ import { DEFAULT_PORT, loadGlobalConfig } from "../config/runtime-config.js";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { BoardPoller } from "../daemon/poller.js";
 import { runReviewPipeline } from "../daemon/review-pipeline.js";
-import { TaskScheduler } from "../daemon/scheduler.js";
+import { getMcpServerPath, TaskScheduler } from "../daemon/scheduler.js";
 import { createGithubClient } from "../github/github-client.js";
 import {
 	listWorkspaces,
@@ -77,6 +77,8 @@ export async function createRuntimeServer(options: ServerOptions) {
 				await runReviewPipeline(card, {
 					workspaceId,
 					repoPath: wsRepoPath,
+					serverUrl: `http://${host}:${port}`,
+					mcpBinary: getMcpServerPath(),
 					codeReviewAgent: config.review.codeReviewAgent,
 					qaAgent: config.review.qaAgent,
 					maxAutoFixAttempts: config.maxAutoFixAttempts,

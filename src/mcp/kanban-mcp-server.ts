@@ -14,6 +14,7 @@ import { z } from "zod";
 
 const serverUrl = process.argv[2] ?? process.env.KANBOM_SERVER_URL ?? "http://127.0.0.1:3000";
 const workspaceId = process.argv[3] ?? process.env.KANBOM_WORKSPACE_ID ?? "";
+const agentId = process.argv[4] ?? "claude";
 
 async function trpc<T>(procedure: string, input: unknown): Promise<T> {
 	const res = await fetch(`${serverUrl}/api/trpc/${procedure}`, {
@@ -122,6 +123,24 @@ server.registerTool(
 	async ({ cardId, title, description }) => {
 		await trpc("cards.update", { workspaceId, cardId, title, description, revision: 0 });
 		return { content: [{ type: "text", text: `Updated card ${cardId}.` }] };
+	},
+);
+
+server.registerTool(
+	"kanban_add_comment",
+	{
+		description:
+			"Record your analysis, findings, or summary as a comment on a Kanban card. Call this when you have finished your work so your output is cleanly stored.",
+		inputSchema: {
+			cardId: z.string().describe("The card ID you are reviewing"),
+			content: z.string().describe("Your full comment — analysis, findings, summary, etc."),
+			type: z.enum(["dev", "code_review", "qa"]).describe("Type of comment"),
+			passed: z.boolean().optional().describe("For code_review and qa: whether the check passed (true) or failed (false)"),
+		},
+	},
+	async ({ cardId, content, type, passed }) => {
+		await trpc("cards.addReviewComment", { workspaceId, cardId, content, type, agent: agentId, passed });
+		return { content: [{ type: "text", text: `Comment recorded on card ${cardId}.` }] };
 	},
 );
 

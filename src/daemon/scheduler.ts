@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import type { AgentProcess } from "../agents/agent-runner.js";
 import { spawnAgent } from "../agents/agent-runner.js";
 import { getAvailableAgents } from "../agents/agent-registry.js";
-import { CLAUDE_HOME_MCP_CONFIG_PATH, CLAUDE_TASK_SETTINGS_PATH, buildTaskHookEnv, writeClaudeHomeSettings } from "../agents/agent-hooks.js";
+import { CLAUDE_HOME_MCP_CONFIG_PATH, CLAUDE_REVIEW_MCP_CONFIG_PATH, CLAUDE_TASK_SETTINGS_PATH, buildTaskHookEnv, writeClaudeHomeSettings, writeClaudeReviewMcpConfig } from "../agents/agent-hooks.js";
 import type { RuntimeAgentId, RuntimeBoardCard } from "../core/api-contract.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { appendActivityLog, appendTerminalSession, loadBoard, moveCard, removeSession, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
@@ -148,6 +148,9 @@ export class TaskScheduler {
 
 		console.log(`[scheduler] Starting task ${taskId} "${card.title}" with agent ${agentId}`);
 
+		// Write MCP config so the dev agent can call kanban_add_comment when done
+		await writeClaudeReviewMcpConfig(getMcpServerPath(), this.options.serverUrl, workspaceId, agentId).catch(() => {});
+
 		// Create isolated worktree
 		const worktree = createWorktree(taskId, repoPath, card.baseRef);
 
@@ -180,6 +183,7 @@ export class TaskScheduler {
 				cwd: worktree.path,
 				env: buildTaskHookEnv(taskId, workspaceId),
 				hookSettingsPath: agentId === "claude" ? CLAUDE_TASK_SETTINGS_PATH : undefined,
+				mcpConfigPath: agentId === "claude" ? CLAUDE_REVIEW_MCP_CONFIG_PATH : undefined,
 				onOutput: (data) => {
 					runningTask.outputBuffer += data;
 					if (runningTask.outputBuffer.length > 65536) {
@@ -350,7 +354,7 @@ export class TaskScheduler {
 // Returns the command + args to launch the MCP server.
 // Dev: uses the absolute path to tsx from node_modules so Claude Code can find it
 // regardless of its own PATH. Prod: node runs the bundled mcp-server.js.
-function getMcpServerPath(): { command: string; args: string[] } {
+export function getMcpServerPath(): { command: string; args: string[] } {
 	const thisFile = fileURLToPath(import.meta.url);
 	const thisDir = dirname(thisFile);
 	const isDev = thisFile.endsWith(".ts");
@@ -382,23 +386,36 @@ Available tools:
 Call kanban_get_board now, then greet the developer with a brief summary of the current board state and let them know you're ready to help.`;
 }
 
+const COMMENT_TYPE_LABEL: Record<string, string> = {
+	dev: "Dev Summary",
+	code_review: "Code Review",
+	qa: "QA",
+	human: "Human Feedback",
+};
+
 function buildTaskPrompt(card: RuntimeBoardCard): string {
 	const parts = [`# Task: ${card.title}`, "", card.description];
 
 	if (card.reviewComments && card.reviewComments.length > 0) {
 		parts.push("", "## Previous Review Feedback (please address these issues)");
 		for (const comment of card.reviewComments) {
-			parts.push(
-				``,
-				`### ${comment.type === "code_review" ? "Code Review" : "QA"} (${comment.agent})`,
-				comment.content,
-			);
+			const label = COMMENT_TYPE_LABEL[comment.type] ?? comment.type;
+			parts.push(``, `### ${label} (${comment.agent})`, comment.content);
 		}
 	}
 
 	if (card.githubIssueUrl) {
 		parts.push("", `GitHub Issue: ${card.githubIssueUrl}`);
 	}
+
+	parts.push(
+		"",
+		"## When you finish",
+		`Call the \`kanban_add_comment\` MCP tool with:`,
+		`- cardId: "${card.id}"`,
+		`- type: "dev"`,
+		`- content: a 3-6 sentence PR-ready summary of what you implemented, key decisions made, and any caveats`,
+	);
 
 	return parts.join("\n");
 }

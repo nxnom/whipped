@@ -1,12 +1,13 @@
 import { Draggable } from "@hello-pangea/dnd";
 import type { RuntimeBoardCard, RuntimeTaskSessionSummary } from "@runtime-contract";
-import { AlertTriangle, Bot, Clock, ExternalLink, GitPullRequest, RotateCcw } from "lucide-react";
+import { AlertTriangle, Bot, ExternalLink, GitPullRequest, PanelRight, RotateCcw } from "lucide-react";
 
 interface KanbanCardProps {
 	card: RuntimeBoardCard;
 	index: number;
 	session?: RuntimeTaskSessionSummary;
 	onClick: () => void;
+	onOpenDetail: () => void;
 }
 
 const AGENT_LABELS: Record<string, string> = {
@@ -22,7 +23,7 @@ const SESSION_STATE_COLORS: Record<string, string> = {
 	failed: "text-red-400",
 };
 
-export function KanbanCard({ card, index, session, onClick }: KanbanCardProps) {
+export function KanbanCard({ card, index, session, onClick, onOpenDetail }: KanbanCardProps) {
 	const isRunning = session?.state === "running" || session?.state === "review_in_progress";
 	const hasFailed = session?.state === "failed";
 	const agentLabel = card.agentId ? AGENT_LABELS[card.agentId] : null;
@@ -37,14 +38,23 @@ export function KanbanCard({ card, index, session, onClick }: KanbanCardProps) {
 					{...provided.dragHandleProps}
 					onClick={onClick}
 					className={`
-						bg-gray-800 border rounded-lg p-3 cursor-pointer select-none
+						group bg-gray-800 border rounded-lg p-3 cursor-pointer select-none
 						transition-all duration-150 hover:bg-gray-750 hover:border-gray-500
 						${snapshot.isDragging ? "border-blue-500 shadow-lg shadow-blue-500/20 rotate-1" : "border-gray-700"}
 					`}
 				>
 					<div className="flex items-start justify-between gap-2">
 						<p className="text-sm text-gray-100 font-medium leading-snug flex-1">{card.title}</p>
-						{isRunning && <span className="mt-0.5 size-2 rounded-full bg-blue-400 animate-pulse shrink-0" />}
+						<div className="flex items-center gap-1 shrink-0">
+							{isRunning && <span className="mt-0.5 size-2 rounded-full bg-blue-400 animate-pulse" />}
+							<button
+								onClick={(e) => { e.stopPropagation(); onOpenDetail(); }}
+								className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-500 hover:text-gray-300 rounded transition-all"
+								title="Open full detail"
+							>
+								<PanelRight size={13} />
+							</button>
+						</div>
 					</div>
 
 					{card.description && <p className="mt-1.5 text-xs text-gray-400 line-clamp-2">{card.description}</p>}

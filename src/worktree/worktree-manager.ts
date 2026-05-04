@@ -26,13 +26,16 @@ export function createWorktree(taskId: string, repoPath: string, baseRef: string
 	const branch = `kanbom/task-${taskId}`;
 	const worktreePath = join(WORKTREES_DIR, taskId);
 
-	// Check if branch already exists
+	// Reuse existing worktree so retries (reopened cards) build on prior work
+	if (existsSync(worktreePath)) {
+		return { taskId, path: worktreePath, branch };
+	}
+
+	// Prune stale git refs in case a previous run left the worktree deregistered
+	git(["worktree", "prune"], repoPath);
+
 	const branchCheck = git(["branch", "--list", branch], repoPath);
 	const branchExists = branchCheck.stdout.includes(branch);
-
-	if (existsSync(worktreePath)) {
-		rmSync(worktreePath, { recursive: true, force: true });
-	}
 
 	if (branchExists) {
 		git(["worktree", "add", worktreePath, branch], repoPath);
