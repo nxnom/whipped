@@ -22,6 +22,7 @@ export interface SchedulerOptions {
 
 interface RunningTask {
 	taskId: string;
+	streamId: string; // unique per run: "${taskId}-dev-${startedAt}"
 	agentId: RuntimeAgentId;
 	process: AgentProcess;
 	startedAt: number;
@@ -84,6 +85,7 @@ export class TaskScheduler {
 
 		const homeTask: RunningTask = {
 			taskId,
+			streamId: taskId, // home agent uses taskId as its stream (single session)
 			agentId,
 			process: spawnAgent({
 				agentId,
@@ -169,13 +171,16 @@ export class TaskScheduler {
 		// Move card to in_progress
 		await moveCard(workspaceId, taskId, "in_progress");
 		await appendActivityLog(workspaceId, taskId, `Agent ${agentId} started`);
-		await appendTerminalSession(workspaceId, taskId, { streamId: taskId, type: "dev", startedAt: Date.now() });
-		stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 		const spawnedAt = Date.now();
+		const devStreamId = `${taskId}-dev-${spawnedAt}`;
+
+		await appendTerminalSession(workspaceId, taskId, { streamId: devStreamId, type: "dev", startedAt: spawnedAt });
+		stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 		const runningTask: RunningTask = {
 			taskId,
+			streamId: devStreamId,
 			agentId,
 			process: spawnAgent({
 				agentId,
@@ -189,11 +194,11 @@ export class TaskScheduler {
 					if (runningTask.outputBuffer.length > 65536) {
 						runningTask.outputBuffer = runningTask.outputBuffer.slice(-65536);
 					}
-					stateHub.broadcastTerminalOutput(workspaceId, taskId, data);
+					stateHub.broadcastTerminalOutput(workspaceId, devStreamId, data);
 				},
 				onExit: async (exitCode) => {
-					this.recentBuffers.set(taskId, runningTask.outputBuffer);
-					void saveTerminalBuffer(workspaceId, taskId, runningTask.outputBuffer);
+					this.recentBuffers.set(devStreamId, runningTask.outputBuffer);
+					void saveTerminalBuffer(workspaceId, devStreamId, runningTask.outputBuffer);
 					this.running.delete(taskId);
 
 					// Synchronous check — must happen before any await.
@@ -272,13 +277,16 @@ export class TaskScheduler {
 		}
 	}
 
-	getOutputBuffer(taskId: string): string {
-		return (
-			this.running.get(taskId)?.outputBuffer ??
-			this.homeSessions.get(taskId)?.outputBuffer ??
-			this.recentBuffers.get(taskId) ??
-			""
-		);
+	getOutputBuffer(streamId: string): string {
+		// Active dev tasks: look up by streamId (unique per run)
+		for (const task of this.running.values()) {
+			if (task.streamId === streamId) return task.outputBuffer;
+		}
+		// Home agent sessions use taskId as their streamId
+		const homeSession = this.homeSessions.get(streamId);
+		if (homeSession) return homeSession.outputBuffer;
+		// Completed tasks / recent buffers
+		return this.recentBuffers.get(streamId) ?? "";
 	}
 
 	resizeTerminal(taskId: string, cols: number, rows: number): void {
@@ -318,8 +326,8 @@ export class TaskScheduler {
 			this.hookHandledTasks.add(taskId);
 			const task = this.running.get(taskId);
 			if (task) {
-				this.recentBuffers.set(taskId, task.outputBuffer);
-				void saveTerminalBuffer(workspaceId, taskId, task.outputBuffer);
+				this.recentBuffers.set(task.streamId, task.outputBuffer);
+				void saveTerminalBuffer(workspaceId, task.streamId, task.outputBuffer);
 				task.process.kill();
 				this.running.delete(taskId);
 			}
