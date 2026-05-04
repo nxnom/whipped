@@ -4,21 +4,29 @@ import { join } from "node:path";
 
 const __dirname = new URL(".", import.meta.url).pathname;
 
-await esbuild.build({
-	entryPoints: ["src/cli.ts"],
+const sharedConfig = {
 	bundle: true,
 	platform: "node",
 	target: "node22",
 	format: "esm",
-	outfile: "dist/cli.js",
 	external: ["node-pty", "proper-lockfile"],
-	banner: {
-		js: "#!/usr/bin/env node",
-	},
-	define: {
-		"process.env.NODE_ENV": '"production"',
-	},
-});
+	define: { "process.env.NODE_ENV": '"production"' },
+};
+
+await Promise.all([
+	esbuild.build({
+		...sharedConfig,
+		entryPoints: ["src/cli.ts"],
+		outfile: "dist/cli.js",
+		banner: { js: "#!/usr/bin/env node" },
+	}),
+	esbuild.build({
+		...sharedConfig,
+		entryPoints: ["src/mcp/kanban-mcp-server.ts"],
+		outfile: "dist/mcp-server.js",
+		banner: { js: "#!/usr/bin/env node" },
+	}),
+]);
 
 // Copy web UI build output
 mkdirSync("dist/web-ui", { recursive: true });

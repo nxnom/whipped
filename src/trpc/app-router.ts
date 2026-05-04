@@ -267,9 +267,9 @@ export const appRouter = router({
 					await ctx.ensureWorkspace(input.workspaceId);
 					const retried = ctx.getScheduler(input.workspaceId);
 					if (!retried) throw new TRPCError({ code: "NOT_FOUND", message: "Workspace not found" });
-					return { taskId: retried.startHomeAgent() };
+					return { taskId: await retried.startHomeAgent() };
 				}
-				return { taskId: scheduler.startHomeAgent() };
+				return { taskId: await scheduler.startHomeAgent() };
 			}),
 
 		stopSession: publicProcedure

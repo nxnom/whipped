@@ -91,6 +91,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 		const scheduler = new TaskScheduler({
 			workspaceId,
 			repoPath: wsRepoPath,
+			serverUrl: `http://${host}:${port}`,
 			maxParallelTasks: projectConfig.maxParallelTasks ?? config.maxParallelTasks,
 			maxAutoFixAttempts: config.maxAutoFixAttempts,
 			defaultAgent: projectConfig.defaultAgent ?? config.defaultAgent,

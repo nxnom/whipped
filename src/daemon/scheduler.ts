@@ -1,7 +1,9 @@
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { AgentProcess } from "../agents/agent-runner.js";
 import { spawnAgent } from "../agents/agent-runner.js";
 import { getAvailableAgents } from "../agents/agent-registry.js";
-import { CLAUDE_TASK_SETTINGS_PATH, buildTaskHookEnv } from "../agents/agent-hooks.js";
+import { CLAUDE_HOME_MCP_CONFIG_PATH, CLAUDE_TASK_SETTINGS_PATH, buildTaskHookEnv, writeClaudeHomeSettings } from "../agents/agent-hooks.js";
 import type { RuntimeAgentId, RuntimeBoardCard } from "../core/api-contract.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { appendActivityLog, appendTerminalSession, loadBoard, moveCard, removeSession, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
@@ -10,6 +12,7 @@ import { createWorktree, getWorktreePath, removeWorktree } from "../worktree/wor
 export interface SchedulerOptions {
 	workspaceId: string;
 	repoPath: string;
+	serverUrl: string;
 	maxParallelTasks: number;
 	maxAutoFixAttempts: number;
 	defaultAgent: RuntimeAgentId;
@@ -62,8 +65,8 @@ export class TaskScheduler {
 		return `${HOME_AGENT_PREFIX}${this.options.workspaceId}`;
 	}
 
-	startHomeAgent(): string {
-		const { workspaceId, repoPath, stateHub, defaultAgent } = this.options;
+	async startHomeAgent(): Promise<string> {
+		const { workspaceId, repoPath, serverUrl, stateHub, defaultAgent } = this.options;
 		const taskId = this.homeAgentTaskId;
 		const agentId = defaultAgent;
 
@@ -74,13 +77,19 @@ export class TaskScheduler {
 			this.homeSessions.delete(taskId);
 		}
 
+		const prompt = buildHomeAgentPrompt(repoPath);
+		await writeClaudeHomeSettings(getMcpServerPath(), serverUrl, workspaceId).catch((err) => {
+			console.warn("[scheduler] Failed to write home agent MCP settings:", err);
+		});
+
 		const homeTask: RunningTask = {
 			taskId,
 			agentId,
 			process: spawnAgent({
 				agentId,
-				prompt: "",
+				prompt,
 				cwd: repoPath,
+				mcpConfigPath: agentId === "claude" ? CLAUDE_HOME_MCP_CONFIG_PATH : undefined,
 				onOutput: (data) => {
 					homeTask.outputBuffer += data;
 					if (homeTask.outputBuffer.length > 65536) {
@@ -336,6 +345,41 @@ export class TaskScheduler {
 		}
 		this.stopHomeAgent();
 	}
+}
+
+// Returns the command + args to launch the MCP server.
+// Dev: uses the absolute path to tsx from node_modules so Claude Code can find it
+// regardless of its own PATH. Prod: node runs the bundled mcp-server.js.
+function getMcpServerPath(): { command: string; args: string[] } {
+	const thisFile = fileURLToPath(import.meta.url);
+	const thisDir = dirname(thisFile);
+	const isDev = thisFile.endsWith(".ts");
+	if (isDev) {
+		const projectRoot = resolve(thisDir, "../..");
+		return {
+			command: resolve(projectRoot, "node_modules/.bin/tsx"),
+			args: [resolve(thisDir, "../mcp/kanban-mcp-server.ts")],
+		};
+	}
+	return {
+		command: process.execPath,
+		args: [resolve(thisDir, "mcp-server.js")],
+	};
+}
+
+function buildHomeAgentPrompt(repoPath: string): string {
+	return `You are the Kanban Agent for the project at \`${repoPath}\`.
+
+You help the developer manage their AI-driven Kanban board. You have MCP tools to interact with the board directly — always use them rather than guessing state.
+
+Available tools:
+- kanban_get_board — fetch the live board state
+- kanban_create_card — create a new task
+- kanban_move_card — move a card to a different column
+- kanban_update_card — update a card's title or description
+- kanban_delete_card — delete a card
+
+Call kanban_get_board now, then greet the developer with a brief summary of the current board state and let them know you're ready to help.`;
 }
 
 function buildTaskPrompt(card: RuntimeBoardCard): string {

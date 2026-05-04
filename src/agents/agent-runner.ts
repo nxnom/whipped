@@ -9,6 +9,7 @@ export interface AgentRunOptions {
 	cwd: string;
 	env?: Record<string, string>;
 	hookSettingsPath?: string;
+	mcpConfigPath?: string;
 	mode?: "interactive" | "print";
 	onOutput: (data: string) => void;
 	onExit: (exitCode: number) => void;
@@ -21,12 +22,15 @@ export interface AgentProcess {
 }
 
 export function spawnAgent(options: AgentRunOptions): AgentProcess {
-	const { agentId, prompt, cwd, env, hookSettingsPath, mode = "interactive", onOutput, onExit } = options;
+	const { agentId, prompt, cwd, env, hookSettingsPath, mcpConfigPath, mode = "interactive", onOutput, onExit } = options;
 
 	const command = getAgentCommand(agentId);
 	const args = buildAgentArgs(agentId, prompt, mode);
 	if (hookSettingsPath && agentId === "claude") {
 		args.push("--settings", hookSettingsPath);
+	}
+	if (mcpConfigPath && agentId === "claude") {
+		args.push("--mcp-config", mcpConfigPath);
 	}
 
 	const pty = nodePty.spawn(command, args, {

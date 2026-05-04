@@ -16,7 +16,19 @@
       "Bash(pnpm exec *)",
       "Bash(pnpm add *)",
       "Bash(pnpm tsc *)",
-      "Bash(pnpm run *)"
+      "Bash(pnpm run *)",
+      "Bash(pnpm list *)",
+      "Bash(KANBOM_SERVER_URL=http://127.0.0.1:3000 KANBOM_WORKSPACE_ID=test tsx src/mcp/kanban-mcp-server.ts)",
+      "Bash(kill %1)",
+      "Bash(KANBOM_SERVER_URL=http://127.0.0.1:3000 KANBOM_WORKSPACE_ID=test node_modules/.bin/tsx src/mcp/kanban-mcp-server.ts)",
+      "Bash(node_modules/.bin/tsx src/mcp/kanban-mcp-server.ts http://127.0.0.1:3000 test-workspace-id)",
+      "Bash(/Users/waiyanphyo/Development/kanbom/node_modules/.bin/tsx /Users/waiyanphyo/Development/kanbom/src/mcp/kanban-mcp-server.ts http://127.0.0.1:3485 6f0bd9ff)",
+      "Bash(/Users/waiyanphyo/Development/kanbom/node_modules/.bin/tsx -e \"console.error\\(JSON.stringify\\(process.argv\\)\\)\" /Users/waiyanphyo/Development/kanbom/src/mcp/kanban-mcp-server.ts http://127.0.0.1:3485 6f0bd9ff)",
+      "Bash(/Users/waiyanphyo/Development/kanbom/node_modules/.bin/tsx /tmp/test-argv.ts http://127.0.0.1:3485 6f0bd9ff)",
+      "Bash(curl -s \"http://127.0.0.1:3485/api/trpc/workspace.state?input=%7B%22json%22%3A%7B%22workspaceId%22%3A%226f0bd9ff%22%7D%7D\")",
+      "Bash(curl -s \"http://127.0.0.1:3485/api/trpc/workspace.state?input=%7B%22workspaceId%22%3A%226f0bd9ff%22%7D\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(list\\(d.keys\\(\\)\\)\\)\")",
+      "Bash(python3 -c \"import sys; lines=sys.stdin.readlines\\(\\); [print\\(l.rstrip\\(\\)\\) for l in lines[-3:]]\")"
     ]
   }
 }
