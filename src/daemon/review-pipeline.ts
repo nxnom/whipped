@@ -181,11 +181,11 @@ async function runCodeReview(
 
 	const mcpComment = await getMcpComment(workspaceId, card.id, startTime, "code_review");
 	if (mcpComment) {
-		const passed = !/(FAIL|REJECT|CRITICAL|BLOCKING)/i.test(mcpComment.content) || /(PASS|APPROVED|LGTM)/i.test(mcpComment.content);
+		const passed = mcpComment.passed ?? !/(FAIL|REJECT|CRITICAL|BLOCKING)/i.test(mcpComment.content);
 		return { passed, comment: mcpComment, storedViaMcp: true };
 	}
 
-	const passed = !/(FAIL|REJECT|CRITICAL|BLOCKING)/i.test(output) || /(PASS|APPROVED|LGTM)/i.test(output);
+	const passed = !/(FAIL|REJECT|CRITICAL|BLOCKING)/i.test(output);
 	return {
 		passed,
 		storedViaMcp: false,
@@ -207,11 +207,11 @@ async function runQA(
 
 	const mcpComment = await getMcpComment(workspaceId, card.id, startTime, "qa");
 	if (mcpComment) {
-		const passed = !/(FAIL|ERROR|CRASH|BROKEN)/i.test(mcpComment.content) || /(PASS|OK|SUCCESS)/i.test(mcpComment.content);
+		const passed = mcpComment.passed ?? !/(FAIL|ERROR|CRASH|BROKEN)/i.test(mcpComment.content);
 		return { passed, comment: mcpComment, storedViaMcp: true };
 	}
 
-	const passed = !/(FAIL|ERROR|CRASH|BROKEN)/i.test(output) || /(PASS|OK|SUCCESS)/i.test(output);
+	const passed = !/(FAIL|ERROR|CRASH|BROKEN)/i.test(output);
 	return {
 		passed,
 		storedViaMcp: false,
@@ -363,6 +363,8 @@ function buildCodeReviewPrompt(card: RuntimeBoardCard, diff: string): string {
 
 Task description:
 ${card.description}${priorContext}
+
+if there is new PlayerInputType make sure to check if it's properly handled in the input parser and the UI.
 
 Git diff:
 \`\`\`diff

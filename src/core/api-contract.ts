@@ -36,6 +36,7 @@ export const runtimeReviewCommentSchema = z.object({
 	type: z.enum(["dev", "code_review", "qa", "human"]),
 	agent: z.string(),
 	content: z.string(),
+	passed: z.boolean().optional(),
 	createdAt: z.number(),
 });
 export type RuntimeReviewComment = z.infer<typeof runtimeReviewCommentSchema>;

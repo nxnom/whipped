@@ -197,6 +197,7 @@ export const appRouter = router({
 					type: input.type,
 					agent: input.agent,
 					content: input.content,
+					passed: input.passed,
 					createdAt: Date.now(),
 				};
 				const updatedComments = [...(card.reviewComments ?? []), comment];
