@@ -131,8 +131,13 @@ export class TaskScheduler {
 		return this.running.size;
 	}
 
-	canAcceptTask(): boolean {
-		return this.running.size < this.options.maxParallelTasks;
+	get maxParallelTasks(): number {
+		return this.options.maxParallelTasks;
+	}
+
+	canAcceptTask(inFlightCount?: number): boolean {
+		const count = inFlightCount ?? this.running.size;
+		return count < this.options.maxParallelTasks;
 	}
 
 	async startTask(card: RuntimeBoardCard): Promise<void> {
@@ -152,11 +157,37 @@ export class TaskScheduler {
 
 		console.log(`[scheduler] Starting task ${taskId} "${card.title}" with agent ${agentId}`);
 
+		// Check and resolve dependencies
+		let effectiveBaseRef = card.baseRef;
+		if (card.dependsOn && card.dependsOn.length > 0) {
+			const board = await loadBoard(workspaceId);
+			const unmetDep = card.dependsOn.find((depId) => {
+				const dep = board.cards[depId];
+				return !dep || (dep.columnId !== "ready_for_review" && dep.columnId !== "done");
+			});
+			if (unmetDep) {
+				await moveCard(workspaceId, taskId, "blocked");
+				const depCard = board.cards[unmetDep];
+				await appendActivityLog(workspaceId, taskId, `Blocked: dependency "${depCard?.title ?? unmetDep}" is not yet complete`);
+				stateHub.broadcastWorkspaceUpdate(workspaceId);
+				return;
+			}
+			// Branch from the last dep that is still in ready_for_review (unmerged)
+			for (let i = card.dependsOn.length - 1; i >= 0; i--) {
+				const depId = card.dependsOn[i] as string;
+				const dep = board.cards[depId];
+				if (dep?.columnId === "ready_for_review") {
+					effectiveBaseRef = getWorktreeBranch(depId);
+					break;
+				}
+			}
+		}
+
 		// Write MCP config so the dev agent can call kanban_add_comment when done
 		await writeClaudeReviewMcpConfig(getMcpServerPath(), this.options.serverUrl, workspaceId, agentId).catch(() => {});
 
 		// Create isolated worktree
-		const worktree = createWorktree(taskId, repoPath, card.baseRef);
+		const worktree = createWorktree(taskId, repoPath, effectiveBaseRef);
 
 		// Reload project config so latest prompts + setup config are used
 		const projectConfig = await loadProjectConfig(workspaceId);

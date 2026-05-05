@@ -1,6 +1,6 @@
-import { Button, ConfirmDialog, Textarea, Tooltip, toast } from "@geckoui/geckoui";
-import type { RuntimeBoardCard, RuntimeTaskSessionSummary } from "@runtime-contract";
-import { ArrowLeft, ExternalLink, FolderOpen, GitMerge, GitPullRequest, Play, Square, TerminalSquare, Trash2 } from "lucide-react";
+import { Button, ConfirmDialog, Select, SelectOption, Textarea, Tooltip, toast } from "@geckoui/geckoui";
+import type { RuntimeBoardCard, RuntimeCardPriority, RuntimeTaskSessionSummary } from "@runtime-contract";
+import { ArrowLeft, ExternalLink, FolderOpen, GitMerge, GitPullRequest, Link2, Play, Square, TerminalSquare, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { trpc } from "@/runtime/trpc-client";
@@ -9,9 +9,28 @@ interface Props {
 	card: RuntimeBoardCard;
 	workspaceId: string;
 	session?: RuntimeTaskSessionSummary;
+	allCards?: Record<string, RuntimeBoardCard>;
 	onClose: () => void;
 	onRefresh: () => void;
 }
+
+const PRIORITY_STYLES: Record<string, string> = {
+	urgent: "text-red-400 bg-red-400/10 border-red-400/20",
+	high: "text-orange-400 bg-orange-400/10 border-orange-400/20",
+	medium: "text-yellow-400 bg-yellow-400/10 border-yellow-400/20",
+	low: "text-slate-400 bg-slate-400/10 border-slate-400/20",
+};
+
+const COLUMN_LABELS: Record<string, string> = {
+	todo: "Todo",
+	ready_for_dev: "Ready",
+	in_progress: "In Progress",
+	in_review: "In Review",
+	reopened: "Reopened",
+	ready_for_review: "Ready for Review",
+	blocked: "Blocked",
+	done: "Done",
+};
 
 const COMMENT_TYPE_LABEL: Record<string, string> = {
 	dev: "Dev Summary",
@@ -49,7 +68,7 @@ const DEFAULT_SIDEBAR = 340;
 
 type SidebarTab = "overview" | "comments" | "activity";
 
-export function CardDetailPanel({ card, workspaceId, session, onClose, onRefresh }: Props) {
+export function CardDetailPanel({ card, workspaceId, session, allCards, onClose, onRefresh }: Props) {
 	const [activeStreamId, setActiveStreamId] = useState<string>(
 		() => card.terminalSessions?.at(-1)?.streamId ?? card.id,
 	);
@@ -57,6 +76,7 @@ export function CardDetailPanel({ card, workspaceId, session, onClose, onRefresh
 	const [submitting, setSubmitting] = useState(false);
 	const [merging, setMerging] = useState(false);
 	const [creatingPR, setCreatingPR] = useState(false);
+	const [addingDep, setAddingDep] = useState(false);
 	const [activeTab, setActiveTab] = useState<SidebarTab>("overview");
 	const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR);
 	const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
@@ -239,6 +259,50 @@ export function CardDetailPanel({ card, workspaceId, session, onClose, onRefresh
 		});
 	};
 
+	const handlePriorityChange = async (value: string) => {
+		try {
+			await trpc.cards.update.mutate({
+				workspaceId,
+				cardId: card.id,
+				priority: value as RuntimeCardPriority || undefined,
+				revision: 0,
+			});
+			onRefresh();
+		} catch {
+			toast.error("Failed to update priority");
+		}
+	};
+
+	const handleAddDep = async (depId: string) => {
+		if (!depId || (card.dependsOn ?? []).includes(depId)) return;
+		setAddingDep(false);
+		try {
+			await trpc.cards.update.mutate({
+				workspaceId,
+				cardId: card.id,
+				dependsOn: [...(card.dependsOn ?? []), depId],
+				revision: 0,
+			});
+			onRefresh();
+		} catch {
+			toast.error("Failed to add dependency");
+		}
+	};
+
+	const handleRemoveDep = async (depId: string) => {
+		try {
+			await trpc.cards.update.mutate({
+				workspaceId,
+				cardId: card.id,
+				dependsOn: (card.dependsOn ?? []).filter((id) => id !== depId),
+				revision: 0,
+			});
+			onRefresh();
+		} catch {
+			toast.error("Failed to remove dependency");
+		}
+	};
+
 	return (
 		<div className="absolute inset-0 z-10 bg-gray-950 flex overflow-hidden">
 			{/* ── Sidebar ──────────────────────────────────────────────── */}
@@ -319,6 +383,87 @@ export function CardDetailPanel({ card, workspaceId, session, onClose, onRefresh
 							{card.description && (
 								<p className="text-xs text-gray-400 whitespace-pre-wrap leading-relaxed">{card.description}</p>
 							)}
+
+							{/* Priority */}
+							<div>
+								<h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Priority</h4>
+								<Select
+									value={card.priority ?? ""}
+									onChange={(v) => handlePriorityChange(v as string)}
+									placeholder="No priority"
+									clearable
+								>
+									<SelectOption value="urgent" label="Urgent" />
+									<SelectOption value="high" label="High" />
+									<SelectOption value="medium" label="Medium" />
+									<SelectOption value="low" label="Low" />
+								</Select>
+							</div>
+
+							{/* Dependencies */}
+							<div>
+								<div className="flex items-center justify-between mb-1.5">
+									<h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide">Dependencies</h4>
+									{!addingDep && (
+										<button
+											onClick={() => setAddingDep(true)}
+											className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+										>
+											+ Add
+										</button>
+									)}
+								</div>
+								{(card.dependsOn ?? []).length === 0 && !addingDep && (
+									<p className="text-xs text-gray-600">None</p>
+								)}
+								<div className="space-y-1">
+									{(card.dependsOn ?? []).map((depId) => {
+										const dep = allCards?.[depId];
+										const isMet = dep?.columnId === "ready_for_review" || dep?.columnId === "done";
+										return (
+											<div key={depId} className="flex items-center gap-1.5 text-xs">
+												<Link2 size={11} className={isMet ? "text-green-500" : "text-orange-400"} />
+												<span className="flex-1 text-gray-300 truncate">
+													{dep?.title ?? depId}
+												</span>
+												{dep && (
+													<span className={`text-[10px] px-1.5 py-0.5 rounded ${isMet ? "bg-green-500/15 text-green-400" : "bg-orange-400/10 text-orange-400"}`}>
+														{COLUMN_LABELS[dep.columnId] ?? dep.columnId}
+													</span>
+												)}
+												<button
+													onClick={() => handleRemoveDep(depId)}
+													className="text-gray-600 hover:text-red-400 transition-colors ml-0.5"
+												>
+													<X size={11} />
+												</button>
+											</div>
+										);
+									})}
+								</div>
+								{addingDep && allCards && (
+									<div className="mt-1.5">
+										<Select
+											value=""
+											onChange={(v) => handleAddDep(v as string)}
+											placeholder="Search cards..."
+											filterable
+										>
+											{Object.values(allCards)
+												.filter((c) => c.id !== card.id && !(card.dependsOn ?? []).includes(c.id))
+												.map((c) => (
+													<SelectOption key={c.id} value={c.id} label={c.title} />
+												))}
+										</Select>
+										<button
+											onClick={() => setAddingDep(false)}
+											className="text-xs text-gray-600 hover:text-gray-400 mt-1 transition-colors"
+										>
+											Cancel
+										</button>
+									</div>
+								)}
+							</div>
 
 							{(card.githubIssueUrl || card.githubPrUrl || card.jiraUrl) && (
 								<div className="space-y-1.5">

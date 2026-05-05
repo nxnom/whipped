@@ -17,6 +17,13 @@ const AGENT_LABELS: Record<string, string> = {
 	codex: "Codex",
 };
 
+const PRIORITY_STYLES: Record<string, string> = {
+	urgent: "text-red-400 bg-red-400/10",
+	high: "text-orange-400 bg-orange-400/10",
+	medium: "text-yellow-400 bg-yellow-400/10",
+	low: "text-slate-400 bg-slate-400/10",
+};
+
 const SESSION_STATE_COLORS: Record<string, string> = {
 	running: "text-blue-400",
 	awaiting_review: "text-yellow-400",
@@ -85,6 +92,11 @@ export function KanbanCard({ card, index, session, onClick, onEdit, onDelete }: 
 					{card.description && <p className="mt-1.5 text-xs text-gray-400 line-clamp-2">{card.description}</p>}
 
 					<div className="mt-2.5 flex items-center gap-2 flex-wrap">
+						{card.priority && (
+							<span className={`text-xs rounded px-1.5 py-0.5 font-medium ${PRIORITY_STYLES[card.priority]}`}>
+								{card.priority}
+							</span>
+						)}
 						{agentLabel && (
 							<span className="flex items-center gap-1 text-xs text-gray-400 bg-gray-700 rounded px-1.5 py-0.5">
 								<Bot size={10} />

@@ -80,16 +80,14 @@ export function KanbanBoard({ state, onRefresh }: KanbanBoardProps) {
 			onConfirm: async ({ dismiss }) => {
 				dismiss();
 				try {
-					await Promise.all(
-						todoCards.map((card) =>
-							trpc.cards.move.mutate({
-								workspaceId: state.workspaceId,
-								cardId: card!.id,
-								targetColumnId: "ready_for_dev",
-								revision: state.revision,
-							}),
-						),
-					);
+					for (const card of todoCards) {
+						await trpc.cards.move.mutate({
+							workspaceId: state.workspaceId,
+							cardId: card!.id,
+							targetColumnId: "ready_for_dev",
+							revision: state.revision,
+						});
+					}
 					onRefresh();
 					toast.success(`Moved ${todoCards.length} task${todoCards.length === 1 ? "" : "s"} to Ready for Dev`);
 				} catch {
@@ -164,6 +162,7 @@ export function KanbanBoard({ state, onRefresh }: KanbanBoardProps) {
 					card={detailCard}
 					workspaceId={state.workspaceId}
 					session={state.sessions[detailCard.id]}
+					allCards={state.board.cards}
 					onClose={() => setDetailCardId(null)}
 					onRefresh={onRefresh}
 				/>
@@ -184,6 +183,7 @@ function CreateCardContent({
 	const [title, setTitle] = useState("");
 	const [description, setDescription] = useState("");
 	const [agentId, setAgentId] = useState<"claude" | "codex">("claude");
+	const [priority, setPriority] = useState<string>("");
 	const [baseRef, setBaseRef] = useState<string>("");
 	const [branches, setBranches] = useState<string[]>([]);
 	const [loading, setLoading] = useState(false);
@@ -202,7 +202,14 @@ function CreateCardContent({
 		if (!title.trim()) return;
 		setLoading(true);
 		try {
-			await trpc.cards.create.mutate({ workspaceId, title: title.trim(), description, agentId, baseRef: baseRef || undefined });
+			await trpc.cards.create.mutate({
+				workspaceId,
+				title: title.trim(),
+				description,
+				agentId,
+				priority: priority as "urgent" | "high" | "medium" | "low" | undefined || undefined,
+				baseRef: baseRef || undefined,
+			});
 			dismiss();
 			onRefresh();
 		} catch {
@@ -253,6 +260,15 @@ function CreateCardContent({
 						</Select>
 					</div>
 				</div>
+				<div>
+					<label className="text-xs text-gray-400 block mb-1">Priority</label>
+					<Select value={priority} onChange={(v) => setPriority(v as string)} placeholder="No priority" clearable>
+						<SelectOption value="urgent" label="Urgent" />
+						<SelectOption value="high" label="High" />
+						<SelectOption value="medium" label="Medium" />
+						<SelectOption value="low" label="Low" />
+					</Select>
+				</div>
 			</div>
 
 			<div className="flex gap-2 mt-5 justify-end">
@@ -278,13 +294,21 @@ function EditCardContent({
 }) {
 	const [title, setTitle] = useState(card.title);
 	const [description, setDescription] = useState(card.description);
+	const [priority, setPriority] = useState<string>(card.priority ?? "");
 	const [loading, setLoading] = useState(false);
 
 	const handleSave = async () => {
 		if (!title.trim()) return;
 		setLoading(true);
 		try {
-			await trpc.cards.update.mutate({ workspaceId, cardId: card.id, title: title.trim(), description, revision: 0 });
+			await trpc.cards.update.mutate({
+				workspaceId,
+				cardId: card.id,
+				title: title.trim(),
+				description,
+				priority: priority as "urgent" | "high" | "medium" | "low" | undefined || undefined,
+				revision: 0,
+			});
 			dismiss();
 			onRefresh();
 		} catch {
@@ -315,6 +339,15 @@ function EditCardContent({
 						onChange={(e) => setDescription(e.target.value)}
 						rows={4}
 					/>
+				</div>
+				<div>
+					<label className="text-xs text-gray-400 block mb-1">Priority</label>
+					<Select value={priority} onChange={(v) => setPriority(v as string)} placeholder="No priority" clearable>
+						<SelectOption value="urgent" label="Urgent" />
+						<SelectOption value="high" label="High" />
+						<SelectOption value="medium" label="Medium" />
+						<SelectOption value="low" label="Low" />
+					</Select>
 				</div>
 			</div>
 

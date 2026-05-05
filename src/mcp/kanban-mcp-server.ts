@@ -50,7 +50,7 @@ server.registerTool(
 		);
 		const board = state.board as {
 			columns: Array<{ id: string; title: string; taskIds: string[] }>;
-			cards: Record<string, { id: string; title: string; description: string; columnId: string }>;
+			cards: Record<string, { id: string; title: string; description: string; columnId: string; priority?: string; dependsOn?: string[] }>;
 		};
 
 		const lines: string[] = [];
@@ -59,7 +59,10 @@ server.registerTool(
 			lines.push(`## ${col.title}`);
 			for (const id of col.taskIds) {
 				const card = board.cards[id];
-				if (card) lines.push(`- [${id}] ${card.title}`);
+				if (!card) continue;
+				const priorityTag = card.priority ? ` [${card.priority}]` : "";
+				const depsTag = card.dependsOn && card.dependsOn.length > 0 ? ` (depends on: ${card.dependsOn.join(", ")})` : "";
+				lines.push(`- [${id}] ${card.title}${priorityTag}${depsTag}`);
 			}
 		}
 
@@ -74,17 +77,27 @@ server.registerTool(
 		inputSchema: {
 			title: z.string().describe("Short task title"),
 			description: z.string().describe("Full task description including acceptance criteria"),
+			priority: z
+				.enum(["urgent", "high", "medium", "low"])
+				.optional()
+				.describe("Task priority — urgent cards are dispatched first in autonomous mode"),
 			columnId: z
 				.enum(["todo", "ready_for_dev", "blocked"])
 				.optional()
 				.describe("Starting column — defaults to 'todo'"),
+			dependsOn: z
+				.array(z.string())
+				.optional()
+				.describe("Card IDs this task depends on — it cannot start until all deps are in ready_for_review or done"),
 		},
 	},
-	async ({ title, description, columnId }) => {
+	async ({ title, description, priority, columnId, dependsOn }) => {
 		const card = await trpc<{ id: string; title: string; columnId: string }>("cards.create", {
 			workspaceId,
 			title,
 			description,
+			priority,
+			dependsOn,
 			columnId: columnId ?? "todo",
 		});
 		return {
@@ -113,15 +126,23 @@ server.registerTool(
 server.registerTool(
 	"kanban_update_card",
 	{
-		description: "Update a card's title or description.",
+		description: "Update a card's title, description, priority, or dependencies.",
 		inputSchema: {
 			cardId: z.string().describe("The card ID"),
 			title: z.string().optional().describe("New title"),
 			description: z.string().optional().describe("New description"),
+			priority: z
+				.enum(["urgent", "high", "medium", "low"])
+				.optional()
+				.describe("New priority level"),
+			dependsOn: z
+				.array(z.string())
+				.optional()
+				.describe("Full replacement list of card IDs this task depends on (pass [] to clear)"),
 		},
 	},
-	async ({ cardId, title, description }) => {
-		await trpc("cards.update", { workspaceId, cardId, title, description, revision: 0 });
+	async ({ cardId, title, description, priority, dependsOn }) => {
+		await trpc("cards.update", { workspaceId, cardId, title, description, priority, dependsOn, revision: 0 });
 		return { content: [{ type: "text", text: `Updated card ${cardId}.` }] };
 	},
 );

@@ -200,9 +200,30 @@ export class BoardPoller {
 			}
 		}
 
+		// Sort by priority (urgent→high→medium→low→none), then stable by column position
+		const PRIORITY_ORDER: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
+		pendingCards.sort((a, b) => {
+			const pa = a.priority ? (PRIORITY_ORDER[a.priority] ?? 4) : 4;
+			const pb = b.priority ? (PRIORITY_ORDER[b.priority] ?? 4) : 4;
+			return pa - pb;
+		});
+
+		// Track in-flight count locally so the check stays accurate as we dispatch
+		// within the same poll cycle (the board snapshot is stale after each startTask).
+		let inFlightCount =
+			(board.columns.find((c) => c.id === "in_progress")?.taskIds.length ?? 0) +
+			(board.columns.find((c) => c.id === "in_review")?.taskIds.length ?? 0);
+
 		for (const card of pendingCards) {
-			if (!scheduler.canAcceptTask()) break;
-			console.log(`[poller] Dispatching card "${card.title}" from ${card.columnId}`);
+			if (!scheduler.canAcceptTask(inFlightCount)) break;
+			// Skip cards whose dependencies are not yet in ready_for_review or done
+			const unmetDep = (card.dependsOn ?? []).find((depId) => {
+				const dep = board.cards[depId];
+				return !dep || (dep.columnId !== "ready_for_review" && dep.columnId !== "done");
+			});
+			if (unmetDep) continue;
+			console.log(`[poller] Dispatching card "${card.title}" from ${card.columnId} (in-flight: ${inFlightCount}/${scheduler.maxParallelTasks})`);
+			inFlightCount++;
 			await scheduler.startTask(card);
 		}
 

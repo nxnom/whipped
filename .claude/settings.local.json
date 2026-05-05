@@ -37,7 +37,8 @@
       "Bash(python3 -m json.tool)",
       "Bash(python3 *)",
       "Bash(pnpm web:dev)",
-      "Bash(pnpm --filter web-ui typecheck)"
+      "Bash(pnpm --filter web-ui typecheck)",
+      "Bash(pnpm -w typecheck)"
     ]
   }
 }

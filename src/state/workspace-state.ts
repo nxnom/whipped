@@ -261,7 +261,8 @@ export async function moveCard(
 	const board = await loadBoard(workspaceId);
 	const card = board.cards[cardId];
 	if (!card) {
-		throw new Error(`Card not found: ${cardId}`);
+		// Card was deleted before the move arrived — silently ignore
+		return board;
 	}
 
 	// Remove from current column
@@ -292,7 +293,7 @@ export async function moveCard(
 export async function createCard(
 	workspaceId: string,
 	data: Pick<RuntimeBoardCard, "title" | "description"> &
-		Partial<Pick<RuntimeBoardCard, "agentId" | "columnId" | "githubIssueUrl" | "jiraKey" | "jiraUrl">>,
+		Partial<Pick<RuntimeBoardCard, "agentId" | "priority" | "dependsOn" | "columnId" | "githubIssueUrl" | "jiraKey" | "jiraUrl">>,
 	baseRef: string,
 ): Promise<RuntimeBoardCard> {
 	const board = await loadBoard(workspaceId);
@@ -305,6 +306,8 @@ export async function createCard(
 		description: data.description,
 		columnId: data.columnId ?? "todo",
 		agentId: data.agentId,
+		priority: data.priority,
+		dependsOn: data.dependsOn ?? [],
 		autoFixAttempts: 0,
 		baseRef,
 		createdAt: now,
@@ -378,7 +381,8 @@ export async function updateCard(
 	const board = await loadBoard(workspaceId);
 	const card = board.cards[cardId];
 	if (!card) {
-		throw new Error(`Card not found: ${cardId}`);
+		// Card was deleted before the update arrived — silently ignore
+		return null as unknown as RuntimeBoardCard;
 	}
 
 	const updated: RuntimeBoardCard = { ...card, ...update, updatedAt: Date.now() };

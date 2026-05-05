@@ -58,6 +58,11 @@ export const runtimeTerminalSessionEntrySchema = z.object({
 });
 export type RuntimeTerminalSessionEntry = z.infer<typeof runtimeTerminalSessionEntrySchema>;
 
+// ─── Priority ─────────────────────────────────────────────────────────────────
+
+export const runtimeCardPrioritySchema = z.enum(["urgent", "high", "medium", "low"]);
+export type RuntimeCardPriority = z.infer<typeof runtimeCardPrioritySchema>;
+
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
 export const runtimeBoardCardSchema = z.object({
@@ -66,6 +71,8 @@ export const runtimeBoardCardSchema = z.object({
 	description: z.string(),
 	columnId: runtimeBoardColumnIdSchema,
 	agentId: runtimeAgentIdSchema.optional(),
+	priority: runtimeCardPrioritySchema.optional(),
+	dependsOn: z.array(z.string()).default([]),
 	autoFixAttempts: z.number().int().nonnegative().default(0),
 	baseRef: z.string(),
 	createdAt: z.number(),
@@ -202,6 +209,8 @@ export const runtimeCardCreateRequestSchema = z.object({
 	title: z.string().min(1),
 	description: z.string(),
 	agentId: runtimeAgentIdSchema.optional(),
+	priority: runtimeCardPrioritySchema.optional(),
+	dependsOn: z.array(z.string()).optional(),
 	columnId: runtimeBoardColumnIdSchema.optional(),
 	baseRef: z.string().optional(),
 	githubIssueUrl: z.string().optional(),
@@ -223,6 +232,8 @@ export const runtimeCardUpdateRequestSchema = z.object({
 	title: z.string().min(1).optional(),
 	description: z.string().optional(),
 	agentId: runtimeAgentIdSchema.optional(),
+	priority: runtimeCardPrioritySchema.optional(),
+	dependsOn: z.array(z.string()).optional(),
 	revision: z.number(),
 });
 export type RuntimeCardUpdateRequest = z.infer<typeof runtimeCardUpdateRequestSchema>;

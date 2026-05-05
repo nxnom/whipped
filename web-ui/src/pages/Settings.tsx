@@ -197,6 +197,25 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 								onChange={(v) => setConfig({ ...config, autoPR: v })}
 							/>
 						</div>
+
+						<div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl p-4">
+							<div>
+								<p className="text-sm font-medium text-gray-100">Max parallel tasks</p>
+								<p className="text-xs text-gray-500 mt-0.5">
+									Max tasks in <span className="text-blue-400">In Progress</span> + <span className="text-purple-400">In Review</span> at once. Overrides the global default.
+								</p>
+							</div>
+							<Input
+								type="number"
+								inputClassName="w-16 text-center"
+								value={config.maxParallelTasks != null ? String(config.maxParallelTasks) : ""}
+								onChange={(e) => {
+									const v = e.target.value;
+									setConfig({ ...config, maxParallelTasks: v ? Math.max(1, Number(v)) : undefined });
+								}}
+								placeholder="Global"
+							/>
+						</div>
 					</div>
 					<SaveRow saving={saving} onSave={handleSave} />
 				</>
