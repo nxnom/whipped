@@ -36,7 +36,7 @@ export function KanbanColumn({ column, cards, sessions, onCardClick }: KanbanCol
 	const headerColor = COLUMN_HEADER_COLORS[column.id] ?? "text-gray-400";
 
 	return (
-		<div className={`flex flex-col w-72 shrink-0 bg-gray-900 border rounded-xl ${borderColor}`}>
+		<div className={`flex flex-col w-72 shrink-0 bg-gray-900 border rounded-xl overflow-hidden ${borderColor}`}>
 			<div className="px-3 py-2.5 border-b border-gray-800">
 				<div className="flex items-center justify-between">
 					<h3 className={`text-sm font-semibold ${headerColor}`}>{column.title}</h3>
@@ -50,7 +50,7 @@ export function KanbanColumn({ column, cards, sessions, onCardClick }: KanbanCol
 						ref={provided.innerRef}
 						{...provided.droppableProps}
 						className={`
-							flex-1 p-2 flex flex-col gap-2 min-h-20 transition-colors
+							flex-1 p-2 flex flex-col gap-2 min-h-20 overflow-y-auto transition-colors
 							${snapshot.isDraggingOver ? "bg-gray-800/50" : ""}
 						`}
 					>
