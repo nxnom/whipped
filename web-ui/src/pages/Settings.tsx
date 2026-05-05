@@ -166,23 +166,39 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 			{section === "autonomous" && (
 				<>
 					<SectionHeader
-						title="Autonomous Mode"
-						description="When enabled, agents automatically pick up tasks from Ready for Dev and Reopened columns without manual intervention."
+						title="Automation"
+						description="Configure automatic behaviors for this project."
 					/>
-					<div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl p-4">
-						<div>
-							<p className="text-sm font-medium text-gray-100">Enable autonomous mode</p>
-							<p className="text-xs text-gray-500 mt-0.5">
-								Picks up <span className="text-emerald-400">Ready for Dev</span> and{" "}
-								<span className="text-orange-400">Reopened</span> tasks automatically
-							</p>
+					<div className="space-y-3">
+						<div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl p-4">
+							<div>
+								<p className="text-sm font-medium text-gray-100">Autonomous mode</p>
+								<p className="text-xs text-gray-500 mt-0.5">
+									Picks up <span className="text-emerald-400">Ready for Dev</span> and{" "}
+									<span className="text-orange-400">Reopened</span> tasks automatically
+								</p>
+							</div>
+							<Switch
+								checked={config.autonomousModeEnabled}
+								onChange={handleToggleAutonomous}
+								disabled={togglingAutonomous}
+							/>
 						</div>
-						<Switch
-							checked={config.autonomousModeEnabled}
-							onChange={handleToggleAutonomous}
-							disabled={togglingAutonomous}
-						/>
+
+						<div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl p-4">
+							<div>
+								<p className="text-sm font-medium text-gray-100">Auto PR</p>
+								<p className="text-xs text-gray-500 mt-0.5">
+									Automatically push branch and open a <span className="text-green-400">Pull Request</span> when all reviews pass
+								</p>
+							</div>
+							<Switch
+								checked={config.autoPR ?? false}
+								onChange={(v) => setConfig({ ...config, autoPR: v })}
+							/>
+						</div>
 					</div>
+					<SaveRow saving={saving} onSave={handleSave} />
 				</>
 			)}
 

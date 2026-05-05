@@ -463,16 +463,27 @@ export function CardDetailPanel({ card, workspaceId, session, onClose, onRefresh
 									{merging ? "Merging..." : `→ ${card.baseRef}`}
 								</Button>
 							</Tooltip>
-							<Tooltip
-								content={card.githubPrUrl ? "PR already created" : `Push & open a PR against ${card.baseRef}`}
-								side="top"
-								triggerAsChild
-							>
-								<Button size="sm" onClick={handleCommitAndPR} disabled={merging || creatingPR || !!card.githubPrUrl}>
-									<GitPullRequest size={12} className="mr-1" />
-									{creatingPR ? "Creating..." : card.githubPrUrl ? "PR ✓" : "PR"}
-								</Button>
-							</Tooltip>
+							{card.githubPrUrl ? (
+								<Tooltip content="Open Pull Request" side="top" triggerAsChild>
+									<a
+										href={card.githubPrUrl}
+										target="_blank"
+										rel="noreferrer"
+										className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md bg-green-500/15 text-green-400 border border-green-500/30 hover:bg-green-500/25 hover:border-green-500/50 transition-colors"
+									>
+										<GitPullRequest size={12} />
+										View PR
+										<ExternalLink size={10} />
+									</a>
+								</Tooltip>
+							) : (
+								<Tooltip content={`Push & open a PR against ${card.baseRef}`} side="top" triggerAsChild>
+									<Button size="sm" onClick={handleCommitAndPR} disabled={merging || creatingPR}>
+										<GitPullRequest size={12} className="mr-1" />
+										{creatingPR ? "Creating..." : "PR"}
+									</Button>
+								</Tooltip>
+							)}
 						</div>
 					) : isRunning ? (
 						<Tooltip content="Interrupt the running agent" side="top" triggerAsChild>

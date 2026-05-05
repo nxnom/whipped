@@ -86,6 +86,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 					githubClient: latestGithubClient,
 					codeReviewPrompt: latestProjectConfig.codeReviewPrompt,
 					qaPrompt: latestProjectConfig.qaPrompt,
+					autoPR: latestProjectConfig.autoPR ?? false,
 					registerStopCallback: scheduler.registerStopCallback.bind(scheduler),
 					registerLiveProcess: scheduler.registerLiveProcess.bind(scheduler),
 				});

@@ -167,6 +167,7 @@ export const runtimeProjectConfigSchema = z.object({
 	defaultAgent: runtimeAgentIdSchema.optional(),
 	maxParallelTasks: z.number().int().positive().optional(),
 	autonomousModeEnabled: z.boolean().default(false),
+	autoPR: z.boolean().default(false),
 	github: runtimeGithubConfigSchema.optional(),
 	jira: runtimeJiraConfigSchema.optional(),
 	devPrompt: z.string().optional(),

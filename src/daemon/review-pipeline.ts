@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { commitIfDirty, createGithubPR, pushBranch } from "../git/merge-operations.js";
 import { CLAUDE_REVIEW_MCP_CONFIG_PATH, CLAUDE_TASK_SETTINGS_PATH, buildTaskHookEnv, writeClaudeReviewMcpConfig } from "../agents/agent-hooks.js";
 import { spawnAgent } from "../agents/agent-runner.js";
 import type { AgentProcess } from "../agents/agent-runner.js";
@@ -8,7 +9,7 @@ import type { RuntimeAgentId, RuntimeBoardCard, RuntimeReviewComment } from "../
 import type { GithubClient } from "../github/github-client.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { appendActivityLog, appendTerminalSession, loadBoard, moveCard, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
-import { getWorktreePath } from "../worktree/worktree-manager.js";
+import { getWorktreeBranch, getWorktreePath } from "../worktree/worktree-manager.js";
 
 interface ReviewPipelineOptions {
 	workspaceId: string;
@@ -23,6 +24,7 @@ interface ReviewPipelineOptions {
 	githubClient?: GithubClient;
 	codeReviewPrompt?: string;
 	qaPrompt?: string;
+	autoPR: boolean;
 	registerStopCallback: (streamId: string, callback: () => void) => (() => void);
 	registerLiveProcess: (streamId: string, process: AgentProcess) => (() => void);
 }
@@ -252,7 +254,7 @@ async function handleReviewFailure(
 }
 
 async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipelineOptions): Promise<void> {
-	const { workspaceId, githubClient, stateHub } = options;
+	const { workspaceId, githubClient, stateHub, autoPR } = options;
 
 	console.log(`[review] Review passed for "${card.title}" → ready for human review`);
 
@@ -271,6 +273,23 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 	await appendActivityLog(workspaceId, card.id, "All reviews passed → moved to Ready for Review");
 	await updateSession(workspaceId, card.id, { state: "awaiting_review", completedAt: Date.now() });
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
+
+	if (autoPR && !card.githubPrUrl) {
+		const worktreePath = getWorktreePath(card.id);
+		const taskBranch = getWorktreeBranch(card.id);
+		try {
+			commitIfDirty(worktreePath, card.title);
+			pushBranch(worktreePath, taskBranch);
+			const devSummary = [...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev")?.content
+				?? card.description;
+			const prUrl = createGithubPR(worktreePath, card.title, devSummary, card.baseRef);
+			await updateCard(workspaceId, card.id, { githubPrUrl: prUrl });
+			await appendActivityLog(workspaceId, card.id, `Auto PR created → ${prUrl}`);
+		} catch (err) {
+			await appendActivityLog(workspaceId, card.id, `Auto PR failed: ${String(err)}`);
+		}
+		stateHub.broadcastWorkspaceUpdate(workspaceId);
+	}
 }
 
 function runAgentOnce(
