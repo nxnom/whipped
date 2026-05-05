@@ -288,20 +288,24 @@ export class TaskScheduler {
 		return this.recentBuffers.get(streamId) ?? "";
 	}
 
-	resizeTerminal(taskId: string, cols: number, rows: number): void {
-		const proc =
-			this.running.get(taskId)?.process ??
-			this.homeSessions.get(taskId)?.process ??
-			this.liveProcesses.get(taskId);
+	resizeTerminal(streamId: string, cols: number, rows: number): void {
+		const proc = this.findProcess(streamId);
 		proc?.resize(cols, rows);
 	}
 
-	writeToTerminal(taskId: string, data: string): void {
-		const proc =
-			this.running.get(taskId)?.process ??
-			this.homeSessions.get(taskId)?.process ??
-			this.liveProcesses.get(taskId);
+	writeToTerminal(streamId: string, data: string): void {
+		const proc = this.findProcess(streamId);
 		proc?.write(data);
+	}
+
+	private findProcess(streamId: string): AgentProcess | undefined {
+		// running is keyed by card ID but dev terminals connect by streamId — search both ways
+		const byCardId = this.running.get(streamId)?.process;
+		if (byCardId) return byCardId;
+		for (const task of this.running.values()) {
+			if (task.streamId === streamId) return task.process;
+		}
+		return this.homeSessions.get(streamId)?.process ?? this.liveProcesses.get(streamId);
 	}
 
 	async handleHookEvent(event: "stop" | "user_prompt", taskId: string): Promise<void> {
