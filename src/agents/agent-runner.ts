@@ -59,13 +59,13 @@ export function spawnAgent(options: AgentRunOptions): AgentProcess {
 
 	return {
 		kill() {
-			treeKill(pty.pid);
+			try { treeKill(pty.pid); } catch { /* process may already be gone */ }
 		},
 		resize(cols, rows) {
-			pty.resize(cols, rows);
+			try { pty.resize(cols, rows); } catch { /* PTY may already be closed */ }
 		},
 		write(data) {
-			pty.write(data);
+			try { pty.write(data); } catch { /* PTY may already be closed */ }
 		},
 	};
 }

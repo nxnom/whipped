@@ -7,6 +7,14 @@ import { DEFAULT_PORT } from "./config/runtime-config.js";
 import { installGracefulShutdownHandlers } from "./core/graceful-shutdown.js";
 import { createRuntimeServer } from "./server/runtime-server.js";
 
+// Ignore SIGPIPE so a closed pipe/socket doesn't crash the process
+process.on("SIGPIPE", () => {});
+// Swallow EPIPE errors from broken HTTP/WS connections
+process.on("uncaughtException", (err: NodeJS.ErrnoException) => {
+	if (err.code === "EPIPE" || err.code === "ECONNRESET") return;
+	throw err;
+});
+
 const VERSION = "0.1.0";
 
 function hasGitRepository(path: string): boolean {
