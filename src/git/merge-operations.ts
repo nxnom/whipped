@@ -90,9 +90,14 @@ export interface PRInfo {
 	reviews: GithubComment[];
 }
 
+function parsePRUrl(prUrl: string): { owner: string; repo: string; number: string } | null {
+	const match = prUrl.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
+	if (!match) return null;
+	return { owner: match[1], repo: match[2], number: match[3] };
+}
+
 export function fetchPRInfo(prUrl: string): PRInfo | null {
-	// latestReviews = most recent review per reviewer (reliably populated, unlike `reviews`)
-	const r = spawnSync("gh", ["pr", "view", prUrl, "--json", "state,mergeable,author,comments,latestReviews"], {
+	const r = spawnSync("gh", ["pr", "view", prUrl, "--json", "state,mergeable,reviewDecision,author,comments,latestReviews"], {
 		encoding: "utf-8",
 		stdio: ["ignore", "pipe", "pipe"],
 	});
@@ -104,16 +109,48 @@ export function fetchPRInfo(prUrl: string): PRInfo | null {
 		const raw = JSON.parse(r.stdout) as {
 			state: PRInfo["state"];
 			mergeable: PRInfo["mergeable"];
+			reviewDecision: string | null;
 			author: { login: string };
 			comments: Array<{ id: string; author: { login: string }; body: string; createdAt: string }>;
 			latestReviews: Array<{ id: string; author: { login: string }; body: string; submittedAt: string; state: string }>;
 		};
 
-		const reviewDecision: PRInfo["reviewDecision"] = raw.latestReviews.some((rv) => rv.state === "CHANGES_REQUESTED")
-			? "CHANGES_REQUESTED"
-			: raw.latestReviews.some((rv) => rv.state === "APPROVED")
-				? "APPROVED"
-				: null;
+		const reviewDecision: PRInfo["reviewDecision"] =
+			raw.reviewDecision === "CHANGES_REQUESTED" ? "CHANGES_REQUESTED"
+			: raw.reviewDecision === "APPROVED" ? "APPROVED"
+			: null;
+
+		// Fetch inline review comments via REST — not available in gh pr view fields
+		const inlineComments: GithubComment[] = [];
+		const parsed = parsePRUrl(prUrl);
+		if (parsed) {
+			const rc = spawnSync(
+				"gh", ["api", `repos/${parsed.owner}/${parsed.repo}/pulls/${parsed.number}/comments`, "--paginate"],
+				{ encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] },
+			);
+			if (rc.status === 0) {
+				try {
+					const items = JSON.parse(rc.stdout) as Array<{
+						id: number;
+						user: { login: string };
+						body: string;
+						created_at: string;
+						path: string;
+						line: number | null;
+					}>;
+					for (const item of items) {
+						if (item.body?.trim()) {
+							inlineComments.push({
+								id: `inline-${item.id}`,
+								author: item.user?.login ?? "unknown",
+								body: `**${item.path}${item.line ? `:${item.line}` : ""}**\n${item.body}`,
+								createdAt: item.created_at,
+							});
+						}
+					}
+				} catch {}
+			}
+		}
 
 		return {
 			state: raw.state,
@@ -128,14 +165,17 @@ export function fetchPRInfo(prUrl: string): PRInfo | null {
 					body: c.body,
 					createdAt: c.createdAt,
 				})),
-			reviews: raw.latestReviews
-				.filter((rv) => rv.body?.trim())
-				.map((rv) => ({
-					id: `review-${rv.id}`,
-					author: rv.author?.login ?? "unknown",
-					body: rv.body,
-					createdAt: rv.submittedAt,
-				})),
+			reviews: [
+				...raw.latestReviews
+					.filter((rv) => rv.body?.trim())
+					.map((rv) => ({
+						id: `review-${rv.id}`,
+						author: rv.author?.login ?? "unknown",
+						body: rv.body,
+						createdAt: rv.submittedAt,
+					})),
+				...inlineComments,
+			],
 		};
 	} catch {
 		return null;

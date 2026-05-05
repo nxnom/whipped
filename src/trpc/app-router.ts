@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getAvailableAgents } from "../agents/agent-registry.js";
@@ -186,6 +187,9 @@ export const appRouter = router({
 				}
 
 				if (mergeResult.ok) {
+					if (card.githubPrUrl) {
+						spawnSync("gh", ["pr", "close", card.githubPrUrl, "--comment", "Merged locally"], { stdio: "ignore" });
+					}
 					await moveCard(workspaceId, cardId, "done");
 					await appendActivityLog(workspaceId, cardId, `Merged into ${card.baseRef} → Done`);
 					ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
@@ -205,6 +209,9 @@ export const appRouter = router({
 				await scheduler.startConflictResolution(card, ws.repoPath, mergeResult.conflictedFiles, async (success) => {
 					if (success) {
 						finalizeMerge(ws.repoPath, taskBranch);
+						if (card.githubPrUrl) {
+							spawnSync("gh", ["pr", "close", card.githubPrUrl, "--comment", "Merged locally"], { stdio: "ignore" });
+						}
 						await moveCard(workspaceId, cardId, "done");
 						await appendActivityLog(workspaceId, cardId, `Conflicts resolved → merged into ${card.baseRef} → Done`);
 					} else {

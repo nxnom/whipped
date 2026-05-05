@@ -454,9 +454,6 @@ function buildCodeReviewPrompt(card: RuntimeBoardCard, diff: string): string {
 Task description:
 ${card.description}${priorContext}
 
-Project-specific notes:
-- If there is a new PlayerInputType, make sure it's properly handled in the input parser and the UI.
-
 Git diff:
 \`\`\`diff
 ${diff}

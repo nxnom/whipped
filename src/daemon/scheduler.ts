@@ -1,3 +1,5 @@
+import { spawnSync } from "node:child_process";
+import { commitIfDirty } from "../git/merge-operations.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgentProcess } from "../agents/agent-runner.js";
@@ -7,7 +9,7 @@ import { CLAUDE_HOME_MCP_CONFIG_PATH, CLAUDE_REVIEW_MCP_CONFIG_PATH, CLAUDE_TASK
 import type { RuntimeAgentId, RuntimeBoardCard } from "../core/api-contract.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { appendActivityLog, appendTerminalSession, loadBoard, loadProjectConfig, moveCard, removeSession, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
-import { createWorktree, getWorktreePath, removeWorktree } from "../worktree/worktree-manager.js";
+import { createWorktree, getWorktreeBranch, getWorktreePath, removeWorktree } from "../worktree/worktree-manager.js";
 
 export interface SchedulerOptions {
 	workspaceId: string;
@@ -335,6 +337,17 @@ export class TaskScheduler {
 				this.running.delete(taskId);
 			}
 
+			if (card.githubPrUrl) {
+				const worktreePath = getWorktreePath(taskId);
+				const taskBranch = getWorktreeBranch(taskId);
+				commitIfDirty(worktreePath, card.title);
+				const pushResult = spawnSync("git", ["push", "origin", taskBranch], { cwd: worktreePath, encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] });
+				if (pushResult.status === 0) {
+					await appendActivityLog(workspaceId, taskId, `Pushed to PR`);
+				} else {
+					await appendActivityLog(workspaceId, taskId, `Push failed: ${pushResult.stderr?.trim()}`);
+				}
+			}
 			await moveCard(workspaceId, taskId, "in_review");
 			await appendActivityLog(workspaceId, taskId, "Agent finished → moved to In Review");
 			await updateSession(workspaceId, taskId, { state: "awaiting_review" });
