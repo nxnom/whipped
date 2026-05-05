@@ -6,21 +6,62 @@ import { appendActivityLog, loadWorkspaceState, moveCard, updateCard, updateSess
 import { removeWorktree } from "../worktree/worktree-manager.js";
 import type { TaskScheduler } from "./scheduler.js";
 
-function cleanupAfterMerge(taskId: string, repoPath: string, baseRef: string): void {
+function git(args: string[], cwd: string): string {
+	const r = spawnSync("git", args, { cwd, encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] });
+	return r.stdout?.trim() ?? "";
+}
+
+function cleanupWorktree(taskId: string, repoPath: string): void {
 	try {
 		removeWorktree(taskId, repoPath);
 	} catch {
 		// best-effort
 	}
+}
+
+async function syncMainRepoAfterPRMerge(
+	repoPath: string,
+	baseRef: string,
+	card: RuntimeBoardCard,
+	workspaceId: string,
+	scheduler: TaskScheduler,
+	stateHub: RuntimeStateHub,
+): Promise<void> {
 	try {
 		spawnSync("git", ["fetch", "origin", baseRef], { cwd: repoPath, stdio: "ignore" });
+
+		const currentBranch = git(["rev-parse", "--abbrev-ref", "HEAD"], repoPath);
+		if (currentBranch !== baseRef) return;
+
+		// Always attempt a real merge — handles both fast-forward and diverged cases
+		const mergeResult = spawnSync("git", ["merge", `origin/${baseRef}`, "--no-ff", "--no-edit"], {
+			cwd: repoPath,
+			encoding: "utf-8",
+			stdio: ["ignore", "pipe", "pipe"],
+		});
+		if (mergeResult.status === 0) return;
+
+		// Conflicts — spawn resolution agent in the main repo
+		const conflictsOut = spawnSync("git", ["diff", "--name-only", "--diff-filter=U"], {
+			cwd: repoPath,
+			encoding: "utf-8",
+			stdio: ["ignore", "pipe", "pipe"],
+		});
+		const conflictedFiles = conflictsOut.stdout.trim().split("\n").filter(Boolean);
+
+		await scheduler.startConflictResolution(card, repoPath, conflictedFiles, async (success) => {
+			if (!success) spawnSync("git", ["merge", "--abort"], { cwd: repoPath, stdio: "ignore" });
+			stateHub.broadcastWorkspaceUpdate(workspaceId);
+		});
 	} catch {
 		// best-effort
 	}
 }
 
 const DEPLOYMENT_BOTS = new Set([
+	"vercel",
 	"vercel[bot]",
+	"netlify",
 	"netlify[bot]",
 	"railway[bot]",
 	"render[bot]",
@@ -119,7 +160,7 @@ export class BoardPoller {
 	}
 
 	async pollPRs(): Promise<void> {
-		const { workspaceId, repoPath, stateHub } = this.options;
+		const { workspaceId, repoPath, stateHub, scheduler } = this.options;
 
 		const state = await loadWorkspaceState(workspaceId, repoPath);
 		const rfr = state.board.columns.find((c) => c.id === "ready_for_review");
@@ -135,14 +176,25 @@ export class BoardPoller {
 			if (!info) continue;
 
 			const seenIds = new Set(card.githubCommentIds ?? []);
-			const allEntries = [...info.comments, ...info.reviews].filter((e) => !DEPLOYMENT_BOTS.has(e.author));
-			const newEntries = allEntries.filter((e) => !seenIds.has(e.id));
+			const allEntries = [...info.comments, ...info.reviews];
+			const botEntries = allEntries.filter((e) => DEPLOYMENT_BOTS.has(e.author));
+			const humanEntries = allEntries.filter((e) => !DEPLOYMENT_BOTS.has(e.author));
+
+			// Mark bot IDs as seen so we never reprocess them
+			const newBotIds = botEntries.filter((e) => !seenIds.has(e.id)).map((e) => e.id);
+			if (newBotIds.length > 0) newBotIds.forEach((id) => seenIds.add(id));
+
+			const newEntries = humanEntries.filter((e) => !seenIds.has(e.id));
 
 			let updated = false;
 
-			if (newEntries.length > 0) {
+			// Strip any bot comments that snuck in before the filter was added
+			const cleanedComments = (card.reviewComments ?? []).filter((c) => !DEPLOYMENT_BOTS.has(c.agent));
+			const hadBotComments = cleanedComments.length !== (card.reviewComments ?? []).length;
+
+			if (newEntries.length > 0 || hadBotComments || newBotIds.length > 0) {
 				const newComments = [
-					...(card.reviewComments ?? []),
+					...cleanedComments,
 					...newEntries.map((e) => ({
 						type: "human" as const,
 						agent: e.author,
@@ -152,7 +204,7 @@ export class BoardPoller {
 				];
 				const newIds = [...seenIds, ...newEntries.map((e) => e.id)];
 				await updateCard(workspaceId, taskId, { reviewComments: newComments, githubCommentIds: newIds });
-				await appendActivityLog(workspaceId, taskId, `${newEntries.length} new comment(s) imported from GitHub PR`);
+				if (newEntries.length > 0) await appendActivityLog(workspaceId, taskId, `${newEntries.length} new comment(s) imported from GitHub PR`);
 				updated = true;
 			}
 
@@ -163,7 +215,8 @@ export class BoardPoller {
 				await moveCard(workspaceId, taskId, "done");
 				await updateSession(workspaceId, taskId, { state: "idle" });
 				await appendActivityLog(workspaceId, taskId, "PR merged on GitHub → Done");
-				cleanupAfterMerge(taskId, repoPath, card.baseRef);
+				cleanupWorktree(taskId, repoPath);
+				void syncMainRepoAfterPRMerge(repoPath, card.baseRef, card, workspaceId, scheduler, stateHub);
 				updated = true;
 			} else if (info.state === "CLOSED") {
 				await moveCard(workspaceId, taskId, "blocked");

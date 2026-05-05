@@ -21,53 +21,38 @@ export function commitIfDirty(worktreePath: string, message: string): boolean {
 export interface MergeResult {
 	ok: boolean;
 	conflictedFiles: string[];
-	mergeWorktreePath: string;
 }
 
-export function getMergeWorktreePath(taskId: string): string {
-	return join(WORKTREES_DIR, `${taskId}-merge`);
-}
+export function attemptMerge(repoPath: string, taskId: string, taskBranch: string): MergeResult {
+	const worktreePath = join(WORKTREES_DIR, taskId);
 
-export function attemptMerge(repoPath: string, taskId: string, taskBranch: string, baseRef: string): MergeResult {
-	const mergeWorktreePath = getMergeWorktreePath(taskId);
-
-	if (existsSync(mergeWorktreePath)) {
-		git(["worktree", "remove", "--force", mergeWorktreePath], repoPath);
+	// Remove the worktree directory but keep the branch so we can merge it
+	if (existsSync(worktreePath)) {
+		git(["worktree", "remove", "--force", worktreePath], repoPath);
 	}
 
-	// Create detached worktree at baseRef — avoids "already checked out" error
-	const addResult = git(["worktree", "add", "--detach", mergeWorktreePath, baseRef], repoPath);
-	if (!addResult.ok) {
-		throw new Error(`Failed to create merge worktree: ${addResult.stderr}`);
-	}
-
+	// Merge directly in the main repo — index and working tree updated naturally
 	const mergeResult = git(
 		["merge", taskBranch, "--no-edit", "--no-ff", "-m", `Merge task: ${taskBranch}`],
-		mergeWorktreePath,
+		repoPath,
 	);
 
 	if (mergeResult.ok) {
-		const head = git(["rev-parse", "HEAD"], mergeWorktreePath);
-		// update-ref works even when the branch is checked out elsewhere
-		git(["update-ref", `refs/heads/${baseRef}`, head.stdout], repoPath);
-		git(["worktree", "remove", "--force", mergeWorktreePath], repoPath);
-		return { ok: true, conflictedFiles: [], mergeWorktreePath: "" };
+		git(["branch", "-D", taskBranch], repoPath);
+		return { ok: true, conflictedFiles: [] };
 	}
 
-	const conflictsResult = git(["diff", "--name-only", "--diff-filter=U"], mergeWorktreePath);
+	const conflictsResult = git(["diff", "--name-only", "--diff-filter=U"], repoPath);
 	const conflictedFiles = conflictsResult.stdout.split("\n").filter(Boolean);
-	return { ok: false, conflictedFiles, mergeWorktreePath };
+	return { ok: false, conflictedFiles };
 }
 
-export function finalizeMerge(repoPath: string, mergeWorktreePath: string, baseRef: string): void {
-	const head = git(["rev-parse", "HEAD"], mergeWorktreePath);
-	git(["update-ref", `refs/heads/${baseRef}`, head.stdout], repoPath);
-	git(["worktree", "remove", "--force", mergeWorktreePath], repoPath);
+export function finalizeMerge(repoPath: string, taskBranch: string): void {
+	git(["branch", "-D", taskBranch], repoPath);
 }
 
-export function abortAndCleanupMerge(repoPath: string, mergeWorktreePath: string): void {
-	git(["merge", "--abort"], mergeWorktreePath);
-	git(["worktree", "remove", "--force", mergeWorktreePath], repoPath);
+export function abortMerge(repoPath: string): void {
+	git(["merge", "--abort"], repoPath);
 }
 
 export function pushBranch(worktreePath: string, branch: string): void {

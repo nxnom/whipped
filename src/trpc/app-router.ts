@@ -2,7 +2,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getAvailableAgents } from "../agents/agent-registry.js";
 import { loadGlobalConfig, saveGlobalConfig, updateGlobalConfig } from "../config/runtime-config.js";
-import { abortAndCleanupMerge, attemptMerge, commitIfDirty, createGithubPR, finalizeMerge, listLocalBranches, pushBranch } from "../git/merge-operations.js";
+import { abortMerge, attemptMerge, commitIfDirty, createGithubPR, finalizeMerge, listLocalBranches, pushBranch } from "../git/merge-operations.js";
 import {
 	type RuntimeGlobalConfig,
 	type RuntimeProjectConfig,
@@ -32,7 +32,7 @@ import {
 	updateCard,
 	updateSession,
 } from "../state/workspace-state.js";
-import { getDefaultBranch, getWorktreeBranch, getWorktreePath, removeWorktree } from "../worktree/worktree-manager.js";
+import { getDefaultBranch, getWorktreeBranch, getWorktreePath } from "../worktree/worktree-manager.js";
 
 export interface AppContext {
 	stateHub: RuntimeStateHub;
@@ -180,38 +180,35 @@ export const appRouter = router({
 
 				let mergeResult;
 				try {
-					mergeResult = attemptMerge(ws.repoPath, cardId, taskBranch, card.baseRef);
+					mergeResult = attemptMerge(ws.repoPath, cardId, taskBranch);
 				} catch (err) {
 					throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: String(err) });
 				}
 
 				if (mergeResult.ok) {
-					removeWorktree(cardId, ws.repoPath);
 					await moveCard(workspaceId, cardId, "done");
 					await appendActivityLog(workspaceId, cardId, `Merged into ${card.baseRef} → Done`);
 					ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 					return { status: "merged" as const };
 				}
 
-				// Conflicts — spawn conflict resolution agent
+				// Conflicts in the main repo — spawn conflict resolution agent
 				await appendActivityLog(workspaceId, cardId, `Merge conflicts in: ${mergeResult.conflictedFiles.join(", ")} — resolving...`);
 				ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 				const scheduler = ctx.getScheduler(workspaceId);
 				if (!scheduler) {
-					abortAndCleanupMerge(ws.repoPath, mergeResult.mergeWorktreePath);
+					abortMerge(ws.repoPath);
 					throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Scheduler not ready" });
 				}
 
-				const { mergeWorktreePath } = mergeResult;
-				await scheduler.startConflictResolution(card, mergeWorktreePath, mergeResult.conflictedFiles, async (success) => {
+				await scheduler.startConflictResolution(card, ws.repoPath, mergeResult.conflictedFiles, async (success) => {
 					if (success) {
-						finalizeMerge(ws.repoPath, mergeWorktreePath, card.baseRef);
-						removeWorktree(cardId, ws.repoPath);
+						finalizeMerge(ws.repoPath, taskBranch);
 						await moveCard(workspaceId, cardId, "done");
 						await appendActivityLog(workspaceId, cardId, `Conflicts resolved → merged into ${card.baseRef} → Done`);
 					} else {
-						abortAndCleanupMerge(ws.repoPath, mergeWorktreePath);
+						abortMerge(ws.repoPath);
 						await moveCard(workspaceId, cardId, "blocked");
 						await appendActivityLog(workspaceId, cardId, "Could not resolve merge conflicts → Blocked");
 						await updateSession(workspaceId, cardId, { state: "idle" });

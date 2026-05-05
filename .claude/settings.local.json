@@ -28,7 +28,12 @@
       "Bash(curl -s \"http://127.0.0.1:3485/api/trpc/workspace.state?input=%7B%22json%22%3A%7B%22workspaceId%22%3A%226f0bd9ff%22%7D%7D\")",
       "Bash(curl -s \"http://127.0.0.1:3485/api/trpc/workspace.state?input=%7B%22workspaceId%22%3A%226f0bd9ff%22%7D\")",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(list\\(d.keys\\(\\)\\)\\)\")",
-      "Bash(python3 -c \"import sys; lines=sys.stdin.readlines\\(\\); [print\\(l.rstrip\\(\\)\\) for l in lines[-3:]]\")"
+      "Bash(python3 -c \"import sys; lines=sys.stdin.readlines\\(\\); [print\\(l.rstrip\\(\\)\\) for l in lines[-3:]]\")",
+      "Bash(git -C /Users/waiyanphyo/Development/game-items-shop status)",
+      "Bash(git -C /Users/waiyanphyo/Development/game-items-shop log --oneline -10)",
+      "Bash(git -C /Users/waiyanphyo/Development/game-items-shop diff HEAD)",
+      "Bash(git -C /Users/waiyanphyo/Development/game-items-shop diff --cached HEAD)",
+      "Bash(git *)"
     ]
   }
 }
