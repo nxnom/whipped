@@ -83,6 +83,7 @@ export interface GithubComment {
 
 export interface PRInfo {
 	state: "OPEN" | "CLOSED" | "MERGED";
+	mergeable: "MERGEABLE" | "CONFLICTING" | "UNKNOWN";
 	reviewDecision: "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | null;
 	author: string;
 	comments: GithubComment[];
@@ -91,7 +92,7 @@ export interface PRInfo {
 
 export function fetchPRInfo(prUrl: string): PRInfo | null {
 	// latestReviews = most recent review per reviewer (reliably populated, unlike `reviews`)
-	const r = spawnSync("gh", ["pr", "view", prUrl, "--json", "state,author,comments,latestReviews"], {
+	const r = spawnSync("gh", ["pr", "view", prUrl, "--json", "state,mergeable,author,comments,latestReviews"], {
 		encoding: "utf-8",
 		stdio: ["ignore", "pipe", "pipe"],
 	});
@@ -102,6 +103,7 @@ export function fetchPRInfo(prUrl: string): PRInfo | null {
 	try {
 		const raw = JSON.parse(r.stdout) as {
 			state: PRInfo["state"];
+			mergeable: PRInfo["mergeable"];
 			author: { login: string };
 			comments: Array<{ id: string; author: { login: string }; body: string; createdAt: string }>;
 			latestReviews: Array<{ id: string; author: { login: string }; body: string; submittedAt: string; state: string }>;
@@ -115,6 +117,7 @@ export function fetchPRInfo(prUrl: string): PRInfo | null {
 
 		return {
 			state: raw.state,
+			mergeable: raw.mergeable ?? "UNKNOWN",
 			author: raw.author?.login ?? "",
 			reviewDecision,
 			comments: raw.comments

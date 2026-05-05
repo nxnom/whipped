@@ -1,9 +1,10 @@
+import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { fetchPRInfo } from "../git/merge-operations.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { appendActivityLog, loadWorkspaceState, moveCard, updateCard, updateSession } from "../state/workspace-state.js";
-import { removeWorktree } from "../worktree/worktree-manager.js";
+import { createWorktree, getWorktreeBranch, getWorktreePath, removeWorktree } from "../worktree/worktree-manager.js";
 import type { TaskScheduler } from "./scheduler.js";
 
 function git(args: string[], cwd: string): string {
@@ -51,6 +52,65 @@ async function syncMainRepoAfterPRMerge(
 
 		await scheduler.startConflictResolution(card, repoPath, conflictedFiles, async (success) => {
 			if (!success) spawnSync("git", ["merge", "--abort"], { cwd: repoPath, stdio: "ignore" });
+			stateHub.broadcastWorkspaceUpdate(workspaceId);
+		});
+	} catch {
+		// best-effort
+	}
+}
+
+async function resolvePRConflicts(
+	repoPath: string,
+	card: RuntimeBoardCard,
+	workspaceId: string,
+	scheduler: TaskScheduler,
+	stateHub: RuntimeStateHub,
+): Promise<void> {
+	try {
+		const taskBranch = getWorktreeBranch(card.id);
+		const worktreePath = getWorktreePath(card.id);
+
+		if (!existsSync(worktreePath)) {
+			createWorktree(card.id, repoPath, card.baseRef);
+		}
+
+		spawnSync("git", ["fetch", "origin", card.baseRef], { cwd: repoPath, stdio: "ignore" });
+
+		const mergeResult = spawnSync("git", ["merge", `origin/${card.baseRef}`, "--no-ff", "--no-edit"], {
+			cwd: worktreePath,
+			encoding: "utf-8",
+			stdio: ["ignore", "pipe", "pipe"],
+		});
+
+		if (mergeResult.status === 0) {
+			spawnSync("git", ["push", "origin", taskBranch], { cwd: worktreePath, stdio: "ignore" });
+			await appendActivityLog(workspaceId, card.id, `PR conflict resolved by merging ${card.baseRef} → pushed`);
+			stateHub.broadcastWorkspaceUpdate(workspaceId);
+			return;
+		}
+
+		const conflictsOut = spawnSync("git", ["diff", "--name-only", "--diff-filter=U"], {
+			cwd: worktreePath,
+			encoding: "utf-8",
+			stdio: ["ignore", "pipe", "pipe"],
+		});
+		const conflictedFiles = conflictsOut.stdout.trim().split("\n").filter(Boolean);
+
+		await appendActivityLog(workspaceId, card.id, `PR has merge conflicts: ${conflictedFiles.join(", ")} — resolving...`);
+		await updateSession(workspaceId, card.id, { state: "running" });
+		stateHub.broadcastWorkspaceUpdate(workspaceId);
+
+		await scheduler.startConflictResolution(card, worktreePath, conflictedFiles, async (success) => {
+			if (success) {
+				spawnSync("git", ["push", "origin", taskBranch], { cwd: worktreePath, stdio: "ignore" });
+				await appendActivityLog(workspaceId, card.id, `PR conflicts resolved → pushed`);
+				await updateSession(workspaceId, card.id, { state: "awaiting_review" });
+			} else {
+				spawnSync("git", ["merge", "--abort"], { cwd: worktreePath, stdio: "ignore" });
+				await moveCard(workspaceId, card.id, "blocked");
+				await appendActivityLog(workspaceId, card.id, "Could not resolve PR conflicts → Blocked");
+				await updateSession(workspaceId, card.id, { state: "idle" });
+			}
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
 		});
 	} catch {
@@ -223,6 +283,13 @@ export class BoardPoller {
 				await updateSession(workspaceId, taskId, { state: "idle" });
 				await appendActivityLog(workspaceId, taskId, "PR closed without merging → Blocked");
 				updated = true;
+			} else if (info.mergeable === "CONFLICTING") {
+				const session = state.sessions[taskId];
+				const idle = !session || session.state === "idle" || session.state === "awaiting_review";
+				if (idle) {
+					void resolvePRConflicts(repoPath, card, workspaceId, scheduler, stateHub);
+					updated = true;
+				}
 			} else if (changesRequested || authorCommented) {
 				const reason = changesRequested ? "Changes Requested review submitted" : `PR author (${info.author}) commented`;
 				await moveCard(workspaceId, taskId, "reopened");
