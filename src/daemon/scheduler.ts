@@ -78,7 +78,8 @@ export class TaskScheduler {
 			this.homeSessions.delete(taskId);
 		}
 
-		const prompt = buildHomeAgentPrompt(repoPath);
+		const prompt = buildHomeAgentInitialMessage();
+		const appendSystemPrompt = buildHomeAgentSystemPrompt(repoPath);
 		await writeClaudeHomeSettings(getMcpServerPath(), serverUrl, workspaceId).catch((err) => {
 			console.warn("[scheduler] Failed to write home agent MCP settings:", err);
 		});
@@ -92,11 +93,9 @@ export class TaskScheduler {
 				prompt,
 				cwd: repoPath,
 				mcpConfigPath: agentId === "claude" ? CLAUDE_HOME_MCP_CONFIG_PATH : undefined,
+				appendSystemPrompt: agentId === "claude" ? appendSystemPrompt : undefined,
 				onOutput: (data) => {
 					homeTask.outputBuffer += data;
-					if (homeTask.outputBuffer.length > 65536) {
-						homeTask.outputBuffer = homeTask.outputBuffer.slice(-65536);
-					}
 					stateHub.broadcastTerminalOutput(workspaceId, taskId, data);
 				},
 				onExit: () => {
@@ -158,6 +157,7 @@ export class TaskScheduler {
 
 		// Build prompt from card
 		const prompt = buildTaskPrompt(card);
+		const taskSystemPrompt = buildTaskAgentSystemPrompt(card);
 
 		// Update session state
 		await updateSession(workspaceId, taskId, {
@@ -189,11 +189,9 @@ export class TaskScheduler {
 				env: buildTaskHookEnv(taskId, workspaceId),
 				hookSettingsPath: agentId === "claude" ? CLAUDE_TASK_SETTINGS_PATH : undefined,
 				mcpConfigPath: agentId === "claude" ? CLAUDE_REVIEW_MCP_CONFIG_PATH : undefined,
+				appendSystemPrompt: agentId === "claude" ? taskSystemPrompt : undefined,
 				onOutput: (data) => {
 					runningTask.outputBuffer += data;
-					if (runningTask.outputBuffer.length > 65536) {
-						runningTask.outputBuffer = runningTask.outputBuffer.slice(-65536);
-					}
 					stateHub.broadcastTerminalOutput(workspaceId, devStreamId, data);
 				},
 				onExit: async (exitCode) => {
@@ -379,19 +377,39 @@ export function getMcpServerPath(): { command: string; args: string[] } {
 	};
 }
 
-function buildHomeAgentPrompt(repoPath: string): string {
+function buildHomeAgentSystemPrompt(repoPath: string): string {
 	return `You are the Kanban Agent for the project at \`${repoPath}\`.
 
 You help the developer manage their AI-driven Kanban board. You have MCP tools to interact with the board directly — always use them rather than guessing state.
 
-Available tools:
-- kanban_get_board — fetch the live board state
-- kanban_create_card — create a new task
-- kanban_move_card — move a card to a different column
-- kanban_update_card — update a card's title or description
-- kanban_delete_card — delete a card
+# CRITICAL: You are NOT a coding agent
 
-Call kanban_get_board now, then greet the developer with a brief summary of the current board state and let them know you're ready to help.`;
+NEVER edit, create, or modify files in the workspace. Your only job is to manage the Kanban board using the MCP tools listed below. If the user asks you to write code or implement something, create a task card for it instead.
+
+# Available MCP Tools
+
+- \`kanban_get_board\` — fetch the live board state
+- \`kanban_create_card\` — create a new task
+- \`kanban_move_card\` — move a card to a different column
+- \`kanban_update_card\` — update a card's title or description
+- \`kanban_delete_card\` — delete a card
+- \`kanban_add_comment\` — record a comment on a card`;
+}
+
+function buildHomeAgentInitialMessage(): string {
+	return `Call kanban_get_board now, then greet the developer with a brief summary of the current board state and let them know you're ready to help.`;
+}
+
+function buildTaskAgentSystemPrompt(card: RuntimeBoardCard): string {
+	return `You are an autonomous coding agent working on a Kanban task.
+
+Work autonomously without asking for permission or confirmation. You have full access to the codebase in your current working directory.
+
+When you finish your work, call the \`kanban_add_comment\` MCP tool with:
+- cardId: "${card.id}"
+- type: "dev"
+- passed: true
+- content: a 3-6 sentence PR-ready summary of what you implemented, key decisions made, and any caveats`;
 }
 
 const COMMENT_TYPE_LABEL: Record<string, string> = {
@@ -415,15 +433,6 @@ function buildTaskPrompt(card: RuntimeBoardCard): string {
 	if (card.githubIssueUrl) {
 		parts.push("", `GitHub Issue: ${card.githubIssueUrl}`);
 	}
-
-	parts.push(
-		"",
-		"## When you finish",
-		`Call the \`kanban_add_comment\` MCP tool with:`,
-		`- cardId: "${card.id}"`,
-		`- type: "dev"`,
-		`- content: a 3-6 sentence PR-ready summary of what you implemented, key decisions made, and any caveats`,
-	);
 
 	return parts.join("\n");
 }

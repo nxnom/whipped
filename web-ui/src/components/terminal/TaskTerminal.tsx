@@ -25,9 +25,8 @@ export function TaskTerminal({ taskId, workspaceId, className }: TaskTerminalPro
 			},
 			fontSize: 12,
 			fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-			convertEol: true,
 			cursorBlink: true,
-			scrollback: 5000,
+			scrollback: 50000,
 		});
 
 		const fit = new FitAddon();

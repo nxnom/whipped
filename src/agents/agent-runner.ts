@@ -10,6 +10,7 @@ export interface AgentRunOptions {
 	env?: Record<string, string>;
 	hookSettingsPath?: string;
 	mcpConfigPath?: string;
+	appendSystemPrompt?: string;
 	mode?: "interactive" | "print";
 	onOutput: (data: string) => void;
 	onExit: (exitCode: number) => void;
@@ -22,7 +23,7 @@ export interface AgentProcess {
 }
 
 export function spawnAgent(options: AgentRunOptions): AgentProcess {
-	const { agentId, prompt, cwd, env, hookSettingsPath, mcpConfigPath, mode = "interactive", onOutput, onExit } = options;
+	const { agentId, prompt, cwd, env, hookSettingsPath, mcpConfigPath, appendSystemPrompt, mode = "interactive", onOutput, onExit } = options;
 
 	const command = getAgentCommand(agentId);
 	const args = buildAgentArgs(agentId, prompt, mode);
@@ -32,11 +33,14 @@ export function spawnAgent(options: AgentRunOptions): AgentProcess {
 	if (mcpConfigPath && agentId === "claude") {
 		args.push("--mcp-config", mcpConfigPath);
 	}
+	if (appendSystemPrompt && agentId === "claude") {
+		args.push("--append-system-prompt", appendSystemPrompt);
+	}
 
 	const pty = nodePty.spawn(command, args, {
-		name: "xterm-color",
-		cols: 220,
-		rows: 50,
+		name: "xterm-256color",
+		cols: 120,
+		rows: 40,
 		cwd,
 		env: {
 			...process.env,
