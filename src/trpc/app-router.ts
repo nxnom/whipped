@@ -27,12 +27,14 @@ import {
 	loadWorkspaceContext,
 	loadWorkspaceState,
 	moveCard,
+	removeSession,
 	saveProjectConfig,
 	saveWorkspaceState,
 	setAutonomousMode,
 	updateCard,
 	updateSession,
 } from "../state/workspace-state.js";
+import { removeWorktree } from "../worktree/worktree-manager.js";
 import { getDefaultBranch, getWorktreeBranch, getWorktreePath } from "../worktree/worktree-manager.js";
 
 export interface AppContext {
@@ -293,9 +295,15 @@ export const appRouter = router({
 		delete: publicProcedure
 			.input(z.object({ workspaceId: z.string(), cardId: z.string() }))
 			.mutation(async ({ ctx, input }) => {
-				ctx.getScheduler(input.workspaceId)?.stopTask(input.cardId);
-				await deleteCard(input.workspaceId, input.cardId);
-				ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
+				const { workspaceId, cardId } = input;
+				ctx.getScheduler(workspaceId)?.stopTask(cardId);
+				const ws = await ctx.ensureWorkspace(workspaceId);
+				removeWorktree(cardId, ws.repoPath);
+				await Promise.all([
+					deleteCard(workspaceId, cardId),
+					removeSession(workspaceId, cardId),
+				]);
+				ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 				return { ok: true };
 			}),
 
