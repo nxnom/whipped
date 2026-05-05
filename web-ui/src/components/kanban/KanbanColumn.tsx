@@ -29,9 +29,11 @@ interface KanbanColumnProps {
 	cards: RuntimeBoardCard[];
 	sessions: Record<string, RuntimeTaskSessionSummary>;
 	onCardClick: (card: RuntimeBoardCard) => void;
+	onCardEdit: (card: RuntimeBoardCard) => void;
+	onCardDelete: (card: RuntimeBoardCard) => void;
 }
 
-export function KanbanColumn({ column, cards, sessions, onCardClick }: KanbanColumnProps) {
+export function KanbanColumn({ column, cards, sessions, onCardClick, onCardEdit, onCardDelete }: KanbanColumnProps) {
 	const borderColor = COLUMN_COLORS[column.id] ?? "border-gray-600";
 	const headerColor = COLUMN_HEADER_COLORS[column.id] ?? "text-gray-400";
 
@@ -61,6 +63,8 @@ export function KanbanColumn({ column, cards, sessions, onCardClick }: KanbanCol
 								index={index}
 								session={sessions[card.id]}
 								onClick={() => onCardClick(card)}
+								onEdit={() => onCardEdit(card)}
+								onDelete={() => onCardDelete(card)}
 							/>
 						))}
 						{provided.placeholder}

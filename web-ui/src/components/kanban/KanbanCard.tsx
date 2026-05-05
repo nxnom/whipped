@@ -1,12 +1,14 @@
 import { Draggable } from "@hello-pangea/dnd";
 import type { RuntimeBoardCard, RuntimeTaskSessionSummary } from "@runtime-contract";
-import { Bot, ExternalLink, GitPullRequest, RotateCcw } from "lucide-react";
+import { Bot, ExternalLink, GitPullRequest, Pencil, RotateCcw, Trash2 } from "lucide-react";
 
 interface KanbanCardProps {
 	card: RuntimeBoardCard;
 	index: number;
 	session?: RuntimeTaskSessionSummary;
 	onClick: () => void;
+	onEdit?: () => void;
+	onDelete?: () => void;
 }
 
 const AGENT_LABELS: Record<string, string> = {
@@ -22,7 +24,7 @@ const SESSION_STATE_COLORS: Record<string, string> = {
 	failed: "text-red-400",
 };
 
-export function KanbanCard({ card, index, session, onClick }: KanbanCardProps) {
+export function KanbanCard({ card, index, session, onClick, onEdit, onDelete }: KanbanCardProps) {
 	const isRunning = session?.state === "running" || session?.state === "review_in_progress";
 	const agentLabel = card.agentId ? AGENT_LABELS[card.agentId] : null;
 	const sessionColor = session ? (SESSION_STATE_COLORS[session.state] ?? "text-gray-400") : null;
@@ -36,13 +38,35 @@ export function KanbanCard({ card, index, session, onClick }: KanbanCardProps) {
 					{...provided.dragHandleProps}
 					onClick={onClick}
 					className={`
-						group bg-gray-800 border rounded-lg p-3 cursor-pointer select-none
+						relative group bg-gray-800 border rounded-lg p-3 cursor-pointer select-none
 						transition-all duration-150 hover:bg-gray-750 hover:border-gray-500
 						${snapshot.isDragging ? "border-blue-500 shadow-lg shadow-blue-500/20 rotate-1" : "border-gray-700"}
 					`}
 				>
+					{/* Hover action buttons */}
+					<div className="absolute top-2 right-2 hidden group-hover:flex items-center gap-0.5 z-10">
+						{!isRunning && onEdit && (
+							<button
+								onClick={(e) => { e.stopPropagation(); onEdit(); }}
+								className="p-1 rounded text-gray-500 hover:text-gray-200 hover:bg-gray-700 transition-colors"
+								title="Edit task"
+							>
+								<Pencil size={11} />
+							</button>
+						)}
+						{onDelete && (
+							<button
+								onClick={(e) => { e.stopPropagation(); onDelete(); }}
+								className="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-gray-700 transition-colors"
+								title="Delete task"
+							>
+								<Trash2 size={11} />
+							</button>
+						)}
+					</div>
+
 					<div className="flex items-start justify-between gap-2">
-						<p className="text-sm text-gray-100 font-medium leading-snug flex-1">{card.title}</p>
+						<p className="text-sm text-gray-100 font-medium leading-snug flex-1 pr-10">{card.title}</p>
 						<div className="flex items-center gap-1 shrink-0">
 							{isRunning && <span className="mt-0.5 size-2 rounded-full bg-blue-400 animate-pulse" />}
 						</div>
@@ -91,7 +115,9 @@ export function KanbanCard({ card, index, session, onClick }: KanbanCardProps) {
 							</a>
 						)}
 
-						{session && session.state !== "idle" && card.columnId !== "done" && <span className={`text-xs ml-auto ${sessionColor}`}>{session.state.replace(/_/g, " ")}</span>}
+						{session && session.state !== "idle" && card.columnId !== "done" && (
+							<span className={`text-xs ml-auto ${sessionColor}`}>{session.state.replace(/_/g, " ")}</span>
+						)}
 					</div>
 				</div>
 			)}
