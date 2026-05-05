@@ -21,6 +21,8 @@ interface ReviewPipelineOptions {
 	maxAutoFixAttempts: number;
 	stateHub: RuntimeStateHub;
 	githubClient?: GithubClient;
+	codeReviewPrompt?: string;
+	qaPrompt?: string;
 	registerStopCallback: (streamId: string, callback: () => void) => (() => void);
 	registerLiveProcess: (streamId: string, process: AgentProcess) => (() => void);
 }
@@ -86,7 +88,7 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 	await appendTerminalSession(workspaceId, card.id, { streamId: codeReviewStreamId, type: "code-review", startedAt: runId });
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 
-	const codeReviewResult = await runCodeReview(card, codeReviewStreamId, options);
+	const codeReviewResult = await runCodeReview(card, codeReviewStreamId, options, options.codeReviewPrompt);
 
 	console.log(`[review] Code review ${codeReviewResult.passed ? "PASSED" : "FAILED"} for "${card.title}"`);
 
@@ -109,7 +111,7 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 			await appendActivityLog(workspaceId, card.id, `QA running (${options.qaAgent})`);
 			await appendTerminalSession(workspaceId, card.id, { streamId: qaStreamId, type: "qa", startedAt: runId });
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
-			const qaResult = await runQA(card, qaStreamId, options);
+			const qaResult = await runQA(card, qaStreamId, options, options.qaPrompt);
 			console.log(`[review] QA ${qaResult.passed ? "PASSED" : "FAILED"} for "${card.title}"`);
 			if (!qaResult.passed) {
 				await appendActivityLog(workspaceId, card.id, "QA: FAIL");
@@ -162,14 +164,16 @@ async function runCodeReview(
 	card: RuntimeBoardCard,
 	streamId: string,
 	options: ReviewPipelineOptions,
+	customPrompt?: string,
 ): Promise<{ passed: boolean; comment: RuntimeReviewComment; storedViaMcp: boolean }> {
 	const { codeReviewAgent, workspaceId, stateHub } = options;
 	const worktreePath = getWorktreePath(card.id);
 
 	const diff = getGitDiff(worktreePath, card.baseRef);
 	const prompt = buildCodeReviewPrompt(card, diff);
+	const systemPrompt = buildReviewSystemPrompt(CODE_REVIEW_SYSTEM_PROMPT, customPrompt);
 	const startTime = Date.now();
-	const output = await runAgentOnce(codeReviewAgent, prompt, worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, options.mcpConfigPath, CODE_REVIEW_SYSTEM_PROMPT);
+	const output = await runAgentOnce(codeReviewAgent, prompt, worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, options.mcpConfigPath, systemPrompt);
 
 	const mcpComment = await getMcpComment(workspaceId, card.id, startTime, "code_review");
 	if (mcpComment) {
@@ -189,13 +193,15 @@ async function runQA(
 	card: RuntimeBoardCard,
 	streamId: string,
 	options: ReviewPipelineOptions,
+	customPrompt?: string,
 ): Promise<{ passed: boolean; comment: RuntimeReviewComment; storedViaMcp: boolean }> {
 	const { qaAgent, workspaceId, stateHub } = options;
 	const worktreePath = getWorktreePath(card.id);
 
 	const prompt = buildQAPrompt(card);
+	const systemPrompt = buildReviewSystemPrompt(QA_SYSTEM_PROMPT, customPrompt);
 	const startTime = Date.now();
-	const output = await runAgentOnce(qaAgent, prompt, worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, options.mcpConfigPath, QA_SYSTEM_PROMPT);
+	const output = await runAgentOnce(qaAgent, prompt, worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, options.mcpConfigPath, systemPrompt);
 
 	const mcpComment = await getMcpComment(workspaceId, card.id, startTime, "qa");
 	if (mcpComment) {
@@ -386,6 +392,11 @@ function formatPriorComments(card: RuntimeBoardCard, types: string[]): string {
 }
 
 const ALL_COMMENT_TYPES = ["dev", "code_review", "qa", "human"];
+
+function buildReviewSystemPrompt(base: string, custom?: string): string {
+	if (!custom?.trim()) return base;
+	return `${base}\n\n## Project-specific instructions\n\n${custom.trim()}`;
+}
 
 const DEV_SUMMARY_SYSTEM_PROMPT = `You are summarizing work done by an AI coding agent for a pull request.
 

@@ -161,6 +161,9 @@ export const runtimeProjectConfigSchema = z.object({
 	autonomousModeEnabled: z.boolean().default(false),
 	github: runtimeGithubConfigSchema.optional(),
 	jira: runtimeJiraConfigSchema.optional(),
+	devPrompt: z.string().optional(),
+	codeReviewPrompt: z.string().optional(),
+	qaPrompt: z.string().optional(),
 });
 export type RuntimeProjectConfig = z.infer<typeof runtimeProjectConfigSchema>;
 

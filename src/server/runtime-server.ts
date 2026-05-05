@@ -84,6 +84,8 @@ export async function createRuntimeServer(options: ServerOptions) {
 					maxAutoFixAttempts: config.maxAutoFixAttempts,
 					stateHub,
 					githubClient: latestGithubClient,
+					codeReviewPrompt: latestProjectConfig.codeReviewPrompt,
+					qaPrompt: latestProjectConfig.qaPrompt,
 					registerStopCallback: scheduler.registerStopCallback.bind(scheduler),
 					registerLiveProcess: scheduler.registerLiveProcess.bind(scheduler),
 				});

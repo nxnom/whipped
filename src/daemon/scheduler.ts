@@ -6,7 +6,7 @@ import { getAvailableAgents } from "../agents/agent-registry.js";
 import { CLAUDE_HOME_MCP_CONFIG_PATH, CLAUDE_REVIEW_MCP_CONFIG_PATH, CLAUDE_TASK_SETTINGS_PATH, buildTaskHookEnv, writeClaudeHomeSettings, writeClaudeReviewMcpConfig } from "../agents/agent-hooks.js";
 import type { RuntimeAgentId, RuntimeBoardCard } from "../core/api-contract.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
-import { appendActivityLog, appendTerminalSession, loadBoard, moveCard, removeSession, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
+import { appendActivityLog, appendTerminalSession, loadBoard, loadProjectConfig, moveCard, removeSession, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
 import { createWorktree, getWorktreePath, removeWorktree } from "../worktree/worktree-manager.js";
 
 export interface SchedulerOptions {
@@ -155,9 +155,10 @@ export class TaskScheduler {
 		// Create isolated worktree
 		const worktree = createWorktree(taskId, repoPath, card.baseRef);
 
-		// Build prompt from card
+		// Build prompt from card (reload projectConfig so latest custom prompts are used)
+		const projectConfig = await loadProjectConfig(workspaceId);
 		const prompt = buildTaskPrompt(card);
-		const taskSystemPrompt = buildTaskAgentSystemPrompt(card);
+		const taskSystemPrompt = buildTaskAgentSystemPrompt(card, projectConfig.devPrompt);
 
 		// Update session state
 		await updateSession(workspaceId, taskId, {
@@ -400,8 +401,8 @@ function buildHomeAgentInitialMessage(): string {
 	return `Call kanban_get_board now, then greet the developer with a brief summary of the current board state and let them know you're ready to help.`;
 }
 
-function buildTaskAgentSystemPrompt(card: RuntimeBoardCard): string {
-	return `You are an autonomous coding agent working on a Kanban task.
+function buildTaskAgentSystemPrompt(card: RuntimeBoardCard, customPrompt?: string): string {
+	const parts = [`You are an autonomous coding agent working on a Kanban task.
 
 Work autonomously without asking for permission or confirmation. You have full access to the codebase in your current working directory.
 
@@ -409,7 +410,13 @@ When you finish your work, call the \`kanban_add_comment\` MCP tool with:
 - cardId: "${card.id}"
 - type: "dev"
 - passed: true
-- content: a 3-6 sentence PR-ready summary of what you implemented, key decisions made, and any caveats`;
+- content: a 3-6 sentence PR-ready summary of what you implemented, key decisions made, and any caveats`];
+
+	if (customPrompt?.trim()) {
+		parts.push(`## Project-specific instructions\n\n${customPrompt.trim()}`);
+	}
+
+	return parts.join("\n\n");
 }
 
 const COMMENT_TYPE_LABEL: Record<string, string> = {

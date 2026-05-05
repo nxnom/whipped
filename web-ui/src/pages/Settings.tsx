@@ -1,4 +1,4 @@
-import { Button, Checkbox, Input, Select, SelectOption, Switch, toast } from "@geckoui/geckoui";
+import { Button, Checkbox, Input, Select, SelectOption, Switch, Textarea, toast } from "@geckoui/geckoui";
 import type { RuntimeGlobalConfig, RuntimeJiraTicket, RuntimeProjectConfig } from "@runtime-contract";
 import { Download, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -132,6 +132,40 @@ function ProjectSettings({ workspaceId }: { workspaceId: string }) {
 					disabled={togglingAutonomous}
 				/>
 			</div>
+
+			{/* Agent Instructions */}
+			<Section title="Agent Instructions">
+				<p className="text-xs text-gray-500 -mt-1">
+					Extra instructions appended to each agent's system prompt. Use this for project-specific rules, conventions, or context.
+				</p>
+				<Field label="Dev Agent">
+					<Textarea
+						value={config.devPrompt ?? ""}
+						onChange={(e) => setConfig({ ...config, devPrompt: e.target.value })}
+						placeholder="e.g. Always use TypeScript strict mode. Follow the existing naming conventions in the codebase."
+						rows={3}
+						autoResize
+					/>
+				</Field>
+				<Field label="Code Review Agent">
+					<Textarea
+						value={config.codeReviewPrompt ?? ""}
+						onChange={(e) => setConfig({ ...config, codeReviewPrompt: e.target.value })}
+						placeholder="e.g. Check that all new API routes have auth middleware. Reject any use of console.log."
+						rows={3}
+						autoResize
+					/>
+				</Field>
+				<Field label="QA Agent">
+					<Textarea
+						value={config.qaPrompt ?? ""}
+						onChange={(e) => setConfig({ ...config, qaPrompt: e.target.value })}
+						placeholder="e.g. Always run the full test suite with pnpm test. Check mobile viewports in Playwright."
+						rows={3}
+						autoResize
+					/>
+				</Field>
+			</Section>
 
 			{/* GitHub */}
 			<Section title="GitHub">
