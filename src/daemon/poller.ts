@@ -1,8 +1,23 @@
+import { spawnSync } from "node:child_process";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { fetchPRInfo } from "../git/merge-operations.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { appendActivityLog, loadWorkspaceState, moveCard, updateCard, updateSession } from "../state/workspace-state.js";
+import { removeWorktree } from "../worktree/worktree-manager.js";
 import type { TaskScheduler } from "./scheduler.js";
+
+function cleanupAfterMerge(taskId: string, repoPath: string, baseRef: string): void {
+	try {
+		removeWorktree(taskId, repoPath);
+	} catch {
+		// best-effort
+	}
+	try {
+		spawnSync("git", ["fetch", "origin", baseRef], { cwd: repoPath, stdio: "ignore" });
+	} catch {
+		// best-effort
+	}
+}
 
 const DEPLOYMENT_BOTS = new Set([
 	"vercel[bot]",
@@ -148,6 +163,7 @@ export class BoardPoller {
 				await moveCard(workspaceId, taskId, "done");
 				await updateSession(workspaceId, taskId, { state: "idle" });
 				await appendActivityLog(workspaceId, taskId, "PR merged on GitHub → Done");
+				cleanupAfterMerge(taskId, repoPath, card.baseRef);
 				updated = true;
 			} else if (info.state === "CLOSED") {
 				await moveCard(workspaceId, taskId, "blocked");

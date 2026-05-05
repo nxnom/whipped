@@ -367,11 +367,14 @@ export class TaskScheduler {
 		stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 		let outputBuffer = "";
+		let hookHandled = false;
 
 		const proc = spawnAgent({
 			agentId: defaultAgent,
 			prompt: buildConflictResolutionPrompt(card, conflictedFiles),
 			cwd: mergeWorktreePath,
+			hookSettingsPath: defaultAgent === "claude" ? CLAUDE_TASK_SETTINGS_PATH : undefined,
+			env: buildTaskHookEnv(streamId, workspaceId),
 			appendSystemPrompt: CONFLICT_RESOLUTION_SYSTEM_PROMPT,
 			onOutput: (data) => {
 				outputBuffer += data;
@@ -381,11 +384,20 @@ export class TaskScheduler {
 				this.liveProcesses.delete(streamId);
 				this.recentBuffers.set(streamId, outputBuffer);
 				void saveTerminalBuffer(workspaceId, streamId, outputBuffer);
-				await onComplete(exitCode === 0);
+				if (!hookHandled) await onComplete(exitCode === 0);
 			},
 		});
 
 		this.liveProcesses.set(streamId, proc);
+
+		this.registerStopCallback(streamId, () => {
+			hookHandled = true;
+			this.liveProcesses.delete(streamId);
+			this.recentBuffers.set(streamId, outputBuffer);
+			void saveTerminalBuffer(workspaceId, streamId, outputBuffer);
+			proc.kill();
+			void onComplete(true);
+		});
 	}
 
 	stopAll(): void {
