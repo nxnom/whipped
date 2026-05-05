@@ -1,13 +1,12 @@
 import { Draggable } from "@hello-pangea/dnd";
 import type { RuntimeBoardCard, RuntimeTaskSessionSummary } from "@runtime-contract";
-import { AlertTriangle, Bot, ExternalLink, GitPullRequest, PanelRight, RotateCcw } from "lucide-react";
+import { Bot, ExternalLink, GitPullRequest, RotateCcw } from "lucide-react";
 
 interface KanbanCardProps {
 	card: RuntimeBoardCard;
 	index: number;
 	session?: RuntimeTaskSessionSummary;
 	onClick: () => void;
-	onOpenDetail: () => void;
 }
 
 const AGENT_LABELS: Record<string, string> = {
@@ -23,9 +22,8 @@ const SESSION_STATE_COLORS: Record<string, string> = {
 	failed: "text-red-400",
 };
 
-export function KanbanCard({ card, index, session, onClick, onOpenDetail }: KanbanCardProps) {
+export function KanbanCard({ card, index, session, onClick }: KanbanCardProps) {
 	const isRunning = session?.state === "running" || session?.state === "review_in_progress";
-	const hasFailed = session?.state === "failed";
 	const agentLabel = card.agentId ? AGENT_LABELS[card.agentId] : null;
 	const sessionColor = session ? (SESSION_STATE_COLORS[session.state] ?? "text-gray-400") : null;
 
@@ -47,13 +45,6 @@ export function KanbanCard({ card, index, session, onClick, onOpenDetail }: Kanb
 						<p className="text-sm text-gray-100 font-medium leading-snug flex-1">{card.title}</p>
 						<div className="flex items-center gap-1 shrink-0">
 							{isRunning && <span className="mt-0.5 size-2 rounded-full bg-blue-400 animate-pulse" />}
-							<button
-								onClick={(e) => { e.stopPropagation(); onOpenDetail(); }}
-								className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-500 hover:text-gray-300 rounded transition-all"
-								title="Open full detail"
-							>
-								<PanelRight size={13} />
-							</button>
 						</div>
 					</div>
 

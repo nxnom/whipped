@@ -5,7 +5,6 @@ import { Plus } from "lucide-react";
 import { useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
 import { CardDetailPanel } from "./CardDetailPanel";
-import { CardQuickViewDialog } from "./CardQuickViewDialog";
 import { KanbanColumn } from "./KanbanColumn";
 
 interface KanbanBoardProps {
@@ -14,9 +13,7 @@ interface KanbanBoardProps {
 }
 
 export function KanbanBoard({ state, onRefresh }: KanbanBoardProps) {
-	const [quickViewCardId, setQuickViewCardId] = useState<string | null>(null);
 	const [detailCardId, setDetailCardId] = useState<string | null>(null);
-	const quickViewCard = quickViewCardId ? (state.board.cards[quickViewCardId] ?? null) : null;
 	const detailCard = detailCardId ? (state.board.cards[detailCardId] ?? null) : null;
 	const [showCreate, setShowCreate] = useState(false);
 
@@ -64,25 +61,13 @@ export function KanbanBoard({ state, onRefresh }: KanbanBoardProps) {
 									column={column}
 									cards={cards}
 									sessions={state.sessions}
-									onCardClick={(card) => setQuickViewCardId(card.id)}
-									onCardDetail={(card) => { setDetailCardId(card.id); setQuickViewCardId(null); }}
+									onCardClick={(card) => setDetailCardId(card.id)}
 								/>
 							);
 						})}
 					</div>
 				</DragDropContext>
 			</div>
-
-			{quickViewCard && (
-				<CardQuickViewDialog
-					card={quickViewCard}
-					workspaceId={state.workspaceId}
-					session={state.sessions[quickViewCard.id]}
-					onClose={() => setQuickViewCardId(null)}
-					onOpenDetail={() => { setDetailCardId(quickViewCard.id); setQuickViewCardId(null); }}
-					onRefresh={onRefresh}
-				/>
-			)}
 
 			{detailCard && (
 				<CardDetailPanel
