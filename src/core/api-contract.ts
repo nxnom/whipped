@@ -53,7 +53,7 @@ export type RuntimeActivityEntry = z.infer<typeof runtimeActivityEntrySchema>;
 
 export const runtimeTerminalSessionEntrySchema = z.object({
 	streamId: z.string(),
-	type: z.enum(["dev", "code-review", "qa"]),
+	type: z.enum(["dev", "code-review", "qa", "conflict"]),
 	startedAt: z.number(),
 });
 export type RuntimeTerminalSessionEntry = z.infer<typeof runtimeTerminalSessionEntrySchema>;
@@ -77,6 +77,7 @@ export const runtimeBoardCardSchema = z.object({
 	reviewComments: z.array(runtimeReviewCommentSchema).default([]),
 	activityLog: z.array(runtimeActivityEntrySchema).default([]),
 	terminalSessions: z.array(runtimeTerminalSessionEntrySchema).default([]),
+	githubCommentIds: z.array(z.string()).default([]),
 });
 export type RuntimeBoardCard = z.infer<typeof runtimeBoardCardSchema>;
 
@@ -135,6 +136,7 @@ export const runtimeGlobalConfigSchema = z.object({
 	maxParallelQA: z.number().int().positive().default(1),
 	maxAutoFixAttempts: z.number().int().nonnegative().default(3),
 	pollingIntervalSeconds: z.number().int().positive().default(30),
+	prPollingIntervalSeconds: z.number().int().positive().default(60),
 	review: runtimeReviewConfigSchema.default({ codeReviewAgent: "claude", qaAgent: "claude" }),
 });
 export type RuntimeGlobalConfig = z.infer<typeof runtimeGlobalConfigSchema>;
@@ -193,6 +195,7 @@ export const runtimeCardCreateRequestSchema = z.object({
 	description: z.string(),
 	agentId: runtimeAgentIdSchema.optional(),
 	columnId: runtimeBoardColumnIdSchema.optional(),
+	baseRef: z.string().optional(),
 	githubIssueUrl: z.string().optional(),
 	jiraKey: z.string().optional(),
 	jiraUrl: z.string().optional(),

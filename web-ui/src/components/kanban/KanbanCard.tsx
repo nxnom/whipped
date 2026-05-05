@@ -91,7 +91,7 @@ export function KanbanCard({ card, index, session, onClick }: KanbanCardProps) {
 							</a>
 						)}
 
-						{session && <span className={`text-xs ml-auto ${sessionColor}`}>{session.state.replace(/_/g, " ")}</span>}
+						{session && session.state !== "idle" && <span className={`text-xs ml-auto ${sessionColor}`}>{session.state.replace(/_/g, " ")}</span>}
 					</div>
 				</div>
 			)}

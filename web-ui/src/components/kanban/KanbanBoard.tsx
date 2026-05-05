@@ -2,7 +2,7 @@ import { Button, Input, Select, SelectOption, Textarea, toast } from "@geckoui/g
 import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
 import type { RuntimeBoardCard, RuntimeBoardColumnId, RuntimeWorkspaceStateResponse } from "@runtime-contract";
 import { Plus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
 import { CardDetailPanel } from "./CardDetailPanel";
 import { KanbanColumn } from "./KanbanColumn";
@@ -105,13 +105,25 @@ function CreateCardDialog({
 	const [title, setTitle] = useState("");
 	const [description, setDescription] = useState("");
 	const [agentId, setAgentId] = useState<"claude" | "codex">("claude");
+	const [baseRef, setBaseRef] = useState<string>("");
+	const [branches, setBranches] = useState<string[]>([]);
 	const [loading, setLoading] = useState(false);
+
+	useEffect(() => {
+		trpc.cards.listBranches
+			.query({ workspaceId })
+			.then(({ branches: b, defaultBranch }) => {
+				setBranches(b);
+				setBaseRef(defaultBranch);
+			})
+			.catch(() => {});
+	}, [workspaceId]);
 
 	const handleCreate = async () => {
 		if (!title.trim()) return;
 		setLoading(true);
 		try {
-			await trpc.cards.create.mutate({ workspaceId, title: title.trim(), description, agentId });
+			await trpc.cards.create.mutate({ workspaceId, title: title.trim(), description, agentId, baseRef: baseRef || undefined });
 			onRefresh();
 		} catch {
 			toast.error("Failed to create task");
@@ -148,12 +160,22 @@ function CreateCardDialog({
 							rows={4}
 						/>
 					</div>
-					<div>
-						<label className="text-xs text-gray-400 block mb-1">Agent</label>
-						<Select value={agentId} onChange={(v) => setAgentId(v as "claude" | "codex")} placeholder="Select agent">
-							<SelectOption value="claude" label="Claude Code" />
-							<SelectOption value="codex" label="OpenAI Codex" />
-						</Select>
+					<div className="grid grid-cols-2 gap-3">
+						<div>
+							<label className="text-xs text-gray-400 block mb-1">Base Branch</label>
+							<Select value={baseRef} onChange={(v) => setBaseRef(v as string)} placeholder="Select branch">
+								{branches.map((b) => (
+									<SelectOption key={b} value={b} label={b} />
+								))}
+							</Select>
+						</div>
+						<div>
+							<label className="text-xs text-gray-400 block mb-1">Agent</label>
+							<Select value={agentId} onChange={(v) => setAgentId(v as "claude" | "codex")} placeholder="Select agent">
+								<SelectOption value="claude" label="Claude Code" />
+								<SelectOption value="codex" label="OpenAI Codex" />
+							</Select>
+						</div>
 					</div>
 				</div>
 

@@ -116,7 +116,9 @@ export async function createRuntimeServer(options: ServerOptions) {
 			workspaceId,
 			repoPath: wsRepoPath,
 			pollingIntervalSeconds: config.pollingIntervalSeconds,
+			prPollingIntervalSeconds: config.prPollingIntervalSeconds,
 			scheduler,
+			stateHub,
 			onCardReadyForReview: (card: RuntimeBoardCard) => {
 				startReview(card);
 			},
@@ -128,6 +130,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 		if (projectConfig.autonomousModeEnabled) {
 			poller.start();
 		}
+		poller.startPRPolling();
 	}
 
 	// Init all known workspaces on startup

@@ -354,6 +354,40 @@ export class TaskScheduler {
 		}
 	}
 
+	async startConflictResolution(
+		card: RuntimeBoardCard,
+		mergeWorktreePath: string,
+		conflictedFiles: string[],
+		onComplete: (success: boolean) => Promise<void>,
+	): Promise<void> {
+		const { workspaceId, stateHub, defaultAgent } = this.options;
+		const streamId = `${card.id}-conflict-${Date.now()}`;
+
+		await appendTerminalSession(workspaceId, card.id, { streamId, type: "conflict", startedAt: Date.now() });
+		stateHub.broadcastWorkspaceUpdate(workspaceId);
+
+		let outputBuffer = "";
+
+		const proc = spawnAgent({
+			agentId: defaultAgent,
+			prompt: buildConflictResolutionPrompt(card, conflictedFiles),
+			cwd: mergeWorktreePath,
+			appendSystemPrompt: CONFLICT_RESOLUTION_SYSTEM_PROMPT,
+			onOutput: (data) => {
+				outputBuffer += data;
+				stateHub.broadcastTerminalOutput(workspaceId, streamId, data);
+			},
+			onExit: async (exitCode) => {
+				this.liveProcesses.delete(streamId);
+				this.recentBuffers.set(streamId, outputBuffer);
+				void saveTerminalBuffer(workspaceId, streamId, outputBuffer);
+				await onComplete(exitCode === 0);
+			},
+		});
+
+		this.liveProcesses.set(streamId, proc);
+	}
+
 	stopAll(): void {
 		for (const [taskId] of this.running) {
 			this.stopTask(taskId);
@@ -429,6 +463,26 @@ const COMMENT_TYPE_LABEL: Record<string, string> = {
 	qa: "QA",
 	human: "Human Feedback",
 };
+
+const CONFLICT_RESOLUTION_SYSTEM_PROMPT = `You are a merge conflict resolution agent. Your only job is to resolve git merge conflicts.
+
+Rules:
+- Only edit files to remove conflict markers (<<<<<<< ======= >>>>>>>)
+- Preserve the intent of BOTH sides where possible; when in doubt keep the incoming (task) changes
+- Never refactor, rename, or change logic beyond resolving the conflict markers
+- After resolving all conflicts: git add -A && git commit -m "Resolve merge conflicts"
+- Exit when done`;
+
+function buildConflictResolutionPrompt(card: RuntimeBoardCard, conflictedFiles: string[]): string {
+	return `Resolve the git merge conflicts in this repository.
+
+Task being merged: "${card.title}"
+
+Conflicted files:
+${conflictedFiles.map((f) => `- ${f}`).join("\n")}
+
+Resolve each conflict, then run: git add -A && git commit -m "Resolve merge conflicts for: ${card.title}"`;
+}
 
 function buildTaskPrompt(card: RuntimeBoardCard): string {
 	const parts = [`# Task: ${card.title}`, "", card.description];

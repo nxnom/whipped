@@ -2,6 +2,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getAvailableAgents } from "../agents/agent-registry.js";
 import { loadGlobalConfig, saveGlobalConfig, updateGlobalConfig } from "../config/runtime-config.js";
+import { abortAndCleanupMerge, attemptMerge, commitIfDirty, createGithubPR, finalizeMerge, listLocalBranches, pushBranch } from "../git/merge-operations.js";
 import {
 	type RuntimeGlobalConfig,
 	type RuntimeProjectConfig,
@@ -31,7 +32,7 @@ import {
 	updateCard,
 	updateSession,
 } from "../state/workspace-state.js";
-import { getDefaultBranch } from "../worktree/worktree-manager.js";
+import { getDefaultBranch, getWorktreeBranch, getWorktreePath, removeWorktree } from "../worktree/worktree-manager.js";
 
 export interface AppContext {
 	stateHub: RuntimeStateHub;
@@ -136,14 +137,131 @@ export const appRouter = router({
 		create: publicProcedure
 			.input(runtimeCardCreateRequestSchema.extend({ workspaceId: z.string() }))
 			.mutation(async ({ ctx, input }) => {
-				const { workspaceId, ...cardData } = input;
+				const { workspaceId, baseRef: requestedBase, ...cardData } = input;
 				const workspaces = await listWorkspaces();
 				const ws = workspaces.find((w) => w.workspaceId === workspaceId);
 				if (!ws) throw new TRPCError({ code: "NOT_FOUND", message: "Workspace not found" });
-				const baseRef = getDefaultBranch(ws.repoPath);
+				const baseRef = requestedBase || getDefaultBranch(ws.repoPath);
 				const card = await createCard(workspaceId, cardData, baseRef);
 				ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 				return card;
+			}),
+
+		listBranches: publicProcedure
+			.input(z.object({ workspaceId: z.string() }))
+			.query(async ({ input }) => {
+				const workspaces = await listWorkspaces();
+				const ws = workspaces.find((w) => w.workspaceId === input.workspaceId);
+				if (!ws) return { branches: [], defaultBranch: "main" };
+				const branches = listLocalBranches(ws.repoPath);
+				const defaultBranch = getDefaultBranch(ws.repoPath);
+				return { branches, defaultBranch };
+			}),
+
+		commitAndMerge: publicProcedure
+			.input(z.object({ workspaceId: z.string(), cardId: z.string() }))
+			.mutation(async ({ ctx, input }) => {
+				const { workspaceId, cardId } = input;
+				const workspaces = await listWorkspaces();
+				const ws = workspaces.find((w) => w.workspaceId === workspaceId);
+				if (!ws) throw new TRPCError({ code: "NOT_FOUND", message: "Workspace not found" });
+
+				const board = await loadBoard(workspaceId);
+				const card = board.cards[cardId];
+				if (!card) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
+				if (card.columnId !== "ready_for_review") {
+					throw new TRPCError({ code: "BAD_REQUEST", message: "Card is not in Ready for Review" });
+				}
+
+				const worktreePath = getWorktreePath(cardId);
+				const taskBranch = getWorktreeBranch(cardId);
+
+				commitIfDirty(worktreePath, card.title);
+
+				let mergeResult;
+				try {
+					mergeResult = attemptMerge(ws.repoPath, cardId, taskBranch, card.baseRef);
+				} catch (err) {
+					throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: String(err) });
+				}
+
+				if (mergeResult.ok) {
+					removeWorktree(cardId, ws.repoPath);
+					await moveCard(workspaceId, cardId, "done");
+					await appendActivityLog(workspaceId, cardId, `Merged into ${card.baseRef} → Done`);
+					ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
+					return { status: "merged" as const };
+				}
+
+				// Conflicts — spawn conflict resolution agent
+				await appendActivityLog(workspaceId, cardId, `Merge conflicts in: ${mergeResult.conflictedFiles.join(", ")} — resolving...`);
+				ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
+
+				const scheduler = ctx.getScheduler(workspaceId);
+				if (!scheduler) {
+					abortAndCleanupMerge(ws.repoPath, mergeResult.mergeWorktreePath);
+					throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Scheduler not ready" });
+				}
+
+				const { mergeWorktreePath } = mergeResult;
+				await scheduler.startConflictResolution(card, mergeWorktreePath, mergeResult.conflictedFiles, async (success) => {
+					if (success) {
+						finalizeMerge(ws.repoPath, mergeWorktreePath, card.baseRef);
+						removeWorktree(cardId, ws.repoPath);
+						await moveCard(workspaceId, cardId, "done");
+						await appendActivityLog(workspaceId, cardId, `Conflicts resolved → merged into ${card.baseRef} → Done`);
+					} else {
+						abortAndCleanupMerge(ws.repoPath, mergeWorktreePath);
+						await moveCard(workspaceId, cardId, "blocked");
+						await appendActivityLog(workspaceId, cardId, "Could not resolve merge conflicts → Blocked");
+						await updateSession(workspaceId, cardId, { state: "idle" });
+					}
+					ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
+				});
+
+				return { status: "resolving_conflicts" as const };
+			}),
+
+		commitAndPR: publicProcedure
+			.input(z.object({ workspaceId: z.string(), cardId: z.string() }))
+			.mutation(async ({ ctx, input }) => {
+				const { workspaceId, cardId } = input;
+				const workspaces = await listWorkspaces();
+				const ws = workspaces.find((w) => w.workspaceId === workspaceId);
+				if (!ws) throw new TRPCError({ code: "NOT_FOUND", message: "Workspace not found" });
+
+				const board = await loadBoard(workspaceId);
+				const card = board.cards[cardId];
+				if (!card) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
+				if (card.columnId !== "ready_for_review") {
+					throw new TRPCError({ code: "BAD_REQUEST", message: "Card is not in Ready for Review" });
+				}
+
+				const worktreePath = getWorktreePath(cardId);
+				const taskBranch = getWorktreeBranch(cardId);
+
+				commitIfDirty(worktreePath, card.title);
+
+				try {
+					pushBranch(worktreePath, taskBranch);
+				} catch (err) {
+					throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Push failed: ${err}` });
+				}
+
+				const devSummary = [...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev")?.content
+					?? card.description;
+
+				let prUrl: string;
+				try {
+					prUrl = createGithubPR(worktreePath, card.title, devSummary, card.baseRef);
+				} catch (err) {
+					throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `PR creation failed: ${err}` });
+				}
+
+				await updateCard(workspaceId, cardId, { githubPrUrl: prUrl });
+				await appendActivityLog(workspaceId, cardId, `PR created → ${prUrl}`);
+				ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
+				return { status: "pr_created" as const, prUrl };
 			}),
 
 		update: publicProcedure

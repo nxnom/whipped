@@ -1,6 +1,6 @@
 import { Button, ConfirmDialog, Textarea, toast } from "@geckoui/geckoui";
 import type { RuntimeBoardCard, RuntimeTaskSessionSummary } from "@runtime-contract";
-import { ArrowLeft, ExternalLink, Play, Square, TerminalSquare, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, GitMerge, GitPullRequest, Play, Square, TerminalSquare, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { trpc } from "@/runtime/trpc-client";
@@ -40,6 +40,7 @@ const SESSION_TYPE_LABEL: Record<string, string> = {
 	dev: "Dev",
 	"code-review": "Code Review",
 	qa: "QA",
+	conflict: "Conflict Resolution",
 };
 
 export function CardDetailPanel({ card, workspaceId, session, onClose, onRefresh }: Props) {
@@ -48,6 +49,8 @@ export function CardDetailPanel({ card, workspaceId, session, onClose, onRefresh
 	);
 	const [feedback, setFeedback] = useState("");
 	const [submitting, setSubmitting] = useState(false);
+	const [merging, setMerging] = useState(false);
+	const [creatingPR, setCreatingPR] = useState(false);
 
 	const isReadyForReview = card.columnId === "ready_for_review";
 
@@ -113,6 +116,39 @@ export function CardDetailPanel({ card, workspaceId, session, onClose, onRefresh
 			onRefresh();
 		} catch {
 			toast.error("Failed to stop agent");
+		}
+	};
+
+	const handleCommitAndMerge = async () => {
+		setMerging(true);
+		try {
+			const result = await trpc.cards.commitAndMerge.mutate({ workspaceId, cardId: card.id });
+			if (result.status === "merged") {
+				toast.success(`Merged into ${card.baseRef}`);
+				onRefresh();
+				onClose();
+			} else {
+				toast.success("Merge conflicts detected — resolving with AI agent...");
+				onRefresh();
+			}
+		} catch (err: unknown) {
+			toast.error(`Merge failed: ${err instanceof Error ? err.message : String(err)}`);
+		} finally {
+			setMerging(false);
+		}
+	};
+
+	const handleCommitAndPR = async () => {
+		setCreatingPR(true);
+		try {
+			const result = await trpc.cards.commitAndPR.mutate({ workspaceId, cardId: card.id });
+			toast.success("PR created");
+			window.open(result.prUrl, "_blank");
+			onRefresh();
+		} catch (err: unknown) {
+			toast.error(`PR creation failed: ${err instanceof Error ? err.message : String(err)}`);
+		} finally {
+			setCreatingPR(false);
 		}
 	};
 
@@ -315,7 +351,18 @@ export function CardDetailPanel({ card, workspaceId, session, onClose, onRefresh
 					<Button variant="ghost" size="sm" onClick={handleDelete}>
 						<Trash2 size={13} className="mr-1 text-gray-500" /> Delete
 					</Button>
-					{isRunning ? (
+					{isReadyForReview ? (
+						<div className="flex gap-1.5">
+							<Button variant="outlined" size="sm" onClick={handleCommitAndMerge} disabled={merging || creatingPR}>
+								<GitMerge size={12} className="mr-1" />
+								{merging ? "Merging..." : `Merge → ${card.baseRef}`}
+							</Button>
+							<Button size="sm" onClick={handleCommitAndPR} disabled={merging || creatingPR || !!card.githubPrUrl}>
+								<GitPullRequest size={12} className="mr-1" />
+								{creatingPR ? "Creating PR..." : card.githubPrUrl ? "PR Created" : "Create PR"}
+							</Button>
+						</div>
+					) : isRunning ? (
 						<Button variant="outlined" size="sm" onClick={handleStop}>
 							<Square size={12} className="mr-1" /> Stop
 						</Button>

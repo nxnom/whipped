@@ -364,6 +364,15 @@ function GlobalSettings() {
 						/>
 					</Field>
 				</div>
+				<div className="grid grid-cols-2 gap-3">
+					<Field label="PR Poll Interval (seconds)">
+						<Input
+							type="number"
+							value={String(config.prPollingIntervalSeconds)}
+							onChange={(e) => setConfig({ ...config, prPollingIntervalSeconds: Number(e.target.value) })}
+						/>
+					</Field>
+				</div>
 			</Section>
 
 			{/* AI Review */}

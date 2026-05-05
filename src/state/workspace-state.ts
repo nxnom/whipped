@@ -315,6 +315,7 @@ export async function createCard(
 		reviewComments: [],
 		activityLog: [],
 		terminalSessions: [],
+		githubCommentIds: [],
 	};
 
 	board.cards[id] = card;
@@ -371,7 +372,7 @@ export async function updateCard(
 	workspaceId: string,
 	cardId: string,
 	update: Partial<
-		Pick<RuntimeBoardCard, "title" | "description" | "agentId" | "githubPrUrl" | "reviewComments" | "autoFixAttempts">
+		Pick<RuntimeBoardCard, "title" | "description" | "agentId" | "githubPrUrl" | "reviewComments" | "autoFixAttempts" | "githubCommentIds">
 	>,
 ): Promise<RuntimeBoardCard> {
 	const board = await loadBoard(workspaceId);
