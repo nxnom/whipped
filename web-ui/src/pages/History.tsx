@@ -1,7 +1,7 @@
 import type { RuntimeBoardCard } from "@runtime-contract";
 import { Clock, ExternalLink, GitPullRequest } from "lucide-react";
-import { useState } from "react";
 import { CardDetailPanel } from "@/components/kanban/CardDetailPanel";
+import { useUrlParam } from "@/runtime/url-state";
 import { useWorkspaceState } from "@/stores/board-store";
 
 interface Props {
@@ -10,7 +10,7 @@ interface Props {
 
 export function HistoryPage({ workspaceId }: Props) {
 	const { state, refetch } = useWorkspaceState(workspaceId);
-	const [detailCardId, setDetailCardId] = useState<string | null>(null);
+	const [detailCardId, setDetailCardId] = useUrlParam("card");
 
 	if (!state) {
 		return <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">Loading...</div>;

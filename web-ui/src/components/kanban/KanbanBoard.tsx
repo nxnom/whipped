@@ -4,6 +4,7 @@ import type { RuntimeBoardCard, RuntimeBoardColumnId, RuntimeWorkspaceStateRespo
 import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
+import { useUrlParam } from "@/runtime/url-state";
 import { CardDetailPanel } from "./CardDetailPanel";
 import { KanbanColumn } from "./KanbanColumn";
 
@@ -15,7 +16,7 @@ interface KanbanBoardProps {
 const DIALOG_CLASS = "!bg-gray-900 !border !border-gray-700 w-full";
 
 export function KanbanBoard({ state, onRefresh }: KanbanBoardProps) {
-	const [detailCardId, setDetailCardId] = useState<string | null>(null);
+	const [detailCardId, setDetailCardId] = useUrlParam("card");
 	const detailCard = detailCardId ? (state.board.cards[detailCardId] ?? null) : null;
 
 	const handleCardDelete = (card: RuntimeBoardCard) => {

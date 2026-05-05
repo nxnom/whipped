@@ -8,6 +8,7 @@ import { BoardPage } from "@/pages/Board";
 import { HistoryPage } from "@/pages/History";
 import { SettingsPage } from "@/pages/Settings";
 import { trpc } from "@/runtime/trpc-client";
+import { useUrlParam } from "@/runtime/url-state";
 
 export type Page = "board" | "history" | "settings" | "agent";
 
@@ -19,13 +20,23 @@ const NAV_ITEMS: Array<{ id: Page; label: string; icon: React.ReactNode }> = [
 ];
 
 export default function App() {
-	const [page, setPage] = useState<Page>("board");
+	const [rawPage, setRawPage] = useUrlParam("page", "board");
+	const page = (rawPage as Page) ?? "board";
+	const [activeWorkspaceId, setActiveWorkspaceId] = useUrlParam("ws");
 	const [projects, setProjects] = useState<RuntimeProject[]>([]);
-	const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
 	const [connected, setConnected] = useState(false);
 	const [autonomousOn, setAutonomousOn] = useState(false);
 	const [showAddProject, setShowAddProject] = useState(false);
 	const [showProjectMenu, setShowProjectMenu] = useState(false);
+
+	const setPage = (p: Page) => {
+		setRawPage(p);
+		// Clear open card when navigating between pages
+		const params = new URLSearchParams(window.location.search);
+		params.delete("card");
+		const qs = params.toString();
+		history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+	};
 
 	useEffect(() => {
 		loadProjects();
@@ -35,8 +46,9 @@ export default function App() {
 		try {
 			const list = await trpc.projects.list.query();
 			setProjects(list);
-			if (list.length > 0 && !activeWorkspaceId) {
-				setActiveWorkspaceId(list[0]!.workspaceId);
+			if (list.length > 0) {
+				const valid = list.some((p) => p.workspaceId === activeWorkspaceId);
+				if (!valid) setActiveWorkspaceId(list[0]!.workspaceId);
 			}
 		} catch {
 			toast.error("Failed to load projects");
