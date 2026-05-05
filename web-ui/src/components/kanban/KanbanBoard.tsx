@@ -64,6 +64,41 @@ export function KanbanBoard({ state, onRefresh }: KanbanBoardProps) {
 		});
 	};
 
+	const handleMoveAllToReady = () => {
+		const todoColumn = state.board.columns.find((c) => c.id === "todo");
+		const todoCards = (todoColumn?.taskIds ?? []).map((id) => state.board.cards[id]).filter(Boolean);
+		if (todoCards.length === 0) {
+			toast.info("No tasks in Todo");
+			return;
+		}
+		ConfirmDialog.show({
+			title: "Move all to Ready for Dev?",
+			content: `${todoCards.length} task${todoCards.length === 1 ? "" : "s"} will be moved from Todo to Ready for Dev.`,
+			confirmButtonLabel: "Move all",
+			cancelButtonLabel: "Cancel",
+			onConfirm: async ({ dismiss }) => {
+				dismiss();
+				try {
+					await Promise.all(
+						todoCards.map((card) =>
+							trpc.cards.move.mutate({
+								workspaceId: state.workspaceId,
+								cardId: card!.id,
+								targetColumnId: "ready_for_dev",
+								revision: state.revision,
+							}),
+						),
+					);
+					onRefresh();
+					toast.success(`Moved ${todoCards.length} task${todoCards.length === 1 ? "" : "s"} to Ready for Dev`);
+				} catch {
+					toast.error("Failed to move tasks");
+				}
+			},
+			onCancel: ({ dismiss }) => dismiss(),
+		});
+	};
+
 	const handleDragEnd = async (result: DropResult) => {
 		if (!result.destination) return;
 		if (
@@ -90,9 +125,14 @@ export function KanbanBoard({ state, onRefresh }: KanbanBoardProps) {
 		<div className="flex-1 overflow-hidden flex flex-col relative">
 			<div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
 				<h2 className="text-sm font-medium text-gray-300">Board</h2>
-				<Button size="sm" variant="outlined" onClick={openCreateDialog}>
-					<Plus size={13} className="mr-1" /> New task
-				</Button>
+				<div className="flex items-center gap-2">
+					<Button size="sm" variant="ghost" onClick={handleMoveAllToReady}>
+						Todo → Ready
+					</Button>
+					<Button size="sm" variant="outlined" onClick={openCreateDialog}>
+						<Plus size={13} className="mr-1" /> New task
+					</Button>
+				</div>
 			</div>
 
 			<div className="flex-1 overflow-x-auto">
