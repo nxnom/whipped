@@ -156,6 +156,12 @@ export const runtimeGithubConfigSchema = z.object({
 });
 export type RuntimeGithubConfig = z.infer<typeof runtimeGithubConfigSchema>;
 
+export const runtimeWorktreeSetupSchema = z.object({
+	filesToCopy: z.array(z.string()).default([]),
+	installCommand: z.string().default(""),
+});
+export type RuntimeWorktreeSetup = z.infer<typeof runtimeWorktreeSetupSchema>;
+
 export const runtimeProjectConfigSchema = z.object({
 	name: z.string().optional(),
 	defaultAgent: runtimeAgentIdSchema.optional(),
@@ -166,6 +172,7 @@ export const runtimeProjectConfigSchema = z.object({
 	devPrompt: z.string().optional(),
 	codeReviewPrompt: z.string().optional(),
 	qaPrompt: z.string().optional(),
+	worktreeSetup: runtimeWorktreeSetupSchema.optional(),
 });
 export type RuntimeProjectConfig = z.infer<typeof runtimeProjectConfigSchema>;
 

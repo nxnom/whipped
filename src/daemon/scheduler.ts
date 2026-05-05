@@ -1,6 +1,7 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { commitIfDirty } from "../git/merge-operations.js";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgentProcess } from "../agents/agent-runner.js";
 import { spawnAgent } from "../agents/agent-runner.js";
@@ -157,22 +158,59 @@ export class TaskScheduler {
 		// Create isolated worktree
 		const worktree = createWorktree(taskId, repoPath, card.baseRef);
 
-		// Build prompt from card (reload projectConfig so latest custom prompts are used)
+		// Reload project config so latest prompts + setup config are used
 		const projectConfig = await loadProjectConfig(workspaceId);
-		const prompt = buildTaskPrompt(card);
-		const taskSystemPrompt = buildTaskAgentSystemPrompt(card, projectConfig.devPrompt);
 
-		// Update session state
+		// Move card + update session immediately so the UI reflects it before setup runs
+		const taskStartedAt = Date.now();
 		await updateSession(workspaceId, taskId, {
 			taskId,
 			state: "running",
 			agentId,
 			worktreePath: worktree.path,
-			startedAt: Date.now(),
+			startedAt: taskStartedAt,
 		});
-
-		// Move card to in_progress
 		await moveCard(workspaceId, taskId, "in_progress");
+		stateHub.broadcastWorkspaceUpdate(workspaceId);
+
+		// On first creation, copy files and run install command — each step is logged
+		if (worktree.isNew && projectConfig.worktreeSetup) {
+			const { filesToCopy, installCommand } = projectConfig.worktreeSetup;
+
+			if (filesToCopy.length > 0) {
+				const copied: string[] = [];
+				for (const relPath of filesToCopy) {
+					const src = join(repoPath, relPath);
+					if (!existsSync(src)) continue;
+					const dst = join(worktree.path, relPath);
+					mkdirSync(dirname(dst), { recursive: true });
+					try { copyFileSync(src, dst); copied.push(relPath); } catch { /* best-effort */ }
+				}
+				if (copied.length > 0) {
+					await appendActivityLog(workspaceId, taskId, `Copied to worktree: ${copied.join(", ")}`);
+					stateHub.broadcastWorkspaceUpdate(workspaceId);
+				}
+			}
+
+			if (installCommand.trim()) {
+				await appendActivityLog(workspaceId, taskId, `Running: ${installCommand.trim()}`);
+				stateHub.broadcastWorkspaceUpdate(workspaceId);
+				await new Promise<void>((resolve) => {
+					const proc = spawn("sh", ["-c", installCommand.trim()], {
+						cwd: worktree.path,
+						stdio: "ignore",
+						env: { ...process.env, REPO_PATH: repoPath },
+					});
+					proc.on("close", () => resolve());
+				});
+				await appendActivityLog(workspaceId, taskId, "Install complete");
+				stateHub.broadcastWorkspaceUpdate(workspaceId);
+			}
+		}
+
+		const prompt = buildTaskPrompt(card);
+		const taskSystemPrompt = buildTaskAgentSystemPrompt(card, projectConfig.devPrompt);
+
 		await appendActivityLog(workspaceId, taskId, `Agent ${agentId} started`);
 
 		const spawnedAt = Date.now();
@@ -424,6 +462,7 @@ export class TaskScheduler {
 // Returns the command + args to launch the MCP server.
 // Dev: uses the absolute path to tsx from node_modules so Claude Code can find it
 // regardless of its own PATH. Prod: node runs the bundled mcp-server.js.
+
 export function getMcpServerPath(): { command: string; args: string[] } {
 	const thisFile = fileURLToPath(import.meta.url);
 	const thisDir = dirname(thisFile);

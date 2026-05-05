@@ -20,7 +20,11 @@ export interface WorktreeInfo {
 	branch: string;
 }
 
-export function createWorktree(taskId: string, repoPath: string, baseRef: string): WorktreeInfo {
+export interface WorktreeCreateResult extends WorktreeInfo {
+	isNew: boolean;
+}
+
+export function createWorktree(taskId: string, repoPath: string, baseRef: string): WorktreeCreateResult {
 	mkdirSync(WORKTREES_DIR, { recursive: true });
 
 	const branch = `kanbom/task-${taskId}`;
@@ -28,7 +32,7 @@ export function createWorktree(taskId: string, repoPath: string, baseRef: string
 
 	// Reuse existing worktree so retries (reopened cards) build on prior work
 	if (existsSync(worktreePath)) {
-		return { taskId, path: worktreePath, branch };
+		return { taskId, path: worktreePath, branch, isNew: false };
 	}
 
 	// Prune stale git refs in case a previous run left the worktree deregistered
@@ -43,7 +47,7 @@ export function createWorktree(taskId: string, repoPath: string, baseRef: string
 		git(["worktree", "add", "-b", branch, worktreePath, baseRef], repoPath);
 	}
 
-	return { taskId, path: worktreePath, branch };
+	return { taskId, path: worktreePath, branch, isNew: true };
 }
 
 export function removeWorktree(taskId: string, repoPath: string): void {

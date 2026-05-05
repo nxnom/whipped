@@ -118,6 +118,27 @@ export const appRouter = router({
 				ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
 				return { ok: true };
 			}),
+
+		listRootFiles: publicProcedure
+			.input(z.object({ workspaceId: z.string() }))
+			.query(async ({ ctx, input }) => {
+				const ws = await ctx.ensureWorkspace(input.workspaceId);
+				const ignored = spawnSync(
+					"git", ["ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "--no-empty-directory"],
+					{ cwd: ws.repoPath, encoding: "utf-8" },
+				);
+				const untracked = spawnSync(
+					"git", ["ls-files", "--others", "--exclude-standard"],
+					{ cwd: ws.repoPath, encoding: "utf-8" },
+				);
+				const all = [
+					...(ignored.stdout ?? "").split("\n"),
+					...(untracked.stdout ?? "").split("\n"),
+				]
+					.map((f) => f.trim().replace(/\/$/, ""))
+					.filter((f) => f && !f.includes("/"));
+				return { files: [...new Set(all)].sort() };
+			}),
 	}),
 
 	// ─── Per-project config ────────────────────────────────────────────────────

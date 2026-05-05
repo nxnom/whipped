@@ -1,16 +1,17 @@
 import { Button, Checkbox, Input, Select, SelectOption, Switch, Textarea, toast } from "@geckoui/geckoui";
-import type { RuntimeGlobalConfig, RuntimeJiraTicket, RuntimeProjectConfig } from "@runtime-contract";
-import { Bot, Download, MessageSquare, RefreshCw, Settings2, Ticket, Zap } from "lucide-react";
+import type { RuntimeGlobalConfig, RuntimeJiraTicket, RuntimeProjectConfig, RuntimeWorktreeSetup } from "@runtime-contract";
+import { Bot, Download, MessageSquare, Plus, RefreshCw, Settings2, Terminal, Ticket, X, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
 
-type ProjectSection = "autonomous" | "prompts" | "jira";
+type ProjectSection = "autonomous" | "prompts" | "environment" | "jira";
 type GlobalSection = "general" | "ai-review";
 type SettingsSection = ProjectSection | GlobalSection;
 
 const PROJECT_NAV: Array<{ id: ProjectSection; label: string; icon: React.ReactNode }> = [
 	{ id: "autonomous", label: "Autonomous", icon: <Zap size={14} /> },
 	{ id: "prompts", label: "Agent Prompts", icon: <MessageSquare size={14} /> },
+	{ id: "environment", label: "Environment", icon: <Terminal size={14} /> },
 	{ id: "jira", label: "Jira", icon: <Ticket size={14} /> },
 ];
 
@@ -19,7 +20,7 @@ const GLOBAL_NAV: Array<{ id: GlobalSection; label: string; icon: React.ReactNod
 	{ id: "ai-review", label: "AI Review", icon: <Bot size={14} /> },
 ];
 
-const PROJECT_SECTIONS = new Set<SettingsSection>(["autonomous", "prompts", "jira"]);
+const PROJECT_SECTIONS = new Set<SettingsSection>(["autonomous", "prompts", "environment", "jira"]);
 
 interface Props {
 	workspaceId: string;
@@ -224,6 +225,16 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 				</>
 			)}
 
+			{section === "environment" && (
+				<EnvironmentSection
+					workspaceId={workspaceId}
+					setup={config.worktreeSetup ?? { filesToCopy: [], installCommand: "" }}
+					onChange={(worktreeSetup) => setConfig({ ...config, worktreeSetup })}
+					onSave={handleSave}
+					saving={saving}
+				/>
+			)}
+
 			{section === "jira" && (
 				<>
 					<SectionHeader
@@ -328,6 +339,162 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 				</>
 			)}
 		</div>
+	);
+}
+
+// ─── Environment Section ─────────────────────────────────────────────────────
+
+function EnvironmentSection({
+	workspaceId,
+	setup,
+	onChange,
+	onSave,
+	saving,
+}: {
+	workspaceId: string;
+	setup: RuntimeWorktreeSetup;
+	onChange: (setup: RuntimeWorktreeSetup) => void;
+	onSave: () => void;
+	saving: boolean;
+}) {
+	const [rootFiles, setRootFiles] = useState<string[] | null>(null);
+	const [loadingFiles, setLoadingFiles] = useState(false);
+	const [manualInput, setManualInput] = useState("");
+
+	const fetchFiles = async () => {
+		setLoadingFiles(true);
+		try {
+			const { files } = await trpc.workspace.listRootFiles.query({ workspaceId });
+			setRootFiles(files);
+		} catch {
+			toast.error("Failed to list repo files");
+		} finally {
+			setLoadingFiles(false);
+		}
+	};
+
+	useEffect(() => {
+		fetchFiles();
+	}, [workspaceId]);
+
+	const toggleFile = (file: string, checked: boolean) => {
+		const next = checked
+			? [...new Set([...setup.filesToCopy, file])]
+			: setup.filesToCopy.filter((f) => f !== file);
+		onChange({ ...setup, filesToCopy: next });
+	};
+
+	const addManual = () => {
+		const val = manualInput.trim();
+		if (!val) return;
+		onChange({ ...setup, filesToCopy: [...new Set([...setup.filesToCopy, val])] });
+		setManualInput("");
+	};
+
+	const removeFile = (file: string) => {
+		onChange({ ...setup, filesToCopy: setup.filesToCopy.filter((f) => f !== file) });
+	};
+
+	// Files to show in the picker: union of discovered root files + manually added ones
+	const discoveredSet = new Set(rootFiles ?? []);
+	const allFiles = [...new Set([...(rootFiles ?? []), ...setup.filesToCopy])].sort();
+	const manualOnly = setup.filesToCopy.filter((f) => !discoveredSet.has(f));
+
+	return (
+		<>
+			<SectionHeader
+				title="Environment"
+				description="Configure how each new worktree is set up before the agent starts. Runs once per task on first creation."
+			/>
+
+			{/* Files to copy */}
+			<div className="space-y-2">
+				<div className="flex items-center justify-between">
+					<p className="text-xs font-medium text-gray-300">Files to Copy</p>
+					<button
+						onClick={fetchFiles}
+						disabled={loadingFiles}
+						className="text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1 transition-colors"
+					>
+						<RefreshCw size={11} className={loadingFiles ? "animate-spin" : ""} />
+						Refresh
+					</button>
+				</div>
+				<p className="text-xs text-gray-500">
+					Gitignored files found in the repo root. Selected files are copied into each new worktree before the agent runs.
+				</p>
+
+				<div className="border border-gray-800 rounded-xl overflow-hidden">
+					{loadingFiles && (
+						<div className="px-4 py-6 text-center text-xs text-gray-500">Scanning repo...</div>
+					)}
+
+					{!loadingFiles && allFiles.length === 0 && (
+						<div className="px-4 py-6 text-center text-xs text-gray-500">
+							No gitignored files found in repo root
+						</div>
+					)}
+
+					{!loadingFiles && allFiles.map((file) => {
+						const isChecked = setup.filesToCopy.includes(file);
+						const isManual = manualOnly.includes(file);
+						return (
+							<label
+								key={file}
+								className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-800/50 cursor-pointer border-b border-gray-800 last:border-0 transition-colors"
+							>
+								<Checkbox
+									checked={isChecked}
+									onChange={(e) => toggleFile(file, e.target.checked)}
+								/>
+								<span className="flex-1 text-xs font-mono text-gray-200">{file}</span>
+								{isManual && (
+									<span className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">manual</span>
+								)}
+								{isManual && (
+									<button
+										onClick={(e) => { e.preventDefault(); removeFile(file); }}
+										className="text-gray-600 hover:text-red-400 transition-colors"
+									>
+										<X size={11} />
+									</button>
+								)}
+							</label>
+						);
+					})}
+				</div>
+
+				{/* Manual path input */}
+				<div className="flex gap-2">
+					<Input
+						value={manualInput}
+						onChange={(e) => setManualInput(e.target.value)}
+						onKeyDown={(e) => e.key === "Enter" && addManual()}
+						placeholder="Add path manually (e.g. .env.local)"
+						inputClassName="font-mono text-xs"
+					/>
+					<Button variant="outlined" size="sm" onClick={addManual} disabled={!manualInput.trim()}>
+						<Plus size={12} className="mr-1" />
+						Add
+					</Button>
+				</div>
+			</div>
+
+			{/* Install command */}
+			<Field label="Install Command">
+				<Input
+					value={setup.installCommand}
+					onChange={(e) => onChange({ ...setup, installCommand: e.target.value })}
+					placeholder="pnpm install --frozen-lockfile"
+					inputClassName="font-mono text-xs"
+				/>
+				<p className="text-xs text-gray-500 mt-1">
+					Runs in the worktree directory. Use <code className="text-gray-400 bg-gray-800 px-1 py-0.5 rounded">$REPO_PATH</code> to reference the main repo.
+				</p>
+			</Field>
+
+			<SaveRow saving={saving} onSave={onSave} />
+		</>
 	);
 }
 
