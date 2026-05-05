@@ -1,41 +1,86 @@
 import { Button, Checkbox, Input, Select, SelectOption, Switch, Textarea, toast } from "@geckoui/geckoui";
 import type { RuntimeGlobalConfig, RuntimeJiraTicket, RuntimeProjectConfig } from "@runtime-contract";
-import { Download, RefreshCw } from "lucide-react";
+import { Bot, Download, MessageSquare, RefreshCw, Settings2, Ticket, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
+
+type ProjectSection = "autonomous" | "prompts" | "jira";
+type GlobalSection = "general" | "ai-review";
+type SettingsSection = ProjectSection | GlobalSection;
+
+const PROJECT_NAV: Array<{ id: ProjectSection; label: string; icon: React.ReactNode }> = [
+	{ id: "autonomous", label: "Autonomous", icon: <Zap size={14} /> },
+	{ id: "prompts", label: "Agent Prompts", icon: <MessageSquare size={14} /> },
+	{ id: "jira", label: "Jira", icon: <Ticket size={14} /> },
+];
+
+const GLOBAL_NAV: Array<{ id: GlobalSection; label: string; icon: React.ReactNode }> = [
+	{ id: "general", label: "General", icon: <Settings2 size={14} /> },
+	{ id: "ai-review", label: "AI Review", icon: <Bot size={14} /> },
+];
+
+const PROJECT_SECTIONS = new Set<SettingsSection>(["autonomous", "prompts", "jira"]);
 
 interface Props {
 	workspaceId: string;
 }
 
 export function SettingsPage({ workspaceId }: Props) {
-	const [activeTab, setActiveTab] = useState<"global" | "project">("project");
+	const [section, setSection] = useState<SettingsSection>("autonomous");
+	const isProject = PROJECT_SECTIONS.has(section);
 
 	return (
-		<div className="flex-1 overflow-y-auto p-4 max-w-2xl mx-auto space-y-4">
-			{/* Tab switcher */}
-			<div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1">
-				{(["project", "global"] as const).map((tab) => (
-					<button
-						key={tab}
-						onClick={() => setActiveTab(tab)}
-						className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-							activeTab === tab ? "bg-gray-700 text-white" : "text-gray-400 hover:text-gray-200"
-						}`}
-					>
-						{tab === "project" ? "Project Settings" : "Global Settings"}
-					</button>
-				))}
-			</div>
+		<div className="flex-1 overflow-hidden flex">
+			{/* Sidebar nav */}
+			<nav className="w-44 shrink-0 border-r border-gray-800 py-4 overflow-y-auto">
+				<NavGroup label="Project" items={PROJECT_NAV} activeId={section} onSelect={setSection} />
+				<NavGroup label="Global" items={GLOBAL_NAV} activeId={section} onSelect={setSection} />
+			</nav>
 
-			{activeTab === "project" ? <ProjectSettings workspaceId={workspaceId} /> : <GlobalSettings />}
+			{/* Content */}
+			<div className="flex-1 overflow-y-auto">
+				{isProject ? (
+					<ProjectSettings workspaceId={workspaceId} section={section as ProjectSection} />
+				) : (
+					<GlobalSettings section={section as GlobalSection} />
+				)}
+			</div>
+		</div>
+	);
+}
+
+function NavGroup({
+	label,
+	items,
+	activeId,
+	onSelect,
+}: {
+	label: string;
+	items: Array<{ id: SettingsSection; label: string; icon: React.ReactNode }>;
+	activeId: string;
+	onSelect: (id: SettingsSection) => void;
+}) {
+	return (
+		<div className="mb-5">
+			<p className="px-4 mb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-500">{label}</p>
+			{items.map((item) => (
+				<button
+					key={item.id}
+					onClick={() => onSelect(item.id)}
+					className={`w-full flex items-center gap-2.5 px-4 py-2 text-sm transition-colors
+						${activeId === item.id ? "text-white bg-gray-800" : "text-gray-400 hover:text-gray-200 hover:bg-gray-900"}`}
+				>
+					{item.icon}
+					{item.label}
+				</button>
+			))}
 		</div>
 	);
 }
 
 // ─── Project Settings ───────────────────────────────────────────────────────
 
-function ProjectSettings({ workspaceId }: { workspaceId: string }) {
+function ProjectSettings({ workspaceId, section }: { workspaceId: string; section: ProjectSection }) {
 	const [config, setConfig] = useState<RuntimeProjectConfig | null>(null);
 	const [saving, setSaving] = useState(false);
 	const [togglingAutonomous, setTogglingAutonomous] = useState(false);
@@ -112,182 +157,183 @@ function ProjectSettings({ workspaceId }: { workspaceId: string }) {
 	};
 
 	if (!config) {
-		return <div className="flex items-center justify-center py-12 text-gray-500 text-sm">Loading...</div>;
+		return <div className="flex items-center justify-center py-20 text-gray-500 text-sm">Loading...</div>;
 	}
 
 	return (
-		<div className="space-y-4">
-			{/* Autonomous Mode */}
-			<div className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center justify-between">
-				<div>
-					<h3 className="text-sm font-semibold text-gray-100">Autonomous Mode</h3>
-					<p className="text-xs text-gray-400 mt-0.5">
-						Agents automatically pick up <span className="text-emerald-400">Ready for Dev</span> and{" "}
-						<span className="text-orange-400">Reopened</span> tasks
-					</p>
-				</div>
-				<Switch
-					checked={config.autonomousModeEnabled}
-					onChange={handleToggleAutonomous}
-					disabled={togglingAutonomous}
-				/>
-			</div>
-
-			{/* Agent Instructions */}
-			<Section title="Agent Instructions">
-				<p className="text-xs text-gray-500 -mt-1">
-					Extra instructions appended to each agent's system prompt. Use this for project-specific rules, conventions, or context.
-				</p>
-				<Field label="Dev Agent">
-					<Textarea
-						value={config.devPrompt ?? ""}
-						onChange={(e) => setConfig({ ...config, devPrompt: e.target.value })}
-						placeholder="e.g. Always use TypeScript strict mode. Follow the existing naming conventions in the codebase."
-						rows={3}
-						autoResize
+		<div className="p-6 max-w-xl space-y-6">
+			{section === "autonomous" && (
+				<>
+					<SectionHeader
+						title="Autonomous Mode"
+						description="When enabled, agents automatically pick up tasks from Ready for Dev and Reopened columns without manual intervention."
 					/>
-				</Field>
-				<Field label="Code Review Agent">
-					<Textarea
-						value={config.codeReviewPrompt ?? ""}
-						onChange={(e) => setConfig({ ...config, codeReviewPrompt: e.target.value })}
-						placeholder="e.g. Check that all new API routes have auth middleware. Reject any use of console.log."
-						rows={3}
-						autoResize
-					/>
-				</Field>
-				<Field label="QA Agent">
-					<Textarea
-						value={config.qaPrompt ?? ""}
-						onChange={(e) => setConfig({ ...config, qaPrompt: e.target.value })}
-						placeholder="e.g. Always run the full test suite with pnpm test. Check mobile viewports in Playwright."
-						rows={3}
-						autoResize
-					/>
-				</Field>
-			</Section>
-
-			{/* GitHub */}
-			<Section title="GitHub">
-				<Field label="Personal Access Token">
-					<Input
-						type="password"
-						value={config.github?.token ?? ""}
-						onChange={(e) => setConfig({ ...config, github: { token: e.target.value } })}
-						placeholder="ghp_..."
-					/>
-				</Field>
-				<p className="text-xs text-gray-500">
-					Required for posting PR comments. Needs <code className="text-gray-400">repo</code> scope.
-				</p>
-			</Section>
-
-			{/* Jira */}
-			<Section title="Jira">
-				<Field label="Host">
-					<Input
-						value={config.jira?.host ?? ""}
-						onChange={(e) => setConfig({ ...config, jira: { ...config.jira!, host: e.target.value } })}
-						placeholder="company.atlassian.net"
-					/>
-				</Field>
-				<div className="grid grid-cols-2 gap-3">
-					<Field label="Email">
-						<Input
-							value={config.jira?.email ?? ""}
-							onChange={(e) => setConfig({ ...config, jira: { ...config.jira!, email: e.target.value } })}
-							placeholder="you@company.com"
+					<div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl p-4">
+						<div>
+							<p className="text-sm font-medium text-gray-100">Enable autonomous mode</p>
+							<p className="text-xs text-gray-500 mt-0.5">
+								Picks up <span className="text-emerald-400">Ready for Dev</span> and{" "}
+								<span className="text-orange-400">Reopened</span> tasks automatically
+							</p>
+						</div>
+						<Switch
+							checked={config.autonomousModeEnabled}
+							onChange={handleToggleAutonomous}
+							disabled={togglingAutonomous}
 						/>
-					</Field>
-					<Field label="API Token">
-						<Input
-							type="password"
-							value={config.jira?.token ?? ""}
-							onChange={(e) => setConfig({ ...config, jira: { ...config.jira!, token: e.target.value } })}
-							placeholder="••••••••"
-						/>
-					</Field>
-				</div>
-				<Field label="Project Key">
-					<Input
-						value={config.jira?.projectKey ?? ""}
-						onChange={(e) => setConfig({ ...config, jira: { ...config.jira!, projectKey: e.target.value } })}
-						placeholder="ENG"
-					/>
-				</Field>
-
-				{/* Jira import */}
-				<div className="pt-3 border-t border-gray-800 space-y-3">
-					<div className="flex items-center justify-between">
-						<p className="text-xs font-medium text-gray-300">Import Tickets</p>
-						<Button
-							variant="outlined"
-							size="sm"
-							onClick={handleFetchJira}
-							disabled={fetchingJira || !config.jira?.host}
-						>
-							<RefreshCw size={12} className={`mr-1.5 ${fetchingJira ? "animate-spin" : ""}`} />
-							Fetch tickets
-						</Button>
 					</div>
+				</>
+			)}
 
-					{jiraTickets && (
-						<div className="space-y-2">
-							<div className="max-h-64 overflow-y-auto space-y-1.5">
-								{jiraTickets.map((ticket) => (
-									<label
-										key={ticket.key}
-										className="flex items-start gap-2.5 bg-gray-800 hover:bg-gray-750 rounded-lg p-2.5 cursor-pointer"
-									>
-										<Checkbox
-											checked={selectedTickets.has(ticket.key)}
-											onChange={(e) => {
-												const next = new Set(selectedTickets);
-												if (e.target.checked) {
-													next.add(ticket.key);
-												} else {
-													next.delete(ticket.key);
-												}
-												setSelectedTickets(next);
-											}}
-											className="mt-0.5"
-										/>
-										<div className="min-w-0">
-											<p className="text-xs text-gray-200 font-medium">
-												<span className="text-blue-400">{ticket.key}</span> · {ticket.summary}
-											</p>
-											<p className="text-xs text-gray-500 mt-0.5">{ticket.status}</p>
-										</div>
-									</label>
-								))}
+			{section === "prompts" && (
+				<>
+					<SectionHeader
+						title="Agent Prompts"
+						description="Extra instructions appended to each agent's system prompt. Use this for project-specific rules, conventions, or context."
+					/>
+					<div className="space-y-4">
+						<Field label="Dev Agent">
+							<Textarea
+								value={config.devPrompt ?? ""}
+								onChange={(e) => setConfig({ ...config, devPrompt: e.target.value })}
+								placeholder="e.g. Always use TypeScript strict mode. Follow the existing naming conventions."
+								rows={4}
+								autoResize
+							/>
+						</Field>
+						<Field label="Code Review Agent">
+							<Textarea
+								value={config.codeReviewPrompt ?? ""}
+								onChange={(e) => setConfig({ ...config, codeReviewPrompt: e.target.value })}
+								placeholder="e.g. Check that all new API routes have auth middleware."
+								rows={4}
+								autoResize
+							/>
+						</Field>
+						<Field label="QA Agent">
+							<Textarea
+								value={config.qaPrompt ?? ""}
+								onChange={(e) => setConfig({ ...config, qaPrompt: e.target.value })}
+								placeholder="e.g. Always run the full test suite with pnpm test."
+								rows={4}
+								autoResize
+							/>
+						</Field>
+					</div>
+					<SaveRow saving={saving} onSave={handleSave} />
+				</>
+			)}
+
+			{section === "jira" && (
+				<>
+					<SectionHeader
+						title="Jira"
+						description="Connect your Jira project to import tickets directly onto the board."
+					/>
+					<div className="space-y-4">
+						<Field label="Host">
+							<Input
+								value={config.jira?.host ?? ""}
+								onChange={(e) => setConfig({ ...config, jira: { ...config.jira!, host: e.target.value } })}
+								placeholder="company.atlassian.net"
+							/>
+						</Field>
+						<div className="grid grid-cols-2 gap-3">
+							<Field label="Email">
+								<Input
+									value={config.jira?.email ?? ""}
+									onChange={(e) => setConfig({ ...config, jira: { ...config.jira!, email: e.target.value } })}
+									placeholder="you@company.com"
+								/>
+							</Field>
+							<Field label="API Token">
+								<Input
+									type="password"
+									value={config.jira?.token ?? ""}
+									onChange={(e) => setConfig({ ...config, jira: { ...config.jira!, token: e.target.value } })}
+									placeholder="••••••••"
+								/>
+							</Field>
+						</div>
+						<Field label="Project Key">
+							<Input
+								value={config.jira?.projectKey ?? ""}
+								onChange={(e) => setConfig({ ...config, jira: { ...config.jira!, projectKey: e.target.value } })}
+								placeholder="ENG"
+							/>
+						</Field>
+					</div>
+					<SaveRow saving={saving} onSave={handleSave} />
+
+					{/* Import tickets */}
+					<div className="pt-2">
+						<div className="border-t border-gray-800 pt-5">
+							<div className="flex items-center justify-between mb-3">
+								<div>
+									<p className="text-sm font-medium text-gray-200">Import Tickets</p>
+									<p className="text-xs text-gray-500 mt-0.5">Fetch and import open tickets from your project</p>
+								</div>
+								<Button
+									variant="outlined"
+									size="sm"
+									onClick={handleFetchJira}
+									disabled={fetchingJira || !config.jira?.host}
+								>
+									<RefreshCw size={12} className={`mr-1.5 ${fetchingJira ? "animate-spin" : ""}`} />
+									Fetch tickets
+								</Button>
 							</div>
 
-							{jiraTickets.length > 0 && (
-								<div className="flex justify-between items-center pt-1">
-									<p className="text-xs text-gray-500">{selectedTickets.size} selected</p>
-									<Button size="sm" onClick={handleImport} disabled={selectedTickets.size === 0 || importing}>
-										<Download size={12} className="mr-1.5" />
-										{importing ? "Importing..." : `Import ${selectedTickets.size}`}
-									</Button>
+							{jiraTickets && (
+								<div className="space-y-2">
+									<div className="max-h-64 overflow-y-auto space-y-1.5 rounded-xl border border-gray-800 p-2">
+										{jiraTickets.map((ticket) => (
+											<label
+												key={ticket.key}
+												className="flex items-start gap-2.5 bg-gray-800 hover:bg-gray-700 rounded-lg p-2.5 cursor-pointer transition-colors"
+											>
+												<Checkbox
+													checked={selectedTickets.has(ticket.key)}
+													onChange={(e) => {
+														const next = new Set(selectedTickets);
+														if (e.target.checked) next.add(ticket.key);
+														else next.delete(ticket.key);
+														setSelectedTickets(next);
+													}}
+													className="mt-0.5"
+												/>
+												<div className="min-w-0">
+													<p className="text-xs text-gray-200 font-medium">
+														<span className="text-blue-400">{ticket.key}</span> · {ticket.summary}
+													</p>
+													<p className="text-xs text-gray-500 mt-0.5">{ticket.status}</p>
+												</div>
+											</label>
+										))}
+									</div>
+
+									{jiraTickets.length > 0 && (
+										<div className="flex justify-between items-center pt-1">
+											<p className="text-xs text-gray-500">{selectedTickets.size} selected</p>
+											<Button size="sm" onClick={handleImport} disabled={selectedTickets.size === 0 || importing}>
+												<Download size={12} className="mr-1.5" />
+												{importing ? "Importing..." : `Import ${selectedTickets.size}`}
+											</Button>
+										</div>
+									)}
 								</div>
 							)}
 						</div>
-					)}
-				</div>
-			</Section>
-
-			<div className="flex justify-end pb-4">
-				<Button onClick={handleSave} disabled={saving}>
-					{saving ? "Saving..." : "Save Project Settings"}
-				</Button>
-			</div>
+					</div>
+				</>
+			)}
 		</div>
 	);
 }
 
 // ─── Global Settings ────────────────────────────────────────────────────────
 
-function GlobalSettings() {
+function GlobalSettings({ section }: { section: GlobalSection }) {
 	const [config, setConfig] = useState<RuntimeGlobalConfig | null>(null);
 	const [saving, setSaving] = useState(false);
 
@@ -313,112 +359,122 @@ function GlobalSettings() {
 	};
 
 	if (!config) {
-		return <div className="flex items-center justify-center py-12 text-gray-500 text-sm">Loading...</div>;
+		return <div className="flex items-center justify-center py-20 text-gray-500 text-sm">Loading...</div>;
 	}
 
 	return (
-		<div className="space-y-4">
-			{/* General */}
-			<Section title="General">
-				<Field label="Default Agent">
-					<Select
-						value={config.defaultAgent}
-						onChange={(v) => setConfig({ ...config, defaultAgent: v as "claude" | "codex" })}
-						placeholder="Select agent"
-					>
-						<SelectOption value="claude" label="Claude Code" />
-						<SelectOption value="codex" label="OpenAI Codex" />
-					</Select>
-				</Field>
+		<div className="p-6 max-w-xl space-y-6">
+			{section === "general" && (
+				<>
+					<SectionHeader
+						title="General"
+						description="Runtime behavior settings that apply to all projects."
+					/>
+					<div className="space-y-4">
+						<Field label="Default Agent">
+							<Select
+								value={config.defaultAgent}
+								onChange={(v) => setConfig({ ...config, defaultAgent: v as "claude" | "codex" })}
+								placeholder="Select agent"
+							>
+								<SelectOption value="claude" label="Claude Code" />
+								<SelectOption value="codex" label="OpenAI Codex" />
+							</Select>
+						</Field>
+						<div className="grid grid-cols-2 gap-3">
+							<Field label="Max Parallel Tasks">
+								<Input
+									type="number"
+									value={String(config.maxParallelTasks)}
+									onChange={(e) => setConfig({ ...config, maxParallelTasks: Number(e.target.value) })}
+								/>
+							</Field>
+							<Field label="Max Auto-Fix Attempts">
+								<Input
+									type="number"
+									value={String(config.maxAutoFixAttempts)}
+									onChange={(e) => setConfig({ ...config, maxAutoFixAttempts: Number(e.target.value) })}
+								/>
+							</Field>
+						</div>
+						<div className="grid grid-cols-2 gap-3">
+							<Field label="Polling Interval (s)">
+								<Input
+									type="number"
+									value={String(config.pollingIntervalSeconds)}
+									onChange={(e) => setConfig({ ...config, pollingIntervalSeconds: Number(e.target.value) })}
+								/>
+							</Field>
+							<Field label="Max Parallel QA">
+								<Input
+									type="number"
+									value={String(config.maxParallelQA)}
+									onChange={(e) => setConfig({ ...config, maxParallelQA: Number(e.target.value) })}
+								/>
+							</Field>
+						</div>
+						<div className="grid grid-cols-2 gap-3">
+							<Field label="PR Poll Interval (s)">
+								<Input
+									type="number"
+									value={String(config.prPollingIntervalSeconds)}
+									onChange={(e) => setConfig({ ...config, prPollingIntervalSeconds: Number(e.target.value) })}
+								/>
+							</Field>
+						</div>
+					</div>
+					<SaveRow saving={saving} onSave={handleSave} />
+				</>
+			)}
 
-				<div className="grid grid-cols-2 gap-3">
-					<Field label="Max Parallel Tasks">
-						<Input
-							type="number"
-							value={String(config.maxParallelTasks)}
-							onChange={(e) => setConfig({ ...config, maxParallelTasks: Number(e.target.value) })}
-						/>
-					</Field>
-					<Field label="Max Auto-Fix Attempts">
-						<Input
-							type="number"
-							value={String(config.maxAutoFixAttempts)}
-							onChange={(e) => setConfig({ ...config, maxAutoFixAttempts: Number(e.target.value) })}
-						/>
-					</Field>
-				</div>
-
-				<div className="grid grid-cols-2 gap-3">
-					<Field label="Polling Interval (seconds)">
-						<Input
-							type="number"
-							value={String(config.pollingIntervalSeconds)}
-							onChange={(e) => setConfig({ ...config, pollingIntervalSeconds: Number(e.target.value) })}
-						/>
-					</Field>
-					<Field label="Max Parallel QA">
-						<Input
-							type="number"
-							value={String(config.maxParallelQA)}
-							onChange={(e) => setConfig({ ...config, maxParallelQA: Number(e.target.value) })}
-						/>
-					</Field>
-				</div>
-				<div className="grid grid-cols-2 gap-3">
-					<Field label="PR Poll Interval (seconds)">
-						<Input
-							type="number"
-							value={String(config.prPollingIntervalSeconds)}
-							onChange={(e) => setConfig({ ...config, prPollingIntervalSeconds: Number(e.target.value) })}
-						/>
-					</Field>
-				</div>
-			</Section>
-
-			{/* AI Review */}
-			<Section title="AI Review">
-				<div className="grid grid-cols-2 gap-3">
-					<Field label="Code Review Agent">
-						<Select
-							value={config.review.codeReviewAgent}
-							onChange={(v) =>
-								setConfig({ ...config, review: { ...config.review, codeReviewAgent: v as "claude" | "codex" } })
-							}
-							placeholder="Select agent"
-						>
-							<SelectOption value="claude" label="Claude Code" />
-							<SelectOption value="codex" label="OpenAI Codex" />
-						</Select>
-					</Field>
-					<Field label="QA Agent">
-						<Select
-							value={config.review.qaAgent}
-							onChange={(v) => setConfig({ ...config, review: { ...config.review, qaAgent: v as "claude" | "codex" } })}
-							placeholder="Select agent"
-						>
-							<SelectOption value="claude" label="Claude Code" />
-							<SelectOption value="codex" label="OpenAI Codex" />
-						</Select>
-					</Field>
-				</div>
-			</Section>
-
-			<div className="flex justify-end pb-4">
-				<Button onClick={handleSave} disabled={saving}>
-					{saving ? "Saving..." : "Save Settings"}
-				</Button>
-			</div>
+			{section === "ai-review" && (
+				<>
+					<SectionHeader
+						title="AI Review"
+						description="Choose which AI agents handle code review and QA tasks."
+					/>
+					<div className="space-y-4">
+						<div className="grid grid-cols-2 gap-3">
+							<Field label="Code Review Agent">
+								<Select
+									value={config.review.codeReviewAgent}
+									onChange={(v) =>
+										setConfig({ ...config, review: { ...config.review, codeReviewAgent: v as "claude" | "codex" } })
+									}
+									placeholder="Select agent"
+								>
+									<SelectOption value="claude" label="Claude Code" />
+									<SelectOption value="codex" label="OpenAI Codex" />
+								</Select>
+							</Field>
+							<Field label="QA Agent">
+								<Select
+									value={config.review.qaAgent}
+									onChange={(v) =>
+										setConfig({ ...config, review: { ...config.review, qaAgent: v as "claude" | "codex" } })
+									}
+									placeholder="Select agent"
+								>
+									<SelectOption value="claude" label="Claude Code" />
+									<SelectOption value="codex" label="OpenAI Codex" />
+								</Select>
+							</Field>
+						</div>
+					</div>
+					<SaveRow saving={saving} onSave={handleSave} />
+				</>
+			)}
 		</div>
 	);
 }
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function SectionHeader({ title, description }: { title: string; description: string }) {
 	return (
-		<div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-3">
-			<h3 className="text-sm font-semibold text-gray-200">{title}</h3>
-			{children}
+		<div>
+			<h2 className="text-base font-semibold text-gray-100">{title}</h2>
+			<p className="text-sm text-gray-500 mt-1">{description}</p>
 		</div>
 	);
 }
@@ -428,6 +484,16 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 		<div>
 			<label className="text-xs text-gray-400 block mb-1">{label}</label>
 			{children}
+		</div>
+	);
+}
+
+function SaveRow({ saving, onSave }: { saving: boolean; onSave: () => void }) {
+	return (
+		<div className="flex justify-end pt-2">
+			<Button onClick={onSave} disabled={saving}>
+				{saving ? "Saving..." : "Save"}
+			</Button>
 		</div>
 	);
 }

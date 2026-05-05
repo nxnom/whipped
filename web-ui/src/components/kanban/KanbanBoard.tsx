@@ -13,7 +13,7 @@ interface KanbanBoardProps {
 	onRefresh: () => void;
 }
 
-const DIALOG_CLASS = "!bg-gray-900 !border !border-gray-700 w-full";
+const DIALOG_CLASS = "w-full";
 
 export function KanbanBoard({ state, onRefresh }: KanbanBoardProps) {
 	const [detailCardId, setDetailCardId] = useUrlParam("card");

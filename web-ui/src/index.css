@@ -34,3 +34,35 @@
     background: #4b5563;
   }
 }
+
+/* ─── GeckoUI dark theme overrides ─────────────────────────────────────────
+   Align GeckoUI's surface/border tokens with the app's gray-900 palette
+   so dialogs, dropdowns, and inputs match without per-call className hacks.
+   ────────────────────────────────────────────────────────────────────────── */
+.dark {
+  --color-surface-primary: #111827;      /* gray-900 — dialog / menu bg */
+  --color-surface-secondary: #1f2937;    /* gray-800 — secondary panels */
+  --color-surface-tertiary: #1f2937;     /* gray-800 */
+  --color-surface-hover: #1f2937;        /* gray-800 — hover bg */
+  --color-surface-hover-strong: #374151; /* gray-700 — strong hover */
+  --color-surface-active: #4b5563;       /* gray-600 — pressed */
+  --color-surface-disabled: #1f2937;     /* gray-800 */
+  --color-border-primary: #374151;       /* gray-700 */
+  --color-border-secondary: #374151;     /* gray-700 */
+  --color-border-focus: #4b5563;         /* gray-600 */
+  --color-border-hover: #4b5563;         /* gray-600 */
+  --color-border-disabled: #1f2937;      /* gray-800 */
+}
+
+/* Dialog / ConfirmDialog panel */
+.dark .GeckoUIDialog__dialog,
+.dark .GeckoUIConfirmDialog__dialog {
+  border: 1px solid #374151;
+  border-radius: 0.75rem;
+}
+
+/* Select dropdown + Menu popup */
+.dark .GeckoUISelectMenu,
+.dark .GeckoUIMenu__items {
+  border-radius: 0.75rem;
+}
