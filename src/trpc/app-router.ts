@@ -431,6 +431,12 @@ export const appRouter = router({
 
 	// ─── Filesystem browser ────────────────────────────────────────────────────
 	fs: router({
+		openPath: publicProcedure.input(z.object({ path: z.string() })).mutation(({ input }) => {
+			const cmd = process.platform === "win32" ? "explorer" : process.platform === "darwin" ? "open" : "xdg-open";
+			spawnSync(cmd, [input.path], { stdio: "ignore" });
+			return { ok: true };
+		}),
+
 		listDir: publicProcedure.input(z.object({ path: z.string() })).query(async ({ input }) => {
 			const { readdirSync, statSync } = await import("node:fs");
 			const { join: pathJoin, dirname, resolve } = await import("node:path");

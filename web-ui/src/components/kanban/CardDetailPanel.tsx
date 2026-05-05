@@ -1,6 +1,6 @@
 import { Button, ConfirmDialog, Textarea, Tooltip, toast } from "@geckoui/geckoui";
 import type { RuntimeBoardCard, RuntimeTaskSessionSummary } from "@runtime-contract";
-import { ArrowLeft, ExternalLink, GitMerge, GitPullRequest, Play, Square, TerminalSquare, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, FolderOpen, GitMerge, GitPullRequest, Play, Square, TerminalSquare, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { trpc } from "@/runtime/trpc-client";
@@ -304,6 +304,15 @@ export function CardDetailPanel({ card, workspaceId, session, onClose, onRefresh
 									<p className="text-xs text-gray-500 mt-1">
 										{session.agentId} · {SESSION_STATE_LABEL[session.state] ?? session.state}
 									</p>
+								)}
+								{session?.worktreePath && (
+									<button
+										onClick={() => trpc.fs.openPath.mutate({ path: session.worktreePath! })}
+										className="mt-2 flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-400 transition-colors"
+									>
+										<FolderOpen size={12} />
+										<span className="font-mono truncate max-w-[220px]">{session.worktreePath.split("/").slice(-2).join("/")}</span>
+									</button>
 								)}
 							</div>
 

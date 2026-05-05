@@ -1,6 +1,7 @@
 import { Draggable } from "@hello-pangea/dnd";
 import type { RuntimeBoardCard, RuntimeTaskSessionSummary } from "@runtime-contract";
-import { Bot, ExternalLink, GitPullRequest, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { Bot, ExternalLink, FolderOpen, GitPullRequest, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { trpc } from "@/runtime/trpc-client";
 
 interface KanbanCardProps {
 	card: RuntimeBoardCard;
@@ -45,6 +46,15 @@ export function KanbanCard({ card, index, session, onClick, onEdit, onDelete }: 
 				>
 					{/* Hover action buttons */}
 					<div className="absolute top-2 right-2 hidden group-hover:flex items-center gap-0.5 z-10">
+						{session?.worktreePath && (
+							<button
+								onClick={(e) => { e.stopPropagation(); trpc.fs.openPath.mutate({ path: session.worktreePath! }); }}
+								className="p-1 rounded text-gray-500 hover:text-blue-400 hover:bg-gray-700 transition-colors"
+								title="Open worktree folder"
+							>
+								<FolderOpen size={11} />
+							</button>
+						)}
 						{!isRunning && onEdit && (
 							<button
 								onClick={(e) => { e.stopPropagation(); onEdit(); }}
