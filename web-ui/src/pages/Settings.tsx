@@ -1,6 +1,7 @@
 import { Button, Checkbox, Input, Select, SelectOption, Switch, Textarea, toast } from "@geckoui/geckoui";
 import type { AgentSlot, PromptGroup, RuntimeGlobalConfig, RuntimeJiraTicket, RuntimeProjectConfig, RuntimeWorktreeSetup } from "@runtime-contract";
-import { Bot, ChevronDown, ChevronUp, Download, MessageSquare, Plus, RefreshCw, Settings2, Terminal, Ticket, Trash2, X, Zap } from "lucide-react";
+import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
+import { Bot, Download, GripVertical, MessageSquare, Plus, RefreshCw, Settings2, Terminal, Ticket, Trash2, X, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
 
@@ -376,37 +377,30 @@ function AgentsSection({
 	const [promptError, setPromptError] = useState("");
 
 	const devSlot = slots.find(s => s.type === "dev");
-	const nonDevSlots = slots.filter(s => s.type !== "dev").sort((a, b) => a.order - b.order);
+	const crSlot = slots.find(s => s.type === "code_review");
+	const fixedSlots = [devSlot, crSlot].filter(Boolean) as AgentSlot[];
+	const draggableSlots = slots.filter(s => s.type !== "dev" && s.type !== "code_review").sort((a, b) => a.order - b.order);
 
-	const handleToggleQA = (slotId: string, enabled: boolean) => {
+	const handleToggleSlot = (slotId: string, enabled: boolean) => {
 		onChange(slots.map(s => s.id === slotId ? { ...s, enabled } : s));
 	};
 
-	const handleMoveUp = (slotId: string) => {
-		const sorted = [...nonDevSlots];
-		const idx = sorted.findIndex(s => s.id === slotId);
-		if (idx <= 0) return;
-		const swapped = [...sorted];
-		[swapped[idx - 1], swapped[idx]] = [swapped[idx]!, swapped[idx - 1]!];
-		const reordered = swapped.map((s, i) => ({ ...s, order: i + 1 }));
-		onChange([...(devSlot ? [devSlot] : []), ...reordered]);
-	};
-
-	const handleMoveDown = (slotId: string) => {
-		const sorted = [...nonDevSlots];
-		const idx = sorted.findIndex(s => s.id === slotId);
-		if (idx < 0 || idx >= sorted.length - 1) return;
-		const swapped = [...sorted];
-		[swapped[idx], swapped[idx + 1]] = [swapped[idx + 1]!, swapped[idx]!];
-		const reordered = swapped.map((s, i) => ({ ...s, order: i + 1 }));
-		onChange([...(devSlot ? [devSlot] : []), ...reordered]);
+	const handleDragEnd = (result: DropResult) => {
+		if (!result.destination || result.destination.index === result.source.index) return;
+		const reordered = [...draggableSlots];
+		const [moved] = reordered.splice(result.source.index, 1);
+		if (!moved) return;
+		reordered.splice(result.destination.index, 0, moved);
+		const fixedIds = new Set(fixedSlots.map(s => s.id));
+		const kept = slots.filter(s => fixedIds.has(s.id));
+		onChange([...kept, ...reordered.map((s, i) => ({ ...s, order: i + 1 }))]);
 	};
 
 	const handleRemove = (slotId: string) => {
 		const updated = slots.filter(s => s.id !== slotId);
-		const devS = updated.find(s => s.type === "dev");
-		const others = updated.filter(s => s.type !== "dev").map((s, i) => ({ ...s, order: i + 1 }));
-		onChange([...(devS ? [devS] : []), ...others]);
+		const fixed = updated.filter(s => s.type === "dev" || s.type === "code_review");
+		const others = updated.filter(s => s.type !== "dev" && s.type !== "code_review").map((s, i) => ({ ...s, order: i + 1 }));
+		onChange([...fixed, ...others]);
 	};
 
 	const handleAddCustom = () => {
@@ -417,7 +411,7 @@ function AgentsSection({
 		}
 		setPromptError("");
 		const id = `slot_custom_${Date.now()}`;
-		const maxOrder = nonDevSlots.reduce((m, s) => Math.max(m, s.order), 0);
+		const maxOrder = draggableSlots.reduce((m, s) => Math.max(m, s.order), 0);
 		const newSlot: AgentSlot = {
 			id,
 			type: "custom",
@@ -439,72 +433,86 @@ function AgentsSection({
 				description="Configure the pipeline stages that run after the dev agent completes."
 			/>
 
-			{/* Dev slot — fixed */}
-			{devSlot && (
-				<div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-					<div className="flex items-center justify-between">
-						<div>
-							<p className="text-sm font-medium text-gray-100">{devSlot.name} <span className="text-xs text-gray-500 ml-1">(Dev — always runs)</span></p>
-							<p className="text-xs text-gray-500 mt-0.5">Binary: {devSlot.agentBinary}</p>
+			{/* Fixed slots — dev and code_review, always run */}
+			{fixedSlots.map((slot) => (
+				<div key={slot.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+					<div className="flex items-center justify-between gap-3">
+						<div className="flex-1 min-w-0">
+							<p className="text-sm font-medium text-gray-100">{slot.name}</p>
 						</div>
-						<span className="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded">fixed</span>
+						<div className="flex items-center gap-2 shrink-0">
+							<Select
+								value={slot.agentBinary}
+								onChange={(v) => onChange(slots.map(s => s.id === slot.id ? { ...s, agentBinary: v as "claude" | "codex" } : s))}
+								wrapperClassName="w-28"
+							>
+								<SelectOption value="claude" label="claude" />
+								<SelectOption value="codex" label="codex" />
+							</Select>
+							<span className="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded">fixed</span>
+						</div>
 					</div>
 				</div>
-			)}
+			))}
 
-			{/* Non-dev slots */}
-			<div className="space-y-2">
-				{nonDevSlots.map((slot, idx) => (
-					<div key={slot.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-						<div className="flex items-center justify-between gap-3">
-							<div className="flex-1 min-w-0">
-								<p className="text-sm font-medium text-gray-100">{slot.name}
-									{slot.type !== "custom" && (
-										<span className="text-xs text-gray-500 ml-1">({slot.type.replace("_", " ")})</span>
+			{/* Non-dev slots — draggable */}
+			<DragDropContext onDragEnd={handleDragEnd}>
+				<Droppable droppableId="agent-slots">
+					{(provided) => (
+						<div className="space-y-2" ref={provided.innerRef} {...provided.droppableProps}>
+							{draggableSlots.map((slot, idx) => (
+								<Draggable key={slot.id} draggableId={slot.id} index={idx}>
+									{(drag, snapshot) => (
+										<div
+											ref={drag.innerRef}
+											{...drag.draggableProps}
+											className={`bg-gray-900 border rounded-xl p-4 transition-shadow ${snapshot.isDragging ? "border-gray-600 shadow-lg" : "border-gray-800"}`}
+										>
+											<div className="flex items-center justify-between gap-3">
+												<div className="flex items-center gap-2 flex-1 min-w-0">
+													<span {...drag.dragHandleProps} className="text-gray-600 hover:text-gray-400 cursor-grab active:cursor-grabbing shrink-0">
+														<GripVertical size={14} />
+													</span>
+													<p className="text-sm font-medium text-gray-100">{slot.name}
+														{slot.type !== "custom" && (
+															<span className="text-xs text-gray-500 ml-1">({slot.type.replace("_", " ")})</span>
+														)}
+													</p>
+												</div>
+												<div className="flex items-center gap-2 shrink-0">
+													<Select
+														value={slot.agentBinary}
+														onChange={(v) => onChange(slots.map(s => s.id === slot.id ? { ...s, agentBinary: v as "claude" | "codex" } : s))}
+														wrapperClassName="w-28"
+													>
+														<SelectOption value="claude" label="claude" />
+														<SelectOption value="codex" label="codex" />
+													</Select>
+													{(slot.type === "qa" || slot.type === "custom") && (
+														<Switch
+															checked={slot.enabled}
+															onChange={(v) => handleToggleSlot(slot.id, v)}
+														/>
+													)}
+													{slot.type === "custom" && (
+														<button
+															onClick={() => handleRemove(slot.id)}
+															className="text-gray-600 hover:text-red-400 transition-colors"
+														>
+															<Trash2 size={14} />
+														</button>
+													)}
+												</div>
+											</div>
+										</div>
 									)}
-								</p>
-								<p className="text-xs text-gray-500 mt-0.5">Binary: {slot.agentBinary}</p>
-							</div>
-
-							<div className="flex items-center gap-2 shrink-0">
-								{/* Reorder buttons */}
-								<button
-									onClick={() => handleMoveUp(slot.id)}
-									disabled={idx === 0}
-									className="text-gray-600 hover:text-gray-300 disabled:opacity-30 transition-colors"
-								>
-									<ChevronUp size={14} />
-								</button>
-								<button
-									onClick={() => handleMoveDown(slot.id)}
-									disabled={idx === nonDevSlots.length - 1}
-									className="text-gray-600 hover:text-gray-300 disabled:opacity-30 transition-colors"
-								>
-									<ChevronDown size={14} />
-								</button>
-
-								{/* Toggle enabled */}
-								{slot.type !== "custom" && (
-									<Switch
-										checked={slot.enabled}
-										onChange={(v) => handleToggleQA(slot.id, v)}
-									/>
-								)}
-
-								{/* Remove custom */}
-								{slot.type === "custom" && (
-									<button
-										onClick={() => handleRemove(slot.id)}
-										className="text-gray-600 hover:text-red-400 transition-colors"
-									>
-										<Trash2 size={14} />
-									</button>
-								)}
-							</div>
+								</Draggable>
+							))}
+							{provided.placeholder}
 						</div>
-					</div>
-				))}
-			</div>
+					)}
+				</Droppable>
+			</DragDropContext>
 
 			{/* Add custom agent */}
 			<div className="border border-gray-800 rounded-xl p-4 space-y-3">

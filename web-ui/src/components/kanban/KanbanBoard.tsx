@@ -193,6 +193,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard }: KanbanBoardProps
           workspaceId={state.workspaceId}
           session={state.sessions[detailCard.id]}
           allCards={state.board.cards}
+          agentSlots={state.projectConfig.agentSlots}
           onClose={() => setDetailCardId(null)}
           onRefresh={onRefresh}
           onDeleteCard={onDeleteCard}

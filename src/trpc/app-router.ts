@@ -90,18 +90,43 @@ export const appRouter = router({
 			return await listWorkspaces();
 		}),
 
-		add: publicProcedure.input(z.object({ repoPath: z.string().min(1) })).mutation(async ({ ctx, input }) => {
+		checkPath: publicProcedure.input(z.object({ repoPath: z.string() })).query(async ({ input }) => {
+			if (!input.repoPath.trim()) return { valid: false, isGitRepo: false, error: null };
 			const { statSync } = await import("node:fs");
 			try {
 				const stat = statSync(input.repoPath);
-				if (!stat.isDirectory()) throw new Error("Not a directory");
+				if (!stat.isDirectory()) return { valid: false, isGitRepo: false, error: "Not a directory" };
 			} catch {
-				throw new TRPCError({ code: "BAD_REQUEST", message: `Path does not exist: ${input.repoPath}` });
+				return { valid: false, isGitRepo: false, error: "Path does not exist" };
 			}
-			const context = await loadWorkspaceContext(input.repoPath);
-			await ctx.ensureWorkspace(context.workspaceId);
-			return context;
+			const r = spawnSync("git", ["rev-parse", "--git-dir"], { cwd: input.repoPath, encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] });
+			const isGitRepo = r.status === 0;
+			return { valid: isGitRepo, isGitRepo, error: isGitRepo ? null : "Not a git repository" };
 		}),
+
+		add: publicProcedure
+			.input(z.object({
+				repoPath: z.string().min(1),
+				initialConfig: runtimeProjectConfigSchema.partial().optional(),
+			}))
+			.mutation(async ({ ctx, input }) => {
+				const { statSync } = await import("node:fs");
+				try {
+					const stat = statSync(input.repoPath);
+					if (!stat.isDirectory()) throw new Error("Not a directory");
+				} catch {
+					throw new TRPCError({ code: "BAD_REQUEST", message: `Path does not exist: ${input.repoPath}` });
+				}
+				const r = spawnSync("git", ["rev-parse", "--git-dir"], { cwd: input.repoPath, encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] });
+				if (r.status !== 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Not a git repository" });
+				const context = await loadWorkspaceContext(input.repoPath);
+				await ctx.ensureWorkspace(context.workspaceId);
+				if (input.initialConfig) {
+					const current = await loadProjectConfig(context.workspaceId);
+					await saveProjectConfig(context.workspaceId, runtimeProjectConfigSchema.parse({ ...current, ...input.initialConfig }));
+				}
+				return context;
+			}),
 
 		remove: publicProcedure.input(z.object({ workspaceId: z.string() })).mutation(async ({ input }) => {
 			await removeWorkspace(input.workspaceId);
