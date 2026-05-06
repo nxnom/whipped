@@ -78,6 +78,7 @@ export const runtimeReviewCommentSchema = z.object({
 	content: z.string(),
 	passed: z.boolean().optional(),
 	createdAt: z.number(),
+	source: z.string().optional(), // e.g. "github", "gitlab", "jira" — absent means internal
 });
 export type RuntimeReviewComment = z.infer<typeof runtimeReviewCommentSchema>;
 
@@ -95,6 +96,7 @@ export const runtimeTerminalSessionEntrySchema = z.object({
 	streamId: z.string(),
 	type: z.string(),
 	startedAt: z.number(),
+	endedAt: z.number().optional(),
 });
 export type RuntimeTerminalSessionEntry = z.infer<typeof runtimeTerminalSessionEntrySchema>;
 

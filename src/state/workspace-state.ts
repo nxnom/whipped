@@ -414,6 +414,24 @@ export async function appendTerminalSession(
 	});
 }
 
+export async function endTerminalSession(
+	workspaceId: string,
+	cardId: string,
+	streamId: string,
+): Promise<void> {
+	return withLock(workspaceId, async () => {
+		const board = await loadBoard(workspaceId);
+		const card = board.cards[cardId];
+		if (!card) return;
+		card.terminalSessions = (card.terminalSessions ?? []).map((s) =>
+			s.streamId === streamId ? { ...s, endedAt: Date.now() } : s,
+		);
+		card.updatedAt = Date.now();
+		board.cards[cardId] = card;
+		await saveBoard(workspaceId, board);
+	});
+}
+
 export async function updateCard(
 	workspaceId: string,
 	cardId: string,

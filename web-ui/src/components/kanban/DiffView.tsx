@@ -1,5 +1,5 @@
-import { Button, Textarea } from "@geckoui/geckoui";
-import { ChevronDown, ChevronRight, MessageSquare, Plus, RefreshCw, X } from "lucide-react";
+import { Button } from "@geckoui/geckoui";
+import { ChevronDown, ChevronRight, MessageSquare, Plus, RefreshCw, Send, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
 
@@ -368,10 +368,10 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 			</div>
 
 			{/* Always-visible review box */}
-			<div className="shrink-0 border-t border-gray-700 bg-gray-900 font-sans p-3 space-y-2">
+			<div className="shrink-0 border-t border-gray-800 font-sans p-3">
 				{/* Pending inline comments summary */}
 				{pendingComments.length > 0 && (
-					<div className="space-y-0.5 max-h-24 overflow-y-auto">
+					<div className="mb-2 space-y-0.5 max-h-20 overflow-y-auto">
 						{pendingComments.map((c) => (
 							<div key={c.id} className="flex items-start gap-1.5 text-xs">
 								<span className="text-gray-600 shrink-0">•</span>
@@ -382,26 +382,12 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 					</div>
 				)}
 
-				{/* Main comment textarea */}
-				<textarea
-					value={overallFeedback}
-					onChange={(e) => setOverallFeedback(e.target.value)}
-					placeholder="Leave a review comment…"
-					rows={3}
-					className="w-full bg-gray-800 border border-gray-700 rounded-md text-xs text-gray-200 px-3 py-2 resize-none outline-none focus:border-gray-600 placeholder-gray-600"
-				/>
-
-				<div className="flex items-center justify-between gap-2">
-					<span className="text-[10px] text-gray-600">
-						{pendingComments.length > 0 ? `${pendingComments.length} inline comment${pendingComments.length !== 1 ? "s" : ""} staged` : ""}
-					</span>
-					<div className="flex gap-2">
-						{/* Always available: save as a plain review comment */}
-						<Button
-							variant="outlined"
-							size="sm"
-							disabled={submitting || !overallFeedback.trim()}
-							onClick={async () => {
+				<div className="rounded-lg border border-gray-700 bg-gray-900 focus-within:border-gray-600 transition-colors">
+					<textarea
+						value={overallFeedback}
+						onChange={(e) => setOverallFeedback(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key === "Enter" && !e.shiftKey && !pendingComments.length) { e.preventDefault(); void (async () => {
 								if (!overallFeedback.trim()) return;
 								setSubmitting(true);
 								try {
@@ -409,20 +395,46 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 									setOverallFeedback("");
 									onRefresh();
 								} finally { setSubmitting(false); }
-							}}
-						>
-							Comment
-						</Button>
-						{/* Request Changes: saves inline comments + reopens card */}
-						{isReadyForReview && (
+							})(); }
+						}}
+						placeholder="Leave a review comment…"
+						rows={2}
+						className="w-full bg-transparent text-sm text-gray-200 px-3 pt-3 pb-1 resize-none outline-none placeholder-gray-600"
+					/>
+					<div className="flex items-center justify-between px-3 pb-2">
+						<span className="text-[10px] text-gray-700">
+							{pendingComments.length > 0
+								? `${pendingComments.length} inline comment${pendingComments.length !== 1 ? "s" : ""} staged · ⇧↵ Newline`
+								: "↵ Send · ⇧↵ Newline"}
+						</span>
+						<div className="flex gap-1.5">
+							{isReadyForReview && (
+								<Button
+									variant="outlined"
+									size="sm"
+									disabled={submitting || (!pendingComments.length && !overallFeedback.trim())}
+									onClick={handleRequestChanges}
+								>
+									{submitting ? "Submitting…" : "Request Changes"}
+								</Button>
+							)}
 							<Button
 								size="sm"
-								disabled={submitting || (!pendingComments.length && !overallFeedback.trim())}
-								onClick={handleRequestChanges}
+								disabled={submitting || !overallFeedback.trim()}
+								onClick={async () => {
+									if (!overallFeedback.trim()) return;
+									setSubmitting(true);
+									try {
+										await trpc.cards.addReviewComment.mutate({ workspaceId, cardId, content: overallFeedback.trim(), type: "human", agent: "human" });
+										setOverallFeedback("");
+										onRefresh();
+									} finally { setSubmitting(false); }
+								}}
 							>
-								{submitting ? "Submitting…" : "Request Changes"}
+								<Send size={11} className="mr-1" />
+								Send
 							</Button>
-						)}
+						</div>
 					</div>
 				</div>
 			</div>
@@ -446,22 +458,24 @@ function InlineCommentBox({
 	onCancel: () => void;
 }) {
 	return (
-		<div className="mx-4 my-2 border border-gray-700 rounded-md bg-gray-900 font-sans">
-			<textarea
-				ref={draftRef}
-				value={value}
-				onChange={(e) => onChange(e.target.value)}
-				onKeyDown={(e) => {
-					if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); onAdd(); }
-					if (e.key === "Escape") onCancel();
-				}}
-				placeholder="Add a comment… (⌘↵ to save)"
-				rows={3}
-				className="w-full bg-transparent text-gray-200 text-xs p-3 resize-none outline-none placeholder-gray-600"
-			/>
-			<div className="flex justify-end gap-1.5 px-3 pb-2">
-				<Button variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
-				<Button size="sm" onClick={onAdd} disabled={!value.trim()}>Add Comment</Button>
+		<div className="mx-4 my-2 font-sans">
+			<div className="rounded-lg border border-gray-700 bg-gray-900 focus-within:border-gray-600 transition-colors">
+				<textarea
+					ref={draftRef}
+					value={value}
+					onChange={(e) => onChange(e.target.value)}
+					onKeyDown={(e) => {
+						if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onAdd(); }
+						if (e.key === "Escape") onCancel();
+					}}
+					placeholder="Add a comment…"
+					rows={2}
+					className="w-full bg-transparent text-sm text-gray-200 px-3 pt-3 pb-1 resize-none outline-none placeholder-gray-600"
+				/>
+				<div className="flex items-center justify-between px-3 pb-2">
+					<span className="text-[10px] text-gray-700">↵ Add · ⇧↵ Newline · Esc Cancel</span>
+					<Button size="sm" onClick={onAdd} disabled={!value.trim()}>Add</Button>
+				</div>
 			</div>
 		</div>
 	);

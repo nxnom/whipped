@@ -12,7 +12,7 @@ import type { WorkflowSlot, RuntimeAgentId, RuntimeBoardCard } from "../core/api
 import { buildDevAgentSystemPrompt } from "./review-pipeline.js";
 import { logger } from "../core/logger.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
-import { appendActivityLog, appendTerminalSession, loadBoard, loadProjectConfig, moveCard, removeSession, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
+import { appendActivityLog, appendTerminalSession, endTerminalSession, loadBoard, loadProjectConfig, moveCard, removeSession, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
 import { createWorktree, getWorktreeBranch, getWorktreePath, removeWorktree, removeWorktreeAsync } from "../worktree/worktree-manager.js";
 
 export interface SchedulerOptions {
@@ -299,6 +299,7 @@ export class TaskScheduler {
 				onExit: async (exitCode) => {
 					this.setRecentBuffer(devStreamId, runningTask.outputBuffer);
 					void saveTerminalBuffer(workspaceId, devStreamId, runningTask.outputBuffer);
+					void endTerminalSession(workspaceId, taskId, devStreamId);
 					this.running.delete(taskId);
 					unlink(mcpConfigPath).catch(() => {});
 

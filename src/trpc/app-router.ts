@@ -467,21 +467,19 @@ export const appRouter = router({
 			}),
 
 		submitHumanFeedback: publicProcedure
-			.input(z.object({ workspaceId: z.string(), cardId: z.string(), comment: z.string().min(1) }))
+			.input(z.object({ workspaceId: z.string(), cardId: z.string(), comment: z.string().optional() }))
 			.mutation(async ({ ctx, input }) => {
 				const board = await loadBoard(input.workspaceId);
 				const card = board.cards[input.cardId];
 				if (!card) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
 
-				const updatedComments = [
-					...(card.reviewComments ?? []),
-					{
-						type: "human" as const,
-						agent: "human",
-						content: input.comment,
-						createdAt: Date.now(),
-					},
-				];
+				const trimmed = input.comment?.trim();
+				const updatedComments = trimmed
+					? [
+						...(card.reviewComments ?? []),
+						{ type: "human" as const, agent: "human", content: trimmed, createdAt: Date.now() },
+					]
+					: (card.reviewComments ?? []);
 				await updateCard(input.workspaceId, input.cardId, { reviewComments: updatedComments });
 				await moveCard(input.workspaceId, input.cardId, "reopened");
 				await updateSession(input.workspaceId, input.cardId, { state: "idle" });

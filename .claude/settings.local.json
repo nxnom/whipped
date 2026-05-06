@@ -48,7 +48,8 @@
       "Bash(sed -i '' '1s/^/import { logger } from \".\\\\/core\\\\/logger.js\";\\\\n/' /Users/waiyanphyo/Development/kanbom/src/cli.ts)",
       "Bash(sed -i '' '1s/^/import { logger } from \"..\\\\/core\\\\/logger.js\";\\\\n/' /Users/waiyanphyo/Development/kanbom/src/trpc/app-router.ts)",
       "Bash(perl *)",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(pnpm --filter web-ui run typecheck)"
     ]
   }
 }

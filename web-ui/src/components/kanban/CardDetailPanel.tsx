@@ -1,9 +1,10 @@
-import { Button, ConfirmDialog, Select, SelectOption, Textarea, Tooltip, toast } from "@geckoui/geckoui";
-import type { WorkflowSlot, RuntimeBoardCard, RuntimeCardPriority, RuntimeTaskSessionSummary } from "@runtime-contract";
+import { Button, ConfirmDialog, Tooltip, toast } from "@geckoui/geckoui";
+import type { WorkflowSlot, RuntimeBoardCard, RuntimeTaskSessionSummary } from "@runtime-contract";
 import { ArrowLeft, ExternalLink, FolderOpen, GitBranch, GitMerge, GitPullRequest, Play, Square, TerminalSquare, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { trpc } from "@/runtime/trpc-client";
+import { ChatComments } from "./ChatComments";
 import { DiffView } from "./DiffView";
 
 interface Props {
@@ -46,20 +47,6 @@ const DEP_COL_BADGE: Record<string, string> = {
 	done: "text-emerald-400 bg-emerald-400/10",
 };
 
-const COMMENT_TYPE_LABEL: Record<string, string> = {
-	dev: "Dev Summary",
-	code_review: "Code Review",
-	qa: "QA",
-	human: "Your Feedback",
-};
-
-const COMMENT_TYPE_COLOR: Record<string, string> = {
-	dev: "text-blue-400 border-blue-900 bg-blue-950/30",
-	code_review: "text-purple-400 border-purple-900 bg-purple-950/30",
-	qa: "text-cyan-400 border-cyan-900 bg-cyan-950/30",
-	human: "text-yellow-400 border-yellow-900 bg-yellow-950/30",
-};
-
 const SESSION_STATE_LABEL: Record<string, string> = {
 	running: "Running",
 	review_in_progress: "Review in progress",
@@ -88,33 +75,23 @@ const MIN_SIDEBAR = 340;
 const MAX_SIDEBAR = 520;
 const DEFAULT_SIDEBAR = 340;
 
-type SidebarTab = "overview" | "comments" | "activity";
-type RightTab = "terminal" | "diff";
+type SidebarTab = "overview" | "activity";
+type RightTab = "terminal" | "diff" | "comments";
 
 export function CardDetailPanel({ card, workspaceId, session, allCards, workflowSlots, onClose, onRefresh, onDeleteCard }: Props) {
 	const [activeStreamId, setActiveStreamId] = useState<string>(
 		() => card.terminalSessions?.at(-1)?.streamId ?? card.id,
 	);
-	const [feedback, setFeedback] = useState("");
-	const [submitting, setSubmitting] = useState(false);
 	const [merging, setMerging] = useState(false);
 	const [creatingPR, setCreatingPR] = useState(false);
 	const [activeTab, setActiveTab] = useState<SidebarTab>("overview");
 	const [rightTab, setRightTab] = useState<RightTab>("terminal");
 	const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR);
 	const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
-	const commentsEndRef = useRef<HTMLDivElement>(null);
-	const commentsScrollRef = useRef<HTMLDivElement>(null);
 
 	const isReadyForReview = card.columnId === "ready_for_review";
 	const commentCount = card.reviewComments?.length ?? 0;
 
-	// ── Auto-scroll comments to bottom ────────────────────────────────────
-	useEffect(() => {
-		if (activeTab === "comments") {
-			commentsEndRef.current?.scrollIntoView({ behavior: "instant" });
-		}
-	}, [activeTab, commentCount]);
 
 	// ── Resize drag handle ─────────────────────────────────────────────────
 	useEffect(() => {
@@ -167,21 +144,6 @@ export function CardDetailPanel({ card, workspaceId, session, allCards, workflow
 				session.state === "failed"));
 
 	// ── Handlers ───────────────────────────────────────────────────────────
-	const handleSubmitFeedback = async () => {
-		if (!feedback.trim()) return;
-		setSubmitting(true);
-		try {
-			await trpc.cards.submitHumanFeedback.mutate({ workspaceId, cardId: card.id, comment: feedback.trim() });
-			toast.success("Feedback submitted — card moved to Reopened");
-			setFeedback("");
-			onRefresh();
-		} catch {
-			toast.error("Failed to submit feedback");
-		} finally {
-			setSubmitting(false);
-		}
-	};
-
 	const handleStart = async () => {
 		try {
 			await trpc.cards.startAgent.mutate({ workspaceId, cardId: card.id });
@@ -285,33 +247,6 @@ export function CardDetailPanel({ card, workspaceId, session, allCards, workflow
 		});
 	};
 
-	const handlePriorityChange = async (value: string) => {
-		try {
-			await trpc.cards.update.mutate({
-				workspaceId,
-				cardId: card.id,
-				priority: value as RuntimeCardPriority || undefined,
-				revision: 0,
-			});
-			onRefresh();
-		} catch {
-			toast.error("Failed to update priority");
-		}
-	};
-
-	const handleDepsChange = async (newDeps: string[]) => {
-		try {
-			await trpc.cards.update.mutate({
-				workspaceId,
-				cardId: card.id,
-				dependsOn: newDeps,
-				revision: 0,
-			});
-			onRefresh();
-		} catch {
-			toast.error("Failed to update dependencies");
-		}
-	};
 
 	return (
 		<div className="absolute inset-0 z-10 bg-gray-950 flex overflow-hidden">
@@ -349,7 +284,7 @@ export function CardDetailPanel({ card, workspaceId, session, allCards, workflow
 
 				{/* Tab bar */}
 				<div className="flex border-b border-gray-800 shrink-0">
-					{(["overview", "comments", "activity"] as SidebarTab[]).map((tab) => (
+					{(["overview", "activity"] as SidebarTab[]).map((tab) => (
 						<button
 							key={tab}
 							onClick={() => setActiveTab(tab)}
@@ -357,9 +292,7 @@ export function CardDetailPanel({ card, workspaceId, session, allCards, workflow
 								activeTab === tab ? "text-gray-100" : "text-gray-500 hover:text-gray-300"
 							}`}
 						>
-							{tab === "comments" && commentCount > 0
-								? `Comments (${commentCount})`
-								: tab.charAt(0).toUpperCase() + tab.slice(1)}
+							{tab.charAt(0).toUpperCase() + tab.slice(1)}
 							{activeTab === tab && (
 								<span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-t" />
 							)}
@@ -395,52 +328,35 @@ export function CardDetailPanel({ card, workspaceId, session, allCards, workflow
 							)}
 
 							{/* Priority */}
-							<div>
-								<h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Priority</h4>
-								<Select
-									value={card.priority ?? ""}
-									onChange={(v) => handlePriorityChange(v as string)}
-									placeholder="No priority"
-									clearable
-								>
-									<SelectOption value="urgent" label="Urgent" />
-									<SelectOption value="high" label="High" />
-									<SelectOption value="medium" label="Medium" />
-									<SelectOption value="low" label="Low" />
-								</Select>
-							</div>
+							{card.priority && (
+								<div>
+									<h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Priority</h4>
+									<span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${PRIORITY_STYLES[card.priority] ?? "text-gray-400 bg-gray-700/30 border-gray-700"}`}>
+										{card.priority.charAt(0).toUpperCase() + card.priority.slice(1)}
+									</span>
+								</div>
+							)}
 
 							{/* Dependencies */}
-							<div>
-								<h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Dependencies</h4>
-								<Select
-									multiple
-									value={card.dependsOn ?? []}
-									onChange={(v) => handleDepsChange(v as string[])}
-									placeholder="None"
-									filterable
-									clearable
-								>
-									{Object.values(allCards ?? {})
-										.filter((c) => c.id !== card.id)
-										.map((c) => (
-											<SelectOption
-												key={c.id}
-												value={c.id}
-												label={c.title}
-												hideCheckIcon
-												className={({ selected }: { selected: boolean }) => selected ? "bg-gray-700" : ""}
-											>
-												<div className="flex items-center justify-between w-full gap-2 min-w-0">
-													<span className="truncate text-sm">{c.title}</span>
-													<span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${DEP_COL_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700"}`}>
-														{COLUMN_LABELS[c.columnId] ?? c.columnId}
+							{(card.dependsOn ?? []).length > 0 && (
+								<div>
+									<h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Dependencies</h4>
+									<div className="space-y-1">
+										{(card.dependsOn ?? []).map((depId) => {
+											const dep = allCards?.[depId];
+											if (!dep) return null;
+											return (
+												<div key={depId} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-gray-800/50 border border-gray-800">
+													<span className="text-xs text-gray-300 truncate">{dep.title}</span>
+													<span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${DEP_COL_BADGE[dep.columnId] ?? "text-gray-400 bg-gray-700"}`}>
+														{COLUMN_LABELS[dep.columnId] ?? dep.columnId}
 													</span>
 												</div>
-											</SelectOption>
-										))}
-								</Select>
-							</div>
+											);
+										})}
+									</div>
+								</div>
+							)}
 
 							{(card.githubIssueUrl || card.githubPrUrl || card.jiraUrl) && (
 								<div className="space-y-1.5">
@@ -468,77 +384,45 @@ export function CardDetailPanel({ card, workspaceId, session, allCards, workflow
 							{card.terminalSessions && card.terminalSessions.length > 0 && (
 								<div>
 									<h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Sessions</h4>
-									<div className="space-y-0.5">
-										{card.terminalSessions.map((ts) => (
-											<button
-												key={ts.streamId}
-												onClick={() => setActiveStreamId(ts.streamId)}
-												className={`w-full text-left px-2 py-1.5 rounded text-xs flex items-center gap-2 transition-colors ${
-													activeStreamId === ts.streamId
-														? "bg-gray-800 text-gray-100"
-														: "text-gray-400 hover:text-gray-300 hover:bg-gray-800/50"
-												}`}
-											>
-												<TerminalSquare size={11} className="shrink-0 text-gray-500" />
-												<span className="flex-1">{getSessionLabel(ts.type, workflowSlots)}</span>
-												<span className="text-gray-600 tabular-nums">
-													{new Date(ts.startedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-												</span>
-											</button>
-										))}
+									<div className="space-y-1">
+										{card.terminalSessions.map((ts) => {
+											const isActive = !ts.endedAt;
+											const isSelected = activeStreamId === ts.streamId;
+											const stateColor =
+												session?.state === "running" ? "bg-blue-400 animate-pulse" :
+												session?.state === "review_in_progress" ? "bg-purple-400 animate-pulse" :
+												session?.state === "awaiting_review" ? "bg-yellow-400" :
+												session?.state === "failed" ? "bg-red-400" : "bg-gray-500";
+
+											return (
+												<button
+													key={ts.streamId}
+													onClick={() => setActiveStreamId(ts.streamId)}
+													className={`w-full text-left rounded text-xs flex items-center gap-2 transition-colors ${
+														isActive
+															? `px-2 py-1.5 ${isSelected ? "bg-gray-800 text-gray-100" : "text-gray-300 hover:text-gray-100 hover:bg-gray-800/50"}`
+															: `px-2 py-1.5 ${isSelected ? "bg-gray-800 text-gray-100" : "text-gray-500 hover:text-gray-300 hover:bg-gray-800/50"}`
+													}`}
+												>
+													{isActive ? (
+														<span className={`size-1.5 rounded-full shrink-0 ${stateColor}`} />
+													) : (
+														<TerminalSquare size={11} className="shrink-0 text-gray-600" />
+													)}
+													<span className="flex-1">{getSessionLabel(ts.type, workflowSlots)}</span>
+													{isActive ? (
+														<span className="text-[10px] text-blue-400 font-medium">
+															{SESSION_STATE_LABEL[session?.state ?? ""] ?? "Running"}
+														</span>
+													) : (
+														<span className="text-gray-600 tabular-nums">
+															{new Date(ts.startedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+														</span>
+													)}
+												</button>
+											);
+										})}
 									</div>
-								</div>
-							)}
-						</div>
-					)}
-
-					{/* ── Comments tab — chat layout: scrollable list + input pinned at bottom ── */}
-					{activeTab === "comments" && (
-						<div className="flex-1 min-h-0 flex flex-col">
-							<div ref={commentsScrollRef} className="flex-1 overflow-y-auto p-3 space-y-2">
-								{commentCount === 0 ? (
-									<p className="text-xs text-gray-600 text-center py-8">No comments yet</p>
-								) : (
-									card.reviewComments.map((comment, i) => (
-										<div
-											key={i}
-											className={`border rounded-lg p-3 text-xs ${COMMENT_TYPE_COLOR[comment.type] ?? "border-gray-800 bg-gray-900"}`}
-										>
-											<div className="flex items-center justify-between mb-1.5 opacity-70">
-												<span className="font-medium">{COMMENT_TYPE_LABEL[comment.type] ?? comment.type}</span>
-												<span className="text-gray-500 tabular-nums">
-													{new Date(comment.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-												</span>
-											</div>
-											{comment.agent !== "human" && (
-												<p className="text-gray-500 text-[10px] mb-1.5">{comment.agent}</p>
-											)}
-											<p className="text-gray-300 whitespace-pre-wrap leading-relaxed [overflow-wrap:anywhere]">{comment.content}</p>
-										</div>
-									))
-								)}
-								{/* Scroll anchor */}
-								<div ref={commentsEndRef} />
-							</div>
-
-							{/* Feedback input pinned at bottom */}
-							{isReadyForReview && (
-								<div className="shrink-0 border-t border-gray-800 p-3 bg-gray-900/40">
-									<Textarea
-										value={feedback}
-										onChange={(e) => setFeedback(e.target.value)}
-										placeholder="Request changes or give feedback…"
-										rows={3}
-										autoResize
-									/>
-									<Button
-										size="sm"
-										className="mt-2 w-full"
-										onClick={handleSubmitFeedback}
-										disabled={!feedback.trim() || submitting}
-									>
-										{submitting ? "Submitting…" : "Submit & Reopen"}
-									</Button>
 								</div>
 							)}
 						</div>
@@ -653,6 +537,16 @@ export function CardDetailPanel({ card, workspaceId, session, allCards, workflow
 					>
 						<GitBranch size={11} /> Diff
 					</button>
+					<button
+						onClick={() => setRightTab("comments")}
+						className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-b-2 ${
+							rightTab === "comments"
+								? "text-gray-100 border-blue-500"
+								: "text-gray-500 hover:text-gray-300 border-transparent"
+						}`}
+					>
+						Comments{commentCount > 0 ? ` (${commentCount})` : ""}
+					</button>
 
 					</div>
 
@@ -680,6 +574,16 @@ export function CardDetailPanel({ card, workspaceId, session, allCards, workflow
 						workspaceId={workspaceId}
 						cardId={card.id}
 						isReadyForReview={isReadyForReview}
+						onRefresh={onRefresh}
+					/>
+				)}
+
+				{/* Comments view */}
+				{rightTab === "comments" && (
+					<ChatComments
+						card={card}
+						workspaceId={workspaceId}
+						workflowSlots={workflowSlots}
 						onRefresh={onRefresh}
 					/>
 				)}

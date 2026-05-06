@@ -289,6 +289,7 @@ export class BoardPoller {
 						agent: e.author,
 						content: e.body,
 						createdAt: new Date(e.createdAt).getTime(),
+						source: "github" as const,
 					})),
 				];
 				const newIds = [...seenIds, ...newEntries.map((e) => e.id)];

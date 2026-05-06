@@ -9,7 +9,7 @@ import type { AgentProcess } from "../agents/agent-runner.js";
 import type { WorkflowSlot, RuntimeBoardCard, RuntimeReviewComment } from "../core/api-contract.js";
 import type { GithubClient } from "../github/github-client.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
-import { appendActivityLog, appendTerminalSession, loadBoard, moveCard, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
+import { appendActivityLog, appendTerminalSession, endTerminalSession, loadBoard, moveCard, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
 import { getWorktreeBranch, getWorktreePath, removeWorktreeAsync } from "../worktree/worktree-manager.js";
 import { logger } from "../core/logger.js";
 
@@ -87,6 +87,7 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 			result = await runReviewSlot(slot, card, streamId, options, customPrompt);
 		}
 
+		await endTerminalSession(workspaceId, card.id, streamId);
 		logger.info(`[review] ${slot.name} ${result.passed ? "PASSED" : "FAILED"} for "${card.title}"`);
 
 		if (!result.passed) {
