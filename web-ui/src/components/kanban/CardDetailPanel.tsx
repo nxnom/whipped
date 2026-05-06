@@ -1,6 +1,6 @@
 import { Button, ConfirmDialog, Select, SelectOption, Textarea, Tooltip, toast } from "@geckoui/geckoui";
 import type { RuntimeBoardCard, RuntimeCardPriority, RuntimeTaskSessionSummary } from "@runtime-contract";
-import { ArrowLeft, ExternalLink, FolderOpen, GitMerge, GitPullRequest, Link2, Play, Square, TerminalSquare, Trash2, X } from "lucide-react";
+import { ArrowLeft, ExternalLink, FolderOpen, GitMerge, GitPullRequest, Play, Square, TerminalSquare, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { trpc } from "@/runtime/trpc-client";
@@ -30,6 +30,17 @@ const COLUMN_LABELS: Record<string, string> = {
 	ready_for_review: "Ready for Review",
 	blocked: "Blocked",
 	done: "Done",
+};
+
+const DEP_COL_BADGE: Record<string, string> = {
+	todo: "text-gray-400 bg-gray-700",
+	ready_for_dev: "text-blue-400 bg-blue-400/10",
+	in_progress: "text-blue-400 bg-blue-400/10",
+	in_review: "text-purple-400 bg-purple-400/10",
+	reopened: "text-orange-400 bg-orange-400/10",
+	ready_for_review: "text-green-400 bg-green-400/10",
+	blocked: "text-red-400 bg-red-400/10",
+	done: "text-emerald-400 bg-emerald-400/10",
 };
 
 const COMMENT_TYPE_LABEL: Record<string, string> = {
@@ -76,7 +87,6 @@ export function CardDetailPanel({ card, workspaceId, session, allCards, onClose,
 	const [submitting, setSubmitting] = useState(false);
 	const [merging, setMerging] = useState(false);
 	const [creatingPR, setCreatingPR] = useState(false);
-	const [addingDep, setAddingDep] = useState(false);
 	const [activeTab, setActiveTab] = useState<SidebarTab>("overview");
 	const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR);
 	const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
@@ -273,33 +283,17 @@ export function CardDetailPanel({ card, workspaceId, session, allCards, onClose,
 		}
 	};
 
-	const handleAddDep = async (depId: string) => {
-		if (!depId || (card.dependsOn ?? []).includes(depId)) return;
-		setAddingDep(false);
+	const handleDepsChange = async (newDeps: string[]) => {
 		try {
 			await trpc.cards.update.mutate({
 				workspaceId,
 				cardId: card.id,
-				dependsOn: [...(card.dependsOn ?? []), depId],
+				dependsOn: newDeps,
 				revision: 0,
 			});
 			onRefresh();
 		} catch {
-			toast.error("Failed to add dependency");
-		}
-	};
-
-	const handleRemoveDep = async (depId: string) => {
-		try {
-			await trpc.cards.update.mutate({
-				workspaceId,
-				cardId: card.id,
-				dependsOn: (card.dependsOn ?? []).filter((id) => id !== depId),
-				revision: 0,
-			});
-			onRefresh();
-		} catch {
-			toast.error("Failed to remove dependency");
+			toast.error("Failed to update dependencies");
 		}
 	};
 
@@ -402,67 +396,34 @@ export function CardDetailPanel({ card, workspaceId, session, allCards, onClose,
 
 							{/* Dependencies */}
 							<div>
-								<div className="flex items-center justify-between mb-1.5">
-									<h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide">Dependencies</h4>
-									{!addingDep && (
-										<button
-											onClick={() => setAddingDep(true)}
-											className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
-										>
-											+ Add
-										</button>
-									)}
-								</div>
-								{(card.dependsOn ?? []).length === 0 && !addingDep && (
-									<p className="text-xs text-gray-600">None</p>
-								)}
-								<div className="space-y-1">
-									{(card.dependsOn ?? []).map((depId) => {
-										const dep = allCards?.[depId];
-										const isMet = dep?.columnId === "ready_for_review" || dep?.columnId === "done";
-										return (
-											<div key={depId} className="flex items-center gap-1.5 text-xs">
-												<Link2 size={11} className={isMet ? "text-green-500" : "text-orange-400"} />
-												<span className="flex-1 text-gray-300 truncate">
-													{dep?.title ?? depId}
-												</span>
-												{dep && (
-													<span className={`text-[10px] px-1.5 py-0.5 rounded ${isMet ? "bg-green-500/15 text-green-400" : "bg-orange-400/10 text-orange-400"}`}>
-														{COLUMN_LABELS[dep.columnId] ?? dep.columnId}
+								<h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Dependencies</h4>
+								<Select
+									multiple
+									value={card.dependsOn ?? []}
+									onChange={(v) => handleDepsChange(v as string[])}
+									placeholder="None"
+									filterable
+									clearable
+								>
+									{Object.values(allCards ?? {})
+										.filter((c) => c.id !== card.id)
+										.map((c) => (
+											<SelectOption
+												key={c.id}
+												value={c.id}
+												label={c.title}
+												hideCheckIcon
+												className={({ selected }: { selected: boolean }) => selected ? "bg-gray-700" : ""}
+											>
+												<div className="flex items-center justify-between w-full gap-2 min-w-0">
+													<span className="truncate text-sm">{c.title}</span>
+													<span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${DEP_COL_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700"}`}>
+														{COLUMN_LABELS[c.columnId] ?? c.columnId}
 													</span>
-												)}
-												<button
-													onClick={() => handleRemoveDep(depId)}
-													className="text-gray-600 hover:text-red-400 transition-colors ml-0.5"
-												>
-													<X size={11} />
-												</button>
-											</div>
-										);
-									})}
-								</div>
-								{addingDep && allCards && (
-									<div className="mt-1.5">
-										<Select
-											value=""
-											onChange={(v) => handleAddDep(v as string)}
-											placeholder="Search cards..."
-											filterable
-										>
-											{Object.values(allCards)
-												.filter((c) => c.id !== card.id && !(card.dependsOn ?? []).includes(c.id))
-												.map((c) => (
-													<SelectOption key={c.id} value={c.id} label={c.title} />
-												))}
-										</Select>
-										<button
-											onClick={() => setAddingDep(false)}
-											className="text-xs text-gray-600 hover:text-gray-400 mt-1 transition-colors"
-										>
-											Cancel
-										</button>
-									</div>
-								)}
+												</div>
+											</SelectOption>
+										))}
+								</Select>
 							</div>
 
 							{(card.githubIssueUrl || card.githubPrUrl || card.jiraUrl) && (

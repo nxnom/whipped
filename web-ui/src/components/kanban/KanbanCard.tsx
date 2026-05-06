@@ -1,11 +1,12 @@
 import { Draggable } from "@hello-pangea/dnd";
 import type { RuntimeBoardCard, RuntimeTaskSessionSummary } from "@runtime-contract";
-import { Bot, ExternalLink, FolderOpen, GitPullRequest, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { Bot, ExternalLink, FolderOpen, GitPullRequest, Link2, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { trpc } from "@/runtime/trpc-client";
 
 interface KanbanCardProps {
 	card: RuntimeBoardCard;
 	index: number;
+	allCards: Record<string, RuntimeBoardCard>;
 	session?: RuntimeTaskSessionSummary;
 	onClick: () => void;
 	onEdit?: () => void;
@@ -32,10 +33,17 @@ const SESSION_STATE_COLORS: Record<string, string> = {
 	failed: "text-red-400",
 };
 
-export function KanbanCard({ card, index, session, onClick, onEdit, onDelete }: KanbanCardProps) {
+export function KanbanCard({ card, index, allCards, session, onClick, onEdit, onDelete }: KanbanCardProps) {
 	const isRunning = session?.state === "running" || session?.state === "review_in_progress";
 	const agentLabel = card.agentId ? AGENT_LABELS[card.agentId] : null;
 	const sessionColor = session ? (SESSION_STATE_COLORS[session.state] ?? "text-gray-400") : null;
+
+	const deps = card.dependsOn ?? [];
+	const metDeps = deps.filter((id) => {
+		const col = allCards[id]?.columnId;
+		return col === "ready_for_review" || col === "done";
+	});
+	const allDepsMet = deps.length > 0 && metDeps.length === deps.length;
 
 	return (
 		<Draggable draggableId={card.id} index={index}>
@@ -95,6 +103,12 @@ export function KanbanCard({ card, index, session, onClick, onEdit, onDelete }: 
 						{card.priority && (
 							<span className={`text-xs rounded px-1.5 py-0.5 font-medium ${PRIORITY_STYLES[card.priority]}`}>
 								{card.priority}
+							</span>
+						)}
+						{deps.length > 0 && (
+							<span className={`flex items-center gap-1 text-xs rounded px-1.5 py-0.5 font-medium ${allDepsMet ? "text-gray-400 bg-gray-700" : "text-orange-400 bg-orange-400/10"}`}>
+								<Link2 size={10} />
+								{metDeps.length}/{deps.length}
 							</span>
 						)}
 						{agentLabel && (

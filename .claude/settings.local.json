@@ -38,7 +38,8 @@
       "Bash(python3 *)",
       "Bash(pnpm web:dev)",
       "Bash(pnpm --filter web-ui typecheck)",
-      "Bash(pnpm -w typecheck)"
+      "Bash(pnpm -w typecheck)",
+      "Bash(pnpm --filter web-ui exec tsc --noEmit)"
     ]
   }
 }
