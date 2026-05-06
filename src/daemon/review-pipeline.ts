@@ -115,7 +115,7 @@ async function runReviewSlot(
 	const { workspaceId, stateHub } = options;
 	const worktreePath = getWorktreePath(card.id);
 	const stat = getGitStat(worktreePath, card.baseRef);
-	const fullDiff = slot.type !== "qa" ? getGitFullDiff(worktreePath, card.baseRef) : "";
+	const fullDiff = getGitFullDiff(worktreePath, card.baseRef);
 	const context = formatPriorComments(card);
 	const systemPrompt = buildReviewSlotSystemPrompt(slot, card, stat, fullDiff, customPrompt, context.text);
 	const triggerWord = getSlotTriggerWord(slot.type);
@@ -134,16 +134,16 @@ async function runReviewSlot(
 		const endedAt = Date.now();
 		await linkCommentToSession(workspaceId, card.id, mcpComment.createdAt, streamId);
 		await endTerminalSession(workspaceId, card.id, streamId, endedAt);
-		const hasBlockingIssue = mcpComment.issues?.some((i) => i.severity === "blocking") ?? false;
-		const passed = mcpComment.status !== "fail" && !hasBlockingIssue;
+		const hasMustFixIssue = mcpComment.issues?.some((i) => i.severity === "blocking" || i.severity === "warning") ?? false;
+		const passed = mcpComment.status !== "fail" && !hasMustFixIssue;
 		return { passed, comment: mcpComment, storedViaMcp: true };
 	}
 
 	// Non-MCP fallback: try to parse JSON from output
 	const parsed = tryParseAgentJson(output);
 	const status = parsed?.status ?? (/(FAIL|REJECT|CRITICAL|BLOCKING|ERROR|CRASH|BROKEN)/i.test(output) ? "fail" : "pass");
-	const hasBlockingIssue = parsed?.issues?.some((i: { severity: string }) => i.severity === "blocking") ?? false;
-	const passed = status !== "fail" && !hasBlockingIssue;
+	const hasMustFixIssue = parsed?.issues?.some((i: { severity: string }) => i.severity === "blocking" || i.severity === "warning") ?? false;
+	const passed = status !== "fail" && !hasMustFixIssue;
 	const nowFallback = Date.now();
 	const comment: RuntimeReviewComment = {
 		type: commentType,
@@ -151,7 +151,7 @@ async function runReviewSlot(
 		status: status as RuntimeReviewComment["status"],
 		createdAt: nowFallback,
 		streamId,
-		summary: parsed?.summary ?? output,
+		summary: parsed?.summary ?? output.trim().slice(0, 2000),
 		issues: parsed?.issues,
 		metadata: parsed?.metadata,
 	};
@@ -373,8 +373,10 @@ function formatPriorComments(card: RuntimeBoardCard): { text: string; files: str
 			: c.type.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 		const actorId = c.actor.id;
 		const statusLabel = c.status?.toUpperCase() ?? "";
+		const hasMustFix = c.issues?.some((i) => i.severity === "blocking" || i.severity === "warning") ?? false;
+		const failedRound = c.status === "fail" || hasMustFix;
 
-		const parts: string[] = [`### ${typeLabel} · ${actorId}${statusLabel ? ` · ${statusLabel}` : ""}`];
+		const parts: string[] = [`### ${typeLabel} · ${actorId}${statusLabel ? ` · ${statusLabel}` : ""}${failedRound ? " ⚠ MUST FIX BEFORE PROCEEDING" : ""}`];
 		parts.push(c.summary);
 
 		if (c.issues?.length) {
@@ -409,23 +411,28 @@ function formatPriorComments(card: RuntimeBoardCard): { text: string; files: str
 const INLINE_DIFF_LIMIT = 8000;
 
 // Exported — used by scheduler.ts for dev agent
-export function buildDevAgentSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, customPrompt: string): { text: string; files: string[] } {
+export function buildDevAgentSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, customPrompt: string, worktreePath?: string): { text: string; files: string[] } {
 	const context = formatPriorComments(card);
 	const parts: string[] = [];
 
-	parts.push(`## Task: ${card.title}${card.description ? `\n\n${card.description}` : ""}${context.text}`);
+	const stat = worktreePath ? getGitStat(worktreePath, card.baseRef) : null;
+	const statSection = stat ? `\n\n## Current worktree state (vs ${card.baseRef})\n${stat}` : "";
+
+	parts.push(`## Task: ${card.title}${card.description ? `\n\n${card.description}` : ""}${statSection}${context.text}`);
 
 	parts.push(`You are an autonomous coding agent working on a Kanban task.
 
-Work autonomously without asking for permission or confirmation. You have full access to the codebase in your current working directory.
+Work autonomously without asking for permission or confirmation. You have full access to the codebase in your current working directory. Your worktree is branched off \`${card.baseRef}\`.
+
+If there are prior review comments above with issues listed, you MUST address ALL of them before finishing — including info-level ones. Do not skip any issue regardless of severity.
 
 When you finish your work:
 1. Commit all changes with a message that describes what this specific commit changes (not just the task title): \`git add -A && git commit -m "<what changed>"\`
 2. Call the \`kanban_add_comment\` MCP tool with:
    - cardId: "${card.id}"
    - type: "dev"
-   - status: "pass"
-   - summary: a 2-4 sentence summary of what you implemented, key decisions, and any caveats`);
+   - status: "pass" if successful, "fail" if you were unable to complete the task
+   - summary: what changed, key decisions made, and any known limitations or caveats — as brief or detailed as the scope warrants`);
 
 	if (customPrompt.trim()) parts.push(`## Project-specific instructions\n\n${customPrompt.trim()}`);
 
@@ -435,7 +442,7 @@ When you finish your work:
 function buildReviewSlotSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt: string, priorContext: string): string {
 	switch (slot.type) {
 		case "code_review": return buildCodeReviewSystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext);
-		case "qa": return buildQASystemPrompt(slot, card, stat, customPrompt, priorContext);
+		case "qa": return buildQASystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext);
 		default: return buildCustomSystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext);
 	}
 }
@@ -468,13 +475,16 @@ ${diffSection}
 ## How to work
 Use your tools — grep for callers, read type definitions, check related modules. Don't rely only on the diff.
 
-## How to write your finding
-Write a clear summary of what you found. For issues, be specific — file name, line number, exact problem.
+## How to report
+Write your findings to the terminal as plain text. Do NOT include pass/fail verdict words in your terminal output; those go only in the \`kanban_add_comment\` call.
 
-When done, call \`kanban_add_comment\` with cardId: "${card.id}", type: "code_review", status: "pass"/"fail"/"warning", summary: your findings, and optionally issues: [{file, line, severity: "blocking"/"warning"/"info", message}].${custom}`;
+Then call \`kanban_add_comment\` with cardId: "${card.id}", type: "code_review", status: "pass"/"fail"/"warning", summary: your findings (specific, concise), and optionally issues: [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional note, pipeline still passes), message}].${custom}`;
 }
 
-function buildQASystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: string, customPrompt: string, priorContext: string): string {
+function buildQASystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt: string, priorContext: string): string {
+	const diffSection = fullDiff.length <= INLINE_DIFF_LIMIT
+		? `Git diff:\n${fullDiff}`
+		: `Large changeset (${fullDiff.length.toLocaleString()} chars). Use \`git diff ${card.baseRef}...HEAD\` to explore.`;
 	const custom = customPrompt.trim() ? `\n\n## Project-specific instructions\n\n${customPrompt.trim()}` : "";
 
 	return `You are a QA engineer performing automated testing.
@@ -486,15 +496,18 @@ ${card.description ? `\n${card.description}` : ""}${priorContext}
 ## Changed files
 ${stat}
 
+## Diff
+${diffSection}
+
 ## What to do
 1. Identify the app type (web, API, React Native/Expo, library, etc.)
 2. Run the appropriate tests — existing test suite, TypeScript checks, Playwright, HTTP requests, etc.
 3. Verify previous QA failures and human feedback have been addressed
 
-## How to write your finding
-Report only what you ran and whether it passed. For screenshots or visual evidence, you may provide attachments: [{ type: "image", name, mimeType, path }].
+## How to report
+Write your findings to the terminal as plain text. Do NOT include pass/fail verdict words in your terminal output; those go only in the \`kanban_add_comment\` call.
 
-When done, call \`kanban_add_comment\` with cardId: "${card.id}", type: "qa", status: "pass"/"fail"/"warning"/"skipped", summary: your findings, and optionally issues and attachments.${custom}`;
+Then call \`kanban_add_comment\` with cardId: "${card.id}", type: "qa", status: "pass"/"fail"/"warning"/"skipped", summary: what you ran and the outcome, and optionally issues: [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional, pipeline still passes), message}] and attachments: [{type: "image", name, mimeType, path}].${custom}`;
 }
 
 function buildCustomSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt: string, priorContext: string): string {
@@ -517,7 +530,9 @@ ${diffSection}
 ## Instructions
 ${customPrompt.trim()}
 
-When done, call \`kanban_add_comment\` with cardId: "${card.id}", type: "${slot.id}", status: "pass"/"fail"/"warning"/"skipped", summary: your findings, and optionally issues: [{file, line, severity, message}].`;
+Write your findings to the terminal as plain text. Do NOT include pass/fail verdict words in your terminal output; those go only in the \`kanban_add_comment\` call.
+
+Then call \`kanban_add_comment\` with cardId: "${card.id}", type: "${slot.id}", status: "pass"/"fail"/"warning"/"skipped", summary: your findings, and optionally issues: [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional note, pipeline still passes), message}].`;
 }
 
 async function getMcpComment(

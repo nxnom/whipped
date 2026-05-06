@@ -270,7 +270,7 @@ export class TaskScheduler {
 		}
 
 		const prompt = buildTaskPrompt();
-		const devSystemPromptResult = buildDevAgentSystemPrompt(devSlotEarly, card, devSlotEarly.prompt ?? "");
+		const devSystemPromptResult = buildDevAgentSystemPrompt(devSlotEarly, card, devSlotEarly.prompt ?? "", worktree.path);
 
 		await appendActivityLog(workspaceId, taskId, `Agent ${agentId} started`);
 
