@@ -4,9 +4,7 @@ import { KanbanCard } from "./KanbanCard";
 
 const COLUMN_COLORS: Record<string, string> = {
 	todo: "border-gray-600",
-	ready_for_dev: "border-emerald-500/50",
 	in_progress: "border-blue-500/50",
-	in_review: "border-purple-500/50",
 	reopened: "border-orange-500/50",
 	ready_for_review: "border-yellow-500/50",
 	blocked: "border-red-500/50",
@@ -15,9 +13,7 @@ const COLUMN_COLORS: Record<string, string> = {
 
 const COLUMN_HEADER_COLORS: Record<string, string> = {
 	todo: "text-gray-400",
-	ready_for_dev: "text-emerald-400",
 	in_progress: "text-blue-400",
-	in_review: "text-purple-400",
 	reopened: "text-orange-400",
 	ready_for_review: "text-yellow-400",
 	blocked: "text-red-400",
@@ -32,9 +28,10 @@ interface KanbanColumnProps {
 	onCardClick: (card: RuntimeBoardCard) => void;
 	onCardEdit: (card: RuntimeBoardCard) => void;
 	onCardDelete: (card: RuntimeBoardCard) => void;
+	onCardToggleReady: (card: RuntimeBoardCard) => void;
 }
 
-export function KanbanColumn({ column, cards, allCards, sessions, onCardClick, onCardEdit, onCardDelete }: KanbanColumnProps) {
+export function KanbanColumn({ column, cards, allCards, sessions, onCardClick, onCardEdit, onCardDelete, onCardToggleReady }: KanbanColumnProps) {
 	const borderColor = COLUMN_COLORS[column.id] ?? "border-gray-600";
 	const headerColor = COLUMN_HEADER_COLORS[column.id] ?? "text-gray-400";
 
@@ -67,6 +64,7 @@ export function KanbanColumn({ column, cards, allCards, sessions, onCardClick, o
 								onClick={() => onCardClick(card)}
 								onEdit={() => onCardEdit(card)}
 								onDelete={() => onCardDelete(card)}
+								onToggleReady={() => onCardToggleReady(card)}
 							/>
 						))}
 						{provided.placeholder}

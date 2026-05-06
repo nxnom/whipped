@@ -49,9 +49,7 @@ export const DEFAULT_WORKFLOW: Workflow = {
 
 export const runtimeBoardColumnIdSchema = z.enum([
 	"todo",
-	"ready_for_dev",
 	"in_progress",
-	"in_review",
 	"reopened",
 	"ready_for_review",
 	"blocked",
@@ -61,9 +59,7 @@ export type RuntimeBoardColumnId = z.infer<typeof runtimeBoardColumnIdSchema>;
 
 export const BOARD_COLUMNS: Array<{ id: RuntimeBoardColumnId; title: string }> = [
 	{ id: "todo", title: "Todo" },
-	{ id: "ready_for_dev", title: "Ready for Dev" },
 	{ id: "in_progress", title: "In Progress" },
-	{ id: "in_review", title: "In Review" },
 	{ id: "reopened", title: "Reopened" },
 	{ id: "ready_for_review", title: "Ready for Review" },
 	{ id: "blocked", title: "Blocked" },
@@ -142,6 +138,7 @@ export const runtimeBoardCardSchema = z.object({
 	title: z.string(),
 	description: z.string(),
 	columnId: runtimeBoardColumnIdSchema,
+	readyForDev: z.boolean().default(false),
 	agentId: runtimeAgentIdSchema.optional(),
 	priority: runtimeCardPrioritySchema.optional(),
 	dependsOn: z.array(z.string()).default([]),
@@ -182,12 +179,10 @@ export type RuntimeBoardData = z.infer<typeof runtimeBoardDataSchema>;
 // ─── Session ──────────────────────────────────────────────────────────────────
 
 export const runtimeTaskSessionStateSchema = z.enum([
-	"idle",
 	"running",
-	"awaiting_review",
-	"review_in_progress",
-	"failed",
+	"stopped",
 	"completed",
+	"failed",
 ]);
 export type RuntimeTaskSessionState = z.infer<typeof runtimeTaskSessionStateSchema>;
 
@@ -285,6 +280,7 @@ export const runtimeCardCreateRequestSchema = z.object({
 	description: z.string(),
 	agentId: runtimeAgentIdSchema.optional(),
 	priority: runtimeCardPrioritySchema.optional(),
+	readyForDev: z.boolean().optional(),
 	dependsOn: z.array(z.string()).optional(),
 	columnId: runtimeBoardColumnIdSchema.optional(),
 	baseRef: z.string().optional(),
@@ -309,6 +305,7 @@ export const runtimeCardUpdateRequestSchema = z.object({
 	description: z.string().optional(),
 	agentId: runtimeAgentIdSchema.optional(),
 	priority: runtimeCardPrioritySchema.optional(),
+	readyForDev: z.boolean().optional(),
 	dependsOn: z.array(z.string()).optional(),
 	workflowId: z.string().optional(),
 	revision: z.number(),

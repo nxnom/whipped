@@ -342,7 +342,7 @@ export async function moveCard(
 export async function createCard(
 	workspaceId: string,
 	data: Pick<RuntimeBoardCard, "title" | "description"> &
-		Partial<Pick<RuntimeBoardCard, "agentId" | "priority" | "dependsOn" | "columnId" | "githubIssueUrl" | "jiraKey" | "jiraUrl">>,
+		Partial<Pick<RuntimeBoardCard, "agentId" | "priority" | "readyForDev" | "dependsOn" | "columnId" | "githubIssueUrl" | "jiraKey" | "jiraUrl">>,
 	baseRef: string,
 ): Promise<RuntimeBoardCard> {
 	return withLock(workspaceId, async () => {
@@ -355,6 +355,7 @@ export async function createCard(
 			title: data.title,
 			description: data.description,
 			columnId: data.columnId ?? "todo",
+			readyForDev: data.readyForDev ?? false,
 			agentId: data.agentId,
 			priority: data.priority,
 			dependsOn: data.dependsOn ?? [],
@@ -470,7 +471,7 @@ export async function updateCard(
 	workspaceId: string,
 	cardId: string,
 	update: Partial<
-		Pick<RuntimeBoardCard, "title" | "description" | "agentId" | "githubPrUrl" | "reviewComments" | "autoFixAttempts" | "githubCommentIds">
+		Pick<RuntimeBoardCard, "title" | "description" | "agentId" | "priority" | "readyForDev" | "dependsOn" | "workflowId" | "githubPrUrl" | "reviewComments" | "autoFixAttempts" | "githubCommentIds">
 	>,
 ): Promise<RuntimeBoardCard> {
 	return withLock(workspaceId, async () => {

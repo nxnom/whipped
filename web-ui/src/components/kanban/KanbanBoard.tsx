@@ -5,6 +5,7 @@ import {
   Input,
   Select,
   SelectOption,
+  Switch,
   Textarea,
   toast,
 } from "@geckoui/geckoui";
@@ -65,6 +66,20 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
     });
   };
 
+  const handleToggleReady = async (card: RuntimeBoardCard) => {
+    try {
+      await trpc.cards.update.mutate({
+        workspaceId,
+        cardId: card.id,
+        readyForDev: !card.readyForDev,
+        revision: 0,
+      });
+      onRefresh();
+    } catch {
+      toast.error("Failed to update task");
+    }
+  };
+
   const openCreateDialog = () => {
     Dialog.show({
       className: DIALOG_CLASS,
@@ -100,33 +115,33 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
     const todoColumn = state.board.columns.find((c) => c.id === "todo");
     const todoCards = (todoColumn?.taskIds ?? [])
       .map((id) => state.board.cards[id])
-      .filter(Boolean);
+      .filter((c) => c && !c.readyForDev);
     if (todoCards.length === 0) {
-      toast.info("No tasks in Todo");
+      toast.info("No unready tasks in Todo");
       return;
     }
     ConfirmDialog.show({
-      title: "Move all to Ready for Dev?",
-      content: `${todoCards.length} task${todoCards.length === 1 ? "" : "s"} will be moved from Todo to Ready for Dev.`,
-      confirmButtonLabel: "Move all",
+      title: "Mark all as Ready?",
+      content: `${todoCards.length} task${todoCards.length === 1 ? "" : "s"} will be marked as ready for the agent to pick up.`,
+      confirmButtonLabel: "Mark all",
       cancelButtonLabel: "Cancel",
       onConfirm: async ({ dismiss }) => {
         dismiss();
         try {
           for (const card of todoCards) {
-            await trpc.cards.move.mutate({
+            await trpc.cards.update.mutate({
               workspaceId: workspaceId,
               cardId: card!.id,
-              targetColumnId: "ready_for_dev",
-              revision: state.revision,
+              readyForDev: true,
+              revision: 0,
             });
           }
           onRefresh();
           toast.success(
-            `Moved ${todoCards.length} task${todoCards.length === 1 ? "" : "s"} to Ready for Dev`
+            `Marked ${todoCards.length} task${todoCards.length === 1 ? "" : "s"} as ready`
           );
         } catch {
-          toast.error("Failed to move tasks");
+          toast.error("Failed to mark tasks as ready");
         }
       },
       onCancel: ({ dismiss }) => dismiss(),
@@ -192,6 +207,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
                     onCardClick={(card) => openCard(card.id)}
                     onCardEdit={openEditDialog}
                     onCardDelete={handleCardDelete}
+                    onCardToggleReady={handleToggleReady}
                   />
                 );
               })}
@@ -221,9 +237,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
 
 const COLUMN_BADGE: Record<string, string> = {
   todo: "text-gray-400 bg-gray-700",
-  ready_for_dev: "text-blue-400 bg-blue-400/10",
   in_progress: "text-blue-400 bg-blue-400/10",
-  in_review: "text-purple-400 bg-purple-400/10",
   reopened: "text-orange-400 bg-orange-400/10",
   ready_for_review: "text-green-400 bg-green-400/10",
   blocked: "text-red-400 bg-red-400/10",
@@ -232,9 +246,7 @@ const COLUMN_BADGE: Record<string, string> = {
 
 const COLUMN_LABEL: Record<string, string> = {
   todo: "Todo",
-  ready_for_dev: "Ready",
   in_progress: "In Progress",
-  in_review: "In Review",
   reopened: "Reopened",
   ready_for_review: "Ready for Review",
   blocked: "Blocked",
@@ -258,6 +270,7 @@ function CreateCardContent({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<string>("");
+  const [readyForDev, setReadyForDev] = useState(false);
   const [dependsOn, setDependsOn] = useState<string[]>([]);
   const [baseRef, setBaseRef] = useState<string>("");
   const [workflowId, setWorkflowId] = useState<string>(defaultWorkflow?.id ?? "");
@@ -285,6 +298,7 @@ function CreateCardContent({
         priority:
           (priority as "urgent" | "high" | "medium" | "low" | undefined) ||
           undefined,
+        readyForDev: readyForDev || undefined,
         dependsOn: dependsOn.length > 0 ? dependsOn : undefined,
         baseRef: baseRef || undefined,
         workflowId: workflowId || undefined,
@@ -401,6 +415,13 @@ function CreateCardContent({
               </SelectOption>
             ))}
           </Select>
+        </div>
+        <div className="flex items-center justify-between py-1">
+          <div>
+            <label className="text-xs text-gray-400 block">Ready for agent</label>
+            <p className="text-xs text-gray-600">Agent will pick this up automatically when autonomous mode is on</p>
+          </div>
+          <Switch checked={readyForDev} onChange={setReadyForDev} />
         </div>
       </div>
 

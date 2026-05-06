@@ -183,7 +183,7 @@ function ConfigureStep({
 				<label className="flex items-center justify-between cursor-pointer">
 					<div>
 						<p className="text-sm text-gray-200">Autonomous mode</p>
-						<p className="text-xs text-gray-500">Auto-pick and run tasks from Ready for Dev</p>
+						<p className="text-xs text-gray-500">Auto-pick and run tasks marked as Ready</p>
 					</div>
 					<Switch checked={autoMode} onChange={onAutoMode} />
 				</label>

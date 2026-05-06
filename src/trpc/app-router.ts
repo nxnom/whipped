@@ -337,7 +337,7 @@ export const appRouter = router({
 						abortMerge(ws.repoPath);
 						await moveCard(workspaceId, cardId, "blocked");
 						await appendActivityLog(workspaceId, cardId, "Could not resolve merge conflicts → Blocked");
-						await updateSession(workspaceId, cardId, { state: "idle" });
+						await removeSession(workspaceId, cardId);
 					}
 					ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 				});
@@ -409,9 +409,17 @@ export const appRouter = router({
 			.mutation(async ({ ctx, input }) => {
 				const { workspaceId, cardId, targetColumnId, targetIndex } = input;
 				const board = await moveCard(workspaceId, cardId, targetColumnId, targetIndex);
-				// Reset session so the poller can pick up cards moved back to work columns
-				if (targetColumnId === "reopened" || targetColumnId === "ready_for_dev") {
-					await updateSession(workspaceId, cardId, { state: "idle" });
+				// Clear session so the poller can pick up cards moved back to work columns
+				if (targetColumnId === "reopened" || targetColumnId === "todo") {
+					await removeSession(workspaceId, cardId);
+				}
+				if (targetColumnId === "reopened") {
+					const moveScheduler = ctx.getScheduler(workspaceId);
+					if (moveScheduler) {
+						const movedBoard = await loadBoard(workspaceId);
+						const movedCard = movedBoard.cards[cardId];
+						if (movedCard) void moveScheduler.triggerParentReopenCascade(movedCard, movedBoard.cards);
+					}
 				}
 				ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 				return board;
@@ -527,9 +535,15 @@ export const appRouter = router({
 					: (card.reviewComments ?? []);
 				await updateCard(input.workspaceId, input.cardId, { reviewComments: updatedComments });
 				await moveCard(input.workspaceId, input.cardId, "reopened");
-				await updateSession(input.workspaceId, input.cardId, { state: "idle" });
+				await removeSession(input.workspaceId, input.cardId);
 				await appendActivityLog(input.workspaceId, input.cardId, "Human feedback submitted → moved to Reopened");
 				ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
+				const feedbackScheduler = ctx.getScheduler(input.workspaceId);
+				if (feedbackScheduler) {
+					const feedbackBoard = await loadBoard(input.workspaceId);
+					const feedbackCard = feedbackBoard.cards[input.cardId];
+					if (feedbackCard) void feedbackScheduler.triggerParentReopenCascade(feedbackCard, feedbackBoard.cards);
+				}
 				return { ok: true };
 			}),
 
@@ -552,6 +566,14 @@ export const appRouter = router({
 			.input(z.object({ workspaceId: z.string(), cardId: z.string() }))
 			.mutation(async ({ ctx, input }) => {
 				ctx.getScheduler(input.workspaceId)?.stopTask(input.cardId);
+				ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
+				return { ok: true };
+			}),
+
+		interruptTask: publicProcedure
+			.input(z.object({ workspaceId: z.string(), cardId: z.string() }))
+			.mutation(async ({ ctx, input }) => {
+				ctx.getScheduler(input.workspaceId)?.interruptForParentReopen(input.cardId);
 				ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
 				return { ok: true };
 			}),

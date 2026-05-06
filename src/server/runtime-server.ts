@@ -65,7 +65,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 		stateHub.registerWorkspace(workspaceId, wsRepoPath);
 
 		// Guard against duplicate review pipelines — both onTaskCompleted and the
-		// poller can observe the same in_review card. The Set is the single source
+		// poller can observe the same ready_for_review card. The Set is the single source
 		// of truth for which tasks currently have a running pipeline.
 		const activeReviews = new Set<string>();
 
@@ -85,6 +85,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 				const reviewSlots = (cardWorkflow?.slots ?? [])
 					.filter(s => s.type !== "dev" && s.enabled)
 					.sort((a, b) => a.order - b.order);
+				if (reviewSlots.length === 0) return;
 				await runReviewPipeline(card, {
 					workspaceId,
 					repoPath: wsRepoPath,
@@ -116,7 +117,10 @@ export async function createRuntimeServer(options: ServerOptions) {
 				loadWorkspaceState(workspaceId, wsRepoPath)
 					.then((state) => {
 						const card = state.board.cards[taskId];
-						if (card?.columnId === "in_review") {
+						const session = state.sessions[taskId];
+						// Trigger review when dev just finished (idle session = no active process)
+						// and card is still in_progress (meaning it has review slots to run).
+						if (session?.state === "completed" && card?.columnId === "in_progress") {
 							startReview(card);
 						}
 					})

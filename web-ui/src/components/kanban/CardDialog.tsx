@@ -12,7 +12,7 @@ interface Props {
 }
 
 export function CardDialog({ card, workspaceId, session, onClose, onRefresh }: Props) {
-	const isRunning = session?.state === "running" || session?.state === "review_in_progress";
+	const isRunning = session?.state === "running";
 
 	const handleStart = async () => {
 		try {

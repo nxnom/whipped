@@ -61,7 +61,7 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 	const runId = Date.now();
 
 	logger.info(`[review] Starting review pipeline for "${card.title}" (${card.id})`);
-	await updateSession(workspaceId, card.id, { state: "review_in_progress" });
+	await updateSession(workspaceId, card.id, { state: "running" });
 	await appendActivityLog(workspaceId, card.id, "AI review started");
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 
@@ -198,7 +198,7 @@ async function handleReviewFailure(
 			? `Max fix attempts reached (${newAttempts}) → moved to Blocked`
 			: `Review failed (attempt ${newAttempts}/${maxAutoFixAttempts}) → moved to Reopened`,
 	);
-	await updateSession(workspaceId, card.id, { state: "idle" });
+	await updateSession(workspaceId, card.id, { state: "completed", completedAt: Date.now() });
 	if (destination === "blocked") void removeWorktreeAsync(card.id, options.repoPath);
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 }
@@ -234,7 +234,7 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 
 	await moveCard(workspaceId, card.id, "ready_for_review");
 	await appendActivityLog(workspaceId, card.id, "All reviews passed → moved to Ready for Review");
-	await updateSession(workspaceId, card.id, { state: "awaiting_review", completedAt: Date.now() });
+	await updateSession(workspaceId, card.id, { state: "completed", completedAt: Date.now() });
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 	if (autoPR && !card.githubPrUrl) {
@@ -431,7 +431,7 @@ function formatPriorComments(card: RuntimeBoardCard): { text: string; files: str
 const INLINE_DIFF_LIMIT = 8000;
 
 // Exported — used by scheduler.ts for dev agent
-export function buildDevAgentSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, customPrompt: string, worktreePath?: string, secrets: RuntimeProjectSecret[] = []): { text: string; files: string[] } {
+export function buildDevAgentSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, customPrompt: string, worktreePath?: string, secrets: RuntimeProjectSecret[] = [], parentCards: RuntimeBoardCard[] = []): { text: string; files: string[] } {
 	const context = formatPriorComments(card);
 	const parts: string[] = [];
 
@@ -439,6 +439,19 @@ export function buildDevAgentSystemPrompt(slot: WorkflowSlot, card: RuntimeBoard
 	const statSection = stat ? `\n\n## Current worktree state (vs ${card.baseRef})\n${stat}` : "";
 
 	parts.push(`## Task: ${card.title}${card.description ? `\n\n${card.description}` : ""}${statSection}${context.text}`);
+
+	if (parentCards.length > 0) {
+		const parentSummaries = parentCards
+			.map((p) => {
+				const devComment = [...(p.reviewComments ?? [])].reverse().find((c) => c.type === "dev");
+				if (!devComment) return null;
+				return `### ${p.title}\n${devComment.summary}`;
+			})
+			.filter((s): s is string => s !== null);
+		if (parentSummaries.length > 0) {
+			parts.push(`## Context from parent tasks\n\nThis task builds on top of the following completed work:\n\n${parentSummaries.join("\n\n")}`);
+		}
+	}
 
 	parts.push(`You are an autonomous coding agent working on a Kanban task.
 
@@ -611,3 +624,114 @@ export function tryParseAgentJson(output: string): ParsedAgentJson | null {
 
 // Re-export for use in scheduler.ts — saveAttachment is needed there too
 export { saveAttachment };
+
+// ─── Parent reopen cascade ────────────────────────────────────────────────────
+
+interface CascadeOptions {
+	workspaceId: string;
+	repoPath: string;
+	serverUrl: string;
+	mcpBinary: { command: string; args: string[] };
+	stateHub: RuntimeStateHub;
+	secrets: RuntimeProjectSecret[];
+	registerStopCallback: ReviewPipelineOptions["registerStopCallback"];
+	registerLiveProcess: ReviewPipelineOptions["registerLiveProcess"];
+}
+
+export async function runParentReopenCascade(
+	parentCard: RuntimeBoardCard,
+	childCards: RuntimeBoardCard[],
+	options: CascadeOptions,
+): Promise<void> {
+	const { workspaceId, repoPath, mcpBinary, serverUrl, stateHub, secrets, registerStopCallback, registerLiveProcess } = options;
+	const streamId = `${parentCard.id}-cascade-${Date.now()}`;
+
+	const mcpConfigPath = getMcpConfigPath(streamId);
+	await writeClaudeMcpConfig(mcpBinary, serverUrl, workspaceId, "claude", mcpConfigPath).catch(() => {});
+
+	const parentBranch = getWorktreeBranch(parentCard.id);
+	const systemPrompt = buildCascadeSystemPrompt(parentCard, parentBranch, childCards);
+
+	logger.info(`[cascade] Spawning cascade agent for parent "${parentCard.title}" (${childCards.length} children)`);
+
+	await appendTerminalSession(workspaceId, parentCard.id, { streamId, type: "cascade", startedAt: Date.now() });
+	stateHub.broadcastWorkspaceUpdate(workspaceId);
+
+	await runAgentOnce(
+		"claude",
+		"Evaluate each child ticket and take the appropriate action.",
+		repoPath,
+		workspaceId,
+		streamId,
+		stateHub,
+		registerStopCallback,
+		registerLiveProcess,
+		mcpConfigPath,
+		systemPrompt,
+		undefined,
+		buildSecretsEnv(secrets),
+	);
+
+	await endTerminalSession(workspaceId, parentCard.id, streamId, Date.now());
+	logger.info(`[cascade] Cascade agent done for parent "${parentCard.title}"`);
+	stateHub.broadcastWorkspaceUpdate(workspaceId);
+}
+
+function buildCascadeSystemPrompt(parentCard: RuntimeBoardCard, parentBranch: string, childCards: RuntimeBoardCard[]): string {
+	const reopenReason = (() => {
+		const comments = parentCard.reviewComments ?? [];
+		for (let i = comments.length - 1; i >= 0; i--) {
+			const c = comments[i]!;
+			if (c.type !== "dev") return c.summary;
+		}
+		return "Parent task was reopened.";
+	})();
+
+	const parentDevSummary = (() => {
+		const comments = parentCard.reviewComments ?? [];
+		for (let i = comments.length - 1; i >= 0; i--) {
+			const c = comments[i]!;
+			if (c.type === "dev") return c.summary;
+		}
+		return null;
+	})();
+
+	const childLines = childCards.map((child) => {
+		const devComment = [...(child.reviewComments ?? [])].reverse().find((c) => c.type === "dev");
+		return [
+			`### [${child.id}] ${child.title} (${child.columnId})`,
+			devComment ? `Dev summary: ${devComment.summary}` : "No dev work completed yet.",
+		].join("\n");
+	}).join("\n\n");
+
+	return `You are a Kanban board manager. A parent task was reopened and you must decide what to do with its dependent child tasks.
+
+## Parent Task (Reopened)
+
+**[${parentCard.id}] ${parentCard.title}**
+${parentCard.description ? `\n${parentCard.description}\n` : ""}
+Reason for reopening: ${reopenReason}
+${parentDevSummary ? `\nWhat the parent's dev agent did most recently:\n${parentDevSummary}\n` : ""}
+
+## Child Tasks to Evaluate
+
+${childLines}
+
+## Decision Rules
+
+- **in_progress + no dev summary** → MUST call \`kanban_stop_task\` then \`kanban_move_card\` to "todo". Agent is mid-work on an invalidated parent.
+- **in_progress + has dev summary** → Use judgment. If the parent change invalidates the child's work, stop + move to todo.
+- **ready_for_review** → Use judgment. If the parent change affects the child's implementation, move to todo.
+
+## Steps for EACH child you decide to reset
+
+1. Call \`kanban_stop_task\` if the child is in_progress.
+2. Call \`kanban_add_comment\` on the **CHILD** card with:
+   - type: "cascade"
+   - status: "fail"
+   - summary: Explain specifically what the parent changed and why this child's prior work needs to be revisited.
+   - issues: include one blocking issue with severity "blocking" and message: "Run \`git merge ${parentBranch}\` FIRST (no fetch needed — all worktrees share the same git repo). After merging, the parent's direction takes precedence: if the parent removed something, keep it removed even if this branch previously added it — do not reintroduce it. Reconcile this task's goal with the parent's current state before doing any other work."
+3. Call \`kanban_move_card\` to "todo" for that child.
+
+After handling all children, call \`kanban_add_comment\` on the PARENT card (${parentCard.id}) with type "cascade" and a brief summary of each decision.`;
+}

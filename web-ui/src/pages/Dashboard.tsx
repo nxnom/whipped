@@ -9,7 +9,7 @@ interface Props {
 	workspaceId: string;
 }
 
-const ACTIVE_STATES = new Set(["running", "review_in_progress", "awaiting_review"]);
+const ACTIVE_STATES = new Set(["running"]);
 
 export function DashboardPage({ workspaceId }: Props) {
 	const { state, refetch } = useWorkspaceState(workspaceId);
@@ -42,7 +42,7 @@ export function DashboardPage({ workspaceId }: Props) {
 				<div>
 					<h3 className="text-sm font-semibold text-gray-100">Autonomous Mode</h3>
 					<p className="text-xs text-gray-400 mt-0.5">
-						Agents automatically pick up <span className="text-emerald-400">Ready for Dev</span> and{" "}
+						Agents automatically pick up <span className="text-emerald-400">Ready</span> and{" "}
 						<span className="text-orange-400">Reopened</span> tasks
 					</p>
 				</div>
@@ -61,7 +61,7 @@ export function DashboardPage({ workspaceId }: Props) {
 					<div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center">
 						<p className="text-sm text-gray-500">No active tasks</p>
 						<p className="text-xs text-gray-600 mt-1">
-							Move tasks to <span className="text-emerald-400">Ready for Dev</span> and enable autonomous mode
+							Mark tasks as <span className="text-emerald-400">Ready</span> and enable autonomous mode
 						</p>
 					</div>
 				) : (
@@ -78,11 +78,7 @@ export function DashboardPage({ workspaceId }: Props) {
 										onClick={() => setExpandedTaskId(isExpanded ? null : taskId)}
 									>
 										<div className="flex items-center gap-3">
-											<span className={`size-2 rounded-full ${
-												session.state === "running" ? "bg-blue-400 animate-pulse" :
-												session.state === "review_in_progress" ? "bg-purple-400 animate-pulse" :
-												"bg-yellow-400"
-											}`} />
+											<span className="size-2 rounded-full bg-blue-400 animate-pulse" />
 											<div>
 												<p className="text-sm text-gray-100">{card.title}</p>
 												<p className="text-xs text-gray-500 mt-0.5">

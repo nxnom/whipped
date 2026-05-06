@@ -215,7 +215,7 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 							<div>
 								<p className="text-sm font-medium text-gray-100">Autonomous mode</p>
 								<p className="text-xs text-gray-500 mt-0.5">
-									Picks up <span className="text-emerald-400">Ready for Dev</span> and{" "}
+									Picks up <span className="text-emerald-400">Ready</span> and{" "}
 									<span className="text-orange-400">Reopened</span> tasks automatically
 								</p>
 							</div>
@@ -243,7 +243,7 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 							<div>
 								<p className="text-sm font-medium text-gray-100">Max parallel tasks</p>
 								<p className="text-xs text-gray-500 mt-0.5">
-									Max tasks in <span className="text-blue-400">In Progress</span> + <span className="text-purple-400">In Review</span> at once. Overrides the global default.
+									Max tasks in <span className="text-blue-400">In Progress</span> at once. Overrides the global default.
 								</p>
 							</div>
 							<Input

@@ -29,9 +29,7 @@ const COMMENT_TYPE_COLOR: Record<string, string> = {
 
 const COLUMN_LABELS: Record<string, string> = {
 	todo: "Todo",
-	ready_for_dev: "Ready for Dev",
 	in_progress: "In Progress",
-	in_review: "In Review",
 	reopened: "Reopened",
 	ready_for_review: "Ready for Review",
 	blocked: "Blocked",

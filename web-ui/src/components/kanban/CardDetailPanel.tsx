@@ -27,9 +27,7 @@ const PRIORITY_STYLES: Record<string, string> = {
 
 const COLUMN_LABELS: Record<string, string> = {
 	todo: "Todo",
-	ready_for_dev: "Ready",
 	in_progress: "In Progress",
-	in_review: "In Review",
 	reopened: "Reopened",
 	ready_for_review: "Ready for Review",
 	blocked: "Blocked",
@@ -38,9 +36,7 @@ const COLUMN_LABELS: Record<string, string> = {
 
 const DEP_COL_BADGE: Record<string, string> = {
 	todo: "text-gray-400 bg-gray-700",
-	ready_for_dev: "text-blue-400 bg-blue-400/10",
 	in_progress: "text-blue-400 bg-blue-400/10",
-	in_review: "text-purple-400 bg-purple-400/10",
 	reopened: "text-orange-400 bg-orange-400/10",
 	ready_for_review: "text-green-400 bg-green-400/10",
 	blocked: "text-red-400 bg-red-400/10",
@@ -49,11 +45,9 @@ const DEP_COL_BADGE: Record<string, string> = {
 
 const SESSION_STATE_LABEL: Record<string, string> = {
 	running: "Running",
-	review_in_progress: "Review in progress",
-	awaiting_review: "Awaiting review",
-	failed: "Failed",
 	completed: "Completed",
-	idle: "Idle",
+	failed: "Failed",
+	stopped: "Stopped",
 };
 
 const BUILTIN_SESSION_LABELS: Record<string, string> = {
@@ -62,6 +56,7 @@ const BUILTIN_SESSION_LABELS: Record<string, string> = {
 	code_review: "Code Review",
 	qa: "QA",
 	conflict: "Conflict",
+	cascade: "Cascade",
 };
 
 function getSessionLabel(type: string, workflowSlots?: WorkflowSlot[]): string {
@@ -134,14 +129,10 @@ export function CardDetailPanel({ card, workspaceId, session, allCards, workflow
 		prevSessionLenRef.current = sessions.length;
 	}, [card.terminalSessions?.length]);
 
-	const isRunning = session?.state === "running" || session?.state === "review_in_progress";
+	const isRunning = session?.state === "running";
 	const hasTerminalOutput =
 		(card.terminalSessions?.length ?? 0) > 0 ||
-		(session &&
-			(session.state === "running" ||
-				session.state === "review_in_progress" ||
-				session.state === "awaiting_review" ||
-				session.state === "failed"));
+		(session && (session.state === "running" || session.state === "failed"));
 
 	// ── Handlers ───────────────────────────────────────────────────────────
 	const handleStart = async () => {
@@ -265,20 +256,8 @@ export function CardDetailPanel({ card, workspaceId, session, allCards, workflow
 						<ArrowLeft size={16} />
 					</button>
 					<span className="text-xs text-gray-400 truncate flex-1 font-medium">{card.title}</span>
-					{session && session.state !== "idle" && (
-						<span
-							className={`size-1.5 rounded-full shrink-0 ${
-								session.state === "running"
-									? "bg-blue-400 animate-pulse"
-									: session.state === "review_in_progress"
-										? "bg-purple-400 animate-pulse"
-										: session.state === "awaiting_review"
-											? "bg-yellow-400"
-											: session.state === "failed"
-												? "bg-red-400"
-												: "bg-gray-500"
-							}`}
-						/>
+					{session && session.state === "running" && (
+						<span className="size-1.5 rounded-full shrink-0 bg-blue-400 animate-pulse" />
 					)}
 				</div>
 
@@ -307,7 +286,7 @@ export function CardDetailPanel({ card, workspaceId, session, allCards, workflow
 						<div className="flex-1 overflow-y-auto p-4 space-y-4">
 							<div>
 								<h2 className="text-sm font-semibold text-gray-100 leading-snug">{card.title}</h2>
-								{session && session.state !== "idle" && (
+								{session && session.state === "running" && (
 									<p className="text-xs text-gray-500 mt-1">
 										{session.agentId} · {SESSION_STATE_LABEL[session.state] ?? session.state}
 									</p>
@@ -390,9 +369,8 @@ export function CardDetailPanel({ card, workspaceId, session, allCards, workflow
 											const isSelected = activeStreamId === ts.streamId;
 											const stateColor =
 												session?.state === "running" ? "bg-blue-400 animate-pulse" :
-												session?.state === "review_in_progress" ? "bg-purple-400 animate-pulse" :
-												session?.state === "awaiting_review" ? "bg-yellow-400" :
-												session?.state === "failed" ? "bg-red-400" : "bg-gray-500";
+												session?.state === "failed" ? "bg-red-400" :
+												session?.state === "stopped" ? "bg-yellow-400" : "bg-gray-400";
 
 											return (
 												<button

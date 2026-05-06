@@ -86,8 +86,12 @@ server.registerTool(
 				.enum(["urgent", "high", "medium", "low"])
 				.optional()
 				.describe("Task priority — urgent cards are dispatched first in autonomous mode"),
+			readyForDev: z
+				.boolean()
+				.optional()
+				.describe("Mark the card as ready for the agent to pick up automatically. Defaults to false."),
 			columnId: z
-				.enum(["todo", "ready_for_dev", "blocked"])
+				.enum(["todo", "blocked"])
 				.optional()
 				.describe("Starting column — defaults to 'todo'"),
 			dependsOn: z
@@ -100,12 +104,13 @@ server.registerTool(
 				.describe("ID of the workflow to use for this task. Omit to use the default."),
 		},
 	},
-	async ({ title, description, priority, columnId, dependsOn, workflowId }) => {
+	async ({ title, description, priority, readyForDev, columnId, dependsOn, workflowId }) => {
 		const card = await trpc<{ id: string; title: string; columnId: string }>("cards.create", {
 			workspaceId,
 			title,
 			description,
 			priority,
+			readyForDev,
 			dependsOn,
 			columnId: columnId ?? "todo",
 			workflowId,
@@ -123,7 +128,7 @@ server.registerTool(
 		inputSchema: {
 			cardId: z.string().describe("The card ID (from kanban_get_board)"),
 			targetColumnId: z
-				.enum(["todo", "ready_for_dev", "in_progress", "in_review", "reopened", "ready_for_review", "blocked", "done"])
+				.enum(["todo", "in_progress", "reopened", "ready_for_review", "blocked", "done"])
 				.describe("Destination column"),
 		},
 	},
@@ -229,6 +234,20 @@ server.registerTool(
 	async ({ cardId }) => {
 		await trpc("cards.delete", { workspaceId, cardId });
 		return { content: [{ type: "text", text: `Deleted card ${cardId}.` }] };
+	},
+);
+
+server.registerTool(
+	"kanban_stop_task",
+	{
+		description: "Stop an in-progress agent task. The session is marked 'stopped' (preserving history) so the card can be restarted later. Use this before moving a child card to todo when its parent was reopened.",
+		inputSchema: {
+			cardId: z.string().describe("The card ID of the in-progress task to stop"),
+		},
+	},
+	async ({ cardId }) => {
+		await trpc("cards.interruptTask", { workspaceId, cardId });
+		return { content: [{ type: "text", text: `Task ${cardId} interrupted.` }] };
 	},
 );
 

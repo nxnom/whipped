@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { fetchPRInfo } from "../git/merge-operations.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
-import { appendActivityLog, loadWorkspaceState, moveCard, updateCard, updateSession } from "../state/workspace-state.js";
+import { appendActivityLog, loadWorkspaceState, moveCard, removeSession, updateCard, updateSession } from "../state/workspace-state.js";
 import { createWorktree, getWorktreeBranch, getWorktreePath, removeWorktree } from "../worktree/worktree-manager.js";
 import type { TaskScheduler } from "./scheduler.js";
 
@@ -110,12 +110,12 @@ async function resolvePRConflicts(
 			if (success) {
 				spawnSync("git", ["push", "origin", taskBranch], { cwd: worktreePath, stdio: "ignore" });
 				await appendActivityLog(workspaceId, card.id, `PR conflicts resolved → pushed`);
-				await updateSession(workspaceId, card.id, { state: "awaiting_review" });
+				await updateSession(workspaceId, card.id, { state: "completed", completedAt: Date.now() });
 			} else {
 				spawnSync("git", ["merge", "--abort"], { cwd: worktreePath, stdio: "ignore" });
 				await moveCard(workspaceId, card.id, "blocked");
 				await appendActivityLog(workspaceId, card.id, "Could not resolve PR conflicts → Blocked");
-				await updateSession(workspaceId, card.id, { state: "idle" });
+				await updateSession(workspaceId, card.id, { state: "completed", completedAt: Date.now() });
 			}
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
 		});
@@ -196,13 +196,23 @@ export class BoardPoller {
 		const board = state.board;
 		const pendingCards: RuntimeBoardCard[] = [];
 
-		for (const columnId of ["ready_for_dev", "reopened"] as const) {
-			const column = board.columns.find((c) => c.id === columnId);
-			if (!column) continue;
-			for (const taskId of column.taskIds) {
+		// Todo cards explicitly marked ready by the user
+		const todoColumn = board.columns.find((c) => c.id === "todo");
+		if (todoColumn) {
+			for (const taskId of todoColumn.taskIds) {
 				const card = board.cards[taskId];
 				const session = state.sessions[taskId];
-				if (card && (!session || session.state === "idle")) pendingCards.push(card);
+				if (card?.readyForDev && (!session || session.state === "completed" || session.state === "failed" || session.state === "stopped")) pendingCards.push(card);
+			}
+		}
+
+		// Reopened cards are always eligible for re-pickup
+		const reopenedColumn = board.columns.find((c) => c.id === "reopened");
+		if (reopenedColumn) {
+			for (const taskId of reopenedColumn.taskIds) {
+				const card = board.cards[taskId];
+				const session = state.sessions[taskId];
+				if (card && (!session || session.state === "completed" || session.state === "failed" || session.state === "stopped")) pendingCards.push(card);
 			}
 		}
 
@@ -217,8 +227,7 @@ export class BoardPoller {
 		// Track in-flight count locally so the check stays accurate as we dispatch
 		// within the same poll cycle (the board snapshot is stale after each startTask).
 		let inFlightCount =
-			(board.columns.find((c) => c.id === "in_progress")?.taskIds.length ?? 0) +
-			(board.columns.find((c) => c.id === "in_review")?.taskIds.length ?? 0);
+			(board.columns.find((c) => c.id === "in_progress")?.taskIds.length ?? 0);
 
 		for (const card of pendingCards) {
 			if (!scheduler.canAcceptTask(inFlightCount)) break;
@@ -233,12 +242,15 @@ export class BoardPoller {
 			await scheduler.startTask(card);
 		}
 
-		const inReviewColumn = board.columns.find((c) => c.id === "in_review");
-		if (inReviewColumn) {
-			for (const taskId of inReviewColumn.taskIds) {
+		// Fallback for server restarts: in_progress cards with no active process (idle) that have
+		// a dev comment mean the dev agent finished but review never started. Re-trigger review.
+		const inProgressCol = board.columns.find((c) => c.id === "in_progress");
+		if (inProgressCol) {
+			for (const taskId of inProgressCol.taskIds) {
 				const card = board.cards[taskId];
 				const session = state.sessions[taskId];
-				if (card && session?.state === "awaiting_review") {
+				const hasDevComment = (card?.reviewComments ?? []).some((c) => c.type === "dev");
+				if (card && hasDevComment && (!session || session.state === "completed" || session.state === "failed" || session.state === "stopped")) {
 					onCardReadyForReview(card);
 				}
 			}
@@ -309,7 +321,7 @@ export class BoardPoller {
 			if (info.state === "MERGED") {
 				logger.info(`[poller] PR merged for "${card.title}" → Done`);
 				await moveCard(workspaceId, taskId, "done");
-				await updateSession(workspaceId, taskId, { state: "idle" });
+				await removeSession(workspaceId, taskId);
 				await appendActivityLog(workspaceId, taskId, "PR merged on GitHub → Done");
 				cleanupWorktree(taskId, repoPath);
 				void syncMainRepoAfterPRMerge(repoPath, card.baseRef, card, workspaceId, scheduler, stateHub);
@@ -317,13 +329,13 @@ export class BoardPoller {
 			} else if (info.state === "CLOSED") {
 				logger.info(`[poller] PR closed without merging for "${card.title}" → Blocked`);
 				await moveCard(workspaceId, taskId, "blocked");
-				await updateSession(workspaceId, taskId, { state: "idle" });
+				await removeSession(workspaceId, taskId);
 				await appendActivityLog(workspaceId, taskId, "PR closed without merging → Blocked");
 				updated = true;
 			} else if (info.mergeable === "CONFLICTING") {
 				const session = state.sessions[taskId];
-				const idle = !session || session.state === "idle" || session.state === "awaiting_review";
-				if (idle) {
+				const notRunning = !session || session.state === "completed" || session.state === "failed" || session.state === "stopped";
+				if (notRunning) {
 					logger.info(`[poller] PR has merge conflicts for "${card.title}" → resolving`);
 					void resolvePRConflicts(repoPath, card, workspaceId, scheduler, stateHub);
 					updated = true;
@@ -333,7 +345,8 @@ export class BoardPoller {
 				logger.info(`[poller] "${card.title}": ${reason} → Reopened`);
 				await moveCard(workspaceId, taskId, "reopened");
 				await appendActivityLog(workspaceId, taskId, `${reason} → Reopened`);
-				await updateSession(workspaceId, taskId, { state: "idle" });
+				await removeSession(workspaceId, taskId);
+				void scheduler.triggerParentReopenCascade(card, state.board.cards);
 				updated = true;
 			}
 

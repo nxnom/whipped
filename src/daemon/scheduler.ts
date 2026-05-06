@@ -9,7 +9,7 @@ import { spawnAgent } from "../agents/agent-runner.js";
 import { getAvailableAgents } from "../agents/agent-registry.js";
 import { CLAUDE_HOME_MCP_CONFIG_PATH, CLAUDE_TASK_SETTINGS_PATH, buildTaskHookEnv, getMcpConfigPath, writeClaudeMcpConfig, writeClaudeHomeSettings } from "../agents/agent-hooks.js";
 import type { WorkflowSlot, RuntimeAgentId, RuntimeBoardCard } from "../core/api-contract.js";
-import { buildDevAgentSystemPrompt, buildSecretsEnv, tryParseAgentJson } from "./review-pipeline.js";
+import { buildDevAgentSystemPrompt, buildSecretsEnv, runParentReopenCascade, tryParseAgentJson } from "./review-pipeline.js";
 import { logger } from "../core/logger.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { appendActivityLog, appendTerminalSession, endTerminalSession, linkCommentToSession, loadBoard, loadProjectConfig, moveCard, removeSession, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
@@ -55,6 +55,8 @@ export class TaskScheduler {
 	private hookHandledTasks = new Set<string>();
 	// Tasks that were manually stopped — prevents onExit from running the failure path.
 	private manuallyStoppedTasks = new Set<string>();
+	// Tasks stopped because their parent was reopened — session set to "stopped" in onExit.
+	private parentReopenedTasks = new Set<string>();
 
 	constructor(private options: SchedulerOptions) {}
 
@@ -184,6 +186,7 @@ export class TaskScheduler {
 
 		// Check and resolve dependencies
 		let effectiveBaseRef = card.baseRef;
+		let parentCards: RuntimeBoardCard[] = [];
 		if (card.dependsOn && card.dependsOn.length > 0) {
 			const board = await loadBoard(workspaceId);
 			const unmetDep = card.dependsOn.find((depId) => {
@@ -206,6 +209,7 @@ export class TaskScheduler {
 					break;
 				}
 			}
+			parentCards = card.dependsOn.map(id => board.cards[id]).filter((c): c is RuntimeBoardCard => !!c);
 		}
 
 		// Write MCP config so the dev agent can call kanban_add_comment when done.
@@ -271,7 +275,7 @@ export class TaskScheduler {
 
 		const prompt = buildTaskPrompt();
 		const secrets = projectConfig.secrets ?? [];
-		const devSystemPromptResult = buildDevAgentSystemPrompt(devSlotEarly, card, devSlotEarly.prompt ?? "", worktree.path, secrets);
+		const devSystemPromptResult = buildDevAgentSystemPrompt(devSlotEarly, card, devSlotEarly.prompt ?? "", worktree.path, secrets, parentCards);
 		const secretsEnv = buildSecretsEnv(secrets);
 
 		await appendActivityLog(workspaceId, taskId, `Agent ${agentId} started`);
@@ -305,10 +309,20 @@ export class TaskScheduler {
 					this.running.delete(taskId);
 					unlink(mcpConfigPath).catch(() => {});
 
-					// If manually stopped, just reset to idle — don't run the failure path.
+					// If manually stopped, clear the session so the card can be restarted.
 					if (this.manuallyStoppedTasks.has(taskId)) {
 						this.manuallyStoppedTasks.delete(taskId);
-						await updateSession(workspaceId, taskId, { state: "idle" });
+						await endTerminalSession(workspaceId, taskId, devStreamId, Date.now());
+						await removeSession(workspaceId, taskId);
+						stateHub.broadcastWorkspaceUpdate(workspaceId);
+						return;
+					}
+
+					// If stopped due to parent reopen, mark session as stopped (not failed).
+					if (this.parentReopenedTasks.has(taskId)) {
+						this.parentReopenedTasks.delete(taskId);
+						await endTerminalSession(workspaceId, taskId, devStreamId, Date.now());
+						await updateSession(workspaceId, taskId, { state: "stopped", completedAt: Date.now() });
 						stateHub.broadcastWorkspaceUpdate(workspaceId);
 						return;
 					}
@@ -328,12 +342,8 @@ export class TaskScheduler {
 							await linkCommentToSession(workspaceId, taskId, hookDevComment.createdAt, devStreamId);
 						}
 						await endTerminalSession(workspaceId, taskId, devStreamId, exitedAt);
-						await updateSession(workspaceId, taskId, {
-							state: "awaiting_review",
-							exitCode,
-							completedAt: exitedAt,
-							lastOutput: runningTask.outputBuffer.slice(-4096),
-						});
+						// State is managed by handleHookEvent — don't overwrite it here
+						// (it may already be "running" if the review pipeline started)
 						stateHub.broadcastWorkspaceUpdate(workspaceId);
 						return;
 					}
@@ -370,7 +380,7 @@ export class TaskScheduler {
 					}
 
 					await updateSession(workspaceId, taskId, {
-						state: exitCode === 0 ? "awaiting_review" : "failed",
+						state: exitCode === 0 ? "completed" : "failed",
 						exitCode,
 						completedAt: exitedAt,
 						lastOutput: runningTask.outputBuffer.slice(-4096),
@@ -378,12 +388,11 @@ export class TaskScheduler {
 
 					if (exitCode === 0) {
 						const hasReviewSlots = (cardWorkflow?.slots ?? []).some(s => s.type !== "dev" && s.enabled);
-						if (hasReviewSlots) {
-							await moveCard(workspaceId, taskId, "in_review");
-							await appendActivityLog(workspaceId, taskId, "Agent finished → moved to In Review");
-						} else {
+						if (!hasReviewSlots) {
 							await moveCard(workspaceId, taskId, "ready_for_review");
-							await appendActivityLog(workspaceId, taskId, "Agent finished → moved to Ready for Review (no review agents)");
+							await appendActivityLog(workspaceId, taskId, "Agent finished → moved to Ready for Review");
+						} else {
+							await appendActivityLog(workspaceId, taskId, "Agent finished → AI review starting");
 						}
 					} else {
 						const latestBoard = await loadBoard(workspaceId);
@@ -430,6 +439,45 @@ export class TaskScheduler {
 			this.running.delete(taskId);
 			void appendActivityLog(this.options.workspaceId, taskId, "Agent stopped manually");
 		}
+	}
+
+	// Stop a task because its parent was reopened — session becomes "stopped" rather than being removed.
+	interruptForParentReopen(taskId: string): void {
+		const task = this.running.get(taskId);
+		if (task) {
+			logger.info(`[scheduler] Interrupting task ${taskId} due to parent reopen`);
+			this.setRecentBuffer(task.streamId, task.outputBuffer);
+			void saveTerminalBuffer(this.options.workspaceId, task.streamId, task.outputBuffer);
+			this.parentReopenedTasks.add(taskId);
+			task.process.kill();
+			this.running.delete(taskId);
+		}
+	}
+
+	async triggerParentReopenCascade(parentCard: RuntimeBoardCard, boardCards: Record<string, RuntimeBoardCard>): Promise<void> {
+		const { workspaceId, repoPath, serverUrl, stateHub } = this.options;
+
+		const childCards = Object.values(boardCards).filter(
+			(card) =>
+				card.dependsOn?.includes(parentCard.id) &&
+				(card.columnId === "in_progress" || card.columnId === "ready_for_review"),
+		);
+
+		if (childCards.length === 0) return;
+
+		logger.info(`[scheduler] triggerParentReopenCascade: ${childCards.length} children for parent "${parentCard.title}"`);
+
+		const projectConfig = await loadProjectConfig(workspaceId);
+		void runParentReopenCascade(parentCard, childCards, {
+			workspaceId,
+			repoPath,
+			serverUrl,
+			mcpBinary: getMcpServerPath(),
+			stateHub,
+			secrets: projectConfig.secrets ?? [],
+			registerStopCallback: this.registerStopCallback.bind(this),
+			registerLiveProcess: this.registerLiveProcess.bind(this),
+		});
 	}
 
 	getOutputBuffer(streamId: string): string | null {
@@ -505,17 +553,20 @@ export class TaskScheduler {
 				?? hookConfig.workflows.find(w => w.isDefault)
 				?? hookConfig.workflows[0];
 			const hookHasReview = (hookWorkflow?.slots ?? []).some(s => s.type !== "dev" && s.enabled);
-			const hookDest = hookHasReview ? "in_review" : "ready_for_review";
-			await moveCard(workspaceId, taskId, hookDest);
-			await appendActivityLog(workspaceId, taskId, `Agent finished → moved to ${hookHasReview ? "In Review" : "Ready for Review"}`);
-			await updateSession(workspaceId, taskId, { state: "awaiting_review" });
+			if (!hookHasReview) {
+				await moveCard(workspaceId, taskId, "ready_for_review");
+				await appendActivityLog(workspaceId, taskId, "Agent finished → moved to Ready for Review");
+			} else {
+				await appendActivityLog(workspaceId, taskId, "Agent finished → AI review starting");
+			}
+			await updateSession(workspaceId, taskId, { state: "completed", completedAt: Date.now() });
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
-			logger.info(`[scheduler] Hook Stop: task ${taskId} → ${hookDest}`);
+			logger.info(`[scheduler] Hook Stop: task ${taskId} → ${hookHasReview ? "in_progress (review pending)" : "ready_for_review"}`);
 			this.options.onTaskCompleted(taskId);
 		} else if (event === "user_prompt") {
 			const board = await loadBoard(workspaceId);
 			const card = board.cards[taskId];
-			if (!card || card.columnId !== "in_review") return;
+			if (!card || card.columnId !== "ready_for_review") return;
 
 			await moveCard(workspaceId, taskId, "in_progress");
 			await appendActivityLog(workspaceId, taskId, "User continued → moved back to In Progress");
@@ -555,6 +606,7 @@ export class TaskScheduler {
 				this.liveProcesses.delete(streamId);
 				this.setRecentBuffer(streamId, outputBuffer);
 				void saveTerminalBuffer(workspaceId, streamId, outputBuffer);
+				await endTerminalSession(workspaceId, card.id, streamId, Date.now());
 				if (!hookHandled) await onComplete(exitCode === 0);
 			},
 		});
@@ -566,6 +618,7 @@ export class TaskScheduler {
 			this.liveProcesses.delete(streamId);
 			this.setRecentBuffer(streamId, outputBuffer);
 			void saveTerminalBuffer(workspaceId, streamId, outputBuffer);
+			void endTerminalSession(workspaceId, card.id, streamId, Date.now());
 			proc.kill();
 			onComplete(true).catch((err) => logger.error({ err }, `[scheduler] conflict onComplete failed for ${card.id}:`));
 		});
