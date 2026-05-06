@@ -478,13 +478,36 @@ function WorkflowsSection({
 				</Button>
 			</div>
 
+			{/* Workflow name header — outside the sortable slot area */}
+			{selectedWorkflow && (
+				<div className="flex items-center gap-2">
+					<Input
+						value={selectedWorkflow.name}
+						onChange={(e) => updateWorkflow({ ...selectedWorkflow, name: e.target.value })}
+						disabled={selectedWorkflow.isDefault}
+						inputClassName="font-semibold text-sm"
+						className="flex-1"
+					/>
+					{selectedWorkflow.isDefault && (
+						<span className="text-[10px] text-gray-500 bg-gray-800 px-2 py-1 rounded-lg shrink-0">default</span>
+					)}
+					{!selectedWorkflow.isDefault && (
+						<button
+							onClick={() => handleDeleteWorkflow(selectedWorkflow.id)}
+							className="text-gray-600 hover:text-red-400 transition-colors shrink-0"
+						>
+							<Trash2 size={14} />
+						</button>
+					)}
+				</div>
+			)}
+
 			{/* Selected workflow editor */}
 			{selectedWorkflow && (
 				<WorkflowEditor
 					workflow={selectedWorkflow}
 					defaultBinary={defaultBinary}
 					onUpdate={updateWorkflow}
-					onDelete={!selectedWorkflow.isDefault ? () => handleDeleteWorkflow(selectedWorkflow.id) : undefined}
 					onEditSlot={(slot) => setEditingSlot({ wfId: selectedWorkflow.id, slot })}
 					onAddCustom={() => setAddingCustomTo(selectedWorkflow.id)}
 				/>
@@ -523,14 +546,12 @@ function WorkflowEditor({
 	workflow,
 	defaultBinary,
 	onUpdate,
-	onDelete,
 	onEditSlot,
 	onAddCustom,
 }: {
 	workflow: Workflow;
 	defaultBinary: "claude" | "codex";
 	onUpdate: (wf: Workflow) => void;
-	onDelete?: () => void;
 	onEditSlot: (slot: WorkflowSlot) => void;
 	onAddCustom: () => void;
 }) {
@@ -573,22 +594,6 @@ function WorkflowEditor({
 
 	return (
 		<div className="border border-gray-800 rounded-xl p-4 space-y-3">
-			{/* Workflow name + delete */}
-			<div className="flex items-center gap-2">
-				<Input
-					value={workflow.name}
-					onChange={(e) => onUpdate({ ...workflow, name: e.target.value })}
-					disabled={workflow.isDefault}
-					inputClassName="font-medium text-sm"
-					className="flex-1"
-				/>
-				{onDelete && (
-					<button onClick={onDelete} className="text-gray-600 hover:text-red-400 transition-colors shrink-0">
-						<Trash2 size={14} />
-					</button>
-				)}
-			</div>
-
 			{/* Dev slot — always first, fixed position */}
 			{devSlot && (
 				<SlotCard
