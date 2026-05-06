@@ -37,7 +37,7 @@ export function SettingsPage() {
 			{/* Header */}
 			<div className="shrink-0 border-b border-gray-800 px-4 h-10 flex items-center gap-3">
 				<button
-					onClick={() => navigate(`/board?ws=${encodeURIComponent(workspaceId)}`)}
+					onClick={() => navigate(`/${encodeURIComponent(workspaceId)}/board`)}
 					className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-200 transition-colors"
 				>
 					<ArrowLeft size={14} />

@@ -17,8 +17,8 @@ import type {
 } from "@runtime-contract";
 import { Bot, Plus, Settings } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { trpc } from "@/runtime/trpc-client";
-import { useUrlParam } from "@/runtime/url-state";
 import { CardDetailPanel } from "./CardDetailPanel";
 import { KanbanColumn } from "./KanbanColumn";
 
@@ -33,10 +33,13 @@ interface KanbanBoardProps {
 const DIALOG_CLASS = "w-full";
 
 export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, onOpenAgent }: KanbanBoardProps) {
-  const [detailCardId, setDetailCardId] = useUrlParam("card");
-  const detailCard = detailCardId
-    ? (state.board.cards[detailCardId] ?? null)
-    : null;
+  const navigate = useNavigate();
+  const { cardId: detailCardId } = useParams<{ workspaceId: string; cardId?: string }>();
+  const workspaceId = state.workspaceId;
+  const detailCard = detailCardId ? (state.board.cards[detailCardId] ?? null) : null;
+
+  const openCard = (id: string) => navigate(`/${encodeURIComponent(workspaceId)}/board/${encodeURIComponent(id)}`, { replace: true });
+  const closeCard = () => navigate(`/${encodeURIComponent(workspaceId)}/board`, { replace: true });
 
   const handleCardDelete = (card: RuntimeBoardCard) => {
     ConfirmDialog.show({
@@ -186,7 +189,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
                     cards={cards}
                     allCards={state.board.cards}
                     sessions={state.sessions}
-                    onCardClick={(card) => setDetailCardId(card.id)}
+                    onCardClick={(card) => openCard(card.id)}
                     onCardEdit={openEditDialog}
                     onCardDelete={handleCardDelete}
                   />
@@ -207,7 +210,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
             ?? state.projectConfig.workflows.find(w => w.isDefault)
             ?? state.projectConfig.workflows[0]
           )?.slots}
-          onClose={() => setDetailCardId(null)}
+          onClose={closeCard}
           onRefresh={onRefresh}
           onDeleteCard={onDeleteCard}
         />

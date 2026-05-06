@@ -133,6 +133,17 @@ export default function App() {
 									}
 								/>
 								<Route
+									path="/:workspaceId/board/:cardId"
+									element={
+										<BoardPage
+											onConnectedChange={setConnected}
+											onAutonomousChange={setAutonomousOn}
+											onOpenSettings={() => navigate(`/${encodeURIComponent(activeWorkspaceId!)}/settings`)}
+											onOpenAgent={() => setAgentOpen((v) => !v)}
+										/>
+									}
+								/>
+								<Route
 									path="/:workspaceId/settings"
 									element={<SettingsPage />}
 								/>
