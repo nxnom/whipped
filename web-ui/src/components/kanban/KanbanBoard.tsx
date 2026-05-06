@@ -10,7 +10,7 @@ import {
 } from "@geckoui/geckoui";
 import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
 import type {
-  PromptGroup,
+  Workflow,
   RuntimeBoardCard,
   RuntimeBoardColumnId,
   RuntimeWorkspaceStateResponse,
@@ -67,7 +67,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard }: KanbanBoardProps
         <CreateCardContent
           workspaceId={state.workspaceId}
           allCards={state.board.cards}
-          promptGroups={state.projectConfig.promptGroups}
+          workflows={state.projectConfig.workflows}
           dismiss={dismiss}
           onRefresh={onRefresh}
         />
@@ -193,7 +193,11 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard }: KanbanBoardProps
           workspaceId={state.workspaceId}
           session={state.sessions[detailCard.id]}
           allCards={state.board.cards}
-          agentSlots={state.projectConfig.agentSlots}
+          workflowSlots={(
+            state.projectConfig.workflows.find(w => w.id === detailCard.workflowId)
+            ?? state.projectConfig.workflows.find(w => w.isDefault)
+            ?? state.projectConfig.workflows[0]
+          )?.slots}
           onClose={() => setDetailCardId(null)}
           onRefresh={onRefresh}
           onDeleteCard={onDeleteCard}
@@ -228,24 +232,24 @@ const COLUMN_LABEL: Record<string, string> = {
 function CreateCardContent({
   workspaceId,
   allCards,
-  promptGroups,
+  workflows,
   dismiss,
   onRefresh,
 }: {
   workspaceId: string;
   allCards: Record<string, RuntimeBoardCard>;
-  promptGroups: PromptGroup[];
+  workflows: Workflow[];
   dismiss: () => void;
   onRefresh: () => void;
 }) {
-  const defaultGroup = promptGroups.find(g => g.isDefault);
+  const defaultWorkflow = workflows.find(w => w.isDefault);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [agentId, setAgentId] = useState<"claude" | "codex">("claude");
   const [priority, setPriority] = useState<string>("");
   const [dependsOn, setDependsOn] = useState<string[]>([]);
   const [baseRef, setBaseRef] = useState<string>("");
-  const [promptGroupId, setPromptGroupId] = useState<string>(defaultGroup?.id ?? "");
+  const [workflowId, setWorkflowId] = useState<string>(defaultWorkflow?.id ?? "");
   const [branches, setBranches] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -273,7 +277,7 @@ function CreateCardContent({
           undefined,
         dependsOn: dependsOn.length > 0 ? dependsOn : undefined,
         baseRef: baseRef || undefined,
-        promptGroupId: promptGroupId || undefined,
+        workflowId: workflowId || undefined,
       });
       dismiss();
       onRefresh();
@@ -383,20 +387,20 @@ function CreateCardContent({
             ))}
           </Select>
         </div>
-        {promptGroups.length > 1 && (
+        {workflows.length > 1 && (
           <div>
-            <label className="text-xs text-gray-400 block mb-1">Prompt Group</label>
+            <label className="text-xs text-gray-400 block mb-1">Workflow</label>
             <Select
-              value={promptGroupId}
-              onChange={(v) => setPromptGroupId(v as string)}
+              value={workflowId}
+              onChange={(v) => setWorkflowId(v as string)}
               placeholder="Default"
               clearable
             >
-              {promptGroups.map((g) => (
+              {workflows.map((w) => (
                 <SelectOption
-                  key={g.id}
-                  value={g.id}
-                  label={g.name + (g.isDefault ? " (default)" : "")}
+                  key={w.id}
+                  value={w.id}
+                  label={w.name + (w.isDefault ? " (default)" : "")}
                 />
               ))}
             </Select>

@@ -48,13 +48,17 @@ export function AddProjectDialog({ onClose, onAdded }: Props) {
 	const handleAdd = async () => {
 		setAdding(true);
 		try {
-			const slots = [
-				{ id: "slot_dev", type: "dev" as const, name: "Dev", agentBinary: devBinary, order: 0, enabled: true },
-				{ id: "slot_cr", type: "code_review" as const, name: "Code Review", agentBinary: crBinary, order: 1, enabled: true },
-				{ id: "slot_qa", type: "qa" as const, name: "QA", agentBinary: "claude" as const, order: 2, enabled: false },
-			];
 			const initialConfig: Partial<RuntimeProjectConfig> = {
-				agentSlots: slots,
+				workflows: [{
+					id: "wf_default",
+					name: "Default",
+					isDefault: true,
+					slots: [
+						{ id: "dev", type: "dev" as const, name: "Dev", agentBinary: devBinary, order: 0, enabled: true, prompt: "" },
+						{ id: "code_review", type: "code_review" as const, name: "Code Review", agentBinary: crBinary, order: 1, enabled: true, prompt: "" },
+						{ id: "qa", type: "qa" as const, name: "QA", agentBinary: "claude" as const, order: 2, enabled: false, prompt: "" },
+					],
+				}],
 				autonomousModeEnabled: autoMode,
 				autoPR,
 				worktreeSetup: installCommand.trim() ? { filesToCopy: [], installCommand: installCommand.trim() } : undefined,

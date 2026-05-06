@@ -94,13 +94,13 @@ server.registerTool(
 				.array(z.string())
 				.optional()
 				.describe("Card IDs this task depends on — it cannot start until all deps are in ready_for_review or done"),
-			promptGroupId: z
+			workflowId: z
 				.string()
 				.optional()
-				.describe("ID of the prompt group to use for this task. Omit to use the default."),
+				.describe("ID of the workflow to use for this task. Omit to use the default."),
 		},
 	},
-	async ({ title, description, priority, columnId, dependsOn, promptGroupId }) => {
+	async ({ title, description, priority, columnId, dependsOn, workflowId }) => {
 		const card = await trpc<{ id: string; title: string; columnId: string }>("cards.create", {
 			workspaceId,
 			title,
@@ -108,7 +108,7 @@ server.registerTool(
 			priority,
 			dependsOn,
 			columnId: columnId ?? "todo",
-			promptGroupId,
+			workflowId,
 		});
 		return {
 			content: [{ type: "text", text: `Created card [${card.id}] "${card.title}" in ${card.columnId}.` }],

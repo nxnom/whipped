@@ -5,37 +5,39 @@ import { z } from "zod";
 export const runtimeAgentIdSchema = z.enum(["claude", "codex"]);
 export type RuntimeAgentId = z.infer<typeof runtimeAgentIdSchema>;
 
-// ─── Agent Slots ─────────────────────────────────────────────────────────────
+// ─── Workflows ───────────────────────────────────────────────────────────────
 
-export const agentSlotTypeSchema = z.enum(["dev", "code_review", "qa", "custom"]);
-export type AgentSlotType = z.infer<typeof agentSlotTypeSchema>;
+export const workflowSlotTypeSchema = z.enum(["dev", "code_review", "qa", "custom"]);
+export type WorkflowSlotType = z.infer<typeof workflowSlotTypeSchema>;
 
-export const agentSlotSchema = z.object({
+export const workflowSlotSchema = z.object({
 	id: z.string(),
-	type: agentSlotTypeSchema,
+	type: workflowSlotTypeSchema,
 	name: z.string(),
 	agentBinary: runtimeAgentIdSchema,
 	order: z.number().int().nonnegative(),
 	enabled: z.boolean(),
+	prompt: z.string().default(""),
 });
-export type AgentSlot = z.infer<typeof agentSlotSchema>;
+export type WorkflowSlot = z.infer<typeof workflowSlotSchema>;
 
-export const promptGroupSchema = z.object({
+export const workflowSchema = z.object({
 	id: z.string(),
 	name: z.string(),
 	isDefault: z.boolean().default(false),
-	prompts: z.record(z.string(), z.string()),
+	slots: z.array(workflowSlotSchema),
 });
-export type PromptGroup = z.infer<typeof promptGroupSchema>;
+export type Workflow = z.infer<typeof workflowSchema>;
 
-export const DEFAULT_AGENT_SLOTS: AgentSlot[] = [
-	{ id: "slot_dev", type: "dev", name: "Dev", agentBinary: "claude", order: 0, enabled: true },
-	{ id: "slot_cr", type: "code_review", name: "Code Review", agentBinary: "claude", order: 1, enabled: true },
-	{ id: "slot_qa", type: "qa", name: "QA", agentBinary: "claude", order: 2, enabled: false },
-];
-
-export const DEFAULT_PROMPT_GROUP: PromptGroup = {
-	id: "pg_default", name: "Default", isDefault: true, prompts: {},
+export const DEFAULT_WORKFLOW: Workflow = {
+	id: "wf_default",
+	name: "Default",
+	isDefault: true,
+	slots: [
+		{ id: "dev", type: "dev", name: "Dev", agentBinary: "claude", order: 0, enabled: true, prompt: "" },
+		{ id: "code_review", type: "code_review", name: "Code Review", agentBinary: "claude", order: 1, enabled: true, prompt: "" },
+		{ id: "qa", type: "qa", name: "QA", agentBinary: "claude", order: 2, enabled: false, prompt: "" },
+	],
 };
 
 // ─── Columns ─────────────────────────────────────────────────────────────────
@@ -114,7 +116,7 @@ export const runtimeBoardCardSchema = z.object({
 	githubPrUrl: z.string().optional(),
 	jiraKey: z.string().optional(),
 	jiraUrl: z.string().optional(),
-	promptGroupId: z.string().optional(),
+	workflowId: z.string().optional(),
 	reviewComments: z.array(runtimeReviewCommentSchema).default([]),
 	activityLog: z.array(runtimeActivityEntrySchema).default([]),
 	terminalSessions: z.array(runtimeTerminalSessionEntrySchema).default([]),
@@ -205,14 +207,7 @@ export const runtimeProjectConfigSchema = z.object({
 	github: runtimeGithubConfigSchema.optional(),
 	jira: runtimeJiraConfigSchema.optional(),
 	worktreeSetup: runtimeWorktreeSetupSchema.optional(),
-	agentSlots: z.array(agentSlotSchema).default([
-		{ id: "slot_dev", type: "dev", name: "Dev", agentBinary: "claude", order: 0, enabled: true },
-		{ id: "slot_cr", type: "code_review", name: "Code Review", agentBinary: "claude", order: 1, enabled: true },
-		{ id: "slot_qa", type: "qa", name: "QA", agentBinary: "claude", order: 2, enabled: false },
-	]),
-	promptGroups: z.array(promptGroupSchema).default([
-		{ id: "pg_default", name: "Default", isDefault: true, prompts: {} },
-	]),
+	workflows: z.array(workflowSchema).default([DEFAULT_WORKFLOW]),
 });
 export type RuntimeProjectConfig = z.infer<typeof runtimeProjectConfigSchema>;
 
@@ -248,7 +243,7 @@ export const runtimeCardCreateRequestSchema = z.object({
 	githubIssueUrl: z.string().optional(),
 	jiraKey: z.string().optional(),
 	jiraUrl: z.string().optional(),
-	promptGroupId: z.string().optional(),
+	workflowId: z.string().optional(),
 });
 export type RuntimeCardCreateRequest = z.infer<typeof runtimeCardCreateRequestSchema>;
 

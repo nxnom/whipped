@@ -8,7 +8,7 @@ import type { AgentProcess } from "../agents/agent-runner.js";
 import { spawnAgent } from "../agents/agent-runner.js";
 import { getAvailableAgents } from "../agents/agent-registry.js";
 import { CLAUDE_HOME_MCP_CONFIG_PATH, CLAUDE_TASK_SETTINGS_PATH, buildTaskHookEnv, getMcpConfigPath, writeClaudeMcpConfig, writeClaudeHomeSettings } from "../agents/agent-hooks.js";
-import type { AgentSlot, RuntimeAgentId, RuntimeBoardCard } from "../core/api-contract.js";
+import type { WorkflowSlot, RuntimeAgentId, RuntimeBoardCard } from "../core/api-contract.js";
 import { buildDevAgentSystemPrompt } from "./review-pipeline.js";
 import { logger } from "../core/logger.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
@@ -159,7 +159,11 @@ export class TaskScheduler {
 
 		// Reload project config early so we can resolve the dev slot + agent binary
 		const projectConfig = await loadProjectConfig(workspaceId);
-		const devSlotEarly: AgentSlot = projectConfig.agentSlots.find(s => s.type === "dev") ?? { id: "slot_dev", type: "dev" as const, name: "Dev", agentBinary: "claude" as const, order: 0, enabled: true };
+		const cardWorkflow = projectConfig.workflows.find(w => w.id === card.workflowId)
+			?? projectConfig.workflows.find(w => w.isDefault)
+			?? projectConfig.workflows[0];
+		const devSlotEarly: WorkflowSlot = cardWorkflow?.slots.find(s => s.type === "dev")
+			?? { id: "dev", type: "dev" as const, name: "Dev", agentBinary: "claude" as const, order: 0, enabled: true, prompt: "" };
 		const agentId = card.agentId ?? devSlotEarly.agentBinary;
 
 		// Guard: check agent binary is available before spawning
@@ -262,11 +266,7 @@ export class TaskScheduler {
 		}
 
 		const prompt = buildTaskPrompt();
-		const promptGroup = (card.promptGroupId
-			? projectConfig.promptGroups.find(g => g.id === card.promptGroupId)
-			: undefined) ?? projectConfig.promptGroups.find(g => g.isDefault);
-		const customPrompt = promptGroup?.prompts[devSlotEarly.id] ?? "";
-		const taskSystemPrompt = buildDevAgentSystemPrompt(devSlotEarly, card, customPrompt);
+		const taskSystemPrompt = buildDevAgentSystemPrompt(devSlotEarly, card, devSlotEarly.prompt ?? "");
 
 		await appendActivityLog(workspaceId, taskId, `Agent ${agentId} started`);
 
@@ -335,8 +335,14 @@ export class TaskScheduler {
 					});
 
 					if (exitCode === 0) {
-						await moveCard(workspaceId, taskId, "in_review");
-						await appendActivityLog(workspaceId, taskId, "Agent finished → moved to In Review");
+						const hasReviewSlots = (cardWorkflow?.slots ?? []).some(s => s.type !== "dev" && s.enabled);
+						if (hasReviewSlots) {
+							await moveCard(workspaceId, taskId, "in_review");
+							await appendActivityLog(workspaceId, taskId, "Agent finished → moved to In Review");
+						} else {
+							await moveCard(workspaceId, taskId, "ready_for_review");
+							await appendActivityLog(workspaceId, taskId, "Agent finished → moved to Ready for Review (no review agents)");
+						}
 					} else {
 						const board = await loadBoard(workspaceId);
 						const latestCard = board.cards[taskId] ?? card;
@@ -452,11 +458,17 @@ export class TaskScheduler {
 					(err: Error) => appendActivityLog(workspaceId, taskId, `Push failed: ${err.message}`),
 				);
 			}
-			await moveCard(workspaceId, taskId, "in_review");
-			await appendActivityLog(workspaceId, taskId, "Agent finished → moved to In Review");
+			const hookConfig = await loadProjectConfig(workspaceId);
+			const hookWorkflow = hookConfig.workflows.find(w => w.id === card.workflowId)
+				?? hookConfig.workflows.find(w => w.isDefault)
+				?? hookConfig.workflows[0];
+			const hookHasReview = (hookWorkflow?.slots ?? []).some(s => s.type !== "dev" && s.enabled);
+			const hookDest = hookHasReview ? "in_review" : "ready_for_review";
+			await moveCard(workspaceId, taskId, hookDest);
+			await appendActivityLog(workspaceId, taskId, `Agent finished → moved to ${hookHasReview ? "In Review" : "Ready for Review"}`);
 			await updateSession(workspaceId, taskId, { state: "awaiting_review" });
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
-			logger.info(`[scheduler] Hook Stop: task ${taskId} → in_review`);
+			logger.info(`[scheduler] Hook Stop: task ${taskId} → ${hookDest}`);
 			this.options.onTaskCompleted(taskId);
 		} else if (event === "user_prompt") {
 			const board = await loadBoard(workspaceId);

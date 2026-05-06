@@ -6,7 +6,7 @@ import { commitIfDirty, createGithubPR, pushBranch } from "../git/merge-operatio
 import { CLAUDE_TASK_SETTINGS_PATH, buildTaskHookEnv, getMcpConfigPath, writeClaudeMcpConfig } from "../agents/agent-hooks.js";
 import { spawnAgent } from "../agents/agent-runner.js";
 import type { AgentProcess } from "../agents/agent-runner.js";
-import type { AgentSlot, PromptGroup, RuntimeBoardCard, RuntimeReviewComment } from "../core/api-contract.js";
+import type { WorkflowSlot, RuntimeBoardCard, RuntimeReviewComment } from "../core/api-contract.js";
 import type { GithubClient } from "../github/github-client.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { appendActivityLog, appendTerminalSession, loadBoard, moveCard, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
@@ -18,8 +18,7 @@ interface ReviewPipelineOptions {
 	repoPath: string;
 	serverUrl: string;
 	mcpBinary: { command: string; args: string[] };
-	reviewSlots: AgentSlot[];
-	promptGroups: PromptGroup[];
+	reviewSlots: WorkflowSlot[];
 	maxAutoFixAttempts: number;
 	stateHub: RuntimeStateHub;
 	githubClient?: GithubClient;
@@ -71,7 +70,7 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 	card = freshBoard.cards[card.id] ?? card;
 
 	for (const slot of options.reviewSlots) {
-		const customPrompt = getSlotPrompt(options.promptGroups, card.promptGroupId, slot.id);
+		const customPrompt = slot.prompt ?? "";
 		const streamId = `${card.id}-${slot.id}-${runId}`;
 
 		await appendActivityLog(workspaceId, card.id, `${slot.name} running (${slot.agentBinary})`);
@@ -107,7 +106,7 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 }
 
 async function runReviewSlot(
-	slot: AgentSlot,
+	slot: WorkflowSlot,
 	card: RuntimeBoardCard,
 	streamId: string,
 	options: ReviewPipelineOptions,
@@ -142,12 +141,6 @@ function getSlotTriggerWord(type: string): string {
 	if (type === "code_review") return "Start Code Review.";
 	if (type === "qa") return "Start QA.";
 	return "Start.";
-}
-
-function getSlotPrompt(promptGroups: PromptGroup[], promptGroupId: string | undefined, slotId: string): string {
-	const group = (promptGroupId ? promptGroups.find(g => g.id === promptGroupId) : undefined)
-		?? promptGroups.find(g => g.isDefault);
-	return group?.prompts[slotId] ?? "";
 }
 
 async function persistComment(
@@ -358,7 +351,7 @@ function formatPriorComments(card: RuntimeBoardCard): string {
 const INLINE_DIFF_LIMIT = 8000;
 
 // Exported — used by scheduler.ts for dev agent
-export function buildDevAgentSystemPrompt(slot: AgentSlot, card: RuntimeBoardCard, customPrompt: string): string {
+export function buildDevAgentSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, customPrompt: string): string {
 	const priorContext = formatPriorComments(card);
 	const parts: string[] = [];
 
@@ -381,7 +374,7 @@ When you finish your work:
 	return parts.join("\n\n");
 }
 
-function buildReviewSlotSystemPrompt(slot: AgentSlot, card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt: string): string {
+function buildReviewSlotSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt: string): string {
 	switch (slot.type) {
 		case "code_review": return buildCodeReviewSystemPrompt(slot, card, stat, fullDiff, customPrompt);
 		case "qa": return buildQASystemPrompt(slot, card, stat, customPrompt);
@@ -389,7 +382,7 @@ function buildReviewSlotSystemPrompt(slot: AgentSlot, card: RuntimeBoardCard, st
 	}
 }
 
-function buildCodeReviewSystemPrompt(slot: AgentSlot, card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt: string): string {
+function buildCodeReviewSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt: string): string {
 	const priorContext = formatPriorComments(card);
 	const diffSection = fullDiff.length <= INLINE_DIFF_LIMIT
 		? `Git diff:\n${fullDiff}`
@@ -426,7 +419,7 @@ Use your tools — grep for callers, read type definitions, check related module
 When done, call \`kanban_add_comment\` with cardId: "${card.id}", type: "code_review", passed: true/false, content starting with "PASS: ..." or "FAIL: ...".${custom}`;
 }
 
-function buildQASystemPrompt(slot: AgentSlot, card: RuntimeBoardCard, stat: string, customPrompt: string): string {
+function buildQASystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: string, customPrompt: string): string {
 	const priorContext = formatPriorComments(card);
 	const custom = customPrompt.trim() ? `\n\n## Project-specific instructions\n\n${customPrompt.trim()}` : "";
 
@@ -454,7 +447,7 @@ Report only what you ran and whether it passed. Nothing else.
 When done, call \`kanban_add_comment\` with cardId: "${card.id}", type: "qa", passed: true/false, content starting with "PASS: ..." or "FAIL: ...".${custom}`;
 }
 
-function buildCustomSystemPrompt(slot: AgentSlot, card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt: string): string {
+function buildCustomSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt: string): string {
 	const priorContext = formatPriorComments(card);
 	const diffSection = fullDiff.length <= INLINE_DIFF_LIMIT
 		? `Git diff:\n${fullDiff}`

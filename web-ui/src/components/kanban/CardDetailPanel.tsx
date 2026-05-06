@@ -1,5 +1,5 @@
 import { Button, ConfirmDialog, Select, SelectOption, Textarea, Tooltip, toast } from "@geckoui/geckoui";
-import type { AgentSlot, RuntimeBoardCard, RuntimeCardPriority, RuntimeTaskSessionSummary } from "@runtime-contract";
+import type { WorkflowSlot, RuntimeBoardCard, RuntimeCardPriority, RuntimeTaskSessionSummary } from "@runtime-contract";
 import { ArrowLeft, ExternalLink, FolderOpen, GitMerge, GitPullRequest, Play, Square, TerminalSquare, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
@@ -10,7 +10,7 @@ interface Props {
 	workspaceId: string;
 	session?: RuntimeTaskSessionSummary;
 	allCards?: Record<string, RuntimeBoardCard>;
-	agentSlots?: AgentSlot[];
+	workflowSlots?: WorkflowSlot[];
 	onClose: () => void;
 	onRefresh: () => void;
 	onDeleteCard: (cardId: string) => void;
@@ -76,9 +76,9 @@ const BUILTIN_SESSION_LABELS: Record<string, string> = {
 	conflict: "Conflict",
 };
 
-function getSessionLabel(type: string, agentSlots?: AgentSlot[]): string {
+function getSessionLabel(type: string, workflowSlots?: WorkflowSlot[]): string {
 	if (BUILTIN_SESSION_LABELS[type]) return BUILTIN_SESSION_LABELS[type];
-	const slot = agentSlots?.find(s => s.id === type);
+	const slot = workflowSlots?.find(s => s.id === type);
 	if (slot) return slot.name;
 	return type;
 }
@@ -89,7 +89,7 @@ const DEFAULT_SIDEBAR = 340;
 
 type SidebarTab = "overview" | "comments" | "activity";
 
-export function CardDetailPanel({ card, workspaceId, session, allCards, agentSlots, onClose, onRefresh, onDeleteCard }: Props) {
+export function CardDetailPanel({ card, workspaceId, session, allCards, workflowSlots, onClose, onRefresh, onDeleteCard }: Props) {
 	const [activeStreamId, setActiveStreamId] = useState<string>(
 		() => card.terminalSessions?.at(-1)?.streamId ?? card.id,
 	);
@@ -476,7 +476,7 @@ export function CardDetailPanel({ card, workspaceId, session, allCards, agentSlo
 												}`}
 											>
 												<TerminalSquare size={11} className="shrink-0 text-gray-500" />
-												<span className="flex-1">{getSessionLabel(ts.type, agentSlots)}</span>
+												<span className="flex-1">{getSessionLabel(ts.type, workflowSlots)}</span>
 												<span className="text-gray-600 tabular-nums">
 													{new Date(ts.startedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
 												</span>
@@ -640,7 +640,7 @@ export function CardDetailPanel({ card, workspaceId, session, allCards, agentSlo
 								}`}
 							>
 								<TerminalSquare size={10} />
-								{getSessionLabel(ts.type, agentSlots)}
+								{getSessionLabel(ts.type, workflowSlots)}
 								<span className="text-gray-600 tabular-nums">
 									{new Date(ts.startedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
 								</span>

@@ -77,7 +77,10 @@ export async function createRuntimeServer(options: ServerOptions) {
 				const latestGithubClient = latestProjectConfig.github?.token
 					? createGithubClient(latestProjectConfig.github.token)
 					: undefined;
-				const reviewSlots = latestProjectConfig.agentSlots
+				const cardWorkflow = latestProjectConfig.workflows.find(w => w.id === card.workflowId)
+					?? latestProjectConfig.workflows.find(w => w.isDefault)
+					?? latestProjectConfig.workflows[0];
+				const reviewSlots = (cardWorkflow?.slots ?? [])
 					.filter(s => s.type !== "dev" && s.enabled)
 					.sort((a, b) => a.order - b.order);
 				await runReviewPipeline(card, {
@@ -86,7 +89,6 @@ export async function createRuntimeServer(options: ServerOptions) {
 					serverUrl: `http://${host}:${port}`,
 					mcpBinary: getMcpServerPath(),
 					reviewSlots,
-					promptGroups: latestProjectConfig.promptGroups,
 					maxAutoFixAttempts: latestConfig.maxAutoFixAttempts,
 					stateHub,
 					githubClient: latestGithubClient,
