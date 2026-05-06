@@ -1,6 +1,5 @@
-import { Button, Input, Select, SelectOption, Switch, Textarea, toast } from "@geckoui/geckoui";
+import { Button, Input, Switch, toast } from "@geckoui/geckoui";
 import type { RuntimeProjectConfig } from "@runtime-contract";
-import { AGENT_BINARY_OPTIONS } from "@runtime-contract";
 import { AlertCircle, CheckCircle2, ChevronLeft, FolderOpen, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
@@ -22,8 +21,6 @@ export function AddProjectDialog({ onClose, onAdded }: Props) {
 	const [showPicker, setShowPicker] = useState(false);
 	const [adding, setAdding] = useState(false);
 
-	const [devBinary, setDevBinary] = useState<"claude" | "codex">("claude");
-	const [crBinary, setCrBinary] = useState<"claude" | "codex">("claude");
 	const [autoMode, setAutoMode] = useState(false);
 	const [autoPR, setAutoPR] = useState(false);
 	const [installCommand, setInstallCommand] = useState("");
@@ -50,16 +47,6 @@ export function AddProjectDialog({ onClose, onAdded }: Props) {
 		setAdding(true);
 		try {
 			const initialConfig: Partial<RuntimeProjectConfig> = {
-				workflows: [{
-					id: "wf_default",
-					name: "Default",
-					isDefault: true,
-					slots: [
-						{ id: "dev", type: "dev" as const, name: "Dev", agentBinary: devBinary, order: 0, enabled: true, prompt: "" },
-						{ id: "code_review", type: "code_review" as const, name: "Code Review", agentBinary: crBinary, order: 1, enabled: true, prompt: "" },
-						{ id: "qa", type: "qa" as const, name: "QA", agentBinary: "claude" as const, order: 2, enabled: false, prompt: "" },
-					],
-				}],
 				autonomousModeEnabled: autoMode,
 				autoPR,
 				worktreeSetup: installCommand.trim() ? { filesToCopy: [], installCommand: installCommand.trim() } : undefined,
@@ -95,14 +82,10 @@ export function AddProjectDialog({ onClose, onAdded }: Props) {
 					) : (
 						<ConfigureStep
 							repoPath={repoPath}
-							devBinary={devBinary}
-							crBinary={crBinary}
 							autoMode={autoMode}
 							autoPR={autoPR}
 							installCommand={installCommand}
 							adding={adding}
-							onDevBinary={setDevBinary}
-							onCrBinary={setCrBinary}
 							onAutoMode={setAutoMode}
 							onAutoPR={setAutoPR}
 							onInstallCommand={setInstallCommand}
@@ -171,18 +154,14 @@ function SelectStep({
 }
 
 function ConfigureStep({
-	repoPath, devBinary, crBinary, autoMode, autoPR, installCommand, adding,
-	onDevBinary, onCrBinary, onAutoMode, onAutoPR, onInstallCommand, onBack, onAdd,
+	repoPath, autoMode, autoPR, installCommand, adding,
+	onAutoMode, onAutoPR, onInstallCommand, onBack, onAdd,
 }: {
 	repoPath: string;
-	devBinary: "claude" | "codex";
-	crBinary: "claude" | "codex";
 	autoMode: boolean;
 	autoPR: boolean;
 	installCommand: string;
 	adding: boolean;
-	onDevBinary: (v: "claude" | "codex") => void;
-	onCrBinary: (v: "claude" | "codex") => void;
 	onAutoMode: (v: boolean) => void;
 	onAutoPR: (v: boolean) => void;
 	onInstallCommand: (v: string) => void;
@@ -196,25 +175,6 @@ function ConfigureStep({
 			<div>
 				<h3 className="text-base font-semibold text-gray-100">Configure <span className="text-blue-400">{folderName}</span></h3>
 				<p className="text-xs text-gray-500 mt-0.5">{repoPath}</p>
-			</div>
-
-			{/* Agents */}
-			<div className="space-y-2">
-				<p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Agents</p>
-				<div className="grid grid-cols-2 gap-3">
-					<div>
-						<label className="text-xs text-gray-500 block mb-1">Dev agent</label>
-						<Select value={devBinary} onChange={(v) => onDevBinary(v as "claude" | "codex")}>
-							{AGENT_BINARY_OPTIONS.map(o => <SelectOption key={o.value} value={o.value} label={o.label} />)}
-						</Select>
-					</div>
-					<div>
-						<label className="text-xs text-gray-500 block mb-1">Code review agent</label>
-						<Select value={crBinary} onChange={(v) => onCrBinary(v as "claude" | "codex")}>
-							{AGENT_BINARY_OPTIONS.map(o => <SelectOption key={o.value} value={o.value} label={o.label} />)}
-						</Select>
-					</div>
-				</div>
 			</div>
 
 			{/* Automation */}
@@ -249,6 +209,8 @@ function ConfigureStep({
 					<p className="text-xs text-gray-600 mt-1">Runs once when a new worktree is created for a task.</p>
 				</div>
 			</div>
+
+			<p className="text-xs text-gray-600">Workflows and agent models can be configured in Settings after adding.</p>
 
 			<div className="flex gap-2 justify-between pt-1">
 				<Button variant="ghost" size="sm" onClick={onBack}>
