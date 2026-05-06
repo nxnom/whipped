@@ -10,7 +10,7 @@ import type { RuntimeAgentId, RuntimeBoardCard, RuntimeReviewComment } from "../
 import type { GithubClient } from "../github/github-client.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { appendActivityLog, appendTerminalSession, loadBoard, moveCard, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
-import { getWorktreeBranch, getWorktreePath } from "../worktree/worktree-manager.js";
+import { getWorktreeBranch, getWorktreePath, removeWorktreeAsync } from "../worktree/worktree-manager.js";
 import { logger } from "../core/logger.js";
 
 interface ReviewPipelineOptions {
@@ -250,6 +250,7 @@ async function handleReviewFailure(
 			: `Review failed (attempt ${newAttempts}/${maxAutoFixAttempts}) → moved to Reopened`,
 	);
 	await updateSession(workspaceId, card.id, { state: "idle" });
+	if (destination === "blocked") void removeWorktreeAsync(card.id, options.repoPath);
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 }
 
@@ -281,8 +282,8 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 		const taskBranch = getWorktreeBranch(card.id);
 		try {
 			logger.info(`[review] Auto PR: commit → push → create for "${card.title}" (branch: ${taskBranch})`);
-			commitIfDirty(worktreePath, card.title);
-			pushBranch(worktreePath, taskBranch);
+			await commitIfDirty(worktreePath, card.title);
+			await pushBranch(worktreePath, taskBranch);
 			const devSummary = [...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev")?.content
 				?? card.description;
 			const prUrl = createGithubPR(worktreePath, card.title, devSummary, card.baseRef);

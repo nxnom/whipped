@@ -47,9 +47,11 @@ export function createWorktree(taskId: string, repoPath: string, baseRef: string
 	const branchExists = branchCheck.stdout.includes(branch);
 
 	if (branchExists) {
-		git(["worktree", "add", worktreePath, branch], repoPath);
+		const r = git(["worktree", "add", worktreePath, branch], repoPath);
+		if (!r.ok) throw new Error(`Failed to add worktree at ${worktreePath}`);
 	} else {
-		git(["worktree", "add", "-b", branch, worktreePath, baseRef], repoPath);
+		const r = git(["worktree", "add", "-b", branch, worktreePath, baseRef], repoPath);
+		if (!r.ok) throw new Error(`Failed to create worktree branch ${branch} at ${worktreePath}`);
 	}
 
 	return { taskId, path: worktreePath, branch, isNew: true };
@@ -59,19 +61,12 @@ export function removeWorktree(taskId: string, repoPath: string): void {
 	const worktreePath = join(WORKTREES_DIR, taskId);
 	const branch = `kanbom/task-${taskId}`;
 
-	try {
-		git(["worktree", "remove", "--force", worktreePath], repoPath);
-	} catch {
-		if (existsSync(worktreePath)) {
-			rmSync(worktreePath, { recursive: true, force: true });
-		}
+	const removeResult = git(["worktree", "remove", "--force", worktreePath], repoPath);
+	if (!removeResult.ok && existsSync(worktreePath)) {
+		rmSync(worktreePath, { recursive: true, force: true });
 	}
-
-	try {
-		git(["branch", "-D", branch], repoPath);
-	} catch {
-		// ignore
-	}
+	git(["worktree", "prune"], repoPath);
+	git(["branch", "-D", branch], repoPath); // ignore result — branch may not exist
 }
 
 export async function removeWorktreeAsync(taskId: string, repoPath: string): Promise<void> {

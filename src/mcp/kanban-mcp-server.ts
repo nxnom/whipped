@@ -35,7 +35,9 @@ async function trpcQuery<T>(procedure: string, input: unknown): Promise<T> {
 	});
 	if (!res.ok) throw new Error(`tRPC ${procedure} failed: ${res.status} ${await res.text()}`);
 	const body = (await res.json()) as { result?: { data?: T } };
-	return body.result?.data as T;
+	const data = body.result?.data;
+	if (data == null) throw new Error(`tRPC ${procedure} returned empty response`);
+	return data;
 }
 
 const server = new McpServer({ name: "kanbom", version: "1.0.0" });

@@ -1,7 +1,7 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { unlink } from "node:fs/promises";
-import { commitIfDirty } from "../git/merge-operations.js";
+import { commitIfDirty, pushBranch } from "../git/merge-operations.js";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgentProcess } from "../agents/agent-runner.js";
@@ -12,7 +12,7 @@ import type { RuntimeAgentId, RuntimeBoardCard } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { appendActivityLog, appendTerminalSession, loadBoard, loadProjectConfig, moveCard, removeSession, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
-import { createWorktree, getWorktreeBranch, getWorktreePath, removeWorktree } from "../worktree/worktree-manager.js";
+import { createWorktree, getWorktreeBranch, getWorktreePath, removeWorktree, removeWorktreeAsync } from "../worktree/worktree-manager.js";
 
 export interface SchedulerOptions {
 	workspaceId: string;
@@ -35,6 +35,7 @@ interface RunningTask {
 }
 
 const FAST_EXIT_THRESHOLD_MS = 8_000;
+const MAX_RECENT_BUFFERS = 100;
 
 const HOME_AGENT_PREFIX = "__home__:";
 
@@ -55,6 +56,13 @@ export class TaskScheduler {
 	private manuallyStoppedTasks = new Set<string>();
 
 	constructor(private options: SchedulerOptions) {}
+
+	private setRecentBuffer(streamId: string, buffer: string): void {
+		this.recentBuffers.set(streamId, buffer);
+		if (this.recentBuffers.size > MAX_RECENT_BUFFERS) {
+			this.recentBuffers.delete(this.recentBuffers.keys().next().value!);
+		}
+	}
 
 	// Register a callback that fires once when the Stop hook fires for streamId.
 	// Returns an unregister function for cleanup.
@@ -106,7 +114,7 @@ export class TaskScheduler {
 					stateHub.broadcastTerminalOutput(workspaceId, taskId, data);
 				},
 				onExit: () => {
-					this.recentBuffers.set(taskId, homeTask.outputBuffer);
+					this.setRecentBuffer(taskId, homeTask.outputBuffer);
 					this.homeSessions.delete(taskId);
 				},
 			}),
@@ -279,7 +287,7 @@ export class TaskScheduler {
 					stateHub.broadcastTerminalOutput(workspaceId, devStreamId, data);
 				},
 				onExit: async (exitCode) => {
-					this.recentBuffers.set(devStreamId, runningTask.outputBuffer);
+					this.setRecentBuffer(devStreamId, runningTask.outputBuffer);
 					void saveTerminalBuffer(workspaceId, devStreamId, runningTask.outputBuffer);
 					this.running.delete(taskId);
 					unlink(mcpConfigPath).catch(() => {});
@@ -346,6 +354,7 @@ export class TaskScheduler {
 						}
 
 						await moveCard(workspaceId, taskId, destination);
+						if (destination === "blocked") void removeWorktreeAsync(taskId, repoPath);
 					}
 					stateHub.broadcastWorkspaceUpdate(workspaceId);
 					this.options.onTaskCompleted(taskId);
@@ -422,7 +431,7 @@ export class TaskScheduler {
 			this.hookHandledTasks.add(taskId);
 			const task = this.running.get(taskId);
 			if (task) {
-				this.recentBuffers.set(task.streamId, task.outputBuffer);
+				this.setRecentBuffer(task.streamId, task.outputBuffer);
 				void saveTerminalBuffer(workspaceId, task.streamId, task.outputBuffer);
 				task.process.kill();
 				this.running.delete(taskId);
@@ -431,13 +440,11 @@ export class TaskScheduler {
 			if (card.githubPrUrl) {
 				const worktreePath = getWorktreePath(taskId);
 				const taskBranch = getWorktreeBranch(taskId);
-				commitIfDirty(worktreePath, card.title);
-				const pushResult = spawnSync("git", ["push", "origin", taskBranch], { cwd: worktreePath, encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] });
-				if (pushResult.status === 0) {
-					await appendActivityLog(workspaceId, taskId, `Pushed to PR`);
-				} else {
-					await appendActivityLog(workspaceId, taskId, `Push failed: ${pushResult.stderr?.trim()}`);
-				}
+				await commitIfDirty(worktreePath, card.title);
+				await pushBranch(worktreePath, taskBranch).then(
+					() => appendActivityLog(workspaceId, taskId, `Pushed to PR`),
+					(err: Error) => appendActivityLog(workspaceId, taskId, `Push failed: ${err.message}`),
+				);
 			}
 			await moveCard(workspaceId, taskId, "in_review");
 			await appendActivityLog(workspaceId, taskId, "Agent finished → moved to In Review");
@@ -486,7 +493,7 @@ export class TaskScheduler {
 			},
 			onExit: async (exitCode) => {
 				this.liveProcesses.delete(streamId);
-				this.recentBuffers.set(streamId, outputBuffer);
+				this.setRecentBuffer(streamId, outputBuffer);
 				void saveTerminalBuffer(workspaceId, streamId, outputBuffer);
 				if (!hookHandled) await onComplete(exitCode === 0);
 			},
@@ -497,7 +504,7 @@ export class TaskScheduler {
 		this.registerStopCallback(streamId, () => {
 			hookHandled = true;
 			this.liveProcesses.delete(streamId);
-			this.recentBuffers.set(streamId, outputBuffer);
+			this.setRecentBuffer(streamId, outputBuffer);
 			void saveTerminalBuffer(workspaceId, streamId, outputBuffer);
 			proc.kill();
 			onComplete(true).catch((err) => logger.error({ err }, `[scheduler] conflict onComplete failed for ${card.id}:`));

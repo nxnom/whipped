@@ -14,11 +14,11 @@ function git(args: string[], cwd: string): { stdout: string; stderr: string; ok:
 	return { stdout: r.stdout?.trim() ?? "", stderr: r.stderr?.trim() ?? "", ok: r.status === 0 };
 }
 
-export function commitIfDirty(worktreePath: string, message: string): boolean {
-	const status = git(["status", "--porcelain"], worktreePath);
-	if (!status.stdout) return false;
-	git(["add", "-A"], worktreePath);
-	git(["commit", "-m", message], worktreePath);
+export async function commitIfDirty(worktreePath: string, message: string): Promise<boolean> {
+	const statusResult = await execFileAsync("git", ["status", "--porcelain"], { cwd: worktreePath, encoding: "utf-8" }).catch(() => null);
+	if (!statusResult?.stdout?.trim()) return false;
+	await execFileAsync("git", ["add", "-A"], { cwd: worktreePath }).catch(() => {});
+	await execFileAsync("git", ["commit", "-m", message], { cwd: worktreePath }).catch(() => {});
 	return true;
 }
 
@@ -60,13 +60,10 @@ export function abortMerge(repoPath: string): void {
 	git(["merge", "--abort"], repoPath);
 }
 
-export function pushBranch(worktreePath: string, branch: string): void {
-	const r = spawnSync("git", ["push", "-u", "origin", branch], {
-		cwd: worktreePath,
-		encoding: "utf-8",
-		stdio: ["ignore", "pipe", "pipe"],
+export async function pushBranch(worktreePath: string, branch: string): Promise<void> {
+	await execFileAsync("git", ["push", "-u", "origin", branch], { cwd: worktreePath, encoding: "utf-8" }).catch((err: { stderr?: string }) => {
+		throw new Error(`Failed to push: ${(err.stderr ?? String(err)).trim()}`);
 	});
-	if (r.status !== 0) throw new Error(`Failed to push: ${r.stderr?.trim()}`);
 }
 
 export function createGithubPR(worktreePath: string, title: string, body: string, baseRef: string): string {

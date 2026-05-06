@@ -3,6 +3,7 @@ import type { RuntimeProject } from "@runtime-contract";
 import { Bot, ChevronDown, FolderOpen, History, Kanban, Plus, Settings, Wifi, WifiOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AgentPage } from "@/pages/AgentPage";
 import { BoardPage } from "@/pages/Board";
 import { HistoryPage } from "@/pages/History";
@@ -143,32 +144,34 @@ export default function App() {
 
 				{/* Main */}
 				<main className="flex-1 overflow-hidden flex flex-col">
-					{activeWorkspaceId ? (
-						<>
-							{page === "board" && (
-								<BoardPage
-									workspaceId={activeWorkspaceId}
-									onConnectedChange={setConnected}
-									onAutonomousChange={setAutonomousOn}
-								/>
-							)}
-							{page === "agent" && <AgentPage workspaceId={activeWorkspaceId} />}
-							{page === "history" && <HistoryPage workspaceId={activeWorkspaceId} />}
-							{page === "settings" && <SettingsPage workspaceId={activeWorkspaceId} />}
-						</>
-					) : (
-						<div className="flex-1 flex flex-col items-center justify-center gap-4 text-gray-500">
-							<FolderOpen size={40} />
-							<p className="text-sm">No project open</p>
-							<button
-								onClick={() => setShowAddProject(true)}
-								className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300"
-							>
-								<Plus size={14} />
-								Add a project
-							</button>
-						</div>
-					)}
+					<ErrorBoundary>
+						{activeWorkspaceId ? (
+							<>
+								{page === "board" && (
+									<BoardPage
+										workspaceId={activeWorkspaceId}
+										onConnectedChange={setConnected}
+										onAutonomousChange={setAutonomousOn}
+									/>
+								)}
+								{page === "agent" && <AgentPage workspaceId={activeWorkspaceId} />}
+								{page === "history" && <HistoryPage workspaceId={activeWorkspaceId} />}
+								{page === "settings" && <SettingsPage workspaceId={activeWorkspaceId} />}
+							</>
+						) : (
+							<div className="flex-1 flex flex-col items-center justify-center gap-4 text-gray-500">
+								<FolderOpen size={40} />
+								<p className="text-sm">No project open</p>
+								<button
+									onClick={() => setShowAddProject(true)}
+									className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300"
+								>
+									<Plus size={14} />
+									Add a project
+								</button>
+							</div>
+						)}
+					</ErrorBoundary>
 				</main>
 
 				{showAddProject && (
