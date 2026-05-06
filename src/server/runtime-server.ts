@@ -57,7 +57,10 @@ export async function createRuntimeServer(options: ServerOptions) {
 		const projectConfig = await loadProjectConfig(workspaceId);
 		const config = await loadGlobalConfig();
 
-		const githubClient = projectConfig.github?.token ? createGithubClient(projectConfig.github.token) : undefined;
+		const resolveGithubToken = (cfg: typeof projectConfig): string | undefined =>
+			cfg.secrets?.find((s) => s.key === "GITHUB_TOKEN")?.value ?? cfg.github?.token;
+
+		const githubClient = resolveGithubToken(projectConfig) ? createGithubClient(resolveGithubToken(projectConfig)!) : undefined;
 
 		stateHub.registerWorkspace(workspaceId, wsRepoPath);
 
@@ -74,9 +77,8 @@ export async function createRuntimeServer(options: ServerOptions) {
 			(async () => {
 				const latestConfig = await loadGlobalConfig();  // reload fresh each review
 				const latestProjectConfig = await loadProjectConfig(workspaceId);
-				const latestGithubClient = latestProjectConfig.github?.token
-					? createGithubClient(latestProjectConfig.github.token)
-					: undefined;
+				const latestGithubToken = resolveGithubToken(latestProjectConfig);
+				const latestGithubClient = latestGithubToken ? createGithubClient(latestGithubToken) : undefined;
 				const cardWorkflow = latestProjectConfig.workflows.find(w => w.id === card.workflowId)
 					?? latestProjectConfig.workflows.find(w => w.isDefault)
 					?? latestProjectConfig.workflows[0];
@@ -93,6 +95,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 					stateHub,
 					githubClient: latestGithubClient,
 					autoPR: latestProjectConfig.autoPR ?? false,
+					secrets: latestProjectConfig.secrets ?? [],
 					registerStopCallback: scheduler.registerStopCallback.bind(scheduler),
 					registerLiveProcess: scheduler.registerLiveProcess.bind(scheduler),
 				});

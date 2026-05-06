@@ -255,10 +255,13 @@ export class BoardPoller {
 		const cardsWithPR = rfr.taskIds.filter((id) => state.board.cards[id]?.githubPrUrl);
 		if (cardsWithPR.length === 0) return;
 
+		// Reload token fresh each poll cycle so config changes take effect immediately
+		const githubToken = state.projectConfig.secrets?.find((s) => s.key === "GITHUB_TOKEN")?.value;
+
 		for (const taskId of cardsWithPR) {
 			const card = state.board.cards[taskId]!;
 
-			const info = await fetchPRInfo(card.githubPrUrl!);
+			const info = await fetchPRInfo(card.githubPrUrl!, githubToken);
 			if (!info) {
 				logger.warn(`[poller] Could not fetch PR info for "${card.title}" (${card.githubPrUrl})`);
 				continue;

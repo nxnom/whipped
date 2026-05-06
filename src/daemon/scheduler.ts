@@ -9,7 +9,7 @@ import { spawnAgent } from "../agents/agent-runner.js";
 import { getAvailableAgents } from "../agents/agent-registry.js";
 import { CLAUDE_HOME_MCP_CONFIG_PATH, CLAUDE_TASK_SETTINGS_PATH, buildTaskHookEnv, getMcpConfigPath, writeClaudeMcpConfig, writeClaudeHomeSettings } from "../agents/agent-hooks.js";
 import type { WorkflowSlot, RuntimeAgentId, RuntimeBoardCard } from "../core/api-contract.js";
-import { buildDevAgentSystemPrompt, tryParseAgentJson } from "./review-pipeline.js";
+import { buildDevAgentSystemPrompt, buildSecretsEnv, tryParseAgentJson } from "./review-pipeline.js";
 import { logger } from "../core/logger.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { appendActivityLog, appendTerminalSession, endTerminalSession, linkCommentToSession, loadBoard, loadProjectConfig, moveCard, removeSession, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
@@ -270,7 +270,9 @@ export class TaskScheduler {
 		}
 
 		const prompt = buildTaskPrompt();
-		const devSystemPromptResult = buildDevAgentSystemPrompt(devSlotEarly, card, devSlotEarly.prompt ?? "", worktree.path);
+		const secrets = projectConfig.secrets ?? [];
+		const devSystemPromptResult = buildDevAgentSystemPrompt(devSlotEarly, card, devSlotEarly.prompt ?? "", worktree.path, secrets);
+		const secretsEnv = buildSecretsEnv(secrets);
 
 		await appendActivityLog(workspaceId, taskId, `Agent ${agentId} started`);
 
@@ -288,7 +290,7 @@ export class TaskScheduler {
 				agentId,
 				prompt,
 				cwd: worktree.path,
-				env: buildTaskHookEnv(taskId, workspaceId),
+				env: { ...buildTaskHookEnv(taskId, workspaceId), ...secretsEnv },
 				hookSettingsPath: agentId === "claude" ? CLAUDE_TASK_SETTINGS_PATH : undefined,
 				mcpConfigPath: agentId === "claude" ? mcpConfigPath : undefined,
 				appendSystemPrompt: agentId === "claude" ? devSystemPromptResult.text : undefined,

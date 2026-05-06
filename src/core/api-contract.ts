@@ -236,6 +236,15 @@ export const runtimeWorktreeSetupSchema = z.object({
 });
 export type RuntimeWorktreeSetup = z.infer<typeof runtimeWorktreeSetupSchema>;
 
+export const runtimeProjectSecretSchema = z.object({
+	key: z.string().min(1),
+	value: z.string(),
+});
+export type RuntimeProjectSecret = z.infer<typeof runtimeProjectSecretSchema>;
+
+export const BUILTIN_SECRET_KEYS = ["GITHUB_TOKEN"] as const;
+export type BuiltinSecretKey = (typeof BUILTIN_SECRET_KEYS)[number];
+
 export const runtimeProjectConfigSchema = z.object({
 	name: z.string().optional(),
 	defaultAgent: runtimeAgentIdSchema.optional(),
@@ -246,6 +255,7 @@ export const runtimeProjectConfigSchema = z.object({
 	jira: runtimeJiraConfigSchema.optional(),
 	worktreeSetup: runtimeWorktreeSetupSchema.optional(),
 	workflows: z.array(workflowSchema).default([DEFAULT_WORKFLOW]),
+	secrets: z.array(runtimeProjectSecretSchema).default([]),
 });
 export type RuntimeProjectConfig = z.infer<typeof runtimeProjectConfigSchema>;
 

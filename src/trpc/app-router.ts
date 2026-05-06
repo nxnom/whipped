@@ -4,7 +4,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getAvailableAgents } from "../agents/agent-registry.js";
 import { ATTACHMENTS_DIR, loadGlobalConfig, saveGlobalConfig, updateGlobalConfig } from "../config/runtime-config.js";
-import { abortMerge, attemptMerge, commitIfDirty, createGithubPR, finalizeMerge, listLocalBranches, pushBranch } from "../git/merge-operations.js";
+import { abortMerge, attemptMerge, closePR, commitIfDirty, createGithubPR, finalizeMerge, listLocalBranches, pushBranch } from "../git/merge-operations.js";
 import {
 	type RuntimeGlobalConfig,
 	type RuntimeProjectConfig,
@@ -298,9 +298,14 @@ export const appRouter = router({
 					throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: String(err) });
 				}
 
+				const mergeProjectConfig = await loadProjectConfig(workspaceId);
+				const mergeGithubToken = mergeProjectConfig.secrets?.find((s) => s.key === "GITHUB_TOKEN")?.value;
+
 				if (mergeResult.ok) {
-					if (card.githubPrUrl) {
-						spawnSync("gh", ["pr", "close", card.githubPrUrl, "--comment", "Merged locally"], { stdio: "ignore" });
+					if (card.githubPrUrl && mergeGithubToken) {
+						closePR(card.githubPrUrl, "Merged locally", mergeGithubToken).catch((err) => {
+							logger.warn(`[merge] Failed to close PR ${card.githubPrUrl}: ${String(err)}`);
+						});
 					}
 					await moveCard(workspaceId, cardId, "done");
 					await appendActivityLog(workspaceId, cardId, `Merged into ${card.baseRef} → Done`);
@@ -321,8 +326,10 @@ export const appRouter = router({
 				await scheduler.startConflictResolution(card, ws.repoPath, mergeResult.conflictedFiles, async (success) => {
 					if (success) {
 						finalizeMerge(ws.repoPath, taskBranch);
-						if (card.githubPrUrl) {
-							spawnSync("gh", ["pr", "close", card.githubPrUrl, "--comment", "Merged locally"], { stdio: "ignore" });
+						if (card.githubPrUrl && mergeGithubToken) {
+							closePR(card.githubPrUrl, "Merged locally", mergeGithubToken).catch((err) => {
+								logger.warn(`[merge] Failed to close PR ${card.githubPrUrl}: ${String(err)}`);
+							});
 						}
 						await moveCard(workspaceId, cardId, "done");
 						await appendActivityLog(workspaceId, cardId, `Conflicts resolved → merged into ${card.baseRef} → Done`);
@@ -353,13 +360,20 @@ export const appRouter = router({
 					throw new TRPCError({ code: "BAD_REQUEST", message: "Card is not in Ready for Review" });
 				}
 
+				const prProjectConfig = await loadProjectConfig(workspaceId);
+				const prGithubToken = prProjectConfig.secrets?.find((s) => s.key === "GITHUB_TOKEN")?.value;
+				if (!prGithubToken) {
+					logger.warn(`[commitAndPR] GITHUB_TOKEN not set for workspace ${workspaceId} — PR creation skipped`);
+					return { status: "no_token" as const };
+				}
+
 				const worktreePath = getWorktreePath(cardId);
 				const taskBranch = getWorktreeBranch(cardId);
 
 				await commitIfDirty(worktreePath, card.title);
 
 				try {
-					pushBranch(worktreePath, taskBranch);
+					await pushBranch(worktreePath, taskBranch);
 				} catch (err) {
 					throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Push failed: ${err}` });
 				}
@@ -369,9 +383,8 @@ export const appRouter = router({
 
 				let prUrl: string;
 				try {
-					prUrl = createGithubPR(worktreePath, card.title, devSummary, card.baseRef);
+					prUrl = await createGithubPR(worktreePath, card.title, devSummary, card.baseRef, prGithubToken);
 				} catch (err) {
-					// Try to delete the remote branch we just pushed to avoid orphaned branches
 					spawnSync("git", ["push", "origin", "--delete", taskBranch], { cwd: worktreePath, stdio: "ignore" });
 					throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `PR creation failed: ${err}` });
 				}
@@ -424,15 +437,12 @@ export const appRouter = router({
 				enqueueCleanup(async () => {
 					logger.info(`[cleanup:${cardId}] dequeued (${cleanupQueue.length} remaining)`);
 					if (card?.githubPrUrl) {
-						const t0 = Date.now();
-						const { execFile } = await import("node:child_process");
-						const { promisify } = await import("node:util");
-						const execFileAsync = promisify(execFile);
-						try {
-							await execFileAsync("gh", ["pr", "close", card.githubPrUrl, "--comment", "Task deleted from kanbom"]);
-							logger.info(`[cleanup:${cardId}] gh pr close done (${Date.now() - t0}ms)`);
-						} catch (err) {
-							logger.error({ err }, `[cleanup:${cardId}] gh pr close failed:`);
+						const deleteProjectConfig = await loadProjectConfig(workspaceId).catch(() => null);
+						const deleteGithubToken = deleteProjectConfig?.secrets?.find((s) => s.key === "GITHUB_TOKEN")?.value;
+						if (deleteGithubToken) {
+							await closePR(card.githubPrUrl, "Task deleted from kanbom", deleteGithubToken).catch((err) => {
+								logger.warn(`[cleanup:${cardId}] closePR failed: ${String(err)}`);
+							});
 						}
 					}
 					await removeWorktreeAsync(cardId, ws.repoPath);
