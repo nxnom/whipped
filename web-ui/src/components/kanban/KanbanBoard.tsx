@@ -24,11 +24,12 @@ import { KanbanColumn } from "./KanbanColumn";
 interface KanbanBoardProps {
   state: RuntimeWorkspaceStateResponse;
   onRefresh: () => void;
+  onDeleteCard: (cardId: string) => void;
 }
 
 const DIALOG_CLASS = "w-full";
 
-export function KanbanBoard({ state, onRefresh }: KanbanBoardProps) {
+export function KanbanBoard({ state, onRefresh, onDeleteCard }: KanbanBoardProps) {
   const [detailCardId, setDetailCardId] = useUrlParam("card");
   const detailCard = detailCardId
     ? (state.board.cards[detailCardId] ?? null)
@@ -42,14 +43,16 @@ export function KanbanBoard({ state, onRefresh }: KanbanBoardProps) {
       cancelButtonLabel: "Cancel",
       onConfirm: async ({ dismiss }) => {
         try {
+          onDeleteCard(card.id);
+          dismiss();
           await trpc.cards.delete.mutate({
             workspaceId: state.workspaceId,
             cardId: card.id,
           });
-          dismiss();
           onRefresh();
         } catch {
           toast.error("Failed to delete task");
+          onRefresh(); // revert optimistic update on failure
         }
       },
       onCancel: ({ dismiss }) => dismiss(),
@@ -190,6 +193,7 @@ export function KanbanBoard({ state, onRefresh }: KanbanBoardProps) {
           allCards={state.board.cards}
           onClose={() => setDetailCardId(null)}
           onRefresh={onRefresh}
+          onDeleteCard={onDeleteCard}
         />
       )}
     </div>

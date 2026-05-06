@@ -50,5 +50,23 @@ export function useWorkspaceState(workspaceId: string) {
 		setState(fresh);
 	}, [workspaceId]);
 
-	return { state, connected, refetch, ws: wsRef };
+	const optimisticDeleteCard = useCallback((cardId: string) => {
+		setState((prev) => {
+			if (!prev) return prev;
+			const { [cardId]: _, ...cards } = prev.board.cards;
+			return {
+				...prev,
+				board: {
+					...prev.board,
+					cards,
+					columns: prev.board.columns.map((col) => ({
+						...col,
+						taskIds: col.taskIds.filter((id) => id !== cardId),
+					})),
+				},
+			};
+		});
+	}, []);
+
+	return { state, connected, refetch, optimisticDeleteCard, ws: wsRef };
 }

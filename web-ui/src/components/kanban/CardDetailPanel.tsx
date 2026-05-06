@@ -12,6 +12,7 @@ interface Props {
 	allCards?: Record<string, RuntimeBoardCard>;
 	onClose: () => void;
 	onRefresh: () => void;
+	onDeleteCard: (cardId: string) => void;
 }
 
 const PRIORITY_STYLES: Record<string, string> = {
@@ -79,7 +80,7 @@ const DEFAULT_SIDEBAR = 340;
 
 type SidebarTab = "overview" | "comments" | "activity";
 
-export function CardDetailPanel({ card, workspaceId, session, allCards, onClose, onRefresh }: Props) {
+export function CardDetailPanel({ card, workspaceId, session, allCards, onClose, onRefresh, onDeleteCard }: Props) {
 	const [activeStreamId, setActiveStreamId] = useState<string>(
 		() => card.terminalSessions?.at(-1)?.streamId ?? card.id,
 	);
@@ -257,12 +258,14 @@ export function CardDetailPanel({ card, workspaceId, session, allCards, onClose,
 			cancelButtonLabel: "Cancel",
 			onConfirm: async ({ dismiss }) => {
 				try {
-					await trpc.cards.delete.mutate({ workspaceId, cardId: card.id });
+					onDeleteCard(card.id);
 					dismiss();
 					onClose();
+					await trpc.cards.delete.mutate({ workspaceId, cardId: card.id });
 					onRefresh();
 				} catch {
 					toast.error("Failed to delete task");
+					onRefresh(); // revert optimistic update on failure
 				}
 			},
 			onCancel: ({ dismiss }) => dismiss(),

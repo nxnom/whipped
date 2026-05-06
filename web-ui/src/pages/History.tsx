@@ -9,7 +9,7 @@ interface Props {
 }
 
 export function HistoryPage({ workspaceId }: Props) {
-	const { state, refetch } = useWorkspaceState(workspaceId);
+	const { state, refetch, optimisticDeleteCard } = useWorkspaceState(workspaceId);
 	const [detailCardId, setDetailCardId] = useUrlParam("card");
 
 	if (!state) {
@@ -112,6 +112,7 @@ export function HistoryPage({ workspaceId }: Props) {
 					session={state.sessions[detailCard.id]}
 					onClose={() => setDetailCardId(null)}
 					onRefresh={refetch}
+					onDeleteCard={optimisticDeleteCard}
 				/>
 			)}
 		</div>

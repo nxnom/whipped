@@ -319,12 +319,24 @@ export const appRouter = router({
 				const { workspaceId, cardId } = input;
 				ctx.getScheduler(workspaceId)?.stopTask(cardId);
 				const ws = await ctx.ensureWorkspace(workspaceId);
-				removeWorktree(cardId, ws.repoPath);
+
+				const board = await loadBoard(workspaceId);
+				const card = board.cards[cardId];
+
 				await Promise.all([
 					deleteCard(workspaceId, cardId),
 					removeSession(workspaceId, cardId),
 				]);
 				ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
+
+				// Run slow cleanup in the background so the response returns immediately
+				setImmediate(() => {
+					removeWorktree(cardId, ws.repoPath);
+					if (card?.githubPrUrl) {
+						spawnSync("gh", ["pr", "close", card.githubPrUrl, "--comment", "Task deleted from kanbom"], { stdio: "ignore" });
+					}
+				});
+
 				return { ok: true };
 			}),
 

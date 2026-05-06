@@ -10,7 +10,7 @@ interface Props {
 }
 
 export function BoardPage({ workspaceId, onConnectedChange, onAutonomousChange }: Props) {
-	const { state, connected, refetch } = useWorkspaceState(workspaceId);
+	const { state, connected, refetch, optimisticDeleteCard } = useWorkspaceState(workspaceId);
 
 	useEffect(() => {
 		onConnectedChange(connected);
@@ -34,5 +34,5 @@ export function BoardPage({ workspaceId, onConnectedChange, onAutonomousChange }
 		return <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">Loading...</div>;
 	}
 
-	return <KanbanBoard state={state} onRefresh={refetch} />;
+	return <KanbanBoard state={state} onRefresh={refetch} onDeleteCard={optimisticDeleteCard} />;
 }
