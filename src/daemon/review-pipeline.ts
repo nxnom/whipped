@@ -706,6 +706,9 @@ function buildCascadeSystemPrompt(parentCard: RuntimeBoardCard, parentBranch: st
 
 	return `You are a Kanban board manager. A parent task was reopened and you must decide what to do with its dependent child tasks.
 
+All data you need is already provided below — do NOT call \`kanban_get_board\`. Proceed directly to taking action.
+
+
 ## Parent Task (Reopened)
 
 **[${parentCard.id}] ${parentCard.title}**
@@ -719,9 +722,21 @@ ${childLines}
 
 ## Decision Rules
 
-- **in_progress + no dev summary** → MUST call \`kanban_stop_task\` then \`kanban_move_card\` to "todo". Agent is mid-work on an invalidated parent.
-- **in_progress + has dev summary** → Use judgment. If the parent change invalidates the child's work, stop + move to todo.
-- **ready_for_review** → Use judgment. If the parent change affects the child's implementation, move to todo.
+The default is to **leave children alone**. Only reset a child if the parent's change directly conflicts with that child's specific goal.
+
+**Reset a child only when:**
+- The parent modified or removed something the child also implements (same code, same feature) — direct contradiction
+- e.g. parent removes "username field", child's purpose is to add "username field" → reset
+- e.g. parent changes the API shape a UI child depends on → reset
+
+**Leave a child alone when:**
+- The parent's change is to a different feature or file the child doesn't touch
+- The parent added or removed something unrelated to the child's purpose
+- e.g. parent adds/removes "email field", child's purpose is "add username field" → leave alone
+- e.g. parent fixes a bug in an unrelated module → leave alone
+
+**Special case — in_progress with no dev summary:**
+Even here, only reset if the parent change is directly relevant to what the child would implement. If the parent change is unrelated, leave the in_progress child running.
 
 ## Steps for EACH child you decide to reset
 
