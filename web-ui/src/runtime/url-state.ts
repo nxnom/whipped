@@ -1,24 +1,25 @@
-import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 export function useUrlParam(key: string, defaultValue: string): [string, (v: string | null) => void];
 export function useUrlParam(key: string): [string | null, (v: string | null) => void];
 export function useUrlParam(key: string, defaultValue?: string): [string | null, (v: string | null) => void] {
-	const [value, setValue] = useState<string | null>(() => {
-		const params = new URLSearchParams(window.location.search);
-		return params.get(key) ?? defaultValue ?? null;
-	});
+	const [searchParams, setSearchParams] = useSearchParams();
+	const value = searchParams.get(key) ?? defaultValue ?? null;
 
 	const update = (newValue: string | null) => {
-		const params = new URLSearchParams(window.location.search);
-		if (newValue == null) {
-			params.delete(key);
-		} else {
-			params.set(key, newValue);
-		}
-		const qs = params.toString();
-		history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
-		setValue(newValue);
+		setSearchParams(
+			(prev) => {
+				const next = new URLSearchParams(prev);
+				if (newValue == null) {
+					next.delete(key);
+				} else {
+					next.set(key, newValue);
+				}
+				return next;
+			},
+			{ replace: true },
+		);
 	};
 
-	return [value, update];
+	return [value, update] as [string | null, (v: string | null) => void];
 }

@@ -1,39 +1,44 @@
 import { GeckoUIPortal, toast } from "@geckoui/geckoui";
 import type { RuntimeProject } from "@runtime-contract";
-import { Bot, ChevronDown, FolderOpen, Kanban, Plus, Settings, Wifi, WifiOff } from "lucide-react";
+import { FolderOpen, Plus, Wifi, WifiOff } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Navigate, Route, Routes, useNavigate, useSearchParams } from "react-router-dom";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { KanbanAgentPanel } from "@/components/KanbanAgentPanel";
 import { BoardPage } from "@/pages/Board";
 import { SettingsPage } from "@/pages/Settings";
 import { trpc } from "@/runtime/trpc-client";
-import { useUrlParam } from "@/runtime/url-state";
-
-export type Page = "board" | "settings";
-
-const NAV_ITEMS: Array<{ id: Page; label: string; icon: React.ReactNode }> = [
-	{ id: "board", label: "Board", icon: <Kanban size={16} /> },
-	{ id: "settings", label: "Settings", icon: <Settings size={16} /> },
-];
 
 export default function App() {
-	const [rawPage, setRawPage] = useUrlParam("page", "board");
-	const page = (rawPage as Page) ?? "board";
-	const [activeWorkspaceId, setActiveWorkspaceId] = useUrlParam("ws");
+	const navigate = useNavigate();
+	const [searchParams, setSearchParams] = useSearchParams();
+	const activeWorkspaceId = searchParams.get("ws");
+
 	const [projects, setProjects] = useState<RuntimeProject[]>([]);
 	const [connected, setConnected] = useState(false);
 	const [autonomousOn, setAutonomousOn] = useState(false);
 	const [showAddProject, setShowAddProject] = useState(false);
-	const [showProjectMenu, setShowProjectMenu] = useState(false);
 	const [agentOpen, setAgentOpen] = useState(false);
 
-	const setPage = (p: Page) => {
-		setRawPage(p);
-		const params = new URLSearchParams(window.location.search);
-		params.delete("card");
-		const qs = params.toString();
-		history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+	const setActiveWorkspaceId = (id: string | null) => {
+		setSearchParams(
+			(prev) => {
+				const next = new URLSearchParams(prev);
+				if (id == null) next.delete("ws");
+				else next.set("ws", id);
+				return next;
+			},
+			{ replace: true },
+		);
+	};
+
+	const switchProject = (workspaceId: string) => {
+		navigate(`/board?ws=${encodeURIComponent(workspaceId)}`);
+	};
+
+	const goTo = (path: string) => {
+		navigate(activeWorkspaceId ? `${path}?ws=${encodeURIComponent(activeWorkspaceId)}` : path);
 	};
 
 	useEffect(() => {
@@ -53,67 +58,68 @@ export default function App() {
 		}
 	};
 
-	const activeProject = projects.find((p) => p.workspaceId === activeWorkspaceId);
+	const noProjectState = (
+		<div className="flex-1 flex flex-col items-center justify-center gap-4 text-gray-500">
+			<FolderOpen size={40} />
+			<p className="text-sm">No project open</p>
+			<button
+				onClick={() => setShowAddProject(true)}
+				className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300"
+			>
+				<Plus size={14} />
+				Add a project
+			</button>
+		</div>
+	);
 
 	return (
 		<>
 			<div className="dark flex h-screen bg-gray-950 text-gray-100 overflow-hidden">
-				{/* Sidebar */}
+				{/* Sidebar — projects list */}
 				<nav className="w-52 shrink-0 border-r border-gray-800 flex flex-col">
-					{/* Project switcher */}
-					<div className="border-b border-gray-800">
-						<button
-							onClick={() => setShowProjectMenu(!showProjectMenu)}
-							className="w-full px-3 py-3 flex items-center gap-2 hover:bg-gray-900 transition-colors"
-						>
-							<FolderOpen size={14} className="text-gray-400 shrink-0" />
-							<span className="text-sm font-semibold text-white truncate flex-1 text-left">
-								{activeProject?.name ?? "No project"}
-							</span>
-							<ChevronDown
-								size={12}
-								className={`text-gray-500 transition-transform ${showProjectMenu ? "rotate-180" : ""}`}
-							/>
-						</button>
+					{/* App branding */}
+					<div className="px-4 py-3.5 border-b border-gray-800 shrink-0">
+						<span className="text-sm font-bold text-white tracking-tight">Kanbom</span>
+					</div>
 
-						{showProjectMenu && (
-							<div className="border-t border-gray-800 bg-gray-900">
-								{projects.map((p) => (
-									<button
-										key={p.workspaceId}
-										onClick={() => {
-											setActiveWorkspaceId(p.workspaceId);
-											setShowProjectMenu(false);
-										}}
-										className={`w-full px-3 py-2 text-left text-sm transition-colors flex items-center gap-2
-											${p.workspaceId === activeWorkspaceId ? "text-white bg-gray-800" : "text-gray-400 hover:text-gray-200 hover:bg-gray-800/50"}`}
-									>
-										<span
-											className={`size-1.5 rounded-full shrink-0 ${p.workspaceId === activeWorkspaceId ? "bg-blue-400" : "bg-gray-600"}`}
-										/>
-										<span className="truncate">{p.name}</span>
-									</button>
-								))}
-								<button
-									onClick={() => {
-										setShowAddProject(true);
-										setShowProjectMenu(false);
-									}}
-									className="w-full px-3 py-2 text-left text-sm text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-colors flex items-center gap-2"
-								>
-									<Plus size={12} />
-									Add project
-								</button>
-							</div>
+					{/* Projects list — scrollable */}
+					<div className="flex-1 overflow-y-auto py-2">
+						<p className="px-4 mb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-600">Projects</p>
+						{projects.map((p) => (
+							<button
+								key={p.workspaceId}
+								onClick={() => switchProject(p.workspaceId)}
+								className={`w-full flex items-center gap-2.5 px-4 py-2 text-sm transition-colors text-left
+									${p.workspaceId === activeWorkspaceId ? "text-white bg-gray-800" : "text-gray-400 hover:text-gray-200 hover:bg-gray-900"}`}
+							>
+								<span
+									className={`size-1.5 rounded-full shrink-0 ${p.workspaceId === activeWorkspaceId ? "bg-blue-400" : "bg-gray-700"}`}
+								/>
+								<span className="truncate">{p.name}</span>
+							</button>
+						))}
+						{projects.length === 0 && (
+							<p className="px-4 py-2 text-xs text-gray-600">No projects yet</p>
 						)}
+					</div>
 
-						{/* Connection + autonomous status */}
-						<div className="px-3 py-1.5 flex items-center gap-2">
-							{connected ? (
-								<Wifi size={11} className="text-emerald-400" />
-							) : (
-								<WifiOff size={11} className="text-gray-500" />
-							)}
+					{/* Add project */}
+					<div className="border-t border-gray-800 shrink-0">
+						<button
+							onClick={() => setShowAddProject(true)}
+							className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-500 hover:text-gray-300 hover:bg-gray-900 transition-colors"
+						>
+							<Plus size={14} />
+							Add project
+						</button>
+					</div>
+
+					{/* Status */}
+					{(connected || autonomousOn) && (
+						<div className="border-t border-gray-800 shrink-0 px-4 py-2 flex items-center gap-2">
+							{connected
+								? <Wifi size={11} className="text-emerald-400" />
+								: <WifiOff size={11} className="text-gray-600" />}
 							{autonomousOn && (
 								<>
 									<span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -121,64 +127,50 @@ export default function App() {
 								</>
 							)}
 						</div>
-					</div>
-
-					{/* Nav */}
-					<div className="flex-1 py-1 flex flex-col">
-						{NAV_ITEMS.map((item) => (
-							<button
-								key={item.id}
-								onClick={() => setPage(item.id)}
-								className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors
-									${page === item.id ? "text-white bg-gray-800" : "text-gray-400 hover:text-gray-200 hover:bg-gray-900"}`}
-							>
-								{item.icon}
-								{item.label}
-							</button>
-						))}
-
-						{/* Agent toggle at the bottom */}
-						<div className="mt-auto border-t border-gray-800">
-							<button
-								onClick={() => setAgentOpen((v) => !v)}
-								className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors
-									${agentOpen ? "text-blue-400 bg-blue-400/10" : "text-gray-400 hover:text-gray-200 hover:bg-gray-900"}`}
-							>
-								<Bot size={16} />
-								Kanban Agent
-							</button>
-						</div>
-					</div>
+					)}
 				</nav>
 
 				{/* Main + Agent panel */}
 				<div className="flex-1 overflow-hidden flex">
 					<main className="flex-1 overflow-hidden flex flex-col">
 						<ErrorBoundary>
-							{activeWorkspaceId ? (
-								<>
-									{page === "board" && (
-										<BoardPage
-											workspaceId={activeWorkspaceId}
-											onConnectedChange={setConnected}
-											onAutonomousChange={setAutonomousOn}
+							<Routes>
+								<Route
+									path="/"
+									element={
+										<Navigate
+											to={activeWorkspaceId ? `/board?ws=${encodeURIComponent(activeWorkspaceId)}` : "/board"}
+											replace
 										/>
-									)}
-									{page === "settings" && <SettingsPage workspaceId={activeWorkspaceId} />}
-								</>
-							) : (
-								<div className="flex-1 flex flex-col items-center justify-center gap-4 text-gray-500">
-									<FolderOpen size={40} />
-									<p className="text-sm">No project open</p>
-									<button
-										onClick={() => setShowAddProject(true)}
-										className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300"
-									>
-										<Plus size={14} />
-										Add a project
-									</button>
-								</div>
-							)}
+									}
+								/>
+								<Route
+									path="/board"
+									element={
+										activeWorkspaceId ? (
+											<BoardPage
+												workspaceId={activeWorkspaceId}
+												onConnectedChange={setConnected}
+												onAutonomousChange={setAutonomousOn}
+												onOpenSettings={() => goTo("/settings")}
+												onOpenAgent={() => setAgentOpen((v) => !v)}
+											/>
+										) : (
+											noProjectState
+										)
+									}
+								/>
+								<Route
+									path="/settings"
+									element={
+										activeWorkspaceId ? (
+											<SettingsPage workspaceId={activeWorkspaceId} />
+										) : (
+											<Navigate to="/board" replace />
+										)
+									}
+								/>
+							</Routes>
 						</ErrorBoundary>
 					</main>
 

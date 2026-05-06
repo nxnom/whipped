@@ -267,6 +267,7 @@ export const runtimeCardUpdateRequestSchema = z.object({
 	agentId: runtimeAgentIdSchema.optional(),
 	priority: runtimeCardPrioritySchema.optional(),
 	dependsOn: z.array(z.string()).optional(),
+	workflowId: z.string().optional(),
 	revision: z.number(),
 });
 export type RuntimeCardUpdateRequest = z.infer<typeof runtimeCardUpdateRequestSchema>;

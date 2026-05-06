@@ -2,8 +2,9 @@ import { Button, Checkbox, Input, Select, SelectOption, Switch, Textarea, toast 
 import type { Workflow, WorkflowSlot, RuntimeGlobalConfig, RuntimeJiraTicket, RuntimeProjectConfig, RuntimeWorktreeSetup } from "@runtime-contract";
 import { AGENT_BINARY_OPTIONS } from "@runtime-contract";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
-import { Bot, Download, GripVertical, Plus, RefreshCw, Settings2, Terminal, Ticket, Trash2, X, Zap } from "lucide-react";
+import { ArrowLeft, Bot, Download, GripVertical, Plus, RefreshCw, Settings2, Terminal, Ticket, Trash2, X, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { trpc } from "@/runtime/trpc-client";
 import { useWorkspaceState } from "@/stores/board-store";
 
@@ -29,24 +30,40 @@ interface Props {
 }
 
 export function SettingsPage({ workspaceId }: Props) {
+	const navigate = useNavigate();
 	const [section, setSection] = useState<SettingsSection>("autonomous");
 	const isProject = PROJECT_SECTIONS.has(section);
 
 	return (
-		<div className="flex-1 overflow-hidden flex">
-			{/* Sidebar nav */}
-			<nav className="w-44 shrink-0 border-r border-gray-800 py-4 overflow-y-auto">
-				<NavGroup label="Project" items={PROJECT_NAV} activeId={section} onSelect={setSection} />
-				<NavGroup label="Global" items={GLOBAL_NAV} activeId={section} onSelect={setSection} />
-			</nav>
+		<div className="flex-1 overflow-hidden flex flex-col">
+			{/* Header */}
+			<div className="shrink-0 border-b border-gray-800 px-4 h-10 flex items-center gap-3">
+				<button
+					onClick={() => navigate(`/board?ws=${encodeURIComponent(workspaceId)}`)}
+					className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-200 transition-colors"
+				>
+					<ArrowLeft size={14} />
+					Board
+				</button>
+				<span className="text-gray-700 text-sm">/</span>
+				<span className="text-sm text-gray-300">Settings</span>
+			</div>
 
-			{/* Content */}
-			<div className="flex-1 overflow-y-auto">
-				{isProject ? (
-					<ProjectSettings workspaceId={workspaceId} section={section as ProjectSection} />
-				) : (
-					<GlobalSettings section={section as GlobalSection} />
-				)}
+			<div className="flex-1 overflow-hidden flex">
+				{/* Sidebar nav */}
+				<nav className="w-44 shrink-0 border-r border-gray-800 py-4 overflow-y-auto">
+					<NavGroup label="Project" items={PROJECT_NAV} activeId={section} onSelect={setSection} />
+					<NavGroup label="Global" items={GLOBAL_NAV} activeId={section} onSelect={setSection} />
+				</nav>
+
+				{/* Content */}
+				<div className="flex-1 overflow-y-auto">
+					{isProject ? (
+						<ProjectSettings workspaceId={workspaceId} section={section as ProjectSection} />
+					) : (
+						<GlobalSettings section={section as GlobalSection} />
+					)}
+				</div>
 			</div>
 		</div>
 	);

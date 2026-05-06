@@ -15,7 +15,7 @@ import type {
   RuntimeBoardColumnId,
   RuntimeWorkspaceStateResponse,
 } from "@runtime-contract";
-import { Plus } from "lucide-react";
+import { Bot, Plus, Settings } from "lucide-react";
 import { useEffect, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
 import { useUrlParam } from "@/runtime/url-state";
@@ -26,11 +26,13 @@ interface KanbanBoardProps {
   state: RuntimeWorkspaceStateResponse;
   onRefresh: () => void;
   onDeleteCard: (cardId: string) => void;
+  onOpenSettings: () => void;
+  onOpenAgent: () => void;
 }
 
 const DIALOG_CLASS = "w-full";
 
-export function KanbanBoard({ state, onRefresh, onDeleteCard }: KanbanBoardProps) {
+export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, onOpenAgent }: KanbanBoardProps) {
   const [detailCardId, setDetailCardId] = useUrlParam("card");
   const detailCard = detailCardId
     ? (state.board.cards[detailCardId] ?? null)
@@ -83,6 +85,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard }: KanbanBoardProps
           workspaceId={state.workspaceId}
           card={card}
           allCards={state.board.cards}
+          workflows={state.projectConfig.workflows}
           dismiss={dismiss}
           onRefresh={onRefresh}
         />
@@ -159,6 +162,12 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard }: KanbanBoardProps
           </Button>
           <Button size="sm" variant="outlined" onClick={openCreateDialog}>
             <Plus size={13} className="mr-1" /> New task
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onOpenSettings}>
+            <Settings size={14} />
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onOpenAgent}>
+            <Bot size={14} />
           </Button>
         </div>
       </div>
@@ -408,12 +417,14 @@ function EditCardContent({
   workspaceId,
   card,
   allCards,
+  workflows,
   dismiss,
   onRefresh,
 }: {
   workspaceId: string;
   card: RuntimeBoardCard;
   allCards: Record<string, RuntimeBoardCard>;
+  workflows: Workflow[];
   dismiss: () => void;
   onRefresh: () => void;
 }) {
@@ -421,6 +432,7 @@ function EditCardContent({
   const [description, setDescription] = useState(card.description);
   const [priority, setPriority] = useState<string>(card.priority ?? "");
   const [dependsOn, setDependsOn] = useState<string[]>(card.dependsOn ?? []);
+  const [workflowId, setWorkflowId] = useState<string>(card.workflowId ?? "");
   const [loading, setLoading] = useState(false);
 
   const handleSave = async () => {
@@ -436,6 +448,7 @@ function EditCardContent({
           (priority as "urgent" | "high" | "medium" | "low" | undefined) ||
           undefined,
         dependsOn,
+        workflowId: workflowId || undefined,
         revision: 0,
       });
       dismiss();
@@ -471,19 +484,37 @@ function EditCardContent({
             rows={4}
           />
         </div>
-        <div>
-          <label className="text-xs text-gray-400 block mb-1">Priority</label>
-          <Select
-            value={priority}
-            onChange={(v) => setPriority(v as string)}
-            placeholder="No priority"
-            clearable
-          >
-            <SelectOption value="urgent" label="Urgent" />
-            <SelectOption value="high" label="High" />
-            <SelectOption value="medium" label="Medium" />
-            <SelectOption value="low" label="Low" />
-          </Select>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Priority</label>
+            <Select
+              value={priority}
+              onChange={(v) => setPriority(v as string)}
+              placeholder="No priority"
+              clearable
+            >
+              <SelectOption value="urgent" label="Urgent" />
+              <SelectOption value="high" label="High" />
+              <SelectOption value="medium" label="Medium" />
+              <SelectOption value="low" label="Low" />
+            </Select>
+          </div>
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Workflow</label>
+            <Select
+              value={workflowId}
+              onChange={(v) => setWorkflowId(v as string)}
+              placeholder="Default"
+            >
+              {workflows.map((w) => (
+                <SelectOption
+                  key={w.id}
+                  value={w.id}
+                  label={w.name + (w.isDefault ? " (default)" : "")}
+                />
+              ))}
+            </Select>
+          </div>
         </div>
         <div>
           <label className="text-xs text-gray-400 block mb-1">Depends on</label>
