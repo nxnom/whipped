@@ -19,6 +19,33 @@ import {
 } from "../core/api-contract.js";
 import { generateTaskId } from "../core/task-id.js";
 
+// ─── Per-workspace write mutex ────────────────────────────────────────────────
+//
+// All read-modify-write operations on a workspace's JSON files must run inside
+// withLock(workspaceId, fn).  Node.js is single-threaded but every `await`
+// point is an interleaving opportunity — without the lock, two concurrent ops
+// (e.g. moveCard + appendActivityLog) both read the same stale board, both
+// mutate independently, then one overwrites the other's changes.
+//
+// Implementation: per-workspace promise chain (tail-append queue).  Acquiring
+// the lock appends a new promise to the chain; releasing it resolves that
+// promise so the next waiter can proceed.
+
+const writeLocks = new Map<string, Promise<void>>();
+
+async function withLock<T>(workspaceId: string, fn: () => Promise<T>): Promise<T> {
+	const prev = writeLocks.get(workspaceId) ?? Promise.resolve();
+	let release!: () => void;
+	const next = new Promise<void>((resolve) => { release = resolve; });
+	writeLocks.set(workspaceId, next);
+	await prev;
+	try {
+		return await fn();
+	} finally {
+		release();
+	}
+}
+
 // ─── Index ────────────────────────────────────────────────────────────────────
 
 const INDEX_FILE = join(WORKSPACES_DIR, "index.json");
@@ -214,13 +241,15 @@ export async function saveWorkspaceState(
 	workspaceId: string,
 	request: RuntimeWorkspaceStateSaveRequest,
 ): Promise<{ revision: number }> {
-	const meta = await loadMeta(workspaceId);
-	if (request.revision !== meta.revision) {
-		throw new Error(`Revision conflict: expected ${meta.revision}, got ${request.revision}`);
-	}
-	const newRevision = meta.revision + 1;
-	await Promise.all([saveBoard(workspaceId, request.board), saveMeta(workspaceId, { ...meta, revision: newRevision })]);
-	return { revision: newRevision };
+	return withLock(workspaceId, async () => {
+		const meta = await loadMeta(workspaceId);
+		if (request.revision !== meta.revision) {
+			throw new Error(`Revision conflict: expected ${meta.revision}, got ${request.revision}`);
+		}
+		const newRevision = meta.revision + 1;
+		await Promise.all([saveBoard(workspaceId, request.board), saveMeta(workspaceId, { ...meta, revision: newRevision })]);
+		return { revision: newRevision };
+	});
 }
 
 export async function updateSession(
@@ -228,28 +257,34 @@ export async function updateSession(
 	taskId: string,
 	update: Partial<RuntimeTaskSessionSummary>,
 ): Promise<void> {
-	const sessions = await loadSessions(workspaceId);
-	const existing = sessions[taskId];
-	if (existing) {
-		sessions[taskId] = { ...existing, ...update };
-	} else if (update.agentId && update.state && update.startedAt) {
-		sessions[taskId] = runtimeTaskSessionSummarySchema.parse({ taskId, ...update });
-	}
-	await saveSessions(workspaceId, sessions);
+	return withLock(workspaceId, async () => {
+		const sessions = await loadSessions(workspaceId);
+		const existing = sessions[taskId];
+		if (existing) {
+			sessions[taskId] = { ...existing, ...update };
+		} else if (update.agentId && update.state && update.startedAt) {
+			sessions[taskId] = runtimeTaskSessionSummarySchema.parse({ taskId, ...update });
+		}
+		await saveSessions(workspaceId, sessions);
+	});
 }
 
 export async function removeSession(workspaceId: string, taskId: string): Promise<void> {
-	const sessions = await loadSessions(workspaceId);
-	delete sessions[taskId];
-	await saveSessions(workspaceId, sessions);
+	return withLock(workspaceId, async () => {
+		const sessions = await loadSessions(workspaceId);
+		delete sessions[taskId];
+		await saveSessions(workspaceId, sessions);
+	});
 }
 
 export async function setAutonomousMode(workspaceId: string, enabled: boolean): Promise<void> {
-	const [meta, projectConfig] = await Promise.all([loadMeta(workspaceId), loadProjectConfig(workspaceId)]);
-	await Promise.all([
-		saveMeta(workspaceId, { ...meta, autonomousModeEnabled: enabled }),
-		saveProjectConfig(workspaceId, { ...projectConfig, autonomousModeEnabled: enabled }),
-	]);
+	return withLock(workspaceId, async () => {
+		const [meta, projectConfig] = await Promise.all([loadMeta(workspaceId), loadProjectConfig(workspaceId)]);
+		await Promise.all([
+			saveMeta(workspaceId, { ...meta, autonomousModeEnabled: enabled }),
+			saveProjectConfig(workspaceId, { ...projectConfig, autonomousModeEnabled: enabled }),
+		]);
+	});
 }
 
 export async function moveCard(
@@ -258,36 +293,38 @@ export async function moveCard(
 	targetColumnId: RuntimeBoardColumnId,
 	targetIndex?: number,
 ): Promise<RuntimeBoardData> {
-	const board = await loadBoard(workspaceId);
-	const card = board.cards[cardId];
-	if (!card) {
-		// Card was deleted before the move arrived — silently ignore
+	return withLock(workspaceId, async () => {
+		const board = await loadBoard(workspaceId);
+		const card = board.cards[cardId];
+		if (!card) {
+			// Card was deleted before the move arrived — silently ignore
+			return board;
+		}
+
+		// Remove from current column
+		for (const col of board.columns) {
+			col.taskIds = col.taskIds.filter((id) => id !== cardId);
+		}
+
+		// Add to target column
+		const targetCol = board.columns.find((c) => c.id === targetColumnId);
+		if (!targetCol) {
+			throw new Error(`Column not found: ${targetColumnId}`);
+		}
+
+		if (typeof targetIndex === "number") {
+			targetCol.taskIds.splice(targetIndex, 0, cardId);
+		} else {
+			targetCol.taskIds.push(cardId);
+		}
+
+		board.cards[cardId] = { ...card, columnId: targetColumnId, updatedAt: Date.now() };
+
+		const meta = await loadMeta(workspaceId);
+		await Promise.all([saveBoard(workspaceId, board), saveMeta(workspaceId, { ...meta, revision: meta.revision + 1 })]);
+
 		return board;
-	}
-
-	// Remove from current column
-	for (const col of board.columns) {
-		col.taskIds = col.taskIds.filter((id) => id !== cardId);
-	}
-
-	// Add to target column
-	const targetCol = board.columns.find((c) => c.id === targetColumnId);
-	if (!targetCol) {
-		throw new Error(`Column not found: ${targetColumnId}`);
-	}
-
-	if (typeof targetIndex === "number") {
-		targetCol.taskIds.splice(targetIndex, 0, cardId);
-	} else {
-		targetCol.taskIds.push(cardId);
-	}
-
-	board.cards[cardId] = { ...card, columnId: targetColumnId, updatedAt: Date.now() };
-
-	const meta = await loadMeta(workspaceId);
-	await Promise.all([saveBoard(workspaceId, board), saveMeta(workspaceId, { ...meta, revision: meta.revision + 1 })]);
-
-	return board;
+	});
 }
 
 export async function createCard(
@@ -296,51 +333,55 @@ export async function createCard(
 		Partial<Pick<RuntimeBoardCard, "agentId" | "priority" | "dependsOn" | "columnId" | "githubIssueUrl" | "jiraKey" | "jiraUrl">>,
 	baseRef: string,
 ): Promise<RuntimeBoardCard> {
-	const board = await loadBoard(workspaceId);
-	const id = generateTaskId();
-	const now = Date.now();
+	return withLock(workspaceId, async () => {
+		const board = await loadBoard(workspaceId);
+		const id = generateTaskId();
+		const now = Date.now();
 
-	const card: RuntimeBoardCard = {
-		id,
-		title: data.title,
-		description: data.description,
-		columnId: data.columnId ?? "todo",
-		agentId: data.agentId,
-		priority: data.priority,
-		dependsOn: data.dependsOn ?? [],
-		autoFixAttempts: 0,
-		baseRef,
-		createdAt: now,
-		updatedAt: now,
-		githubIssueUrl: data.githubIssueUrl,
-		jiraKey: data.jiraKey,
-		jiraUrl: data.jiraUrl,
-		reviewComments: [],
-		activityLog: [],
-		terminalSessions: [],
-		githubCommentIds: [],
-	};
+		const card: RuntimeBoardCard = {
+			id,
+			title: data.title,
+			description: data.description,
+			columnId: data.columnId ?? "todo",
+			agentId: data.agentId,
+			priority: data.priority,
+			dependsOn: data.dependsOn ?? [],
+			autoFixAttempts: 0,
+			baseRef,
+			createdAt: now,
+			updatedAt: now,
+			githubIssueUrl: data.githubIssueUrl,
+			jiraKey: data.jiraKey,
+			jiraUrl: data.jiraUrl,
+			reviewComments: [],
+			activityLog: [],
+			terminalSessions: [],
+			githubCommentIds: [],
+		};
 
-	board.cards[id] = card;
-	const col = board.columns.find((c) => c.id === card.columnId);
-	if (col) {
-		col.taskIds.push(id);
-	}
+		board.cards[id] = card;
+		const col = board.columns.find((c) => c.id === card.columnId);
+		if (col) {
+			col.taskIds.push(id);
+		}
 
-	const meta = await loadMeta(workspaceId);
-	await Promise.all([saveBoard(workspaceId, board), saveMeta(workspaceId, { ...meta, revision: meta.revision + 1 })]);
+		const meta = await loadMeta(workspaceId);
+		await Promise.all([saveBoard(workspaceId, board), saveMeta(workspaceId, { ...meta, revision: meta.revision + 1 })]);
 
-	return card;
+		return card;
+	});
 }
 
 export async function appendActivityLog(workspaceId: string, cardId: string, message: string): Promise<void> {
-	const board = await loadBoard(workspaceId);
-	const card = board.cards[cardId];
-	if (!card) return;
-	card.activityLog = [...(card.activityLog ?? []), { timestamp: Date.now(), message }];
-	card.updatedAt = Date.now();
-	board.cards[cardId] = card;
-	await saveBoard(workspaceId, board);
+	return withLock(workspaceId, async () => {
+		const board = await loadBoard(workspaceId);
+		const card = board.cards[cardId];
+		if (!card) return;
+		card.activityLog = [...(card.activityLog ?? []), { timestamp: Date.now(), message }];
+		card.updatedAt = Date.now();
+		board.cards[cardId] = card;
+		await saveBoard(workspaceId, board);
+	});
 }
 
 export async function saveTerminalBuffer(workspaceId: string, streamId: string, data: string): Promise<void> {
@@ -362,13 +403,15 @@ export async function appendTerminalSession(
 	cardId: string,
 	entry: RuntimeTerminalSessionEntry,
 ): Promise<void> {
-	const board = await loadBoard(workspaceId);
-	const card = board.cards[cardId];
-	if (!card) return;
-	card.terminalSessions = [...(card.terminalSessions ?? []), entry];
-	card.updatedAt = Date.now();
-	board.cards[cardId] = card;
-	await saveBoard(workspaceId, board);
+	return withLock(workspaceId, async () => {
+		const board = await loadBoard(workspaceId);
+		const card = board.cards[cardId];
+		if (!card) return;
+		card.terminalSessions = [...(card.terminalSessions ?? []), entry];
+		card.updatedAt = Date.now();
+		board.cards[cardId] = card;
+		await saveBoard(workspaceId, board);
+	});
 }
 
 export async function updateCard(
@@ -378,29 +421,33 @@ export async function updateCard(
 		Pick<RuntimeBoardCard, "title" | "description" | "agentId" | "githubPrUrl" | "reviewComments" | "autoFixAttempts" | "githubCommentIds">
 	>,
 ): Promise<RuntimeBoardCard> {
-	const board = await loadBoard(workspaceId);
-	const card = board.cards[cardId];
-	if (!card) {
-		// Card was deleted before the update arrived — silently ignore
-		return null as unknown as RuntimeBoardCard;
-	}
+	return withLock(workspaceId, async () => {
+		const board = await loadBoard(workspaceId);
+		const card = board.cards[cardId];
+		if (!card) {
+			// Card was deleted before the update arrived — silently ignore
+			return null as unknown as RuntimeBoardCard;
+		}
 
-	const updated: RuntimeBoardCard = { ...card, ...update, updatedAt: Date.now() };
-	board.cards[cardId] = updated;
+		const updated: RuntimeBoardCard = { ...card, ...update, updatedAt: Date.now() };
+		board.cards[cardId] = updated;
 
-	const meta = await loadMeta(workspaceId);
-	await Promise.all([saveBoard(workspaceId, board), saveMeta(workspaceId, { ...meta, revision: meta.revision + 1 })]);
+		const meta = await loadMeta(workspaceId);
+		await Promise.all([saveBoard(workspaceId, board), saveMeta(workspaceId, { ...meta, revision: meta.revision + 1 })]);
 
-	return updated;
+		return updated;
+	});
 }
 
 export async function deleteCard(workspaceId: string, cardId: string): Promise<void> {
-	const board = await loadBoard(workspaceId);
-	delete board.cards[cardId];
-	for (const col of board.columns) {
-		col.taskIds = col.taskIds.filter((id) => id !== cardId);
-	}
+	return withLock(workspaceId, async () => {
+		const board = await loadBoard(workspaceId);
+		delete board.cards[cardId];
+		for (const col of board.columns) {
+			col.taskIds = col.taskIds.filter((id) => id !== cardId);
+		}
 
-	const meta = await loadMeta(workspaceId);
-	await Promise.all([saveBoard(workspaceId, board), saveMeta(workspaceId, { ...meta, revision: meta.revision + 1 })]);
+		const meta = await loadMeta(workspaceId);
+		await Promise.all([saveBoard(workspaceId, board), saveMeta(workspaceId, { ...meta, revision: meta.revision + 1 })]);
+	});
 }

@@ -135,6 +135,7 @@ async function generateDevSummary(
 	options: ReviewPipelineOptions,
 ): Promise<RuntimeReviewComment | null> {
 	try {
+		logger.info(`[review:${card.id}] Generating dev summary for "${card.title}"`);
 		const worktreePath = getWorktreePath(card.id);
 		const diff = getGitDiff(worktreePath, card.baseRef);
 
@@ -157,8 +158,10 @@ Call \`kanban_add_comment\` with cardId: "${card.id}" and type: "dev" when done.
 		await runAgentOnce(codeReviewAgent, prompt, worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, options.mcpConfigPath, DEV_SUMMARY_SYSTEM_PROMPT);
 
 		const stored = await getMcpComment(workspaceId, card.id, startTime, "dev");
+		logger.info(`[review:${card.id}] Dev summary ${stored ? "generated via MCP" : "not generated (agent did not call MCP)"}`);
 		return stored;
-	} catch {
+	} catch (err) {
+		logger.error({ err }, `[review:${card.id}] Dev summary generation failed:`);
 		return null;
 	}
 }
@@ -175,8 +178,10 @@ async function runCodeReview(
 	const diff = getGitDiff(worktreePath, card.baseRef);
 	const prompt = buildCodeReviewPrompt(card, diff);
 	const systemPrompt = buildReviewSystemPrompt(CODE_REVIEW_SYSTEM_PROMPT, customPrompt);
+	logger.info(`[review:${streamId}] Spawning code review agent (${codeReviewAgent}) for "${card.title}"`);
 	const startTime = Date.now();
 	const output = await runAgentOnce(codeReviewAgent, prompt, worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, options.mcpConfigPath, systemPrompt);
+	logger.info(`[review:${streamId}] Code review agent done (${Date.now() - startTime}ms)`);
 
 	const mcpComment = await getMcpComment(workspaceId, card.id, startTime, "code_review");
 	if (mcpComment) {
@@ -203,8 +208,10 @@ async function runQA(
 
 	const prompt = buildQAPrompt(card);
 	const systemPrompt = buildReviewSystemPrompt(QA_SYSTEM_PROMPT, customPrompt);
+	logger.info(`[review:${streamId}] Spawning QA agent (${qaAgent}) for "${card.title}"`);
 	const startTime = Date.now();
 	const output = await runAgentOnce(qaAgent, prompt, worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, options.mcpConfigPath, systemPrompt);
+	logger.info(`[review:${streamId}] QA agent done (${Date.now() - startTime}ms)`);
 
 	const mcpComment = await getMcpComment(workspaceId, card.id, startTime, "qa");
 	if (mcpComment) {
@@ -225,6 +232,7 @@ async function persistComment(
 	card: RuntimeBoardCard,
 	comment: RuntimeReviewComment,
 ): Promise<void> {
+	logger.info(`[review:${card.id}] Persisting ${comment.type} comment`);
 	// Always reload from DB so we don't overwrite comments stored concurrently via MCP
 	const board = await loadBoard(workspaceId);
 	const latest = board.cards[card.id];
@@ -261,10 +269,12 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 
 	if (githubClient && card.githubIssueUrl) {
 		try {
+			logger.info(`[review] Posting GitHub comment on issue for "${card.title}"`);
 			await githubClient.postComment(
 				card.githubIssueUrl,
 				`✅ AI review passed for task "${card.title}". Ready for human review.`,
 			);
+			logger.info(`[review] GitHub comment posted for "${card.title}"`);
 		} catch (err) {
 			logger.error({ err }, `[review] Failed to post GitHub comment for "${card.title}":`);
 		}
@@ -279,11 +289,13 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 		const worktreePath = getWorktreePath(card.id);
 		const taskBranch = getWorktreeBranch(card.id);
 		try {
+			logger.info(`[review] Auto PR: commit → push → create for "${card.title}" (branch: ${taskBranch})`);
 			commitIfDirty(worktreePath, card.title);
 			pushBranch(worktreePath, taskBranch);
 			const devSummary = [...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev")?.content
 				?? card.description;
 			const prUrl = createGithubPR(worktreePath, card.title, devSummary, card.baseRef);
+			logger.info(`[review] Auto PR created: ${prUrl}`);
 			await updateCard(workspaceId, card.id, { githubPrUrl: prUrl });
 			await appendActivityLog(workspaceId, card.id, `Auto PR created → ${prUrl}`);
 		} catch (err) {
@@ -317,6 +329,7 @@ function runAgentOnce(
 			resolve(output);
 		});
 
+		logger.info(`[review:${streamId}] Spawning agent "${agentId}" in ${cwd}`);
 		const proc = spawnAgent({
 			agentId,
 			prompt,
@@ -332,6 +345,7 @@ function runAgentOnce(
 				stateHub.broadcastTerminalOutput(workspaceId, streamId, data);
 			},
 			onExit: () => {
+				logger.info(`[review:${streamId}] Agent "${agentId}" exited`);
 				unregisterProcess?.();
 				unregister();
 				void saveTerminalBuffer(workspaceId, streamId, output);
@@ -508,7 +522,8 @@ async function getMcpComment(
 			if (c.type === type && c.createdAt >= afterTime) return c;
 		}
 		return null;
-	} catch {
+	} catch (err) {
+		logger.error({ err }, `[review] getMcpComment failed for card ${cardId} type ${type}:`);
 		return null;
 	}
 }
