@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { fetchPRInfo } from "../git/merge-operations.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
-import { appendActivityLog, loadWorkspaceState, moveCard, removeSession, updateCard, updateSession } from "../state/workspace-state.js";
+import { appendActivityLog, loadBoard, loadWorkspaceState, moveCard, removeSession, updateCard, updateSession } from "../state/workspace-state.js";
 import { createWorktree, getWorktreeBranch, getWorktreePath, removeWorktree } from "../worktree/worktree-manager.js";
 import type { TaskScheduler } from "./scheduler.js";
 
@@ -346,7 +346,9 @@ export class BoardPoller {
 				await moveCard(workspaceId, taskId, "reopened");
 				await appendActivityLog(workspaceId, taskId, `${reason} → Reopened`);
 				await removeSession(workspaceId, taskId);
-				void scheduler.triggerParentReopenCascade(card, state.board.cards);
+				const refreshedBoard = await loadBoard(workspaceId);
+				const refreshedCard = refreshedBoard.cards[taskId] ?? card;
+				void scheduler.triggerParentReopenCascade(refreshedCard, refreshedBoard.cards);
 				updated = true;
 			}
 

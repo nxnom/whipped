@@ -689,23 +689,29 @@ export async function runParentReopenCascade(
 }
 
 function buildCascadeSystemPrompt(parentCard: RuntimeBoardCard, parentBranch: string, childCards: RuntimeBoardCard[]): string {
-	const reopenReason = (() => {
-		const comments = parentCard.reviewComments ?? [];
+	const comments = parentCard.reviewComments ?? [];
+
+	const lastDevIdx = (() => {
 		for (let i = comments.length - 1; i >= 0; i--) {
-			const c = comments[i]!;
-			if (c.type !== "dev") return c.summary;
+			if (comments[i]!.type === "dev") return i;
 		}
-		return "Parent task was reopened.";
+		return -1;
 	})();
 
-	const parentDevSummary = (() => {
-		const comments = parentCard.reviewComments ?? [];
-		for (let i = comments.length - 1; i >= 0; i--) {
-			const c = comments[i]!;
-			if (c.type === "dev") return c.summary;
-		}
-		return null;
-	})();
+	const allDevSummaries = comments
+		.filter((c) => c.type === "dev")
+		.map((c, i) => `Dev iteration ${i + 1}:\n${c.summary}`)
+		.join("\n\n");
+
+	const humanFeedback = comments
+		.slice(lastDevIdx + 1)
+		.filter((c) => c.actor.type !== "ai")
+		.map((c) => c.summary)
+		.filter(Boolean);
+
+	const reopenReason = humanFeedback.length > 0
+		? humanFeedback.join("\n")
+		: "Parent task was reopened.";
 
 	const childLines = childCards.map((child) => {
 		const devComment = [...(child.reviewComments ?? [])].reverse().find((c) => c.type === "dev");
@@ -724,8 +730,8 @@ All data you need is already provided below — do NOT call \`kanban_get_board\`
 
 **[${parentCard.id}] ${parentCard.title}**
 ${parentCard.description ? `\n${parentCard.description}\n` : ""}
-Reason for reopening: ${reopenReason}
-${parentDevSummary ? `\nWhat the parent's dev agent did most recently:\n${parentDevSummary}\n` : ""}
+**Reason for reopening (= the parent's new direction, not yet implemented):** ${reopenReason}
+${allDevSummaries ? `\nParent's full dev history (OLD state — do NOT use this to judge conflicts, use the reopening reason above):\n${allDevSummaries}\n` : ""}
 
 ## Child Tasks to Evaluate
 
@@ -733,21 +739,19 @@ ${childLines}
 
 ## Decision Rules
 
-The default is to **leave children alone**. Only reset a child if the parent's change directly conflicts with that child's specific goal.
+CRITICAL: The cascade runs BEFORE the parent's dev agent implements the feedback. The parent's existing dev summary reflects its OLD state — do NOT use it to evaluate conflicts. Use ONLY the **reason for reopening** (the human feedback) to determine what the parent is about to change. That is the parent's new direction.
 
-**Reset a child only when:**
-- The parent modified or removed something the child also implements (same code, same feature) — direct contradiction
-- e.g. parent removes "username field", child's purpose is to add "username field" → reset
-- e.g. parent changes the API shape a UI child depends on → reset
+**Reset a child when:**
+- The reopening reason describes a change that directly conflicts with the child's purpose or existing work
+- e.g. reason is "Remove username field", child's purpose is "Add username field" → direct conflict → reset
+- e.g. reason is "Change the API response shape", child is building a UI that consumes that API → reset
 
 **Leave a child alone when:**
-- The parent's change is to a different feature or file the child doesn't touch
-- The parent added or removed something unrelated to the child's purpose
-- e.g. parent adds/removes "email field", child's purpose is "add username field" → leave alone
-- e.g. parent fixes a bug in an unrelated module → leave alone
+- The reopening reason describes a change to something completely unrelated to the child's purpose
+- e.g. reason is "Remove email field", child's purpose is "Add username field" → unrelated → leave alone
+- e.g. reason is "Fix a bug in the payment module", child is working on user profiles → leave alone
 
-**Special case — in_progress with no dev summary:**
-Even here, only reset if the parent change is directly relevant to what the child would implement. If the parent change is unrelated, leave the in_progress child running.
+The default is to **leave children alone**. Only reset when the reopening reason directly conflicts with what the child is doing.
 
 ## Steps for EACH child you decide to reset
 
@@ -756,7 +760,7 @@ Even here, only reset if the parent change is directly relevant to what the chil
    - type: "cascade"
    - status: "fail"
    - summary: Explain specifically what the parent changed and why this child's prior work needs to be revisited.
-   - issues: include one blocking issue with severity "blocking" and message: "Run \`git merge ${parentBranch}\` FIRST (no fetch needed — all worktrees share the same git repo). After merging, the parent's direction takes precedence: if the parent removed something, keep it removed even if this branch previously added it — do not reintroduce it. Reconcile this task's goal with the parent's current state before doing any other work."
+   - issues: include one blocking issue with severity "blocking" and message: "Run \`git merge ${parentBranch}\` FIRST (no fetch needed — all worktrees share the same git repo). After merging, implement this task's original goal on top of the parent's new state. The parent's changes are the new baseline — build on them, do not mirror them."
 3. Call \`kanban_move_card\` to "todo" for that child.
 
 After handling all children, call \`kanban_add_comment\` on the PARENT card (${parentCard.id}) with type "cascade" and a brief summary of each decision.`;
