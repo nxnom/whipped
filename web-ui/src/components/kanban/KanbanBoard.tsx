@@ -10,6 +10,7 @@ import {
 } from "@geckoui/geckoui";
 import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
 import type {
+  PromptGroup,
   RuntimeBoardCard,
   RuntimeBoardColumnId,
   RuntimeWorkspaceStateResponse,
@@ -66,6 +67,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard }: KanbanBoardProps
         <CreateCardContent
           workspaceId={state.workspaceId}
           allCards={state.board.cards}
+          promptGroups={state.projectConfig.promptGroups}
           dismiss={dismiss}
           onRefresh={onRefresh}
         />
@@ -225,20 +227,24 @@ const COLUMN_LABEL: Record<string, string> = {
 function CreateCardContent({
   workspaceId,
   allCards,
+  promptGroups,
   dismiss,
   onRefresh,
 }: {
   workspaceId: string;
   allCards: Record<string, RuntimeBoardCard>;
+  promptGroups: PromptGroup[];
   dismiss: () => void;
   onRefresh: () => void;
 }) {
+  const defaultGroup = promptGroups.find(g => g.isDefault);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [agentId, setAgentId] = useState<"claude" | "codex">("claude");
   const [priority, setPriority] = useState<string>("");
   const [dependsOn, setDependsOn] = useState<string[]>([]);
   const [baseRef, setBaseRef] = useState<string>("");
+  const [promptGroupId, setPromptGroupId] = useState<string>(defaultGroup?.id ?? "");
   const [branches, setBranches] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -266,6 +272,7 @@ function CreateCardContent({
           undefined,
         dependsOn: dependsOn.length > 0 ? dependsOn : undefined,
         baseRef: baseRef || undefined,
+        promptGroupId: promptGroupId || undefined,
       });
       dismiss();
       onRefresh();
@@ -375,6 +382,25 @@ function CreateCardContent({
             ))}
           </Select>
         </div>
+        {promptGroups.length > 1 && (
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Prompt Group</label>
+            <Select
+              value={promptGroupId}
+              onChange={(v) => setPromptGroupId(v as string)}
+              placeholder="Default"
+              clearable
+            >
+              {promptGroups.map((g) => (
+                <SelectOption
+                  key={g.id}
+                  value={g.id}
+                  label={g.name + (g.isDefault ? " (default)" : "")}
+                />
+              ))}
+            </Select>
+          </div>
+        )}
       </div>
 
       <div className="flex gap-2 mt-5 justify-end">

@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { z } from "zod";
 import {
 	type RuntimeGlobalConfig,
-	type RuntimeProjectConfig,
 	runtimeGlobalConfigSchema,
 	runtimeProjectConfigSchema,
 } from "../core/api-contract.js";

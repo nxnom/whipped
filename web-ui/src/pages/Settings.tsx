@@ -1,26 +1,26 @@
 import { Button, Checkbox, Input, Select, SelectOption, Switch, Textarea, toast } from "@geckoui/geckoui";
-import type { RuntimeGlobalConfig, RuntimeJiraTicket, RuntimeProjectConfig, RuntimeWorktreeSetup } from "@runtime-contract";
-import { Bot, Download, MessageSquare, Plus, RefreshCw, Settings2, Terminal, Ticket, X, Zap } from "lucide-react";
+import type { AgentSlot, PromptGroup, RuntimeGlobalConfig, RuntimeJiraTicket, RuntimeProjectConfig, RuntimeWorktreeSetup } from "@runtime-contract";
+import { Bot, ChevronDown, ChevronUp, Download, MessageSquare, Plus, RefreshCw, Settings2, Terminal, Ticket, Trash2, X, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
 
-type ProjectSection = "autonomous" | "prompts" | "environment" | "jira";
-type GlobalSection = "general" | "ai-review";
+type ProjectSection = "autonomous" | "agents" | "prompt-groups" | "environment" | "jira";
+type GlobalSection = "general";
 type SettingsSection = ProjectSection | GlobalSection;
 
 const PROJECT_NAV: Array<{ id: ProjectSection; label: string; icon: React.ReactNode }> = [
 	{ id: "autonomous", label: "Autonomous", icon: <Zap size={14} /> },
-	{ id: "prompts", label: "Agent Prompts", icon: <MessageSquare size={14} /> },
+	{ id: "agents", label: "Agents", icon: <Bot size={14} /> },
+	{ id: "prompt-groups", label: "Prompt Groups", icon: <MessageSquare size={14} /> },
 	{ id: "environment", label: "Environment", icon: <Terminal size={14} /> },
 	{ id: "jira", label: "Jira", icon: <Ticket size={14} /> },
 ];
 
 const GLOBAL_NAV: Array<{ id: GlobalSection; label: string; icon: React.ReactNode }> = [
 	{ id: "general", label: "General", icon: <Settings2 size={14} /> },
-	{ id: "ai-review", label: "AI Review", icon: <Bot size={14} /> },
 ];
 
-const PROJECT_SECTIONS = new Set<SettingsSection>(["autonomous", "prompts", "environment", "jira"]);
+const PROJECT_SECTIONS = new Set<SettingsSection>(["autonomous", "agents", "prompt-groups", "environment", "jira"]);
 
 interface Props {
 	workspaceId: string;
@@ -221,43 +221,23 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 				</>
 			)}
 
-			{section === "prompts" && (
-				<>
-					<SectionHeader
-						title="Agent Prompts"
-						description="Extra instructions appended to each agent's system prompt. Use this for project-specific rules, conventions, or context."
-					/>
-					<div className="space-y-4">
-						<Field label="Dev Agent">
-							<Textarea
-								value={config.devPrompt ?? ""}
-								onChange={(e) => setConfig({ ...config, devPrompt: e.target.value })}
-								placeholder="e.g. Always use TypeScript strict mode. Follow the existing naming conventions."
-								rows={4}
-								autoResize
-							/>
-						</Field>
-						<Field label="Code Review Agent">
-							<Textarea
-								value={config.codeReviewPrompt ?? ""}
-								onChange={(e) => setConfig({ ...config, codeReviewPrompt: e.target.value })}
-								placeholder="e.g. Check that all new API routes have auth middleware."
-								rows={4}
-								autoResize
-							/>
-						</Field>
-						<Field label="QA Agent">
-							<Textarea
-								value={config.qaPrompt ?? ""}
-								onChange={(e) => setConfig({ ...config, qaPrompt: e.target.value })}
-								placeholder="e.g. Always run the full test suite with pnpm test."
-								rows={4}
-								autoResize
-							/>
-						</Field>
-					</div>
-					<SaveRow saving={saving} onSave={handleSave} />
-				</>
+			{section === "agents" && (
+				<AgentsSection
+					slots={config.agentSlots}
+					onChange={(agentSlots) => setConfig({ ...config, agentSlots })}
+					onSave={handleSave}
+					saving={saving}
+				/>
+			)}
+
+			{section === "prompt-groups" && (
+				<PromptGroupsSection
+					slots={config.agentSlots}
+					promptGroups={config.promptGroups}
+					onChange={(promptGroups) => setConfig({ ...config, promptGroups })}
+					onSave={handleSave}
+					saving={saving}
+				/>
 			)}
 
 			{section === "environment" && (
@@ -374,6 +354,378 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 				</>
 			)}
 		</div>
+	);
+}
+
+// ─── Agents Section ──────────────────────────────────────────────────────────
+
+function AgentsSection({
+	slots,
+	onChange,
+	onSave,
+	saving,
+}: {
+	slots: AgentSlot[];
+	onChange: (slots: AgentSlot[]) => void;
+	onSave: () => void;
+	saving: boolean;
+}) {
+	const [newName, setNewName] = useState("");
+	const [newBinary, setNewBinary] = useState<"claude" | "codex">("claude");
+	const [newPrompt, setNewPrompt] = useState("");
+	const [promptError, setPromptError] = useState("");
+
+	const devSlot = slots.find(s => s.type === "dev");
+	const nonDevSlots = slots.filter(s => s.type !== "dev").sort((a, b) => a.order - b.order);
+
+	const handleToggleQA = (slotId: string, enabled: boolean) => {
+		onChange(slots.map(s => s.id === slotId ? { ...s, enabled } : s));
+	};
+
+	const handleMoveUp = (slotId: string) => {
+		const sorted = [...nonDevSlots];
+		const idx = sorted.findIndex(s => s.id === slotId);
+		if (idx <= 0) return;
+		const swapped = [...sorted];
+		[swapped[idx - 1], swapped[idx]] = [swapped[idx]!, swapped[idx - 1]!];
+		const reordered = swapped.map((s, i) => ({ ...s, order: i + 1 }));
+		onChange([...(devSlot ? [devSlot] : []), ...reordered]);
+	};
+
+	const handleMoveDown = (slotId: string) => {
+		const sorted = [...nonDevSlots];
+		const idx = sorted.findIndex(s => s.id === slotId);
+		if (idx < 0 || idx >= sorted.length - 1) return;
+		const swapped = [...sorted];
+		[swapped[idx], swapped[idx + 1]] = [swapped[idx + 1]!, swapped[idx]!];
+		const reordered = swapped.map((s, i) => ({ ...s, order: i + 1 }));
+		onChange([...(devSlot ? [devSlot] : []), ...reordered]);
+	};
+
+	const handleRemove = (slotId: string) => {
+		const updated = slots.filter(s => s.id !== slotId);
+		const devS = updated.find(s => s.type === "dev");
+		const others = updated.filter(s => s.type !== "dev").map((s, i) => ({ ...s, order: i + 1 }));
+		onChange([...(devS ? [devS] : []), ...others]);
+	};
+
+	const handleAddCustom = () => {
+		if (!newName.trim()) return;
+		if (newPrompt.trim().length < 50) {
+			setPromptError("Custom agent prompt must be at least 50 characters.");
+			return;
+		}
+		setPromptError("");
+		const id = `slot_custom_${Date.now()}`;
+		const maxOrder = nonDevSlots.reduce((m, s) => Math.max(m, s.order), 0);
+		const newSlot: AgentSlot = {
+			id,
+			type: "custom",
+			name: newName.trim(),
+			agentBinary: newBinary,
+			order: maxOrder + 1,
+			enabled: true,
+		};
+		onChange([...slots, newSlot]);
+		setNewName("");
+		setNewBinary("claude");
+		setNewPrompt("");
+	};
+
+	return (
+		<>
+			<SectionHeader
+				title="Agents"
+				description="Configure the pipeline stages that run after the dev agent completes."
+			/>
+
+			{/* Dev slot — fixed */}
+			{devSlot && (
+				<div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+					<div className="flex items-center justify-between">
+						<div>
+							<p className="text-sm font-medium text-gray-100">{devSlot.name} <span className="text-xs text-gray-500 ml-1">(Dev — always runs)</span></p>
+							<p className="text-xs text-gray-500 mt-0.5">Binary: {devSlot.agentBinary}</p>
+						</div>
+						<span className="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded">fixed</span>
+					</div>
+				</div>
+			)}
+
+			{/* Non-dev slots */}
+			<div className="space-y-2">
+				{nonDevSlots.map((slot, idx) => (
+					<div key={slot.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+						<div className="flex items-center justify-between gap-3">
+							<div className="flex-1 min-w-0">
+								<p className="text-sm font-medium text-gray-100">{slot.name}
+									{slot.type !== "custom" && (
+										<span className="text-xs text-gray-500 ml-1">({slot.type.replace("_", " ")})</span>
+									)}
+								</p>
+								<p className="text-xs text-gray-500 mt-0.5">Binary: {slot.agentBinary}</p>
+							</div>
+
+							<div className="flex items-center gap-2 shrink-0">
+								{/* Reorder buttons */}
+								<button
+									onClick={() => handleMoveUp(slot.id)}
+									disabled={idx === 0}
+									className="text-gray-600 hover:text-gray-300 disabled:opacity-30 transition-colors"
+								>
+									<ChevronUp size={14} />
+								</button>
+								<button
+									onClick={() => handleMoveDown(slot.id)}
+									disabled={idx === nonDevSlots.length - 1}
+									className="text-gray-600 hover:text-gray-300 disabled:opacity-30 transition-colors"
+								>
+									<ChevronDown size={14} />
+								</button>
+
+								{/* Toggle enabled */}
+								{slot.type !== "custom" && (
+									<Switch
+										checked={slot.enabled}
+										onChange={(v) => handleToggleQA(slot.id, v)}
+									/>
+								)}
+
+								{/* Remove custom */}
+								{slot.type === "custom" && (
+									<button
+										onClick={() => handleRemove(slot.id)}
+										className="text-gray-600 hover:text-red-400 transition-colors"
+									>
+										<Trash2 size={14} />
+									</button>
+								)}
+							</div>
+						</div>
+					</div>
+				))}
+			</div>
+
+			{/* Add custom agent */}
+			<div className="border border-gray-800 rounded-xl p-4 space-y-3">
+				<p className="text-xs font-medium text-gray-300">Add Custom Agent</p>
+				<div className="grid grid-cols-2 gap-3">
+					<Field label="Name">
+						<Input
+							value={newName}
+							onChange={(e) => setNewName(e.target.value)}
+							placeholder="e.g. Security Review"
+						/>
+					</Field>
+					<Field label="Binary">
+						<Select
+							value={newBinary}
+							onChange={(v) => setNewBinary(v as "claude" | "codex")}
+						>
+							<SelectOption value="claude" label="Claude Code" />
+							<SelectOption value="codex" label="OpenAI Codex" />
+						</Select>
+					</Field>
+				</div>
+				<Field label="Instructions (min 50 chars)">
+					<Textarea
+						value={newPrompt}
+						onChange={(e) => {
+							setNewPrompt(e.target.value);
+							if (promptError && e.target.value.trim().length >= 50) setPromptError("");
+						}}
+						placeholder="Describe what this agent should check or do..."
+						rows={3}
+						autoResize
+					/>
+					{promptError && <p className="text-xs text-red-400 mt-1">{promptError}</p>}
+				</Field>
+				<Button
+					variant="outlined"
+					size="sm"
+					onClick={handleAddCustom}
+					disabled={!newName.trim()}
+				>
+					<Plus size={12} className="mr-1.5" />
+					Add Agent
+				</Button>
+			</div>
+
+			<SaveRow saving={saving} onSave={onSave} />
+		</>
+	);
+}
+
+// ─── Prompt Groups Section ───────────────────────────────────────────────────
+
+function PromptGroupsSection({
+	slots,
+	promptGroups,
+	onChange,
+	onSave,
+	saving,
+}: {
+	slots: AgentSlot[];
+	promptGroups: PromptGroup[];
+	onChange: (groups: PromptGroup[]) => void;
+	onSave: () => void;
+	saving: boolean;
+}) {
+	const [selectedGroupId, setSelectedGroupId] = useState<string>(
+		promptGroups.find(g => g.isDefault)?.id ?? promptGroups[0]?.id ?? ""
+	);
+	const [newGroupName, setNewGroupName] = useState("");
+	const [promptErrors, setPromptErrors] = useState<Record<string, string>>({});
+
+	const enabledSlots = slots.filter(s => s.enabled);
+	const selectedGroup = promptGroups.find(g => g.id === selectedGroupId);
+
+	const handleAddGroup = () => {
+		if (!newGroupName.trim()) return;
+		const id = `pg_${Date.now()}`;
+		const newGroup: PromptGroup = { id, name: newGroupName.trim(), isDefault: false, prompts: {} };
+		onChange([...promptGroups, newGroup]);
+		setSelectedGroupId(id);
+		setNewGroupName("");
+	};
+
+	const handleDeleteGroup = (groupId: string) => {
+		const group = promptGroups.find(g => g.id === groupId);
+		if (group?.isDefault) return; // can't delete default
+		const updated = promptGroups.filter(g => g.id !== groupId);
+		onChange(updated);
+		if (selectedGroupId === groupId) {
+			setSelectedGroupId(updated.find(g => g.isDefault)?.id ?? updated[0]?.id ?? "");
+		}
+	};
+
+	const handleRenameGroup = (groupId: string, name: string) => {
+		onChange(promptGroups.map(g => g.id === groupId ? { ...g, name } : g));
+	};
+
+	const handlePromptChange = (groupId: string, slotId: string, value: string) => {
+		onChange(promptGroups.map(g => g.id === groupId ? { ...g, prompts: { ...g.prompts, [slotId]: value } } : g));
+		// validate custom slot prompts
+		const slot = slots.find(s => s.id === slotId);
+		if (slot?.type === "custom") {
+			const key = `${groupId}:${slotId}`;
+			if (value.trim().length >= 50) {
+				setPromptErrors(prev => { const n = { ...prev }; delete n[key]; return n; });
+			}
+		}
+	};
+
+	const validateBeforeSave = () => {
+		const errors: Record<string, string> = {};
+		for (const group of promptGroups) {
+			for (const slot of slots) {
+				if (slot.type === "custom") {
+					const val = group.prompts[slot.id] ?? "";
+					if (val.trim().length > 0 && val.trim().length < 50) {
+						errors[`${group.id}:${slot.id}`] = "Must be at least 50 characters or empty.";
+					}
+				}
+			}
+		}
+		setPromptErrors(errors);
+		return Object.keys(errors).length === 0;
+	};
+
+	const handleSave = () => {
+		if (validateBeforeSave()) onSave();
+	};
+
+	return (
+		<>
+			<SectionHeader
+				title="Prompt Groups"
+				description="Create named sets of per-agent instructions. Assign a group to a card when creating it."
+			/>
+
+			{/* Group selector */}
+			<div className="flex gap-2 flex-wrap">
+				{promptGroups.map(g => (
+					<button
+						key={g.id}
+						onClick={() => setSelectedGroupId(g.id)}
+						className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+							${selectedGroupId === g.id ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-400 hover:text-gray-200"}`}
+					>
+						{g.name}
+						{g.isDefault && <span className="ml-1 text-[10px] opacity-70">(default)</span>}
+					</button>
+				))}
+			</div>
+
+			{/* Add group */}
+			<div className="flex gap-2">
+				<Input
+					value={newGroupName}
+					onChange={(e) => setNewGroupName(e.target.value)}
+					onKeyDown={(e) => e.key === "Enter" && handleAddGroup()}
+					placeholder="New group name..."
+				/>
+				<Button variant="outlined" size="sm" onClick={handleAddGroup} disabled={!newGroupName.trim()}>
+					<Plus size={12} className="mr-1" />
+					Add
+				</Button>
+			</div>
+
+			{/* Selected group editor */}
+			{selectedGroup && (
+				<div className="border border-gray-800 rounded-xl p-4 space-y-4">
+					<div className="flex items-center justify-between gap-3">
+						<Input
+							value={selectedGroup.name}
+							onChange={(e) => handleRenameGroup(selectedGroup.id, e.target.value)}
+							inputClassName="font-medium"
+							disabled={selectedGroup.isDefault}
+						/>
+						{!selectedGroup.isDefault && (
+							<button
+								onClick={() => handleDeleteGroup(selectedGroup.id)}
+								className="text-gray-600 hover:text-red-400 transition-colors shrink-0"
+							>
+								<Trash2 size={14} />
+							</button>
+						)}
+					</div>
+
+					{enabledSlots.length === 0 && (
+						<p className="text-xs text-gray-500">No enabled agent slots. Enable slots in the Agents section.</p>
+					)}
+
+					{enabledSlots.map(slot => {
+						const errorKey = `${selectedGroup.id}:${slot.id}`;
+						const isRequired = slot.type === "custom";
+						return (
+							<Field key={slot.id} label={`${slot.name}${isRequired ? " (required)" : ""}`}>
+								<Textarea
+									value={selectedGroup.prompts[slot.id] ?? ""}
+									onChange={(e) => handlePromptChange(selectedGroup.id, slot.id, e.target.value)}
+									placeholder={
+										slot.type === "dev"
+											? "e.g. Always use TypeScript strict mode. Follow the existing naming conventions."
+											: slot.type === "code_review"
+											? "e.g. Check that all new API routes have auth middleware."
+											: slot.type === "qa"
+											? "e.g. Always run the full test suite with pnpm test."
+											: "Describe what this agent should check or do (min 50 chars)..."
+									}
+									rows={3}
+									autoResize
+								/>
+								{promptErrors[errorKey] && (
+									<p className="text-xs text-red-400 mt-1">{promptErrors[errorKey]}</p>
+								)}
+							</Field>
+						);
+					})}
+				</div>
+			)}
+
+			<SaveRow saving={saving} onSave={handleSave} />
+		</>
 	);
 }
 
@@ -622,44 +974,6 @@ function GlobalSettings({ section }: { section: GlobalSection }) {
 									value={String(config.prPollingIntervalSeconds)}
 									onChange={(e) => setConfig({ ...config, prPollingIntervalSeconds: Number(e.target.value) })}
 								/>
-							</Field>
-						</div>
-					</div>
-					<SaveRow saving={saving} onSave={handleSave} />
-				</>
-			)}
-
-			{section === "ai-review" && (
-				<>
-					<SectionHeader
-						title="AI Review"
-						description="Choose which AI agents handle code review and QA tasks."
-					/>
-					<div className="space-y-4">
-						<div className="grid grid-cols-2 gap-3">
-							<Field label="Code Review Agent">
-								<Select
-									value={config.review.codeReviewAgent}
-									onChange={(v) =>
-										setConfig({ ...config, review: { ...config.review, codeReviewAgent: v as "claude" | "codex" } })
-									}
-									placeholder="Select agent"
-								>
-									<SelectOption value="claude" label="Claude Code" />
-									<SelectOption value="codex" label="OpenAI Codex" />
-								</Select>
-							</Field>
-							<Field label="QA Agent">
-								<Select
-									value={config.review.qaAgent}
-									onChange={(v) =>
-										setConfig({ ...config, review: { ...config.review, qaAgent: v as "claude" | "codex" } })
-									}
-									placeholder="Select agent"
-								>
-									<SelectOption value="claude" label="Claude Code" />
-									<SelectOption value="codex" label="OpenAI Codex" />
-								</Select>
 							</Field>
 						</div>
 					</div>

@@ -224,7 +224,7 @@ export const appRouter = router({
 				const worktreePath = getWorktreePath(cardId);
 				const taskBranch = getWorktreeBranch(cardId);
 
-				commitIfDirty(worktreePath, card.title);
+				await commitIfDirty(worktreePath, card.title);
 
 				let mergeResult;
 				try {
@@ -291,7 +291,7 @@ export const appRouter = router({
 				const worktreePath = getWorktreePath(cardId);
 				const taskBranch = getWorktreeBranch(cardId);
 
-				commitIfDirty(worktreePath, card.title);
+				await commitIfDirty(worktreePath, card.title);
 
 				try {
 					pushBranch(worktreePath, taskBranch);
@@ -382,7 +382,7 @@ export const appRouter = router({
 					workspaceId: z.string(),
 					cardId: z.string(),
 					content: z.string().min(1),
-					type: z.enum(["dev", "code_review", "qa"]),
+					type: z.string(),
 					agent: z.string().default("claude"),
 					passed: z.boolean().optional(),
 				}),
