@@ -1,3 +1,4 @@
+import { logger } from "../core/logger.js";
 import { existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
@@ -327,7 +328,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 
 	// Write hook settings now that the port is bound.
 	await writeClaudeTaskHookSettings(port).catch((err) => {
-		console.warn("[server] Failed to write claude hook settings:", err);
+		logger.warn("[server] Failed to write claude hook settings:", err);
 	});
 
 	return {

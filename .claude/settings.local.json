@@ -39,7 +39,15 @@
       "Bash(pnpm web:dev)",
       "Bash(pnpm --filter web-ui typecheck)",
       "Bash(pnpm -w typecheck)",
-      "Bash(pnpm --filter web-ui exec tsc --noEmit)"
+      "Bash(pnpm --filter web-ui exec tsc --noEmit)",
+      "Bash(node *)",
+      "Bash(sed -i '' -e 's/console\\\\.log\\(\\\\\\(`\\\\[scheduler\\\\]/logger.info\\(\\\\1/g' -e 's/console\\\\.error\\(\\\\\\(`\\\\[scheduler\\\\]/logger.error\\(\\\\1/g' -e 's/console\\\\.warn\\(\\\\\\(`\\\\[scheduler\\\\]/logger.warn\\(\\\\1/g' /Users/waiyanphyo/Development/kanbom/src/daemon/scheduler.ts)",
+      "Bash(sed -i '' -e 's/console\\\\.warn\\(\"[scheduler]/logger.warn\\(\"[scheduler]/g' /Users/waiyanphyo/Development/kanbom/src/daemon/scheduler.ts)",
+      "Bash(sed -i '' '1s/^/import { logger } from \"..\\\\/core\\\\/logger.js\";\\\\n/' /Users/waiyanphyo/Development/kanbom/src/daemon/poller.ts /Users/waiyanphyo/Development/kanbom/src/git/merge-operations.ts)",
+      "Bash(sed -i '' '1s/^/import { logger } from \"..\\\\/core\\\\/logger.js\";\\\\n/' /Users/waiyanphyo/Development/kanbom/src/server/runtime-server.ts)",
+      "Bash(sed -i '' '1s/^/import { logger } from \".\\\\/core\\\\/logger.js\";\\\\n/' /Users/waiyanphyo/Development/kanbom/src/cli.ts)",
+      "Bash(sed -i '' '1s/^/import { logger } from \"..\\\\/core\\\\/logger.js\";\\\\n/' /Users/waiyanphyo/Development/kanbom/src/trpc/app-router.ts)",
+      "Bash(perl *)"
     ]
   }
 }

@@ -1,3 +1,4 @@
+import { logger } from "./core/logger.js";
 import { spawnSync } from "node:child_process";
 import { createServer } from "node:net";
 import { Command } from "commander";
@@ -45,13 +46,13 @@ async function runServer(options: RunOptions): Promise<void> {
 	const repoPath = process.cwd();
 
 	if (!hasGitRepository(repoPath)) {
-		console.error("Error: kanbom must be run inside a git repository.");
+		logger.error("Error: kanbom must be run inside a git repository.");
 		process.exit(1);
 	}
 
 	const portAvailable = await isPortAvailable(port, host);
 	if (!portAvailable) {
-		console.error(`Error: port ${port} is already in use. Use --port to specify a different port.`);
+		logger.error(`Error: port ${port} is already in use. Use --port to specify a different port.`);
 		process.exit(1);
 	}
 
@@ -75,7 +76,7 @@ async function runServer(options: RunOptions): Promise<void> {
 		}
 	}
 
-	console.log("Press Ctrl+C to stop.");
+	logger.info("Press Ctrl+C to stop.");
 
 	let shuttingDown = false;
 	installGracefulShutdownHandlers({
@@ -91,13 +92,13 @@ async function runServer(options: RunOptions): Promise<void> {
 		},
 		onShutdownError: (error) => {
 			const message = error instanceof Error ? error.message : String(error);
-			console.error(`Shutdown error: ${message}`);
+			logger.error(`Shutdown error: ${message}`);
 		},
 		onTimeout: (delayMs) => {
-			console.error(`Forced exit after ${delayMs}ms timeout.`);
+			logger.error(`Forced exit after ${delayMs}ms timeout.`);
 		},
 		onSecondSignal: (signal) => {
-			console.error(`Forced exit on second ${signal}.`);
+			logger.error(`Forced exit on second ${signal}.`);
 		},
 	});
 }
@@ -121,6 +122,6 @@ program
 
 program.parseAsync(process.argv).catch((error) => {
 	const message = error instanceof Error ? error.message : String(error);
-	console.error(`Error: ${message}`);
+	logger.error(`Error: ${message}`);
 	process.exit(1);
 });

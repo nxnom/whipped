@@ -10,6 +10,7 @@ import type { GithubClient } from "../github/github-client.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { appendActivityLog, appendTerminalSession, loadBoard, moveCard, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
 import { getWorktreeBranch, getWorktreePath } from "../worktree/worktree-manager.js";
+import { logger } from "../core/logger.js";
 
 interface ReviewPipelineOptions {
 	workspaceId: string;
@@ -62,7 +63,7 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 	const codeReviewStreamId = `${card.id}-cr-${runId}`;
 	const qaStreamId = `${card.id}-qa-${runId}`;
 
-	console.log(`[review] Starting review pipeline for "${card.title}" (${card.id})`);
+	logger.info(`[review] Starting review pipeline for "${card.title}" (${card.id})`);
 	await updateSession(workspaceId, card.id, { state: "review_in_progress" });
 	await appendActivityLog(workspaceId, card.id, "AI review started");
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
@@ -92,7 +93,7 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 
 	const codeReviewResult = await runCodeReview(card, codeReviewStreamId, options, options.codeReviewPrompt);
 
-	console.log(`[review] Code review ${codeReviewResult.passed ? "PASSED" : "FAILED"} for "${card.title}"`);
+	logger.info(`[review] Code review ${codeReviewResult.passed ? "PASSED" : "FAILED"} for "${card.title}"`);
 
 	if (!codeReviewResult.passed) {
 		await appendActivityLog(workspaceId, card.id, "Code review: FAIL");
@@ -109,12 +110,12 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 	// Step 2: QA — serialised to avoid port/simulator conflicts
 	await new Promise<void>((resolve) => {
 		enqueueQA(async () => {
-			console.log(`[review] Running QA for "${card.title}"`);
+			logger.info(`[review] Running QA for "${card.title}"`);
 			await appendActivityLog(workspaceId, card.id, `QA running (${options.qaAgent})`);
 			await appendTerminalSession(workspaceId, card.id, { streamId: qaStreamId, type: "qa", startedAt: runId });
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
 			const qaResult = await runQA(card, qaStreamId, options, options.qaPrompt);
-			console.log(`[review] QA ${qaResult.passed ? "PASSED" : "FAILED"} for "${card.title}"`);
+			logger.info(`[review] QA ${qaResult.passed ? "PASSED" : "FAILED"} for "${card.title}"`);
 			if (!qaResult.passed) {
 				await appendActivityLog(workspaceId, card.id, "QA: FAIL");
 				if (!qaResult.storedViaMcp) await persistComment(workspaceId, card, qaResult.comment);
@@ -239,7 +240,7 @@ async function handleReviewFailure(
 	const newAttempts = card.autoFixAttempts + 1;
 	const destination = newAttempts >= maxAutoFixAttempts ? "blocked" : "reopened";
 
-	console.log(`[review] Review failed for "${card.title}" (attempt ${newAttempts}/${maxAutoFixAttempts}) → ${destination}`);
+	logger.info(`[review] Review failed for "${card.title}" (attempt ${newAttempts}/${maxAutoFixAttempts}) → ${destination}`);
 	await updateCard(workspaceId, card.id, { autoFixAttempts: newAttempts });
 	await moveCard(workspaceId, card.id, destination);
 	await appendActivityLog(
@@ -256,7 +257,7 @@ async function handleReviewFailure(
 async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipelineOptions): Promise<void> {
 	const { workspaceId, githubClient, stateHub, autoPR } = options;
 
-	console.log(`[review] Review passed for "${card.title}" → ready for human review`);
+	logger.info(`[review] Review passed for "${card.title}" → ready for human review`);
 
 	if (githubClient && card.githubIssueUrl) {
 		try {
@@ -264,8 +265,8 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 				card.githubIssueUrl,
 				`✅ AI review passed for task "${card.title}". Ready for human review.`,
 			);
-		} catch {
-			// non-fatal
+		} catch (err) {
+			logger.error({ err }, `[review] Failed to post GitHub comment for "${card.title}":`);
 		}
 	}
 
@@ -286,6 +287,7 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 			await updateCard(workspaceId, card.id, { githubPrUrl: prUrl });
 			await appendActivityLog(workspaceId, card.id, `Auto PR created → ${prUrl}`);
 		} catch (err) {
+			logger.error({ err }, `[review] Auto PR failed for "${card.title}":`);
 			await appendActivityLog(workspaceId, card.id, `Auto PR failed: ${String(err)}`);
 		}
 		stateHub.broadcastWorkspaceUpdate(workspaceId);

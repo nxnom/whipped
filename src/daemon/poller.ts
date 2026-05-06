@@ -1,3 +1,4 @@
+import { logger } from "../core/logger.js";
 import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
@@ -222,7 +223,7 @@ export class BoardPoller {
 				return !dep || (dep.columnId !== "ready_for_review" && dep.columnId !== "done");
 			});
 			if (unmetDep) continue;
-			console.log(`[poller] Dispatching card "${card.title}" from ${card.columnId} (in-flight: ${inFlightCount}/${scheduler.maxParallelTasks})`);
+			logger.info(`[poller] Dispatching card "${card.title}" from ${card.columnId} (in-flight: ${inFlightCount}/${scheduler.maxParallelTasks})`);
 			inFlightCount++;
 			await scheduler.startTask(card);
 		}
@@ -233,7 +234,7 @@ export class BoardPoller {
 				const card = board.cards[taskId];
 				const session = state.sessions[taskId];
 				if (card && session?.state === "awaiting_review") {
-					console.log(`[poller] Triggering review pipeline for "${card.title}"`);
+					logger.info(`[poller] Triggering review pipeline for "${card.title}"`);
 					onCardReadyForReview(card);
 				}
 			}

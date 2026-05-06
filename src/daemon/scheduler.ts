@@ -8,6 +8,7 @@ import { spawnAgent } from "../agents/agent-runner.js";
 import { getAvailableAgents } from "../agents/agent-registry.js";
 import { CLAUDE_HOME_MCP_CONFIG_PATH, CLAUDE_REVIEW_MCP_CONFIG_PATH, CLAUDE_TASK_SETTINGS_PATH, buildTaskHookEnv, writeClaudeHomeSettings, writeClaudeReviewMcpConfig } from "../agents/agent-hooks.js";
 import type { RuntimeAgentId, RuntimeBoardCard } from "../core/api-contract.js";
+import { logger } from "../core/logger.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { appendActivityLog, appendTerminalSession, loadBoard, loadProjectConfig, moveCard, removeSession, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
 import { createWorktree, getWorktreeBranch, getWorktreePath, removeWorktree } from "../worktree/worktree-manager.js";
@@ -84,7 +85,7 @@ export class TaskScheduler {
 		const prompt = buildHomeAgentInitialMessage();
 		const appendSystemPrompt = buildHomeAgentSystemPrompt(repoPath);
 		await writeClaudeHomeSettings(getMcpServerPath(), serverUrl, workspaceId).catch((err) => {
-			console.warn("[scheduler] Failed to write home agent MCP settings:", err);
+			logger.warn("[scheduler] Failed to write home agent MCP settings:", err);
 		});
 
 		const homeTask: RunningTask = {
@@ -148,14 +149,14 @@ export class TaskScheduler {
 		// Guard: check agent binary is available before spawning
 		const available = getAvailableAgents().map((a) => a.id);
 		if (!available.includes(agentId)) {
-			console.error(`[scheduler] Agent "${agentId}" not found in PATH — blocking task "${card.title}"`);
+			logger.error(`[scheduler] Agent "${agentId}" not found in PATH — blocking task "${card.title}"`);
 			await moveCard(workspaceId, taskId, "blocked");
 			await appendActivityLog(workspaceId, taskId, `Agent "${agentId}" not found in PATH — moved to Blocked`);
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
 			return;
 		}
 
-		console.log(`[scheduler] Starting task ${taskId} "${card.title}" with agent ${agentId}`);
+		logger.info(`[scheduler] Starting task ${taskId} "${card.title}" with agent ${agentId}`);
 
 		// Check and resolve dependencies
 		let effectiveBaseRef = card.baseRef;
@@ -290,7 +291,7 @@ export class TaskScheduler {
 					const elapsed = Date.now() - spawnedAt;
 					const isFastExit = elapsed < FAST_EXIT_THRESHOLD_MS;
 
-					console.log(`[scheduler] Task ${taskId} exited with code ${exitCode} after ${Math.round(elapsed / 1000)}s`);
+					logger.info(`[scheduler] Task ${taskId} exited with code ${exitCode} after ${Math.round(elapsed / 1000)}s`);
 
 					await updateSession(workspaceId, taskId, {
 						state: exitCode === 0 ? "awaiting_review" : "failed",
@@ -310,7 +311,7 @@ export class TaskScheduler {
 						const destination = newAttempts >= this.options.maxAutoFixAttempts ? "blocked" : "reopened";
 
 						if (isFastExit) {
-							console.error(`[scheduler] Task ${taskId} failed within ${Math.round(elapsed / 1000)}s — possible launch error`);
+							logger.error(`[scheduler] Task ${taskId} failed within ${Math.round(elapsed / 1000)}s — possible launch error`);
 							await appendActivityLog(
 								workspaceId,
 								taskId,
@@ -340,7 +341,7 @@ export class TaskScheduler {
 	stopTask(taskId: string): void {
 		const task = this.running.get(taskId);
 		if (task) {
-			console.log(`[scheduler] Stopping task ${taskId}`);
+			logger.info(`[scheduler] Stopping task ${taskId}`);
 			task.process.kill();
 			this.running.delete(taskId);
 			void appendActivityLog(this.options.workspaceId, taskId, "Agent stopped manually");
@@ -421,7 +422,7 @@ export class TaskScheduler {
 			await appendActivityLog(workspaceId, taskId, "Agent finished → moved to In Review");
 			await updateSession(workspaceId, taskId, { state: "awaiting_review" });
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
-			console.log(`[scheduler] Hook Stop: task ${taskId} → in_review`);
+			logger.info(`[scheduler] Hook Stop: task ${taskId} → in_review`);
 			this.options.onTaskCompleted(taskId);
 		} else if (event === "user_prompt") {
 			const board = await loadBoard(workspaceId);
@@ -432,7 +433,7 @@ export class TaskScheduler {
 			await appendActivityLog(workspaceId, taskId, "User continued → moved back to In Progress");
 			await updateSession(workspaceId, taskId, { state: "running" });
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
-			console.log(`[scheduler] Hook UserPromptSubmit: task ${taskId} → in_progress`);
+			logger.info(`[scheduler] Hook UserPromptSubmit: task ${taskId} → in_progress`);
 		}
 	}
 

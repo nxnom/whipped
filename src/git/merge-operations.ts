@@ -1,3 +1,4 @@
+import { logger } from "../core/logger.js";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -102,7 +103,7 @@ export function fetchPRInfo(prUrl: string): PRInfo | null {
 		stdio: ["ignore", "pipe", "pipe"],
 	});
 	if (r.status !== 0) {
-		console.warn(`[fetchPRInfo] gh exited ${r.status} for ${prUrl}: ${r.stderr?.trim()}`);
+		logger.warn(`[fetchPRInfo] gh exited ${r.status} for ${prUrl}: ${r.stderr?.trim()}`);
 		return null;
 	}
 	try {

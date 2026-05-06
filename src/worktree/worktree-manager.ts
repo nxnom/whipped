@@ -1,7 +1,12 @@
-import { execSync, spawnSync } from "node:child_process";
+import { execFile, execSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
+import { logger } from "../core/logger.js";
+
+const execFileAsync = promisify(execFile);
 
 const WORKTREES_DIR = join(homedir(), ".kanbom", "worktrees");
 
@@ -67,6 +72,37 @@ export function removeWorktree(taskId: string, repoPath: string): void {
 	} catch {
 		// ignore
 	}
+}
+
+export async function removeWorktreeAsync(taskId: string, repoPath: string): Promise<void> {
+	const worktreePath = join(WORKTREES_DIR, taskId);
+	const branch = `kanbom/task-${taskId}`;
+
+	const t0 = Date.now();
+	logger.info(`[cleanup:${taskId}] starting worktree removal`);
+
+	// Step 1: delete the directory first — prune only removes refs whose path is gone
+	try {
+		await rm(worktreePath, { recursive: true, force: true });
+		logger.info(`[cleanup:${taskId}] rm worktree dir done (${Date.now() - t0}ms)`);
+	} catch (err) {
+		logger.error({ err }, `[cleanup:${taskId}] rm worktree dir failed:`);
+	}
+
+	// Step 2: prune stale ref — path is now gone so git will clean it up
+	await execFileAsync("git", ["worktree", "prune"], { cwd: repoPath }).catch((err) => {
+		logger.error({ err }, `[cleanup:${taskId}] git worktree prune failed:`);
+	});
+
+	// Step 3: delete branch ref — safe now that worktree ref is pruned
+	try {
+		await execFileAsync("git", ["branch", "-D", branch], { cwd: repoPath });
+		logger.info(`[cleanup:${taskId}] git branch -D done (${Date.now() - t0}ms)`);
+	} catch (err) {
+		logger.error({ err }, `[cleanup:${taskId}] git branch -D failed:`);
+	}
+
+	logger.info(`[cleanup:${taskId}] done in ${Date.now() - t0}ms`);
 }
 
 export function getWorktreePath(taskId: string): string {

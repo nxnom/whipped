@@ -1,3 +1,4 @@
+import { logger } from "../core/logger.js";
 import { spawnSync } from "node:child_process";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -34,8 +35,32 @@ import {
 	updateCard,
 	updateSession,
 } from "../state/workspace-state.js";
-import { removeWorktree } from "../worktree/worktree-manager.js";
+import { removeWorktreeAsync } from "../worktree/worktree-manager.js";
 import { getDefaultBranch, getWorktreeBranch, getWorktreePath } from "../worktree/worktree-manager.js";
+
+// ─── Background cleanup queue ─────────────────────────────────────────────────
+// All worktree removals run serially in this queue so they never block the
+// event loop (each step uses async I/O) and never contend on the git lock.
+const cleanupQueue: (() => Promise<void>)[] = [];
+let cleanupRunning = false;
+
+function enqueueCleanup(fn: () => Promise<void>): void {
+	cleanupQueue.push(fn);
+	if (!cleanupRunning) drainCleanupQueue();
+}
+
+async function drainCleanupQueue(): Promise<void> {
+	cleanupRunning = true;
+	while (cleanupQueue.length > 0) {
+		const task = cleanupQueue.shift()!;
+		try {
+			await task();
+		} catch (err) {
+			logger.error({ err }, "[cleanup] unexpected error:");
+		}
+	}
+	cleanupRunning = false;
+}
 
 export interface AppContext {
 	stateHub: RuntimeStateHub;
@@ -329,12 +354,22 @@ export const appRouter = router({
 				]);
 				ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 
-				// Run slow cleanup in the background so the response returns immediately
-				setImmediate(() => {
-					removeWorktree(cardId, ws.repoPath);
+				// Queue cleanup so it never blocks the event loop
+				enqueueCleanup(async () => {
+					logger.info(`[cleanup:${cardId}] dequeued (${cleanupQueue.length} remaining)`);
 					if (card?.githubPrUrl) {
-						spawnSync("gh", ["pr", "close", card.githubPrUrl, "--comment", "Task deleted from kanbom"], { stdio: "ignore" });
+						const t0 = Date.now();
+						const { execFile } = await import("node:child_process");
+						const { promisify } = await import("node:util");
+						const execFileAsync = promisify(execFile);
+						try {
+							await execFileAsync("gh", ["pr", "close", card.githubPrUrl, "--comment", "Task deleted from kanbom"]);
+							logger.info(`[cleanup:${cardId}] gh pr close done (${Date.now() - t0}ms)`);
+						} catch (err) {
+							logger.error({ err }, `[cleanup:${cardId}] gh pr close failed:`);
+						}
 					}
+					await removeWorktreeAsync(cardId, ws.repoPath);
 				});
 
 				return { ok: true };
