@@ -141,9 +141,9 @@ export function CardDialog({ card, workspaceId, session, onClose, onRefresh }: P
 						{card.reviewComments.map((comment, i) => (
 							<div key={i} className="bg-gray-800 rounded-lg p-3 text-xs">
 								<p className="text-gray-500 mb-1">
-									{comment.type === "code_review" ? "Code Review" : "QA"} · {comment.agent}
+									{comment.type === "code_review" ? "Code Review" : "QA"} · {comment.actor.id}
 								</p>
-								<p className="text-gray-300 whitespace-pre-wrap">{comment.content}</p>
+								<p className="text-gray-300 whitespace-pre-wrap">{comment.summary}</p>
 							</div>
 						))}
 					</div>

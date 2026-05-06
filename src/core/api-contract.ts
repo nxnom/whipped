@@ -72,13 +72,43 @@ export const BOARD_COLUMNS: Array<{ id: RuntimeBoardColumnId; title: string }> =
 
 // ─── Review ───────────────────────────────────────────────────────────────────
 
+export const SCHEMA_VERSION = 2;
+
+export const reviewActorSchema = z.object({
+	type: z.enum(["ai", "human", "external"]),
+	id: z.string(),
+	source: z.string().optional(),
+});
+export type RuntimeReviewActor = z.infer<typeof reviewActorSchema>;
+
+export const reviewIssueSchema = z.object({
+	file: z.string().optional(),
+	line: z.number().optional(),
+	severity: z.enum(["blocking", "warning", "info"]),
+	message: z.string(),
+});
+export type RuntimeReviewIssue = z.infer<typeof reviewIssueSchema>;
+
+export const reviewAttachmentSchema = z.object({
+	type: z.literal("image"),
+	name: z.string(),
+	mimeType: z.string(),
+	path: z.string(), // absolute path in ~/.kanbom/attachments/
+});
+export type RuntimeReviewAttachment = z.infer<typeof reviewAttachmentSchema>;
+
+export type RuntimeReviewStatus = "pass" | "fail" | "warning" | "skipped";
+
 export const runtimeReviewCommentSchema = z.object({
 	type: z.string(),
-	agent: z.string(),
-	content: z.string(),
-	passed: z.boolean().optional(),
+	actor: reviewActorSchema,
+	status: z.enum(["pass", "fail", "warning", "skipped"]).optional(),
 	createdAt: z.number(),
-	source: z.string().optional(), // e.g. "github", "gitlab", "jira" — absent means internal
+	streamId: z.string().optional(),
+	summary: z.string(),
+	issues: z.array(reviewIssueSchema).optional(),
+	attachments: z.array(reviewAttachmentSchema).optional(),
+	metadata: z.record(z.string(), z.unknown()).optional(),
 });
 export type RuntimeReviewComment = z.infer<typeof runtimeReviewCommentSchema>;
 
@@ -145,6 +175,7 @@ export type RuntimeBoardColumn = z.infer<typeof runtimeBoardColumnSchema>;
 export const runtimeBoardDataSchema = z.object({
 	columns: z.array(runtimeBoardColumnSchema),
 	cards: z.record(z.string(), runtimeBoardCardSchema),
+	schemaVersion: z.number().optional(),
 });
 export type RuntimeBoardData = z.infer<typeof runtimeBoardDataSchema>;
 

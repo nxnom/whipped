@@ -126,9 +126,9 @@ export function CardQuickViewDialog({ card, workspaceId, session, onClose, onOpe
 								{card.reviewComments.map((c, i) => (
 									<div key={i} className={`border rounded-lg p-3 text-xs ${COMMENT_TYPE_COLOR[c.type] ?? "border-gray-700 bg-gray-800"}`}>
 										<p className="font-medium mb-1.5 opacity-70">
-											{COMMENT_TYPE_LABEL[c.type] ?? c.type} · {c.agent}
+											{COMMENT_TYPE_LABEL[c.type] ?? c.type} · {c.actor.id}
 										</p>
-										<p className="text-gray-300 whitespace-pre-wrap leading-relaxed">{c.content}</p>
+										<p className="text-gray-300 whitespace-pre-wrap leading-relaxed">{c.summary}</p>
 									</div>
 								))}
 							</div>

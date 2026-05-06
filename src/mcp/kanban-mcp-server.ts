@@ -164,13 +164,56 @@ server.registerTool(
 			"Record your analysis, findings, or summary as a comment on a Kanban card. Call this when you have finished your work so your output is cleanly stored.",
 		inputSchema: {
 			cardId: z.string().describe("The card ID you are reviewing"),
-			content: z.string().describe("Your full comment — analysis, findings, summary, etc."),
 			type: z.string().describe("Type of comment — use the slot id for custom agents (e.g. 'security_review')"),
-			passed: z.boolean().optional().describe("For code_review and qa: whether the check passed (true) or failed (false)"),
+			streamId: z.string().optional().describe("The terminal session stream ID for this agent run"),
+			summary: z.string().describe("Your summary — 2-5 sentences describing what you did or found"),
+			status: z.enum(["pass", "fail", "warning", "skipped"]).optional().describe("Result status of this review step"),
+			issues: z.array(z.object({
+				file: z.string().optional().describe("File path where the issue was found"),
+				line: z.number().optional().describe("Line number of the issue"),
+				severity: z.enum(["blocking", "warning", "info"]).describe("Severity level"),
+				message: z.string().describe("Description of the issue"),
+			})).optional().describe("Specific issues found during review"),
+			attachments: z.array(z.object({
+				type: z.literal("image").describe("Attachment type"),
+				name: z.string().describe("Human-readable name for the attachment"),
+				mimeType: z.string().describe("MIME type, e.g. image/png"),
+				path: z.string().describe("Absolute file path to the attachment"),
+			})).optional().describe("File attachments (e.g. screenshots)"),
+			metadata: z.record(z.string(), z.unknown()).optional().describe("Additional metadata key-value pairs"),
 		},
 	},
-	async ({ cardId, content, type, passed }) => {
-		await trpc("cards.addReviewComment", { workspaceId, cardId, content, type, agent: agentId, passed });
+	async ({ cardId, type, streamId, summary, status, issues, attachments, metadata }) => {
+		// Process attachments: read each file and save to canonical attachment store
+		let processedAttachments: Array<{ type: "image"; name: string; mimeType: string; path: string }> | undefined;
+		if (attachments?.length) {
+			const { readFile } = await import("node:fs/promises");
+			const { saveAttachment: saveFn } = await import("../state/workspace-state.js");
+			processedAttachments = [];
+			for (const att of attachments) {
+				try {
+					const data = await readFile(att.path);
+					const ext = att.path.split(".").pop() ?? "bin";
+					const canonicalPath = await saveFn(data, ext, cardId);
+					processedAttachments.push({ type: "image", name: att.name, mimeType: att.mimeType, path: canonicalPath });
+				} catch {
+					// Skip unreadable attachments
+				}
+			}
+		}
+
+		await trpc("cards.addReviewComment", {
+			workspaceId,
+			cardId,
+			type,
+			streamId,
+			actor: { type: "ai", id: agentId },
+			status,
+			summary,
+			issues,
+			attachments: processedAttachments,
+			metadata,
+		});
 		return { content: [{ type: "text", text: `Comment recorded on card ${cardId}.` }] };
 	},
 );

@@ -278,7 +278,7 @@ export class BoardPoller {
 			let updated = false;
 
 			// Strip any bot comments that snuck in before the filter was added
-			const cleanedComments = (card.reviewComments ?? []).filter((c) => !DEPLOYMENT_BOTS.has(c.agent));
+			const cleanedComments = (card.reviewComments ?? []).filter((c) => !DEPLOYMENT_BOTS.has(c.actor?.id ?? ""));
 			const hadBotComments = cleanedComments.length !== (card.reviewComments ?? []).length;
 
 			if (newEntries.length > 0 || hadBotComments || newBotIds.length > 0) {
@@ -286,10 +286,9 @@ export class BoardPoller {
 					...cleanedComments,
 					...newEntries.map((e) => ({
 						type: "human" as const,
-						agent: e.author,
-						content: e.body,
+						actor: { type: "external" as const, id: e.author, source: "github" },
 						createdAt: new Date(e.createdAt).getTime(),
-						source: "github" as const,
+						summary: e.body,
 					})),
 				];
 				const newIds = [...seenIds, ...newEntries.map((e) => e.id)];

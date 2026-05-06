@@ -158,11 +158,11 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 	const saveCommentNow = async (id: string) => {
 		const c = pendingComments.find((c) => c.id === id);
 		if (!c) return;
-		const content = c.lineNum !== null
+		const summary = c.lineNum !== null
 			? `**${c.file}** (line ${c.lineNum}):\n${c.text}`
 			: `**${c.file}**:\n${c.text}`;
 		try {
-			await trpc.cards.addReviewComment.mutate({ workspaceId, cardId, content, type: "human", agent: "human" });
+			await trpc.cards.addReviewComment.mutate({ workspaceId, cardId, type: "human", actor: { type: "human", id: "human" }, summary });
 			removePending(id);
 			onRefresh();
 		} catch { /* keep staged on error */ }
@@ -174,14 +174,13 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 		try {
 			// Save each inline comment as its own review comment
 			for (const c of pendingComments) {
-				const content = c.lineNum !== null
+				const summary = c.lineNum !== null
 					? `**${c.file}** (line ${c.lineNum}):\n${c.text}`
 					: `**${c.file}**:\n${c.text}`;
-				await trpc.cards.addReviewComment.mutate({ workspaceId, cardId, content, type: "human", agent: "human" });
+				await trpc.cards.addReviewComment.mutate({ workspaceId, cardId, type: "human", actor: { type: "human", id: "human" }, summary });
 			}
-			// Main message reopens the card
-			const mainMsg = overallFeedback.trim() || `${pendingComments.length} inline comment${pendingComments.length !== 1 ? "s" : ""} added`;
-			await trpc.cards.submitHumanFeedback.mutate({ workspaceId, cardId, comment: mainMsg });
+			// Main message reopens the card (no comment if only inline comments were added)
+			await trpc.cards.submitHumanFeedback.mutate({ workspaceId, cardId, comment: overallFeedback.trim() || undefined });
 			setPendingComments([]);
 			setOverallFeedback("");
 			onRefresh();
@@ -391,7 +390,7 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 								if (!overallFeedback.trim()) return;
 								setSubmitting(true);
 								try {
-									await trpc.cards.addReviewComment.mutate({ workspaceId, cardId, content: overallFeedback.trim(), type: "human", agent: "human" });
+									await trpc.cards.addReviewComment.mutate({ workspaceId, cardId, type: "human", actor: { type: "human", id: "human" }, summary: overallFeedback.trim() });
 									setOverallFeedback("");
 									onRefresh();
 								} finally { setSubmitting(false); }
@@ -425,7 +424,7 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 									if (!overallFeedback.trim()) return;
 									setSubmitting(true);
 									try {
-										await trpc.cards.addReviewComment.mutate({ workspaceId, cardId, content: overallFeedback.trim(), type: "human", agent: "human" });
+										await trpc.cards.addReviewComment.mutate({ workspaceId, cardId, type: "human", actor: { type: "human", id: "human" }, summary: overallFeedback.trim() });
 										setOverallFeedback("");
 										onRefresh();
 									} finally { setSubmitting(false); }

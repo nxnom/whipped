@@ -9,10 +9,10 @@ import { spawnAgent } from "../agents/agent-runner.js";
 import { getAvailableAgents } from "../agents/agent-registry.js";
 import { CLAUDE_HOME_MCP_CONFIG_PATH, CLAUDE_TASK_SETTINGS_PATH, buildTaskHookEnv, getMcpConfigPath, writeClaudeMcpConfig, writeClaudeHomeSettings } from "../agents/agent-hooks.js";
 import type { WorkflowSlot, RuntimeAgentId, RuntimeBoardCard } from "../core/api-contract.js";
-import { buildDevAgentSystemPrompt } from "./review-pipeline.js";
+import { buildDevAgentSystemPrompt, tryParseAgentJson } from "./review-pipeline.js";
 import { logger } from "../core/logger.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
-import { appendActivityLog, appendTerminalSession, endTerminalSession, loadBoard, loadProjectConfig, moveCard, removeSession, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
+import { appendActivityLog, appendTerminalSession, endTerminalSession, linkCommentToSession, loadBoard, loadProjectConfig, moveCard, removeSession, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
 import { createWorktree, getWorktreeBranch, getWorktreePath, removeWorktree, removeWorktreeAsync } from "../worktree/worktree-manager.js";
 
 export interface SchedulerOptions {
@@ -270,7 +270,7 @@ export class TaskScheduler {
 		}
 
 		const prompt = buildTaskPrompt();
-		const taskSystemPrompt = buildDevAgentSystemPrompt(devSlotEarly, card, devSlotEarly.prompt ?? "");
+		const devSystemPromptResult = buildDevAgentSystemPrompt(devSlotEarly, card, devSlotEarly.prompt ?? "");
 
 		await appendActivityLog(workspaceId, taskId, `Agent ${agentId} started`);
 
@@ -291,7 +291,8 @@ export class TaskScheduler {
 				env: buildTaskHookEnv(taskId, workspaceId),
 				hookSettingsPath: agentId === "claude" ? CLAUDE_TASK_SETTINGS_PATH : undefined,
 				mcpConfigPath: agentId === "claude" ? mcpConfigPath : undefined,
-				appendSystemPrompt: agentId === "claude" ? taskSystemPrompt : undefined,
+				appendSystemPrompt: agentId === "claude" ? devSystemPromptResult.text : undefined,
+				files: agentId === "claude" ? devSystemPromptResult.files : undefined,
 				onOutput: (data) => {
 					runningTask.outputBuffer += data;
 					stateHub.broadcastTerminalOutput(workspaceId, devStreamId, data);
@@ -299,7 +300,6 @@ export class TaskScheduler {
 				onExit: async (exitCode) => {
 					this.setRecentBuffer(devStreamId, runningTask.outputBuffer);
 					void saveTerminalBuffer(workspaceId, devStreamId, runningTask.outputBuffer);
-					void endTerminalSession(workspaceId, taskId, devStreamId);
 					this.running.delete(taskId);
 					unlink(mcpConfigPath).catch(() => {});
 
@@ -317,10 +317,19 @@ export class TaskScheduler {
 					// onTaskCompleted call and card transition entirely.
 					if (this.hookHandledTasks.has(taskId)) {
 						this.hookHandledTasks.delete(taskId);
+						const exitedAt = Date.now();
+						// Set endedAt on any dev comment stored via MCP
+						const hookBoard = await loadBoard(workspaceId);
+						const hookCard = hookBoard.cards[taskId];
+						const hookDevComment = hookCard?.reviewComments?.slice().reverse().find((c) => c.type === "dev" && c.createdAt >= spawnedAt);
+						if (hookDevComment) {
+							await linkCommentToSession(workspaceId, taskId, hookDevComment.createdAt, devStreamId);
+						}
+						await endTerminalSession(workspaceId, taskId, devStreamId, exitedAt);
 						await updateSession(workspaceId, taskId, {
 							state: "awaiting_review",
 							exitCode,
-							completedAt: Date.now(),
+							completedAt: exitedAt,
 							lastOutput: runningTask.outputBuffer.slice(-4096),
 						});
 						stateHub.broadcastWorkspaceUpdate(workspaceId);
@@ -329,13 +338,39 @@ export class TaskScheduler {
 
 					const elapsed = Date.now() - spawnedAt;
 					const isFastExit = elapsed < FAST_EXIT_THRESHOLD_MS;
+					const exitedAt = Date.now();
 
 					logger.info(`[scheduler] Task ${taskId} exited with code ${exitCode} after ${Math.round(elapsed / 1000)}s`);
+
+					// Check if agent stored a dev comment via MCP; if not, create a fallback
+					const exitBoard = await loadBoard(workspaceId);
+					const exitCard = exitBoard.cards[taskId];
+					const existingDevComment = exitCard?.reviewComments?.slice().reverse().find((c) => c.type === "dev" && c.createdAt >= spawnedAt);
+					if (existingDevComment) {
+						await linkCommentToSession(workspaceId, taskId, existingDevComment.createdAt, devStreamId);
+						await endTerminalSession(workspaceId, taskId, devStreamId, exitedAt);
+					} else {
+						// Non-MCP fallback comment
+						const parsed = tryParseAgentJson(runningTask.outputBuffer);
+						const fallbackComment: import("../core/api-contract.js").RuntimeReviewComment = {
+							type: "dev",
+							actor: { type: "ai", id: agentId },
+							status: exitCode === 0 ? "pass" : "fail",
+							createdAt: exitedAt,
+							streamId: devStreamId,
+							summary: parsed?.summary ?? "Agent completed.",
+							issues: parsed?.issues,
+							metadata: parsed?.metadata,
+						};
+						const existing = exitCard?.reviewComments ?? [];
+						await updateCard(workspaceId, taskId, { reviewComments: [...existing, fallbackComment] });
+						await endTerminalSession(workspaceId, taskId, devStreamId, exitedAt);
+					}
 
 					await updateSession(workspaceId, taskId, {
 						state: exitCode === 0 ? "awaiting_review" : "failed",
 						exitCode,
-						completedAt: Date.now(),
+						completedAt: exitedAt,
 						lastOutput: runningTask.outputBuffer.slice(-4096),
 					});
 
@@ -349,8 +384,8 @@ export class TaskScheduler {
 							await appendActivityLog(workspaceId, taskId, "Agent finished → moved to Ready for Review (no review agents)");
 						}
 					} else {
-						const board = await loadBoard(workspaceId);
-						const latestCard = board.cards[taskId] ?? card;
+						const latestBoard = await loadBoard(workspaceId);
+						const latestCard = latestBoard.cards[taskId] ?? card;
 						const newAttempts = latestCard.autoFixAttempts + 1;
 						await updateCard(workspaceId, taskId, { autoFixAttempts: newAttempts });
 						const destination = newAttempts >= this.options.maxAutoFixAttempts ? "blocked" : "reopened";

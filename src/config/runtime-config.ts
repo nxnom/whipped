@@ -11,6 +11,7 @@ import {
 export const KANBOM_HOME_DIR = join(homedir(), ".kanbom");
 export const CONFIG_FILE = join(KANBOM_HOME_DIR, "config.json");
 export const WORKSPACES_DIR = join(KANBOM_HOME_DIR, "workspaces");
+export const ATTACHMENTS_DIR = join(KANBOM_HOME_DIR, "attachments");
 export const DEFAULT_PORT = 3485;
 export const DEFAULT_WEB_UI_PORT = 4174;
 

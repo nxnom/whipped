@@ -1,10 +1,12 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
-import { WORKSPACES_DIR } from "../config/runtime-config.js";
+import { ATTACHMENTS_DIR, WORKSPACES_DIR } from "../config/runtime-config.js";
 import {
 	BOARD_COLUMNS,
+	SCHEMA_VERSION,
 	type RuntimeBoardCard,
 	type RuntimeBoardColumnId,
 	type RuntimeBoardData,
@@ -112,7 +114,17 @@ export async function loadBoard(workspaceId: string): Promise<RuntimeBoardData> 
 	try {
 		const raw = await readFile(boardFilePath(workspaceId), "utf-8");
 		const parsed = runtimeBoardDataSchema.safeParse(JSON.parse(raw));
-		return parsed.success ? parsed.data : createEmptyBoard();
+		if (!parsed.success) return createEmptyBoard();
+		const board = parsed.data;
+		// Schema migration: wipe all reviewComments if schemaVersion < 2
+		if ((board.schemaVersion ?? 0) < SCHEMA_VERSION) {
+			for (const card of Object.values(board.cards)) {
+				card.reviewComments = [];
+			}
+			board.schemaVersion = SCHEMA_VERSION;
+			await saveBoard(workspaceId, board);
+		}
+		return board;
 	} catch {
 		return createEmptyBoard();
 	}
@@ -414,22 +426,44 @@ export async function appendTerminalSession(
 	});
 }
 
-export async function endTerminalSession(
-	workspaceId: string,
-	cardId: string,
-	streamId: string,
-): Promise<void> {
+export async function endTerminalSession(workspaceId: string, cardId: string, streamId: string, endedAt: number): Promise<void> {
 	return withLock(workspaceId, async () => {
 		const board = await loadBoard(workspaceId);
 		const card = board.cards[cardId];
 		if (!card) return;
-		card.terminalSessions = (card.terminalSessions ?? []).map((s) =>
-			s.streamId === streamId ? { ...s, endedAt: Date.now() } : s,
+		const updated = card.terminalSessions?.map((s) =>
+			s.streamId === streamId ? { ...s, endedAt } : s,
 		);
-		card.updatedAt = Date.now();
-		board.cards[cardId] = card;
-		await saveBoard(workspaceId, board);
+		if (!updated) return;
+		board.cards[cardId] = { ...card, terminalSessions: updated };
+		const meta = await loadMeta(workspaceId);
+		await Promise.all([saveBoard(workspaceId, board), saveMeta(workspaceId, { ...meta, revision: meta.revision + 1 })]);
 	});
+}
+
+export async function linkCommentToSession(workspaceId: string, cardId: string, commentCreatedAt: number, streamId: string): Promise<void> {
+	return withLock(workspaceId, async () => {
+		const board = await loadBoard(workspaceId);
+		const card = board.cards[cardId];
+		if (!card) return;
+		const updated = (card.reviewComments ?? []).map((c) =>
+			c.createdAt === commentCreatedAt ? { ...c, streamId } : c,
+		);
+		board.cards[cardId] = { ...card, reviewComments: updated };
+		const meta = await loadMeta(workspaceId);
+		await Promise.all([saveBoard(workspaceId, board), saveMeta(workspaceId, { ...meta, revision: meta.revision + 1 })]);
+	});
+}
+
+export async function saveAttachment(data: Buffer, ext: string, cardId: string): Promise<string> {
+	const dir = join(ATTACHMENTS_DIR, cardId);
+	await mkdir(dir, { recursive: true });
+	const hash = createHash("sha256").update(data).digest("hex");
+	const filePath = join(dir, `${hash}.${ext}`);
+	if (!existsSync(filePath)) {
+		await writeFile(filePath, data);
+	}
+	return filePath;
 }
 
 export async function updateCard(
@@ -468,6 +502,14 @@ export async function deleteCard(workspaceId: string, cardId: string): Promise<v
 		const meta = await loadMeta(workspaceId);
 		await Promise.all([saveBoard(workspaceId, board), saveMeta(workspaceId, { ...meta, revision: meta.revision + 1 })]);
 	});
+
+	// Best-effort cleanup of per-card attachment folder
+	try {
+		const { rm } = await import("node:fs/promises");
+		await rm(join(ATTACHMENTS_DIR, cardId), { recursive: true, force: true });
+	} catch {
+		// ignore
+	}
 }
 
 export async function removeWorkspace(workspaceId: string): Promise<void> {

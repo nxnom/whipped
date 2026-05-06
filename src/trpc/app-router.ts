@@ -3,11 +3,14 @@ import { spawnSync } from "node:child_process";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getAvailableAgents } from "../agents/agent-registry.js";
-import { loadGlobalConfig, saveGlobalConfig, updateGlobalConfig } from "../config/runtime-config.js";
+import { ATTACHMENTS_DIR, loadGlobalConfig, saveGlobalConfig, updateGlobalConfig } from "../config/runtime-config.js";
 import { abortMerge, attemptMerge, commitIfDirty, createGithubPR, finalizeMerge, listLocalBranches, pushBranch } from "../git/merge-operations.js";
 import {
 	type RuntimeGlobalConfig,
 	type RuntimeProjectConfig,
+	reviewActorSchema,
+	reviewAttachmentSchema,
+	reviewIssueSchema,
 	runtimeCardCreateRequestSchema,
 	runtimeCardMoveRequestSchema,
 	runtimeCardUpdateRequestSchema,
@@ -31,6 +34,7 @@ import {
 	moveCard,
 	removeSession,
 	removeWorkspace,
+	saveAttachment,
 	saveProjectConfig,
 	saveWorkspaceState,
 	setAutonomousMode,
@@ -360,7 +364,7 @@ export const appRouter = router({
 					throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Push failed: ${err}` });
 				}
 
-				const devSummary = [...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev")?.content
+				const devSummary = [...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev")?.summary
 					?? card.description;
 
 				let prUrl: string;
@@ -442,10 +446,15 @@ export const appRouter = router({
 				z.object({
 					workspaceId: z.string(),
 					cardId: z.string(),
-					content: z.string().min(1),
 					type: z.string(),
-					agent: z.string().default("claude"),
-					passed: z.boolean().optional(),
+					actor: reviewActorSchema,
+					status: z.enum(["pass", "fail", "warning", "skipped"]).optional(),
+					streamId: z.string().optional(),
+					summary: z.string().min(1),
+					issues: z.array(reviewIssueSchema).optional(),
+					attachments: z.array(reviewAttachmentSchema).optional(),
+					metadata: z.record(z.string(), z.unknown()).optional(),
+					createdAt: z.number().optional(),
 				}),
 			)
 			.mutation(async ({ ctx, input }) => {
@@ -453,12 +462,33 @@ export const appRouter = router({
 				const card = board.cards[input.cardId];
 				if (!card) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
 
+				// Process attachments: read each file and save to canonical store
+				let processedAttachments = input.attachments;
+				if (input.attachments?.length) {
+					const { readFile } = await import("node:fs/promises");
+					processedAttachments = [];
+					for (const att of input.attachments) {
+						try {
+							const data = await readFile(att.path);
+							const ext = att.path.split(".").pop() ?? "bin";
+							const canonicalPath = await saveAttachment(data, ext, input.cardId);
+							processedAttachments.push({ ...att, path: canonicalPath });
+						} catch {
+							processedAttachments.push(att);
+						}
+					}
+				}
+
 				const comment = {
 					type: input.type,
-					agent: input.agent,
-					content: input.content,
-					passed: input.passed,
-					createdAt: Date.now(),
+					actor: input.actor,
+					status: input.status,
+					createdAt: input.createdAt ?? Date.now(),
+					streamId: input.streamId,
+					summary: input.summary,
+					issues: input.issues,
+					attachments: processedAttachments,
+					metadata: input.metadata,
 				};
 				const updatedComments = [...(card.reviewComments ?? []), comment];
 				await updateCard(input.workspaceId, input.cardId, { reviewComments: updatedComments });
@@ -477,7 +507,12 @@ export const appRouter = router({
 				const updatedComments = trimmed
 					? [
 						...(card.reviewComments ?? []),
-						{ type: "human" as const, agent: "human", content: trimmed, createdAt: Date.now() },
+						{
+							type: "human" as const,
+							actor: { type: "human" as const, id: "human" },
+							createdAt: Date.now(),
+							summary: trimmed,
+						},
 					]
 					: (card.reviewComments ?? []);
 				await updateCard(input.workspaceId, input.cardId, { reviewComments: updatedComments });
@@ -539,6 +574,27 @@ export const appRouter = router({
 				}
 
 				return { diff: result.stdout ?? "", error: null };
+			}),
+
+		getAttachment: publicProcedure
+			.input(z.object({ path: z.string() }))
+			.query(async ({ input }) => {
+				if (!input.path.startsWith(ATTACHMENTS_DIR)) {
+					throw new TRPCError({ code: "FORBIDDEN", message: "Path is outside attachments directory" });
+				}
+				const { readFile } = await import("node:fs/promises");
+				const data = await readFile(input.path);
+				const ext = input.path.split(".").pop()?.toLowerCase() ?? "";
+				const mimeTypes: Record<string, string> = {
+					png: "image/png",
+					jpg: "image/jpeg",
+					jpeg: "image/jpeg",
+					gif: "image/gif",
+					webp: "image/webp",
+					svg: "image/svg+xml",
+				};
+				const mimeType = mimeTypes[ext] ?? "application/octet-stream";
+				return { data: data.toString("base64"), mimeType };
 			}),
 	}),
 

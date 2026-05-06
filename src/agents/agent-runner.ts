@@ -11,6 +11,7 @@ export interface AgentRunOptions {
 	hookSettingsPath?: string;
 	mcpConfigPath?: string;
 	appendSystemPrompt?: string;
+	files?: string[];
 	mode?: "interactive" | "print";
 	onOutput: (data: string) => void;
 	onExit: (exitCode: number) => void;
@@ -23,7 +24,7 @@ export interface AgentProcess {
 }
 
 export function spawnAgent(options: AgentRunOptions): AgentProcess {
-	const { agentId, prompt, cwd, env, hookSettingsPath, mcpConfigPath, appendSystemPrompt, mode = "interactive", onOutput, onExit } = options;
+	const { agentId, prompt, cwd, env, hookSettingsPath, mcpConfigPath, appendSystemPrompt, files, mode = "interactive", onOutput, onExit } = options;
 
 	const command = getAgentCommand(agentId);
 	const args = buildAgentArgs(agentId, prompt, mode);
@@ -35,6 +36,11 @@ export function spawnAgent(options: AgentRunOptions): AgentProcess {
 	}
 	if (appendSystemPrompt && agentId === "claude") {
 		args.push("--append-system-prompt", appendSystemPrompt);
+	}
+	if (files?.length && agentId === "claude") {
+		for (const f of files) {
+			args.push("--file", f);
+		}
 	}
 
 	const pty = nodePty.spawn(command, args, {

@@ -8,14 +8,25 @@ import { trpc } from "@/runtime/trpc-client";
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
 
-function Avatar({ agent, type }: { agent: string; type: string }) {
+function Avatar({ comment }: { comment: RuntimeReviewComment }) {
 	const [err, setErr] = useState(false);
-	const seed = `${type}-${agent}`;
+	const { actor, type } = comment;
+
+	if (actor.type === "human" || actor.type === "external") {
+		const initials = actor.id.slice(0, 2).toUpperCase();
+		return (
+			<div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-700 text-[11px] font-bold text-gray-300 shrink-0 select-none">
+				{initials}
+			</div>
+		);
+	}
+
+	const seed = `${type}-${actor.id}`;
 
 	if (err) {
 		return (
 			<div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-700 text-[11px] font-bold text-gray-300 shrink-0 select-none">
-				{agent.slice(0, 2).toUpperCase()}
+				{actor.id.slice(0, 2).toUpperCase()}
 			</div>
 		);
 	}
@@ -23,7 +34,7 @@ function Avatar({ agent, type }: { agent: string; type: string }) {
 	return (
 		<img
 			src={`https://api.dicebear.com/9.x/fun-emoji/svg?seed=${encodeURIComponent(seed)}`}
-			alt={agent}
+			alt={actor.id}
 			className="w-8 h-8 rounded-full shrink-0 bg-gray-800"
 			onError={() => setErr(true)}
 			loading="lazy"
@@ -39,9 +50,11 @@ const TYPE_LABELS: Record<string, string> = {
 	qa: "QA",
 };
 
-function displayName(agent: string, type: string, source: string | undefined, slots?: WorkflowSlot[]): string {
-	if (source) return agent;
-	if (type === "human") return "You";
+function displayName(comment: RuntimeReviewComment, slots?: WorkflowSlot[]): string {
+	const { actor, type } = comment;
+	if (actor.type === "human" && actor.id === "human") return "You";
+	if (actor.type === "external") return actor.id;
+	// AI actor — use type label
 	if (TYPE_LABELS[type]) return TYPE_LABELS[type]!;
 	const slot = slots?.find((s) => s.id === type);
 	if (slot) return slot.name;
@@ -54,25 +67,76 @@ const TYPE_STYLE: Record<string, string> = {
 	qa: "text-cyan-400 bg-cyan-400/10",
 };
 
-function AgentBadge({ agent, type, source, passed }: { agent: string; type: string; source?: string; passed?: boolean }) {
-	if (source) {
-		const label = source.charAt(0).toUpperCase() + source.slice(1);
+function AgentBadge({ comment }: { comment: RuntimeReviewComment }) {
+	const { actor, type, status } = comment;
+
+	if (actor.type === "external") {
+		const label = (actor.source ?? "External").charAt(0).toUpperCase() + (actor.source ?? "External").slice(1);
 		return (
 			<span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium text-gray-400 bg-gray-700/50">
 				{label}
 			</span>
 		);
 	}
-	if (type === "human") return null;
+	if (actor.type === "human") return null;
+
+	// AI actor
 	const className = TYPE_STYLE[type] ?? "text-gray-400 bg-gray-700/50";
 	return (
 		<span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium ${className}`}>
-			{agent}
-			{passed === true && <span className="text-green-400">✓</span>}
-			{passed === false && <span className="text-red-400">✗</span>}
+			{actor.id}
+			{status === "pass" && <span className="text-green-400">✓</span>}
+			{status === "fail" && <span className="text-red-400">✗</span>}
+			{status === "warning" && <span className="text-yellow-400">⚠</span>}
+			{status === "skipped" && <span className="text-gray-400">—</span>}
 		</span>
 	);
 }
+
+// ── Attachment image ──────────────────────────────────────────────────────────
+
+function AttachmentImage({ path, name }: { path: string; name: string }) {
+	const [expanded, setExpanded] = useState(false);
+	const [src, setSrc] = useState<string | null>(null);
+	const [loading, setLoading] = useState(true);
+
+	useEffect(() => {
+		let cancelled = false;
+		void trpc.cards.getAttachment.query({ path }).then((data) => {
+			if (!cancelled) {
+				setSrc(`data:${data.mimeType};base64,${data.data}`);
+				setLoading(false);
+			}
+		}).catch(() => {
+			if (!cancelled) setLoading(false);
+		});
+		return () => { cancelled = true; };
+	}, [path]);
+
+	if (loading) return <div className="text-[11px] text-gray-500">Loading {name}…</div>;
+	if (!src) return null;
+
+	return (
+		<div className="mt-1">
+			<img
+				src={src}
+				alt={name}
+				className={`rounded border border-gray-700 cursor-pointer object-contain ${expanded ? "max-w-full max-h-96" : "max-h-24 max-w-48"}`}
+				onClick={() => setExpanded((v) => !v)}
+				title={expanded ? "Click to collapse" : "Click to expand"}
+			/>
+			<div className="text-[10px] text-gray-600 mt-0.5">{name}</div>
+		</div>
+	);
+}
+
+// ── Severity color ────────────────────────────────────────────────────────────
+
+const SEVERITY_COLOR: Record<string, string> = {
+	blocking: "text-red-400",
+	warning: "text-yellow-400",
+	info: "text-blue-400",
+};
 
 // ── Date grouping ─────────────────────────────────────────────────────────────
 
@@ -91,7 +155,9 @@ function isDifferentDay(a: number, b: number): boolean {
 }
 
 function isSameGroup(a: RuntimeReviewComment, b: RuntimeReviewComment): boolean {
-	return a.agent === b.agent && a.type === b.type && a.source === b.source && b.createdAt - a.createdAt < 5 * 60 * 1000;
+	const keyA = `${a.actor.id}|${a.actor.type}|${a.actor.source ?? ""}|${a.type}`;
+	const keyB = `${b.actor.id}|${b.actor.type}|${b.actor.source ?? ""}|${b.type}`;
+	return keyA === keyB && b.createdAt - a.createdAt < 5 * 60 * 1000;
 }
 
 // ── Markdown components (dark theme) ─────────────────────────────────────────
@@ -155,7 +221,13 @@ export function ChatComments({ card, workspaceId, workflowSlots, onRefresh }: Pr
 			if (requestChanges) {
 				await trpc.cards.submitHumanFeedback.mutate({ workspaceId, cardId: card.id, comment: text || undefined });
 			} else {
-				await trpc.cards.addReviewComment.mutate({ workspaceId, cardId: card.id, content: text, type: "human", agent: "human" });
+				await trpc.cards.addReviewComment.mutate({
+					workspaceId,
+					cardId: card.id,
+					type: "human",
+					actor: { type: "human", id: "human" },
+					summary: text,
+				});
 			}
 			setMessage("");
 			onRefresh();
@@ -178,7 +250,7 @@ export function ChatComments({ card, workspaceId, workflowSlots, onRefresh }: Pr
 							const prev = comments[i - 1];
 							const showDate = i === 0 || (prev != null && isDifferentDay(prev.createdAt, comment.createdAt));
 							const showHeader = i === 0 || (prev != null && !isSameGroup(prev, comment));
-							const name = displayName(comment.agent, comment.type, comment.source, workflowSlots);
+							const name = displayName(comment, workflowSlots);
 
 							return (
 								<div key={i}>
@@ -195,7 +267,7 @@ export function ChatComments({ card, workspaceId, workflowSlots, onRefresh }: Pr
 									<div className={`group flex items-start gap-3 px-4 hover:bg-gray-900/40 ${showHeader ? "mt-3 pb-0.5" : "py-0.5"}`}>
 										{/* Avatar column — always reserve space */}
 										<div className="w-8 shrink-0 mt-0.5">
-											{showHeader ? <Avatar agent={comment.agent} type={comment.type} /> : (
+											{showHeader ? <Avatar comment={comment} /> : (
 												<span className="block w-8 text-center text-[8px] text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity tabular-nums whitespace-nowrap pt-1">
 													{new Date(comment.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
 												</span>
@@ -206,7 +278,7 @@ export function ChatComments({ card, workspaceId, workflowSlots, onRefresh }: Pr
 											{showHeader && (
 												<div className="flex items-baseline gap-2 mb-0.5">
 													<span className="font-semibold text-sm text-gray-100">{name}</span>
-													<AgentBadge agent={comment.agent} type={comment.type} source={comment.source} passed={comment.passed} />
+													<AgentBadge comment={comment} />
 													<span className="text-xs text-gray-600 tabular-nums">
 														{new Date(comment.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
 													</span>
@@ -214,9 +286,40 @@ export function ChatComments({ card, workspaceId, workflowSlots, onRefresh }: Pr
 											)}
 											<div className="prose-chat text-sm text-gray-300 leading-relaxed [overflow-wrap:anywhere]">
 												<ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
-													{comment.content.trimEnd()}
+													{comment.summary.trimEnd()}
 												</ReactMarkdown>
 											</div>
+
+											{/* Issues */}
+											{comment.issues && comment.issues.length > 0 && (
+												<details className="mt-1">
+													<summary className="text-[11px] text-gray-500 cursor-pointer">
+														{comment.issues.length} issue{comment.issues.length !== 1 ? "s" : ""}
+													</summary>
+													<ul className="mt-1 space-y-0.5">
+														{comment.issues.map((issue, idx) => (
+															<li key={idx} className="text-[11px] font-mono text-gray-400">
+																<span className={SEVERITY_COLOR[issue.severity] ?? "text-gray-400"}>[{issue.severity}]</span>
+																{" "}
+																{issue.file}{issue.line != null ? `:${issue.line}` : ""}{issue.file ? " — " : ""}{issue.message}
+															</li>
+														))}
+													</ul>
+												</details>
+											)}
+
+											{/* Attachments */}
+											{comment.attachments && comment.attachments.length > 0 && (
+												<div className="mt-1 flex flex-wrap gap-2">
+													{comment.attachments.map((att, idx) => (
+														<AttachmentImage
+															key={idx}
+															path={att.path}
+															name={att.name}
+														/>
+													))}
+												</div>
+											)}
 										</div>
 									</div>
 								</div>
