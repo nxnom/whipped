@@ -375,7 +375,7 @@ export function CardDetailPanel({ card, workspaceId, session, allCards, workflow
 											return (
 												<button
 													key={ts.streamId}
-													onClick={() => setActiveStreamId(ts.streamId)}
+													onClick={() => { setActiveStreamId(ts.streamId); setRightTab("terminal"); }}
 													className={`w-full text-left rounded text-xs flex items-center gap-2 transition-colors ${
 														isActive
 															? `px-2 py-1.5 ${isSelected ? "bg-gray-800 text-gray-100" : "text-gray-300 hover:text-gray-100 hover:bg-gray-800/50"}`
