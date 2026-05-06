@@ -1,12 +1,13 @@
 import { spawn, spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync } from "node:fs";
+import { unlink } from "node:fs/promises";
 import { commitIfDirty } from "../git/merge-operations.js";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgentProcess } from "../agents/agent-runner.js";
 import { spawnAgent } from "../agents/agent-runner.js";
 import { getAvailableAgents } from "../agents/agent-registry.js";
-import { CLAUDE_HOME_MCP_CONFIG_PATH, CLAUDE_REVIEW_MCP_CONFIG_PATH, CLAUDE_TASK_SETTINGS_PATH, buildTaskHookEnv, writeClaudeHomeSettings, writeClaudeReviewMcpConfig } from "../agents/agent-hooks.js";
+import { CLAUDE_HOME_MCP_CONFIG_PATH, CLAUDE_TASK_SETTINGS_PATH, buildTaskHookEnv, getMcpConfigPath, writeClaudeMcpConfig, writeClaudeHomeSettings } from "../agents/agent-hooks.js";
 import type { RuntimeAgentId, RuntimeBoardCard } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
@@ -50,6 +51,8 @@ export class TaskScheduler {
 	// Tasks whose completion is being handled by the Stop hook.
 	// Checked synchronously in onExit to avoid the race between kill() and moveCard().
 	private hookHandledTasks = new Set<string>();
+	// Tasks that were manually stopped — prevents onExit from running the failure path.
+	private manuallyStoppedTasks = new Set<string>();
 
 	constructor(private options: SchedulerOptions) {}
 
@@ -85,7 +88,7 @@ export class TaskScheduler {
 		const prompt = buildHomeAgentInitialMessage();
 		const appendSystemPrompt = buildHomeAgentSystemPrompt(repoPath);
 		await writeClaudeHomeSettings(getMcpServerPath(), serverUrl, workspaceId).catch((err) => {
-			logger.warn("[scheduler] Failed to write home agent MCP settings:", err);
+			logger.warn({ err }, "[scheduler] Failed to write home agent MCP settings");
 		});
 
 		const homeTask: RunningTask = {
@@ -184,8 +187,10 @@ export class TaskScheduler {
 			}
 		}
 
-		// Write MCP config so the dev agent can call kanban_add_comment when done
-		await writeClaudeReviewMcpConfig(getMcpServerPath(), this.options.serverUrl, workspaceId, agentId).catch(() => {});
+		// Write MCP config so the dev agent can call kanban_add_comment when done.
+		// Use a per-task path to avoid concurrent agents overwriting each other's config.
+		const mcpConfigPath = getMcpConfigPath(taskId);
+		await writeClaudeMcpConfig(getMcpServerPath(), this.options.serverUrl, workspaceId, agentId as string, mcpConfigPath).catch(() => {});
 
 		// Create isolated worktree
 		const worktree = createWorktree(taskId, repoPath, effectiveBaseRef);
@@ -233,7 +238,13 @@ export class TaskScheduler {
 						stdio: "ignore",
 						env: { ...process.env, REPO_PATH: repoPath },
 					});
-					proc.on("close", () => resolve());
+					proc.on("close", (code) => {
+						if (code !== 0) {
+							logger.error(`[scheduler] Install command failed (code ${code}) for task ${taskId}`);
+							void appendActivityLog(workspaceId, taskId, `Install command failed (code ${code}) — proceeding anyway`);
+						}
+						resolve();
+					});
 				});
 				await appendActivityLog(workspaceId, taskId, "Install complete");
 				stateHub.broadcastWorkspaceUpdate(workspaceId);
@@ -261,7 +272,7 @@ export class TaskScheduler {
 				cwd: worktree.path,
 				env: buildTaskHookEnv(taskId, workspaceId),
 				hookSettingsPath: agentId === "claude" ? CLAUDE_TASK_SETTINGS_PATH : undefined,
-				mcpConfigPath: agentId === "claude" ? CLAUDE_REVIEW_MCP_CONFIG_PATH : undefined,
+				mcpConfigPath: agentId === "claude" ? mcpConfigPath : undefined,
 				appendSystemPrompt: agentId === "claude" ? taskSystemPrompt : undefined,
 				onOutput: (data) => {
 					runningTask.outputBuffer += data;
@@ -271,6 +282,15 @@ export class TaskScheduler {
 					this.recentBuffers.set(devStreamId, runningTask.outputBuffer);
 					void saveTerminalBuffer(workspaceId, devStreamId, runningTask.outputBuffer);
 					this.running.delete(taskId);
+					unlink(mcpConfigPath).catch(() => {});
+
+					// If manually stopped, just reset to idle — don't run the failure path.
+					if (this.manuallyStoppedTasks.has(taskId)) {
+						this.manuallyStoppedTasks.delete(taskId);
+						await updateSession(workspaceId, taskId, { state: "idle" });
+						stateHub.broadcastWorkspaceUpdate(workspaceId);
+						return;
+					}
 
 					// Synchronous check — must happen before any await.
 					// The Stop hook sets this flag before calling kill() so that when
@@ -342,6 +362,7 @@ export class TaskScheduler {
 		const task = this.running.get(taskId);
 		if (task) {
 			logger.info(`[scheduler] Stopping task ${taskId}`);
+			this.manuallyStoppedTasks.add(taskId);
 			task.process.kill();
 			this.running.delete(taskId);
 			void appendActivityLog(this.options.workspaceId, taskId, "Agent stopped manually");
@@ -479,7 +500,7 @@ export class TaskScheduler {
 			this.recentBuffers.set(streamId, outputBuffer);
 			void saveTerminalBuffer(workspaceId, streamId, outputBuffer);
 			proc.kill();
-			void onComplete(true);
+			onComplete(true).catch((err) => logger.error({ err }, `[scheduler] conflict onComplete failed for ${card.id}:`));
 		});
 	}
 

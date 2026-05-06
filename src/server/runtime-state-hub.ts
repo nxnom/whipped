@@ -19,6 +19,7 @@ export class RuntimeStateHub {
 	private workspaceMeta = new Map<WorkspaceId, { repoPath: string }>();
 	private terminalListeners = new Map<WorkspaceId, Set<TerminalOutputCallback>>();
 	private terminalBuffers = new Map<string, string>(); // key: `${workspaceId}:${streamId}`
+	private readonly MAX_TERMINAL_BUFFER_ENTRIES = 300;
 
 	addTerminalListener(workspaceId: WorkspaceId, cb: TerminalOutputCallback): () => void {
 		if (!this.terminalListeners.has(workspaceId)) {
@@ -27,6 +28,8 @@ export class RuntimeStateHub {
 		this.terminalListeners.get(workspaceId)!.add(cb);
 		return () => {
 			this.terminalListeners.get(workspaceId)?.delete(cb);
+			const set = this.terminalListeners.get(workspaceId);
+			if (set && set.size === 0) this.terminalListeners.delete(workspaceId);
 		};
 	}
 
@@ -87,6 +90,10 @@ export class RuntimeStateHub {
 		const prev = this.terminalBuffers.get(key) ?? "";
 		const next = prev + data;
 		this.terminalBuffers.set(key, next.length > 65536 ? next.slice(-65536) : next);
+		if (this.terminalBuffers.size > this.MAX_TERMINAL_BUFFER_ENTRIES) {
+			const oldest = this.terminalBuffers.keys().next().value;
+			if (oldest) this.terminalBuffers.delete(oldest);
+		}
 		this.broadcastToWorkspace(workspaceId, { type: "terminal_output", taskId, data });
 		this.terminalListeners.get(workspaceId)?.forEach((cb) => cb(taskId, data));
 	}

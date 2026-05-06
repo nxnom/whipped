@@ -47,7 +47,8 @@
       "Bash(sed -i '' '1s/^/import { logger } from \"..\\\\/core\\\\/logger.js\";\\\\n/' /Users/waiyanphyo/Development/kanbom/src/server/runtime-server.ts)",
       "Bash(sed -i '' '1s/^/import { logger } from \".\\\\/core\\\\/logger.js\";\\\\n/' /Users/waiyanphyo/Development/kanbom/src/cli.ts)",
       "Bash(sed -i '' '1s/^/import { logger } from \"..\\\\/core\\\\/logger.js\";\\\\n/' /Users/waiyanphyo/Development/kanbom/src/trpc/app-router.ts)",
-      "Bash(perl *)"
+      "Bash(perl *)",
+      "Bash(echo \"exit: $?\")"
     ]
   }
 }

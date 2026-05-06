@@ -71,6 +71,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 			activeReviews.add(card.id);
 
 			(async () => {
+				const latestConfig = await loadGlobalConfig();  // reload fresh each review
 				const latestProjectConfig = await loadProjectConfig(workspaceId);
 				const latestGithubClient = latestProjectConfig.github?.token
 					? createGithubClient(latestProjectConfig.github.token)
@@ -80,9 +81,9 @@ export async function createRuntimeServer(options: ServerOptions) {
 					repoPath: wsRepoPath,
 					serverUrl: `http://${host}:${port}`,
 					mcpBinary: getMcpServerPath(),
-					codeReviewAgent: config.review.codeReviewAgent,
-					qaAgent: config.review.qaAgent,
-					maxAutoFixAttempts: config.maxAutoFixAttempts,
+					codeReviewAgent: latestConfig.review.codeReviewAgent,
+					qaAgent: latestConfig.review.qaAgent,
+					maxAutoFixAttempts: latestConfig.maxAutoFixAttempts,
 					stateHub,
 					githubClient: latestGithubClient,
 					codeReviewPrompt: latestProjectConfig.codeReviewPrompt,
@@ -91,7 +92,9 @@ export async function createRuntimeServer(options: ServerOptions) {
 					registerStopCallback: scheduler.registerStopCallback.bind(scheduler),
 					registerLiveProcess: scheduler.registerLiveProcess.bind(scheduler),
 				});
-			})().finally(() => activeReviews.delete(card.id));
+			})()
+				.catch((err) => logger.error({ err }, `[server] Review pipeline error for "${card.title}":`))
+				.finally(() => activeReviews.delete(card.id));
 		}
 
 		const scheduler = new TaskScheduler({
@@ -110,7 +113,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 							startReview(card);
 						}
 					})
-					.catch(() => {});
+					.catch((err) => logger.error({ err }, `[server] onTaskCompleted state load failed for ${taskId}:`));
 			},
 		});
 
@@ -315,10 +318,6 @@ export async function createRuntimeServer(options: ServerOptions) {
 		});
 
 		ws.on("error", () => {});
-
-		// Auto-subscribe to initial workspace
-		const clientId = stateHub.addClient(ws, initialCtx.workspaceId);
-		void stateHub.sendSnapshot(clientId, initialCtx.workspaceId, repoPath);
 	});
 
 	await new Promise<void>((resolve, reject) => {

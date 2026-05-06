@@ -451,3 +451,12 @@ export async function deleteCard(workspaceId: string, cardId: string): Promise<v
 		await Promise.all([saveBoard(workspaceId, board), saveMeta(workspaceId, { ...meta, revision: meta.revision + 1 })]);
 	});
 }
+
+export async function removeWorkspace(workspaceId: string): Promise<void> {
+	const index = await loadIndex();
+	const entry = index.entries[workspaceId];
+	if (!entry) return;
+	delete index.entries[workspaceId];
+	delete index.repoPathToId[entry.repoPath];
+	await saveIndex(index);
+}

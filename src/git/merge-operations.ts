@@ -1,8 +1,11 @@
 import { logger } from "../core/logger.js";
-import { existsSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { spawnSync } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 const WORKTREES_DIR = join(homedir(), ".kanbom", "worktrees");
 
@@ -29,7 +32,8 @@ export function attemptMerge(repoPath: string, taskId: string, taskBranch: strin
 
 	// Remove the worktree directory but keep the branch so we can merge it
 	if (existsSync(worktreePath)) {
-		git(["worktree", "remove", "--force", worktreePath], repoPath);
+		rmSync(worktreePath, { recursive: true, force: true });
+		git(["worktree", "prune"], repoPath); // fast: path is already gone
 	}
 
 	// Merge directly in the main repo — index and working tree updated naturally
@@ -97,15 +101,12 @@ function parsePRUrl(prUrl: string): { owner: string; repo: string; number: strin
 	return { owner: match[1], repo: match[2], number: match[3] };
 }
 
-export function fetchPRInfo(prUrl: string): PRInfo | null {
-	const r = spawnSync("gh", ["pr", "view", prUrl, "--json", "state,mergeable,reviewDecision,author,comments,latestReviews"], {
-		encoding: "utf-8",
-		stdio: ["ignore", "pipe", "pipe"],
-	});
-	if (r.status !== 0) {
-		logger.warn(`[fetchPRInfo] gh exited ${r.status} for ${prUrl}: ${r.stderr?.trim()}`);
+export async function fetchPRInfo(prUrl: string): Promise<PRInfo | null> {
+	const r = await execFileAsync("gh", ["pr", "view", prUrl, "--json", "state,mergeable,reviewDecision,author,comments,latestReviews"], { encoding: "utf-8" }).catch((err: { stderr?: string; code?: number }) => {
+		logger.warn(`[fetchPRInfo] gh exited for ${prUrl}: ${err.stderr?.trim() ?? String(err)}`);
 		return null;
-	}
+	});
+	if (!r) return null;
 	try {
 		const raw = JSON.parse(r.stdout) as {
 			state: PRInfo["state"];
@@ -125,11 +126,8 @@ export function fetchPRInfo(prUrl: string): PRInfo | null {
 		const inlineComments: GithubComment[] = [];
 		const parsed = parsePRUrl(prUrl);
 		if (parsed) {
-			const rc = spawnSync(
-				"gh", ["api", `repos/${parsed.owner}/${parsed.repo}/pulls/${parsed.number}/comments`, "--paginate"],
-				{ encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] },
-			);
-			if (rc.status === 0) {
+			const rc = await execFileAsync("gh", ["api", `repos/${parsed.owner}/${parsed.repo}/pulls/${parsed.number}/comments`, "--paginate"], { encoding: "utf-8" }).catch(() => null);
+			if (rc) {
 				try {
 					const items = JSON.parse(rc.stdout) as Array<{
 						id: number;

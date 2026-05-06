@@ -29,6 +29,7 @@ import {
 	loadWorkspaceState,
 	moveCard,
 	removeSession,
+	removeWorkspace,
 	saveProjectConfig,
 	saveWorkspaceState,
 	setAutonomousMode,
@@ -103,9 +104,7 @@ export const appRouter = router({
 		}),
 
 		remove: publicProcedure.input(z.object({ workspaceId: z.string() })).mutation(async ({ input }) => {
-			// Just removes from index — does not delete data
-			const { listWorkspaces: list } = await import("../state/workspace-state.js");
-			// We don't expose hard-delete for safety; user can clean ~/.kanbom manually
+			await removeWorkspace(input.workspaceId);
 			return { ok: true };
 		}),
 	}),
@@ -307,6 +306,8 @@ export const appRouter = router({
 				try {
 					prUrl = createGithubPR(worktreePath, card.title, devSummary, card.baseRef);
 				} catch (err) {
+					// Try to delete the remote branch we just pushed to avoid orphaned branches
+					spawnSync("git", ["push", "origin", "--delete", taskBranch], { cwd: worktreePath, stdio: "ignore" });
 					throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `PR creation failed: ${err}` });
 				}
 

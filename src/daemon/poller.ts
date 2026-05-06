@@ -259,7 +259,7 @@ export class BoardPoller {
 		for (const taskId of cardsWithPR) {
 			const card = state.board.cards[taskId]!;
 
-			const info = fetchPRInfo(card.githubPrUrl!);
+			const info = await fetchPRInfo(card.githubPrUrl!);
 			if (!info) {
 				logger.warn(`[poller] Could not fetch PR info for "${card.title}" (${card.githubPrUrl})`);
 				continue;

@@ -15,6 +15,21 @@ export const WORKSPACES_DIR = join(KANBOM_HOME_DIR, "workspaces");
 export const DEFAULT_PORT = 3485;
 export const DEFAULT_WEB_UI_PORT = 4174;
 
+let configLock: Promise<void> = Promise.resolve();
+
+async function withConfigLock<T>(fn: () => Promise<T>): Promise<T> {
+	let release!: () => void;
+	const next = new Promise<void>((resolve) => { release = resolve; });
+	const prev = configLock;
+	configLock = next;
+	await prev;
+	try {
+		return await fn();
+	} finally {
+		release();
+	}
+}
+
 export async function loadGlobalConfig(): Promise<RuntimeGlobalConfig> {
 	try {
 		const raw = await readFile(CONFIG_FILE, "utf-8");
@@ -34,8 +49,10 @@ export async function saveGlobalConfig(config: RuntimeGlobalConfig): Promise<voi
 }
 
 export async function updateGlobalConfig(patch: Partial<RuntimeGlobalConfig>): Promise<RuntimeGlobalConfig> {
-	const current = await loadGlobalConfig();
-	const updated = runtimeGlobalConfigSchema.parse({ ...current, ...patch });
-	await saveGlobalConfig(updated);
-	return updated;
+	return withConfigLock(async () => {
+		const current = await loadGlobalConfig();
+		const updated = runtimeGlobalConfigSchema.parse({ ...current, ...patch });
+		await saveGlobalConfig(updated);
+		return updated;
+	});
 }

@@ -14,12 +14,12 @@ export function BoardPage({ workspaceId, onConnectedChange, onAutonomousChange }
 
 	useEffect(() => {
 		onConnectedChange(connected);
-	}, [connected]);
+	}, [connected, onConnectedChange]);
 	useEffect(() => {
 		if (state) {
 			onAutonomousChange(state.autonomousModeEnabled);
 		}
-	}, [state]);
+	}, [state, onAutonomousChange]);
 
 	if (!connected && !state) {
 		return (

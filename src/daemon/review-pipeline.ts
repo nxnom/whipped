@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
+import { unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { commitIfDirty, createGithubPR, pushBranch } from "../git/merge-operations.js";
-import { CLAUDE_REVIEW_MCP_CONFIG_PATH, CLAUDE_TASK_SETTINGS_PATH, buildTaskHookEnv, writeClaudeReviewMcpConfig } from "../agents/agent-hooks.js";
+import { CLAUDE_TASK_SETTINGS_PATH, buildTaskHookEnv, getMcpConfigPath, writeClaudeMcpConfig } from "../agents/agent-hooks.js";
 import { spawnAgent } from "../agents/agent-runner.js";
 import type { AgentProcess } from "../agents/agent-runner.js";
 import type { RuntimeAgentId, RuntimeBoardCard, RuntimeReviewComment } from "../core/api-contract.js";
@@ -56,10 +57,6 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 	const { workspaceId, stateHub, serverUrl, mcpBinary, codeReviewAgent } = options;
 	const runId = Date.now();
 
-	// Write MCP config once per pipeline run so review agents can call kanban_add_comment
-	await writeClaudeReviewMcpConfig(mcpBinary, serverUrl, workspaceId, codeReviewAgent).catch(() => {});
-	// Mutate options in-place so all sub-functions receive the resolved path
-	options = { ...options, mcpConfigPath: CLAUDE_REVIEW_MCP_CONFIG_PATH };
 	const codeReviewStreamId = `${card.id}-cr-${runId}`;
 	const qaStreamId = `${card.id}-qa-${runId}`;
 
@@ -154,8 +151,10 @@ Call \`kanban_add_comment\` with cardId: "${card.id}" and type: "dev" when done.
 
 		const { codeReviewAgent, workspaceId, stateHub } = options;
 		const streamId = `${card.id}-dev-summary-${Date.now()}`;
+		const mcpConfigPath = getMcpConfigPath(streamId);
+		await writeClaudeMcpConfig(options.mcpBinary, options.serverUrl, workspaceId, codeReviewAgent, mcpConfigPath).catch(() => {});
 		const startTime = Date.now();
-		await runAgentOnce(codeReviewAgent, prompt, worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, options.mcpConfigPath, DEV_SUMMARY_SYSTEM_PROMPT);
+		await runAgentOnce(codeReviewAgent, prompt, worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, mcpConfigPath, DEV_SUMMARY_SYSTEM_PROMPT);
 
 		const stored = await getMcpComment(workspaceId, card.id, startTime, "dev");
 		logger.info(`[review:${card.id}] Dev summary ${stored ? "generated via MCP" : "not generated (agent did not call MCP)"}`);
@@ -179,8 +178,10 @@ async function runCodeReview(
 	const prompt = buildCodeReviewPrompt(card, diff);
 	const systemPrompt = buildReviewSystemPrompt(CODE_REVIEW_SYSTEM_PROMPT, customPrompt);
 	logger.info(`[review:${streamId}] Spawning code review agent (${codeReviewAgent}) for "${card.title}"`);
+	const mcpConfigPath = getMcpConfigPath(streamId);
+	await writeClaudeMcpConfig(options.mcpBinary, options.serverUrl, workspaceId, codeReviewAgent, mcpConfigPath).catch(() => {});
 	const startTime = Date.now();
-	const output = await runAgentOnce(codeReviewAgent, prompt, worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, options.mcpConfigPath, systemPrompt);
+	const output = await runAgentOnce(codeReviewAgent, prompt, worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, mcpConfigPath, systemPrompt);
 	logger.info(`[review:${streamId}] Code review agent done (${Date.now() - startTime}ms)`);
 
 	const mcpComment = await getMcpComment(workspaceId, card.id, startTime, "code_review");
@@ -209,8 +210,10 @@ async function runQA(
 	const prompt = buildQAPrompt(card);
 	const systemPrompt = buildReviewSystemPrompt(QA_SYSTEM_PROMPT, customPrompt);
 	logger.info(`[review:${streamId}] Spawning QA agent (${qaAgent}) for "${card.title}"`);
+	const mcpConfigPath = getMcpConfigPath(streamId);
+	await writeClaudeMcpConfig(options.mcpBinary, options.serverUrl, workspaceId, qaAgent, mcpConfigPath).catch(() => {});
 	const startTime = Date.now();
-	const output = await runAgentOnce(qaAgent, prompt, worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, options.mcpConfigPath, systemPrompt);
+	const output = await runAgentOnce(qaAgent, prompt, worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, mcpConfigPath, systemPrompt);
 	logger.info(`[review:${streamId}] QA agent done (${Date.now() - startTime}ms)`);
 
 	const mcpComment = await getMcpComment(workspaceId, card.id, startTime, "qa");
@@ -326,6 +329,7 @@ function runAgentOnce(
 			unregisterProcess?.();
 			proc.kill();
 			void saveTerminalBuffer(workspaceId, streamId, output);
+			if (mcpConfigPath) unlink(mcpConfigPath).catch(() => {});
 			resolve(output);
 		});
 
@@ -349,6 +353,7 @@ function runAgentOnce(
 				unregisterProcess?.();
 				unregister();
 				void saveTerminalBuffer(workspaceId, streamId, output);
+				if (mcpConfigPath) unlink(mcpConfigPath).catch(() => {});
 				resolve(output);
 			},
 		});

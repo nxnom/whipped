@@ -21,6 +21,7 @@ async function trpc<T>(procedure: string, input: unknown): Promise<T> {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify(input),
+		signal: AbortSignal.timeout(15000),
 	});
 	if (!res.ok) throw new Error(`tRPC ${procedure} failed: ${res.status} ${await res.text()}`);
 	const body = (await res.json()) as { result?: { data?: T } };
@@ -29,7 +30,9 @@ async function trpc<T>(procedure: string, input: unknown): Promise<T> {
 
 async function trpcQuery<T>(procedure: string, input: unknown): Promise<T> {
 	const encoded = encodeURIComponent(JSON.stringify(input));
-	const res = await fetch(`${serverUrl}/api/trpc/${procedure}?input=${encoded}`);
+	const res = await fetch(`${serverUrl}/api/trpc/${procedure}?input=${encoded}`, {
+		signal: AbortSignal.timeout(15000),
+	});
 	if (!res.ok) throw new Error(`tRPC ${procedure} failed: ${res.status} ${await res.text()}`);
 	const body = (await res.json()) as { result?: { data?: T } };
 	return body.result?.data as T;

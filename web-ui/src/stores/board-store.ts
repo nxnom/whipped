@@ -3,70 +3,92 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
 
 export function useWorkspaceState(workspaceId: string) {
-	const [state, setState] = useState<RuntimeWorkspaceStateResponse | null>(null);
-	const [connected, setConnected] = useState(false);
-	const wsRef = useRef<WebSocket | null>(null);
+    const [state, setState] = useState<RuntimeWorkspaceStateResponse | null>(null);
+    const [connected, setConnected] = useState(false);
+    const wsRef = useRef<WebSocket | null>(null);
+    const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const reconnectDelayRef = useRef(1000);
+    const mountedRef = useRef(true);
 
-	useEffect(() => {
-		setState(null);
-		const wsUrl = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`;
-		const ws = new WebSocket(wsUrl);
-		wsRef.current = ws;
+    const connect = useCallback(() => {
+        if (!mountedRef.current) return;
+        const wsUrl = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`;
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
 
-		ws.onopen = () => {
-			setConnected(true);
-			ws.send(JSON.stringify({ type: "subscribe", workspaceId }));
-		};
-		ws.onclose = () => setConnected(false);
+        ws.onopen = () => {
+            if (!mountedRef.current) { ws.close(); return; }
+            reconnectDelayRef.current = 1000; // reset backoff on success
+            setConnected(true);
+            ws.send(JSON.stringify({ type: "subscribe", workspaceId }));
+        };
 
-		ws.onmessage = (event) => {
-			try {
-				const msg = JSON.parse(event.data as string) as RuntimeStateEvent;
-				switch (msg.type) {
-					case "snapshot":
-					case "workspace_updated":
-						setState(msg.state);
-						break;
-					case "session_updated":
-						setState((prev) => (prev ? { ...prev, sessions: { ...prev.sessions, [msg.taskId]: msg.session } } : prev));
-						break;
-					case "autonomous_mode_changed":
-						setState((prev) => (prev ? { ...prev, autonomousModeEnabled: msg.enabled } : prev));
-						break;
-				}
-			} catch {
-				// ignore
-			}
-		};
+        ws.onclose = () => {
+            if (!mountedRef.current) return;
+            setConnected(false);
+            const delay = reconnectDelayRef.current;
+            reconnectDelayRef.current = Math.min(delay * 2, 30000); // cap at 30s
+            reconnectTimerRef.current = setTimeout(() => {
+                if (mountedRef.current) connect();
+            }, delay);
+        };
 
-		return () => {
-			ws.close();
-			wsRef.current = null;
-		};
-	}, [workspaceId]);
+        ws.onmessage = (event) => {
+            try {
+                const msg = JSON.parse(event.data as string) as RuntimeStateEvent;
+                switch (msg.type) {
+                    case "snapshot":
+                    case "workspace_updated":
+                        setState(msg.state);
+                        break;
+                    case "session_updated":
+                        setState((prev) => (prev ? { ...prev, sessions: { ...prev.sessions, [msg.taskId]: msg.session } } : prev));
+                        break;
+                    case "autonomous_mode_changed":
+                        setState((prev) => (prev ? { ...prev, autonomousModeEnabled: msg.enabled } : prev));
+                        break;
+                }
+            } catch {
+                // ignore
+            }
+        };
+    }, [workspaceId]);
 
-	const refetch = useCallback(async () => {
-		const fresh = await trpc.workspace.state.query({ workspaceId });
-		setState(fresh);
-	}, [workspaceId]);
+    useEffect(() => {
+        mountedRef.current = true;
+        reconnectDelayRef.current = 1000;
+        setState(null);
+        connect();
+        return () => {
+            mountedRef.current = false;
+            if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+            wsRef.current?.close();
+            wsRef.current = null;
+        };
+    }, [workspaceId, connect]);
 
-	const optimisticDeleteCard = useCallback((cardId: string) => {
-		setState((prev) => {
-			if (!prev) return prev;
-			const { [cardId]: _, ...cards } = prev.board.cards;
-			return {
-				...prev,
-				board: {
-					...prev.board,
-					cards,
-					columns: prev.board.columns.map((col) => ({
-						...col,
-						taskIds: col.taskIds.filter((id) => id !== cardId),
-					})),
-				},
-			};
-		});
-	}, []);
+    const refetch = useCallback(async () => {
+        const fresh = await trpc.workspace.state.query({ workspaceId });
+        setState(fresh);
+    }, [workspaceId]);
 
-	return { state, connected, refetch, optimisticDeleteCard, ws: wsRef };
+    const optimisticDeleteCard = useCallback((cardId: string) => {
+        setState((prev) => {
+            if (!prev) return prev;
+            const { [cardId]: _, ...cards } = prev.board.cards;
+            return {
+                ...prev,
+                board: {
+                    ...prev.board,
+                    cards,
+                    columns: prev.board.columns.map((col) => ({
+                        ...col,
+                        taskIds: col.taskIds.filter((id) => id !== cardId),
+                    })),
+                },
+            };
+        });
+    }, []);
+
+    return { state, connected, refetch, optimisticDeleteCard, ws: wsRef };
 }

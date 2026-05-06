@@ -18,7 +18,7 @@ export function AgentPage({ workspaceId }: Props) {
 			if (status.running && status.taskId) {
 				setTaskId(status.taskId);
 			}
-		}).catch(() => {});
+		}).catch((err) => console.warn("[AgentPage] Failed to load session status:", err));
 	}, [workspaceId]);
 
 	const startSession = async () => {
