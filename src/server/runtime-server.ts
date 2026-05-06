@@ -77,18 +77,19 @@ export async function createRuntimeServer(options: ServerOptions) {
 				const latestGithubClient = latestProjectConfig.github?.token
 					? createGithubClient(latestProjectConfig.github.token)
 					: undefined;
+				const reviewSlots = latestProjectConfig.agentSlots
+					.filter(s => s.type !== "dev" && s.enabled)
+					.sort((a, b) => a.order - b.order);
 				await runReviewPipeline(card, {
 					workspaceId,
 					repoPath: wsRepoPath,
 					serverUrl: `http://${host}:${port}`,
 					mcpBinary: getMcpServerPath(),
-					codeReviewAgent: latestConfig.review.codeReviewAgent,
-					qaAgent: latestConfig.review.qaAgent,
+					reviewSlots,
+					promptGroups: latestProjectConfig.promptGroups,
 					maxAutoFixAttempts: latestConfig.maxAutoFixAttempts,
 					stateHub,
 					githubClient: latestGithubClient,
-					codeReviewPrompt: latestProjectConfig.codeReviewPrompt,
-					qaPrompt: latestProjectConfig.qaPrompt,
 					autoPR: latestProjectConfig.autoPR ?? false,
 					registerStopCallback: scheduler.registerStopCallback.bind(scheduler),
 					registerLiveProcess: scheduler.registerLiveProcess.bind(scheduler),

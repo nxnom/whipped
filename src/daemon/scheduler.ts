@@ -8,7 +8,8 @@ import type { AgentProcess } from "../agents/agent-runner.js";
 import { spawnAgent } from "../agents/agent-runner.js";
 import { getAvailableAgents } from "../agents/agent-registry.js";
 import { CLAUDE_HOME_MCP_CONFIG_PATH, CLAUDE_TASK_SETTINGS_PATH, buildTaskHookEnv, getMcpConfigPath, writeClaudeMcpConfig, writeClaudeHomeSettings } from "../agents/agent-hooks.js";
-import type { RuntimeAgentId, RuntimeBoardCard } from "../core/api-contract.js";
+import type { AgentSlot, RuntimeAgentId, RuntimeBoardCard } from "../core/api-contract.js";
+import { buildDevAgentSystemPrompt } from "./review-pipeline.js";
 import { logger } from "../core/logger.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { appendActivityLog, appendTerminalSession, loadBoard, loadProjectConfig, moveCard, removeSession, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
@@ -154,8 +155,12 @@ export class TaskScheduler {
 
 	async startTask(card: RuntimeBoardCard): Promise<void> {
 		const { workspaceId, repoPath, stateHub } = this.options;
-		const agentId = card.agentId ?? this.options.defaultAgent;
 		const taskId = card.id;
+
+		// Reload project config early so we can resolve the dev slot + agent binary
+		const projectConfig = await loadProjectConfig(workspaceId);
+		const devSlotEarly: AgentSlot = projectConfig.agentSlots.find(s => s.type === "dev") ?? { id: "slot_dev", type: "dev" as const, name: "Dev", agentBinary: "claude" as const, order: 0, enabled: true };
+		const agentId = card.agentId ?? devSlotEarly.agentBinary;
 
 		// Guard: check agent binary is available before spawning
 		const available = getAvailableAgents().map((a) => a.id);
@@ -202,9 +207,6 @@ export class TaskScheduler {
 
 		// Create isolated worktree
 		const worktree = createWorktree(taskId, repoPath, effectiveBaseRef);
-
-		// Reload project config so latest prompts + setup config are used
-		const projectConfig = await loadProjectConfig(workspaceId);
 
 		// Move card + update session immediately so the UI reflects it before setup runs
 		const taskStartedAt = Date.now();
@@ -260,7 +262,11 @@ export class TaskScheduler {
 		}
 
 		const prompt = buildTaskPrompt();
-		const taskSystemPrompt = buildTaskAgentSystemPrompt(card, projectConfig.devPrompt);
+		const promptGroup = (card.promptGroupId
+			? projectConfig.promptGroups.find(g => g.id === card.promptGroupId)
+			: undefined) ?? projectConfig.promptGroups.find(g => g.isDefault);
+		const customPrompt = promptGroup?.prompts[devSlotEarly.id] ?? "";
+		const taskSystemPrompt = buildDevAgentSystemPrompt(devSlotEarly, card, customPrompt);
 
 		await appendActivityLog(workspaceId, taskId, `Agent ${agentId} started`);
 
@@ -563,41 +569,6 @@ function buildHomeAgentInitialMessage(): string {
 	return `Call kanban_get_board now, then greet the developer with a brief summary of the current board state and let them know you're ready to help.`;
 }
 
-function buildTaskAgentSystemPrompt(card: RuntimeBoardCard, customPrompt?: string): string {
-	const parts = [`You are an autonomous coding agent working on a Kanban task.
-
-Work autonomously without asking for permission or confirmation. You have full access to the codebase in your current working directory.
-
-When you finish your work:
-1. Commit all changes with a message that describes what this specific commit changes (not just the task title): \`git add -A && git commit -m "<what changed>"\`
-2. Call the \`kanban_add_comment\` MCP tool with:
-   - cardId: "${card.id}"
-   - type: "dev"
-   - passed: true
-   - content: a 2-4 sentence summary of what you implemented, key decisions, and any caveats`];
-
-	if (card.reviewComments && card.reviewComments.length > 0) {
-		const lines = ["## Previous Review Feedback (please address these issues)"];
-		for (const comment of card.reviewComments) {
-			const label = COMMENT_TYPE_LABEL[comment.type] ?? comment.type;
-			lines.push(`\n### ${label} (${comment.agent})\n${comment.content}`);
-		}
-		parts.push(lines.join("\n"));
-	}
-
-	if (customPrompt?.trim()) {
-		parts.push(`## Project-specific instructions\n\n${customPrompt.trim()}`);
-	}
-
-	return parts.join("\n\n");
-}
-
-const COMMENT_TYPE_LABEL: Record<string, string> = {
-	dev: "Dev Summary",
-	code_review: "Code Review",
-	qa: "QA",
-	human: "Human Feedback",
-};
 
 const CONFLICT_RESOLUTION_SYSTEM_PROMPT = `You are a merge conflict resolution agent. Your only job is to resolve git merge conflicts.
 
