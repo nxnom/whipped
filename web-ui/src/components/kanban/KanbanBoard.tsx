@@ -245,7 +245,6 @@ function CreateCardContent({
   const defaultWorkflow = workflows.find(w => w.isDefault);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [agentId, setAgentId] = useState<"claude" | "codex">("claude");
   const [priority, setPriority] = useState<string>("");
   const [dependsOn, setDependsOn] = useState<string[]>([]);
   const [baseRef, setBaseRef] = useState<string>("");
@@ -271,7 +270,6 @@ function CreateCardContent({
         workspaceId,
         title: title.trim(),
         description,
-        agentId,
         priority:
           (priority as "urgent" | "high" | "medium" | "low" | undefined) ||
           undefined,
@@ -332,14 +330,19 @@ function CreateCardContent({
             </Select>
           </div>
           <div>
-            <label className="text-xs text-gray-400 block mb-1">Agent</label>
+            <label className="text-xs text-gray-400 block mb-1">Workflow</label>
             <Select
-              value={agentId}
-              onChange={(v) => setAgentId(v as "claude" | "codex")}
-              placeholder="Select agent"
+              value={workflowId}
+              onChange={(v) => setWorkflowId(v as string)}
+              placeholder="Default"
             >
-              <SelectOption value="claude" label="Claude Code" />
-              <SelectOption value="codex" label="OpenAI Codex" />
+              {workflows.map((w) => (
+                <SelectOption
+                  key={w.id}
+                  value={w.id}
+                  label={w.name + (w.isDefault ? " (default)" : "")}
+                />
+              ))}
             </Select>
           </div>
         </div>
@@ -387,25 +390,6 @@ function CreateCardContent({
             ))}
           </Select>
         </div>
-        {workflows.length > 1 && (
-          <div>
-            <label className="text-xs text-gray-400 block mb-1">Workflow</label>
-            <Select
-              value={workflowId}
-              onChange={(v) => setWorkflowId(v as string)}
-              placeholder="Default"
-              clearable
-            >
-              {workflows.map((w) => (
-                <SelectOption
-                  key={w.id}
-                  value={w.id}
-                  label={w.name + (w.isDefault ? " (default)" : "")}
-                />
-              ))}
-            </Select>
-          </div>
-        )}
       </div>
 
       <div className="flex gap-2 mt-5 justify-end">

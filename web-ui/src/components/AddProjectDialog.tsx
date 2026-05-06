@@ -1,5 +1,6 @@
 import { Button, Input, Select, SelectOption, Switch, Textarea, toast } from "@geckoui/geckoui";
 import type { RuntimeProjectConfig } from "@runtime-contract";
+import { AGENT_BINARY_OPTIONS } from "@runtime-contract";
 import { AlertCircle, CheckCircle2, ChevronLeft, FolderOpen, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
@@ -204,15 +205,13 @@ function ConfigureStep({
 					<div>
 						<label className="text-xs text-gray-500 block mb-1">Dev agent</label>
 						<Select value={devBinary} onChange={(v) => onDevBinary(v as "claude" | "codex")}>
-							<SelectOption value="claude" label="claude" />
-							<SelectOption value="codex" label="codex" />
+							{AGENT_BINARY_OPTIONS.map(o => <SelectOption key={o.value} value={o.value} label={o.label} />)}
 						</Select>
 					</div>
 					<div>
 						<label className="text-xs text-gray-500 block mb-1">Code review agent</label>
 						<Select value={crBinary} onChange={(v) => onCrBinary(v as "claude" | "codex")}>
-							<SelectOption value="claude" label="claude" />
-							<SelectOption value="codex" label="codex" />
+							{AGENT_BINARY_OPTIONS.map(o => <SelectOption key={o.value} value={o.value} label={o.label} />)}
 						</Select>
 					</div>
 				</div>

@@ -1,5 +1,6 @@
 import { Button, Checkbox, Input, Select, SelectOption, Switch, Textarea, toast } from "@geckoui/geckoui";
 import type { Workflow, WorkflowSlot, RuntimeGlobalConfig, RuntimeJiraTicket, RuntimeProjectConfig, RuntimeWorktreeSetup } from "@runtime-contract";
+import { AGENT_BINARY_OPTIONS } from "@runtime-contract";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
 import { Bot, Download, GripVertical, Plus, RefreshCw, Settings2, Terminal, Ticket, Trash2, X, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -83,6 +84,7 @@ function NavGroup({
 
 function ProjectSettings({ workspaceId, section }: { workspaceId: string; section: ProjectSection }) {
 	const [config, setConfig] = useState<RuntimeProjectConfig | null>(null);
+	const [globalDefaultBinary, setGlobalDefaultBinary] = useState<"claude" | "codex">("claude");
 	const [saving, setSaving] = useState(false);
 	const [togglingAutonomous, setTogglingAutonomous] = useState(false);
 	const [jiraTickets, setJiraTickets] = useState<RuntimeJiraTicket[] | null>(null);
@@ -95,6 +97,10 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 		trpc.projectConfig.get
 			.query({ workspaceId })
 			.then(setConfig)
+			.catch(() => {});
+		trpc.config.get
+			.query()
+			.then((g) => setGlobalDefaultBinary(g.defaultAgent as "claude" | "codex"))
 			.catch(() => {});
 	}, [workspaceId]);
 
@@ -224,6 +230,7 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 			{section === "workflows" && (
 				<WorkflowsSection
 					workflows={config.workflows}
+					defaultBinary={globalDefaultBinary}
 					onChange={(workflows) => setConfig({ ...config, workflows })}
 					onSave={handleSave}
 					saving={saving}
@@ -351,11 +358,13 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 
 function WorkflowsSection({
 	workflows,
+	defaultBinary,
 	onChange,
 	onSave,
 	saving,
 }: {
 	workflows: Workflow[];
+	defaultBinary: "claude" | "codex";
 	onChange: (workflows: Workflow[]) => void;
 	onSave: () => void;
 	saving: boolean;
@@ -378,7 +387,7 @@ function WorkflowsSection({
 			id,
 			name: "New Workflow",
 			isDefault: false,
-			slots: [{ id: "dev", type: "dev", name: "Dev", agentBinary: "claude", order: 0, enabled: true, prompt: "" }],
+			slots: [{ id: "dev", type: "dev", name: "Dev", agentBinary: defaultBinary, order: 0, enabled: true, prompt: "" }],
 		};
 		onChange([...workflows, newWf]);
 		setSelectedId(id);
@@ -429,6 +438,7 @@ function WorkflowsSection({
 			{selectedWorkflow && (
 				<WorkflowEditor
 					workflow={selectedWorkflow}
+					defaultBinary={defaultBinary}
 					onUpdate={updateWorkflow}
 					onDelete={!selectedWorkflow.isDefault ? () => handleDeleteWorkflow(selectedWorkflow.id) : undefined}
 					onEditSlot={(slot) => setEditingSlot({ wfId: selectedWorkflow.id, slot })}
@@ -448,6 +458,7 @@ function WorkflowsSection({
 
 			{addingCustomTo !== null && (
 				<AddCustomAgentDialog
+					defaultBinary={defaultBinary}
 					onAdd={(name, binary, prompt) => {
 						const id = `slot_custom_${Date.now()}`;
 						const wf = workflows.find(w => w.id === addingCustomTo);
@@ -466,12 +477,14 @@ function WorkflowsSection({
 
 function WorkflowEditor({
 	workflow,
+	defaultBinary,
 	onUpdate,
 	onDelete,
 	onEditSlot,
 	onAddCustom,
 }: {
 	workflow: Workflow;
+	defaultBinary: "claude" | "codex";
 	onUpdate: (wf: Workflow) => void;
 	onDelete?: () => void;
 	onEditSlot: (slot: WorkflowSlot) => void;
@@ -510,7 +523,7 @@ function WorkflowEditor({
 			qa: { id: "qa", name: "QA", enabled: false },
 		};
 		const d = defaults[type];
-		const newSlot: WorkflowSlot = { ...d, type, agentBinary: "claude", order: maxOrder + 1, prompt: "" };
+		const newSlot: WorkflowSlot = { ...d, type, agentBinary: defaultBinary, order: maxOrder + 1, prompt: "" };
 		onUpdate({ ...workflow, slots: [...workflow.slots, newSlot] });
 	};
 
@@ -689,8 +702,7 @@ function AgentSlotDialog({
 
 				<Field label="Model">
 					<Select value={binary} onChange={(v) => setBinary(v as "claude" | "codex")}>
-						<SelectOption value="claude" label="claude" />
-						<SelectOption value="codex" label="codex" />
+						{AGENT_BINARY_OPTIONS.map(o => <SelectOption key={o.value} value={o.value} label={o.label} />)}
 					</Select>
 				</Field>
 
@@ -715,14 +727,16 @@ function AgentSlotDialog({
 }
 
 function AddCustomAgentDialog({
+	defaultBinary,
 	onAdd,
 	onClose,
 }: {
+	defaultBinary: "claude" | "codex";
 	onAdd: (name: string, binary: "claude" | "codex", prompt: string) => void;
 	onClose: () => void;
 }) {
 	const [name, setName] = useState("");
-	const [binary, setBinary] = useState<"claude" | "codex">("claude");
+	const [binary, setBinary] = useState<"claude" | "codex">(defaultBinary);
 	const [prompt, setPrompt] = useState("");
 	const [promptError, setPromptError] = useState("");
 
@@ -753,8 +767,7 @@ function AddCustomAgentDialog({
 					</Field>
 					<Field label="Model">
 						<Select value={binary} onChange={(v) => setBinary(v as "claude" | "codex")}>
-							<SelectOption value="claude" label="claude" />
-							<SelectOption value="codex" label="codex" />
+							{AGENT_BINARY_OPTIONS.map(o => <SelectOption key={o.value} value={o.value} label={o.label} />)}
 						</Select>
 					</Field>
 				</div>
@@ -979,8 +992,7 @@ function GlobalSettings({ section }: { section: GlobalSection }) {
 								onChange={(v) => setConfig({ ...config, defaultAgent: v as "claude" | "codex" })}
 								placeholder="Select agent"
 							>
-								<SelectOption value="claude" label="Claude Code" />
-								<SelectOption value="codex" label="OpenAI Codex" />
+								{AGENT_BINARY_OPTIONS.map(o => <SelectOption key={o.value} value={o.value} label={o.label} />)}
 							</Select>
 						</Field>
 						<div className="grid grid-cols-2 gap-3">

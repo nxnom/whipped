@@ -5,6 +5,11 @@ import { z } from "zod";
 export const runtimeAgentIdSchema = z.enum(["claude", "codex"]);
 export type RuntimeAgentId = z.infer<typeof runtimeAgentIdSchema>;
 
+export const AGENT_BINARY_OPTIONS: ReadonlyArray<{ value: RuntimeAgentId; label: string }> = [
+	{ value: "claude", label: "claude" },
+	{ value: "codex", label: "codex" },
+];
+
 // ─── Workflows ───────────────────────────────────────────────────────────────
 
 export const workflowSlotTypeSchema = z.enum(["dev", "code_review", "qa", "custom"]);
