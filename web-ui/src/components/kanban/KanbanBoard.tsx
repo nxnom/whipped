@@ -34,8 +34,8 @@ const DIALOG_CLASS = "w-full";
 
 export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, onOpenAgent }: KanbanBoardProps) {
   const navigate = useNavigate();
-  const { cardId: detailCardId } = useParams<{ workspaceId: string; cardId?: string }>();
-  const workspaceId = state.workspaceId;
+  const { workspaceId: urlWorkspaceId, cardId: detailCardId } = useParams<{ workspaceId: string; cardId?: string }>();
+  const workspaceId = urlWorkspaceId!;
   const detailCard = detailCardId ? (state.board.cards[detailCardId] ?? null) : null;
 
   const openCard = (id: string) => navigate(`/${encodeURIComponent(workspaceId)}/board/${encodeURIComponent(id)}`, { replace: true });
@@ -52,7 +52,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
           onDeleteCard(card.id);
           dismiss();
           await trpc.cards.delete.mutate({
-            workspaceId: state.workspaceId,
+            workspaceId: workspaceId,
             cardId: card.id,
           });
           onRefresh();
@@ -70,7 +70,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
       className: DIALOG_CLASS,
       content: ({ dismiss }) => (
         <CreateCardContent
-          workspaceId={state.workspaceId}
+          workspaceId={workspaceId}
           allCards={state.board.cards}
           workflows={state.projectConfig.workflows}
           dismiss={dismiss}
@@ -85,7 +85,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
       className: DIALOG_CLASS,
       content: ({ dismiss }) => (
         <EditCardContent
-          workspaceId={state.workspaceId}
+          workspaceId={workspaceId}
           card={card}
           allCards={state.board.cards}
           workflows={state.projectConfig.workflows}
@@ -115,7 +115,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
         try {
           for (const card of todoCards) {
             await trpc.cards.move.mutate({
-              workspaceId: state.workspaceId,
+              workspaceId: workspaceId,
               cardId: card!.id,
               targetColumnId: "ready_for_dev",
               revision: state.revision,
@@ -143,7 +143,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
 
     try {
       await trpc.cards.move.mutate({
-        workspaceId: state.workspaceId,
+        workspaceId: workspaceId,
         cardId: result.draggableId,
         targetColumnId: result.destination.droppableId as RuntimeBoardColumnId,
         targetIndex: result.destination.index,
@@ -202,7 +202,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
       {detailCard && (
         <CardDetailPanel
           card={detailCard}
-          workspaceId={state.workspaceId}
+          workspaceId={workspaceId}
           session={state.sessions[detailCard.id]}
           allCards={state.board.cards}
           workflowSlots={(
