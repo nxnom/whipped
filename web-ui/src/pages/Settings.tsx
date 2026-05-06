@@ -3,8 +3,9 @@ import type { Workflow, WorkflowSlot, RuntimeGlobalConfig, RuntimeJiraTicket, Ru
 import { AGENT_BINARY_OPTIONS } from "@runtime-contract";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
 import { Bot, Download, GripVertical, Plus, RefreshCw, Settings2, Terminal, Ticket, Trash2, X, Zap } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
+import { useWorkspaceState } from "@/stores/board-store";
 
 type ProjectSection = "autonomous" | "workflows" | "environment" | "jira";
 type GlobalSection = "general";
@@ -91,18 +92,35 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 	const [selectedTickets, setSelectedTickets] = useState<Set<string>>(new Set());
 	const [fetchingJira, setFetchingJira] = useState(false);
 	const [importing, setImporting] = useState(false);
+	const isDirtyRef = useRef(false);
 
+	const { state: wsState } = useWorkspaceState(workspaceId);
+
+	// Initial load of global config
 	useEffect(() => {
-		setConfig(null);
-		trpc.projectConfig.get
-			.query({ workspaceId })
-			.then(setConfig)
-			.catch(() => {});
 		trpc.config.get
 			.query()
 			.then((g) => setGlobalDefaultBinary(g.defaultAgent as "claude" | "codex"))
 			.catch(() => {});
+	}, []);
+
+	// Reset dirty flag when workspace changes
+	useEffect(() => {
+		setConfig(null);
+		isDirtyRef.current = false;
 	}, [workspaceId]);
+
+	// Sync config from live workspace state when not locally edited
+	useEffect(() => {
+		if (wsState?.projectConfig && !isDirtyRef.current) {
+			setConfig(wsState.projectConfig);
+		}
+	}, [wsState?.projectConfig]);
+
+	const updateConfig = (next: RuntimeProjectConfig) => {
+		isDirtyRef.current = true;
+		setConfig(next);
+	};
 
 	const handleToggleAutonomous = async () => {
 		if (!config) return;
@@ -110,7 +128,7 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 		setTogglingAutonomous(true);
 		try {
 			await trpc.workspace.setAutonomousMode.mutate({ workspaceId, enabled: next });
-			setConfig({ ...config, autonomousModeEnabled: next });
+			updateConfig({ ...config, autonomousModeEnabled: next });
 			toast.success(next ? "Autonomous mode on" : "Autonomous mode off");
 		} catch {
 			toast.error("Failed to toggle autonomous mode");
@@ -124,6 +142,7 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 		setSaving(true);
 		try {
 			await trpc.projectConfig.save.mutate({ workspaceId, config });
+			isDirtyRef.current = false;
 			toast.success("Project settings saved");
 		} catch {
 			toast.error("Failed to save project settings");
@@ -200,7 +219,7 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 							</div>
 							<Switch
 								checked={config.autoPR ?? false}
-								onChange={(v) => setConfig({ ...config, autoPR: v })}
+								onChange={(v) => updateConfig({ ...config, autoPR: v })}
 							/>
 						</div>
 
@@ -217,7 +236,7 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 								value={config.maxParallelTasks != null ? String(config.maxParallelTasks) : ""}
 								onChange={(e) => {
 									const v = e.target.value;
-									setConfig({ ...config, maxParallelTasks: v ? Math.max(1, Number(v)) : undefined });
+									updateConfig({ ...config, maxParallelTasks: v ? Math.max(1, Number(v)) : undefined });
 								}}
 								placeholder="Global"
 							/>
@@ -231,7 +250,7 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 				<WorkflowsSection
 					workflows={config.workflows}
 					defaultBinary={globalDefaultBinary}
-					onChange={(workflows) => setConfig({ ...config, workflows })}
+					onChange={(workflows) => updateConfig({ ...config, workflows })}
 					onSave={handleSave}
 					saving={saving}
 				/>
@@ -241,7 +260,7 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 				<EnvironmentSection
 					workspaceId={workspaceId}
 					setup={config.worktreeSetup ?? { filesToCopy: [], installCommand: "" }}
-					onChange={(worktreeSetup) => setConfig({ ...config, worktreeSetup })}
+					onChange={(worktreeSetup) => updateConfig({ ...config, worktreeSetup })}
 					onSave={handleSave}
 					saving={saving}
 				/>
@@ -257,7 +276,7 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 						<Field label="Host">
 							<Input
 								value={config.jira?.host ?? ""}
-								onChange={(e) => setConfig({ ...config, jira: { ...config.jira!, host: e.target.value } })}
+								onChange={(e) => updateConfig({ ...config, jira: { ...config.jira!, host: e.target.value } })}
 								placeholder="company.atlassian.net"
 							/>
 						</Field>
@@ -265,7 +284,7 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 							<Field label="Email">
 								<Input
 									value={config.jira?.email ?? ""}
-									onChange={(e) => setConfig({ ...config, jira: { ...config.jira!, email: e.target.value } })}
+									onChange={(e) => updateConfig({ ...config, jira: { ...config.jira!, email: e.target.value } })}
 									placeholder="you@company.com"
 								/>
 							</Field>
@@ -273,7 +292,7 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 								<Input
 									type="password"
 									value={config.jira?.token ?? ""}
-									onChange={(e) => setConfig({ ...config, jira: { ...config.jira!, token: e.target.value } })}
+									onChange={(e) => updateConfig({ ...config, jira: { ...config.jira!, token: e.target.value } })}
 									placeholder="••••••••"
 								/>
 							</Field>
@@ -281,7 +300,7 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 						<Field label="Project Key">
 							<Input
 								value={config.jira?.projectKey ?? ""}
-								onChange={(e) => setConfig({ ...config, jira: { ...config.jira!, projectKey: e.target.value } })}
+								onChange={(e) => updateConfig({ ...config, jira: { ...config.jira!, projectKey: e.target.value } })}
 								placeholder="ENG"
 							/>
 						</Field>
