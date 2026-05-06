@@ -1,9 +1,10 @@
 import { Button, ConfirmDialog, Select, SelectOption, Textarea, Tooltip, toast } from "@geckoui/geckoui";
 import type { WorkflowSlot, RuntimeBoardCard, RuntimeCardPriority, RuntimeTaskSessionSummary } from "@runtime-contract";
-import { ArrowLeft, ExternalLink, FolderOpen, GitMerge, GitPullRequest, Play, Square, TerminalSquare, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, FolderOpen, GitBranch, GitMerge, GitPullRequest, Play, Square, TerminalSquare, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { trpc } from "@/runtime/trpc-client";
+import { DiffView } from "./DiffView";
 
 interface Props {
 	card: RuntimeBoardCard;
@@ -88,6 +89,7 @@ const MAX_SIDEBAR = 520;
 const DEFAULT_SIDEBAR = 340;
 
 type SidebarTab = "overview" | "comments" | "activity";
+type RightTab = "terminal" | "diff";
 
 export function CardDetailPanel({ card, workspaceId, session, allCards, workflowSlots, onClose, onRefresh, onDeleteCard }: Props) {
 	const [activeStreamId, setActiveStreamId] = useState<string>(
@@ -98,6 +100,7 @@ export function CardDetailPanel({ card, workspaceId, session, allCards, workflow
 	const [merging, setMerging] = useState(false);
 	const [creatingPR, setCreatingPR] = useState(false);
 	const [activeTab, setActiveTab] = useState<SidebarTab>("overview");
+	const [rightTab, setRightTab] = useState<RightTab>("terminal");
 	const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR);
 	const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
 	const commentsEndRef = useRef<HTMLDivElement>(null);
@@ -140,6 +143,7 @@ export function CardDetailPanel({ card, workspaceId, session, allCards, workflow
 			prevCardIdRef.current = card.id;
 			setActiveStreamId(card.terminalSessions?.at(-1)?.streamId ?? card.id);
 			prevSessionLenRef.current = card.terminalSessions?.length ?? 0;
+			setRightTab("terminal");
 		}
 	}, [card.id]);
 
@@ -625,43 +629,59 @@ export function CardDetailPanel({ card, workspaceId, session, allCards, workflow
 				className="w-1 shrink-0 cursor-col-resize hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors bg-gray-800"
 			/>
 
-			{/* ── Terminal area ─────────────────────────────────────────── */}
+			{/* ── Right panel ───────────────────────────────────────────── */}
 			<div className="flex-1 min-w-0 flex flex-col bg-[#030712]">
-				{card.terminalSessions && card.terminalSessions.length > 1 && (
-					<div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-gray-800 bg-gray-900/50 shrink-0 overflow-x-auto">
-						{card.terminalSessions.map((ts) => (
-							<button
-								key={ts.streamId}
-								onClick={() => setActiveStreamId(ts.streamId)}
-								className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs whitespace-nowrap transition-colors ${
-									activeStreamId === ts.streamId
-										? "bg-gray-700 text-gray-100"
-										: "text-gray-500 hover:text-gray-300 hover:bg-gray-800"
-								}`}
-							>
-								<TerminalSquare size={10} />
-								{getSessionLabel(ts.type, workflowSlots)}
-								<span className="text-gray-600 tabular-nums">
-									{new Date(ts.startedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-								</span>
-							</button>
-						))}
+				{/* Tab bar */}
+				<div className="shrink-0 flex items-center border-b border-gray-800 bg-gray-900/40">
+					<button
+						onClick={() => setRightTab("terminal")}
+						className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-b-2 ${
+							rightTab === "terminal"
+								? "text-gray-100 border-blue-500"
+								: "text-gray-500 hover:text-gray-300 border-transparent"
+						}`}
+					>
+						<TerminalSquare size={11} /> Terminal
+					</button>
+					<button
+						onClick={() => setRightTab("diff")}
+						className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-b-2 ${
+							rightTab === "diff"
+								? "text-gray-100 border-blue-500"
+								: "text-gray-500 hover:text-gray-300 border-transparent"
+						}`}
+					>
+						<GitBranch size={11} /> Diff
+					</button>
+
 					</div>
+
+				{/* Terminal view */}
+				{rightTab === "terminal" && (
+					hasTerminalOutput ? (
+						<TaskTerminal
+							key={activeStreamId}
+							taskId={activeStreamId}
+							workspaceId={workspaceId}
+							className="flex-1"
+						/>
+					) : (
+						<div className="flex-1 flex items-center justify-center flex-col gap-3 text-gray-600">
+							<span className="text-4xl">⌨</span>
+							<p className="text-sm">No agent output yet</p>
+							<p className="text-xs">Start the agent to see terminal output here</p>
+						</div>
+					)
 				)}
 
-				{hasTerminalOutput ? (
-					<TaskTerminal
-						key={activeStreamId}
-						taskId={activeStreamId}
+				{/* Diff view */}
+				{rightTab === "diff" && (
+					<DiffView
 						workspaceId={workspaceId}
-						className="flex-1"
+						cardId={card.id}
+						isReadyForReview={isReadyForReview}
+						onRefresh={onRefresh}
 					/>
-				) : (
-					<div className="flex-1 flex items-center justify-center flex-col gap-3 text-gray-600">
-						<span className="text-4xl">⌨</span>
-						<p className="text-sm">No agent output yet</p>
-						<p className="text-xs">Start the agent to see terminal output here</p>
-					</div>
 				)}
 			</div>
 		</div>

@@ -512,6 +512,36 @@ export const appRouter = router({
 				ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
 				return { ok: true };
 			}),
+
+		getDiff: publicProcedure
+			.input(z.object({ workspaceId: z.string(), cardId: z.string() }))
+			.query(async ({ input }) => {
+				const { workspaceId, cardId } = input;
+				const workspaces = await listWorkspaces();
+				const ws = workspaces.find(w => w.workspaceId === workspaceId);
+				if (!ws) throw new TRPCError({ code: "NOT_FOUND", message: "Workspace not found" });
+
+				const board = await loadBoard(workspaceId);
+				const card = board.cards[cardId];
+				if (!card) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
+
+				const worktreePath = getWorktreePath(cardId);
+				const { existsSync } = await import("node:fs");
+				if (!existsSync(worktreePath)) {
+					return { diff: null, error: "No worktree — agent has not started yet" };
+				}
+
+				const result = spawnSync(
+					"git", ["diff", card.baseRef, "--no-color", "-U3"],
+					{ cwd: worktreePath, encoding: "utf-8", maxBuffer: 4 * 1024 * 1024 }
+				);
+
+				if (result.status !== 0 && result.stderr) {
+					return { diff: null, error: result.stderr.trim() };
+				}
+
+				return { diff: result.stdout ?? "", error: null };
+			}),
 	}),
 
 	// ─── Terminal ──────────────────────────────────────────────────────────────
