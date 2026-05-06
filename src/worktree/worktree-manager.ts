@@ -109,8 +109,12 @@ export function getWorktreeBranch(taskId: string): string {
 }
 
 export function getDefaultBranch(repoPath: string): string {
-	const result = git(["rev-parse", "--abbrev-ref", "HEAD"], repoPath);
-	return result.ok ? result.stdout : "main";
+	const remote = git(["rev-parse", "--abbrev-ref", "origin/HEAD"], repoPath);
+	if (remote.ok && remote.stdout.startsWith("origin/")) {
+		return remote.stdout.slice("origin/".length);
+	}
+	const local = git(["rev-parse", "--abbrev-ref", "HEAD"], repoPath);
+	return local.ok && local.stdout !== "HEAD" ? local.stdout : "main";
 }
 
 export function getCurrentCommitHash(worktreePath: string): string {

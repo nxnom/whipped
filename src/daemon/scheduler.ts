@@ -477,6 +477,10 @@ export class TaskScheduler {
 			secrets: projectConfig.secrets ?? [],
 			registerStopCallback: this.registerStopCallback.bind(this),
 			registerLiveProcess: this.registerLiveProcess.bind(this),
+			onChildReset: async (child) => {
+				const latestBoard = await loadBoard(workspaceId);
+				await this.triggerParentReopenCascade(child, latestBoard.cards);
+			},
 		});
 	}
 

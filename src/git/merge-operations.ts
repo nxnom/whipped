@@ -93,15 +93,26 @@ export async function createGithubPR(worktreePath: string, title: string, body: 
 	if (!head) throw new Error("Could not determine current branch");
 
 	const octokit = new Octokit({ auth: token });
-	const { data } = await octokit.pulls.create({
-		owner: remote.owner,
-		repo: remote.repo,
-		title,
-		body,
-		head,
-		base: baseRef,
-	});
-	return data.html_url;
+
+	try {
+		const { data } = await octokit.pulls.create({
+			owner: remote.owner,
+			repo: remote.repo,
+			title,
+			body,
+			head,
+			base: baseRef,
+		});
+		return data.html_url;
+	} catch (err: unknown) {
+		const msg = err instanceof Error ? err.message : String(err);
+		if (msg.includes("not all refs are readable")) {
+			throw new Error(
+				`GitHub token lacks 'Contents: Read' permission — edit your fine-grained PAT at github.com/settings/personal-access-tokens and add Repository > Contents > Read-only`,
+			);
+		}
+		throw err;
+	}
 }
 
 // Closes a GitHub PR via the REST API, optionally posting a comment first.

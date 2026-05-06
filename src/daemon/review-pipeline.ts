@@ -636,6 +636,7 @@ interface CascadeOptions {
 	secrets: RuntimeProjectSecret[];
 	registerStopCallback: ReviewPipelineOptions["registerStopCallback"];
 	registerLiveProcess: ReviewPipelineOptions["registerLiveProcess"];
+	onChildReset?: (child: RuntimeBoardCard) => Promise<void>;
 }
 
 export async function runParentReopenCascade(
@@ -675,6 +676,16 @@ export async function runParentReopenCascade(
 	await endTerminalSession(workspaceId, parentCard.id, streamId, Date.now());
 	logger.info(`[cascade] Cascade agent done for parent "${parentCard.title}"`);
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
+
+	// Recursively cascade on any children that were reset to todo
+	if (options.onChildReset) {
+		const afterBoard = await loadBoard(workspaceId);
+		const resetChildren = childCards.filter((child) => afterBoard.cards[child.id]?.columnId === "todo");
+		for (const child of resetChildren) {
+			logger.info(`[cascade] Recursing into reset child "${child.title}"`);
+			await options.onChildReset(child);
+		}
+	}
 }
 
 function buildCascadeSystemPrompt(parentCard: RuntimeBoardCard, parentBranch: string, childCards: RuntimeBoardCard[]): string {
