@@ -70,20 +70,6 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 	const freshBoard = await loadBoard(workspaceId);
 	card = freshBoard.cards[card.id] ?? card;
 
-	// Check if the dev agent wrote a summary during THIS run by comparing against the start
-	// time of the most recent dev terminal session. Falls back to 0 (first run / no session).
-	const devSessions = (card.terminalSessions ?? []).filter((s) => s.type === "dev");
-	const lastDevStartedAt = devSessions.at(-1)?.startedAt ?? 0;
-	const hasDevSummary = (card.reviewComments ?? []).some(
-		(c) => c.type === "dev" && c.createdAt >= lastDevStartedAt,
-	);
-
-	// If the dev agent didn't call kanban_add_comment, generate a summary as fallback.
-	if (!hasDevSummary) {
-		const fallback = await generateDevSummary(card, options);
-		if (fallback) card = { ...card, reviewComments: [...(card.reviewComments ?? []), fallback] };
-	}
-
 	await appendActivityLog(workspaceId, card.id, `Code review running (${options.codeReviewAgent})`);
 	await appendTerminalSession(workspaceId, card.id, { streamId: codeReviewStreamId, type: "code-review", startedAt: runId });
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
@@ -125,32 +111,6 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 			resolve();
 		});
 	});
-}
-
-async function generateDevSummary(
-	card: RuntimeBoardCard,
-	options: ReviewPipelineOptions,
-): Promise<RuntimeReviewComment | null> {
-	try {
-		logger.info(`[review:${card.id}] Generating dev summary for "${card.title}"`);
-		const worktreePath = getWorktreePath(card.id);
-		const stat = getGitStat(worktreePath, card.baseRef);
-		const fullDiff = getGitFullDiff(worktreePath, card.baseRef);
-
-		const { codeReviewAgent, workspaceId, stateHub } = options;
-		const streamId = `${card.id}-dev-summary-${Date.now()}`;
-		const mcpConfigPath = getMcpConfigPath(streamId);
-		await writeClaudeMcpConfig(options.mcpBinary, options.serverUrl, workspaceId, codeReviewAgent, mcpConfigPath).catch(() => {});
-		const startTime = Date.now();
-		await runAgentOnce(codeReviewAgent, "Start.", worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, mcpConfigPath, buildDevSummarySystemPrompt(card, stat, fullDiff));
-
-		const stored = await getMcpComment(workspaceId, card.id, startTime, "dev");
-		logger.info(`[review:${card.id}] Dev summary ${stored ? "generated via MCP" : "not generated (agent did not call MCP)"}`);
-		return stored;
-	} catch (err) {
-		logger.error({ err }, `[review:${card.id}] Dev summary generation failed:`);
-		return null;
-	}
 }
 
 async function runCodeReview(
@@ -423,34 +383,6 @@ function formatPriorComments(card: RuntimeBoardCard, types: string[]): string {
 
 const ALL_COMMENT_TYPES = ["dev", "code_review", "qa", "human"];
 const INLINE_DIFF_LIMIT = 8000;
-
-function buildDevSummarySystemPrompt(card: RuntimeBoardCard, stat: string, fullDiff: string): string {
-	const priorContext = formatPriorComments(card, ALL_COMMENT_TYPES);
-	const diffSection = fullDiff.length <= INLINE_DIFF_LIMIT
-		? `Git diff:\n${fullDiff}`
-		: `Large changeset. Changed files:\n${stat}\n\nUse \`git diff ${card.baseRef}...HEAD\` to read the full diff.`;
-
-	return `You are summarizing work done by an AI coding agent for a pull request.
-
-## Task
-"${card.title}"
-${card.description ? `\n${card.description}` : ""}${priorContext}
-
-## Changes
-${stat}
-
-${diffSection}
-
-## Instructions
-Write a concise PR-ready summary in 2-4 sentences covering:
-1. What was changed and why
-2. Any non-obvious technical decisions (skip anything self-evident from the diff)
-3. Caveats or follow-up items only if they exist
-
-Be specific. No headers, no bullet points, no prose that just restates the diff.
-
-When done, call the \`kanban_add_comment\` MCP tool with cardId: "${card.id}" and type: "dev".`;
-}
 
 function buildCodeReviewSystemPrompt(card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt?: string): string {
 	const priorContext = formatPriorComments(card, ALL_COMMENT_TYPES);
