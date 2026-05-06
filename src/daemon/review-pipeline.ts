@@ -134,27 +134,15 @@ async function generateDevSummary(
 	try {
 		logger.info(`[review:${card.id}] Generating dev summary for "${card.title}"`);
 		const worktreePath = getWorktreePath(card.id);
-		const diff = getGitDiff(worktreePath, card.baseRef);
-
-		const priorContext = formatPriorComments(card, ALL_COMMENT_TYPES);
-		const prompt = `Summarize the work done for task: "${card.title}"
-
-Task description:
-${card.description}${priorContext}
-
-Git diff of changes made:
-\`\`\`diff
-${diff}
-\`\`\`
-
-Call \`kanban_add_comment\` with cardId: "${card.id}" and type: "dev" when done.`;
+		const stat = getGitStat(worktreePath, card.baseRef);
+		const fullDiff = getGitFullDiff(worktreePath, card.baseRef);
 
 		const { codeReviewAgent, workspaceId, stateHub } = options;
 		const streamId = `${card.id}-dev-summary-${Date.now()}`;
 		const mcpConfigPath = getMcpConfigPath(streamId);
 		await writeClaudeMcpConfig(options.mcpBinary, options.serverUrl, workspaceId, codeReviewAgent, mcpConfigPath).catch(() => {});
 		const startTime = Date.now();
-		await runAgentOnce(codeReviewAgent, prompt, worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, mcpConfigPath, DEV_SUMMARY_SYSTEM_PROMPT);
+		await runAgentOnce(codeReviewAgent, "Start.", worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, mcpConfigPath, buildDevSummarySystemPrompt(card, stat, fullDiff));
 
 		const stored = await getMcpComment(workspaceId, card.id, startTime, "dev");
 		logger.info(`[review:${card.id}] Dev summary ${stored ? "generated via MCP" : "not generated (agent did not call MCP)"}`);
@@ -174,14 +162,14 @@ async function runCodeReview(
 	const { codeReviewAgent, workspaceId, stateHub } = options;
 	const worktreePath = getWorktreePath(card.id);
 
-	const diff = getGitDiff(worktreePath, card.baseRef);
-	const prompt = buildCodeReviewPrompt(card, diff);
-	const systemPrompt = buildReviewSystemPrompt(CODE_REVIEW_SYSTEM_PROMPT, customPrompt);
+	const stat = getGitStat(worktreePath, card.baseRef);
+	const fullDiff = getGitFullDiff(worktreePath, card.baseRef);
+	const systemPrompt = buildCodeReviewSystemPrompt(card, stat, fullDiff, customPrompt);
 	logger.info(`[review:${streamId}] Spawning code review agent (${codeReviewAgent}) for "${card.title}"`);
 	const mcpConfigPath = getMcpConfigPath(streamId);
 	await writeClaudeMcpConfig(options.mcpBinary, options.serverUrl, workspaceId, codeReviewAgent, mcpConfigPath).catch(() => {});
 	const startTime = Date.now();
-	const output = await runAgentOnce(codeReviewAgent, prompt, worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, mcpConfigPath, systemPrompt);
+	const output = await runAgentOnce(codeReviewAgent, "Start Code Review.", worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, mcpConfigPath, systemPrompt);
 	logger.info(`[review:${streamId}] Code review agent done (${Date.now() - startTime}ms)`);
 
 	const mcpComment = await getMcpComment(workspaceId, card.id, startTime, "code_review");
@@ -207,13 +195,13 @@ async function runQA(
 	const { qaAgent, workspaceId, stateHub } = options;
 	const worktreePath = getWorktreePath(card.id);
 
-	const prompt = buildQAPrompt(card);
-	const systemPrompt = buildReviewSystemPrompt(QA_SYSTEM_PROMPT, customPrompt);
+	const stat = getGitStat(worktreePath, card.baseRef);
+	const systemPrompt = buildQASystemPrompt(card, stat, customPrompt);
 	logger.info(`[review:${streamId}] Spawning QA agent (${qaAgent}) for "${card.title}"`);
 	const mcpConfigPath = getMcpConfigPath(streamId);
 	await writeClaudeMcpConfig(options.mcpBinary, options.serverUrl, workspaceId, qaAgent, mcpConfigPath).catch(() => {});
 	const startTime = Date.now();
-	const output = await runAgentOnce(qaAgent, prompt, worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, mcpConfigPath, systemPrompt);
+	const output = await runAgentOnce(qaAgent, "Start QA.", worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, mcpConfigPath, systemPrompt);
 	logger.info(`[review:${streamId}] QA agent done (${Date.now() - startTime}ms)`);
 
 	const mcpComment = await getMcpComment(workspaceId, card.id, startTime, "qa");
@@ -374,11 +362,9 @@ function readFileSafe(filePath: string): string {
 	}
 }
 
-function getGitDiff(worktreePath: string, baseRef: string): string {
-	const sections: string[] = [];
-
-	// 1. Stat summary — quick map of what changed
-	const statParts = [
+// Stat summary only — always small, safe to include in every prompt
+function getGitStat(worktreePath: string, baseRef: string): string {
+	const parts = [
 		git(["diff", "--stat", `${baseRef}...HEAD`], worktreePath),
 		git(["diff", "--stat", "--cached"], worktreePath),
 		git(["diff", "--stat"], worktreePath),
@@ -387,14 +373,16 @@ function getGitDiff(worktreePath: string, baseRef: string): string {
 	const newUntracked = git(["ls-files", "--others", "--exclude-standard"], worktreePath)
 		.split("\n").map((f) => f.trim()).filter(Boolean);
 	if (newUntracked.length > 0) {
-		statParts.push(`New files (untracked):\n${newUntracked.map((f) => `  ${f}`).join("\n")}`);
+		parts.push(`New files:\n${newUntracked.map((f) => `  ${f}`).join("\n")}`);
 	}
 
-	if (statParts.length > 0) {
-		sections.push("## Changed Files\n" + statParts.join("\n"));
-	}
+	return parts.join("\n") || "(no changes detected — agent may not have committed yet)";
+}
 
-	// 2. Diff with generous context (15 lines) so changed functions are fully visible
+// Full diff + new file contents — can be huge for large changesets
+function getGitFullDiff(worktreePath: string, baseRef: string): string {
+	const sections: string[] = [];
+
 	const diffParts = [
 		git(["diff", "-U15", `${baseRef}...HEAD`], worktreePath),
 		git(["diff", "-U15", "--cached"], worktreePath),
@@ -402,10 +390,11 @@ function getGitDiff(worktreePath: string, baseRef: string): string {
 	].filter(Boolean);
 
 	if (diffParts.length > 0) {
-		sections.push("## Diff (±15 lines context)\n```diff\n" + diffParts.join("\n") + "\n```");
+		sections.push("```diff\n" + diffParts.join("\n") + "\n```");
 	}
 
-	// 3. New untracked files — no diff exists, so include full content
+	const newUntracked = git(["ls-files", "--others", "--exclude-standard"], worktreePath)
+		.split("\n").map((f) => f.trim()).filter(Boolean);
 	if (newUntracked.length > 0) {
 		const newFileContents: string[] = [];
 		for (const file of newUntracked) {
@@ -413,14 +402,14 @@ function getGitDiff(worktreePath: string, baseRef: string): string {
 			const ext = file.split(".").pop() ?? "";
 			newFileContents.push(
 				content
-					? `### ${file} (new)\n\`\`\`${ext}\n${content}\n\`\`\``
-					: `### ${file} (new — unreadable)`,
+					? `### ${file}\n\`\`\`${ext}\n${content}\n\`\`\``
+					: `### ${file} (unreadable)`,
 			);
 		}
-		sections.push("## New Files (full content)\n\n" + newFileContents.join("\n\n"));
+		sections.push("New files (full content):\n\n" + newFileContents.join("\n\n"));
 	}
 
-	return sections.join("\n\n") || "(no changes detected — agent may not have committed yet)";
+	return sections.join("\n\n");
 }
 
 function formatPriorComments(card: RuntimeBoardCard, types: string[]): string {
@@ -432,84 +421,100 @@ function formatPriorComments(card: RuntimeBoardCard, types: string[]): string {
 }
 
 const ALL_COMMENT_TYPES = ["dev", "code_review", "qa", "human"];
+const INLINE_DIFF_LIMIT = 8000;
 
-function buildReviewSystemPrompt(base: string, custom?: string): string {
-	if (!custom?.trim()) return base;
-	return `${base}\n\n## Project-specific instructions\n\n${custom.trim()}`;
+function buildDevSummarySystemPrompt(card: RuntimeBoardCard, stat: string, fullDiff: string): string {
+	const priorContext = formatPriorComments(card, ALL_COMMENT_TYPES);
+	const diffSection = fullDiff.length <= INLINE_DIFF_LIMIT
+		? `Git diff:\n${fullDiff}`
+		: `Large changeset. Changed files:\n${stat}\n\nUse \`git diff ${card.baseRef}...HEAD\` to read the full diff.`;
+
+	return `You are summarizing work done by an AI coding agent for a pull request.
+
+## Task
+"${card.title}"
+${card.description ? `\n${card.description}` : ""}${priorContext}
+
+## Changes
+${stat}
+
+${diffSection}
+
+## Instructions
+Write a concise PR-ready summary in 2-4 sentences covering:
+1. What was changed and why
+2. Any non-obvious technical decisions (skip anything self-evident from the diff)
+3. Caveats or follow-up items only if they exist
+
+Be specific. No headers, no bullet points, no prose that just restates the diff.
+
+When done, call the \`kanban_add_comment\` MCP tool with cardId: "${card.id}" and type: "dev".`;
 }
 
-const DEV_SUMMARY_SYSTEM_PROMPT = `You are summarizing work done by an AI coding agent for a pull request.
+function buildCodeReviewSystemPrompt(card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt?: string): string {
+	const priorContext = formatPriorComments(card, ALL_COMMENT_TYPES);
+	const diffSection = fullDiff.length <= INLINE_DIFF_LIMIT
+		? `Git diff:\n${fullDiff}`
+		: `Large changeset (${fullDiff.length.toLocaleString()} chars). Use \`git diff ${card.baseRef}...HEAD\` and read individual files to explore — start with the stat above to decide where to focus.`;
 
-Write a concise PR-ready summary (3-6 sentences) covering:
-1. What was implemented or changed
-2. Key technical decisions made
-3. Any notable caveats or follow-up items
+	const custom = customPrompt?.trim() ? `\n\n## Project-specific instructions\n\n${customPrompt.trim()}` : "";
 
-Be factual and specific. Do not use bullet points — write in prose.
+	return `You are a senior code reviewer performing an automated review.
 
-When done, call the \`kanban_add_comment\` MCP tool with type "dev".`;
+## Task to review
+"${card.title}"
+${card.description ? `\n${card.description}` : ""}${priorContext}
 
-const CODE_REVIEW_SYSTEM_PROMPT = `You are a senior code reviewer performing an automated review.
+## Changed files
+${stat}
 
-## Review checklist
-- Correctness: does the implementation do what the task requires?
-- Security: any injection, auth bypass, data exposure, or unsafe operations?
-- Code quality: naming, duplication, unnecessary complexity, missing error handling?
-- Interface impact: for any changed function signature, type, or export — grep for callers and usages to check nothing is broken downstream
-- Test coverage: are there tests? do they cover the changed behaviour?
-- Previous feedback: verify all prior review failures and human feedback have been addressed
+## Diff
+${diffSection}
+
+## What to check
+- Correctness: does it do what the task requires?
+- Security: injection, auth bypass, data exposure, unsafe operations?
+- Interface impact: grep callers of any changed function/type/export to confirm nothing breaks downstream
+- Previous feedback: verify all prior review failures and human feedback are addressed
+- Test coverage: only mention if tests exist and are missing coverage, or if existing tests are broken
 
 ## How to work
-You have full access to the codebase. Don't rely only on the diff — use your tools:
-- Grep for callers of any changed function or type to check impact
-- Read test files related to changed code
-- Read type definitions and related modules when the change touches shared interfaces
+Use your tools — grep for callers, read type definitions, check related modules. Don't rely only on the diff.
 
-Be specific in your findings — file names, line numbers, exact patterns.
+## How to write your finding
+**If PASS:** Write 1-3 sentences. State what the implementation achieves correctly and note any non-obvious finding worth flagging. Do NOT restate things visible in the diff (field names, export chains, type signatures). Do NOT use headers or bullet points.
 
-When done, call the \`kanban_add_comment\` MCP tool with:
-- type: "code_review"
-- passed: true or false
-- content: start with "PASS: ..." or "FAIL: ..." followed by your findings`;
+**If FAIL:** Be specific — file name, line number, exact problem. One bullet per issue. State what must change.
 
-const QA_SYSTEM_PROMPT = `You are a QA engineer performing automated testing.
-
-Your testing approach:
-1. Identify the app type (web, API, React Native/Expo, etc.)
-2. Run appropriate tests:
-   - Web/API: use Playwright or HTTP requests
-   - React Native/Expo: run Jest tests and TypeScript checks
-   - Any app: run the existing test suite if available
-3. Verify previous QA failures and feedback have been addressed
-
-When done, call the \`kanban_add_comment\` MCP tool with:
-- type: "qa"
-- passed: true or false
-- content: start with "PASS: ..." or "FAIL: ..." followed by what was tested and the results`;
-
-function buildCodeReviewPrompt(card: RuntimeBoardCard, diff: string): string {
-	const priorContext = formatPriorComments(card, ALL_COMMENT_TYPES);
-	return `Review the changes for task: "${card.title}"
-
-Task description:
-${card.description}${priorContext}
-
-Git diff:
-\`\`\`diff
-${diff}
-\`\`\`
-
-Call \`kanban_add_comment\` with cardId: "${card.id}" when done.`;
+When done, call \`kanban_add_comment\` with cardId: "${card.id}", type: "code_review", passed: true/false, content starting with "PASS: ..." or "FAIL: ...".${custom}`;
 }
 
-function buildQAPrompt(card: RuntimeBoardCard): string {
+function buildQASystemPrompt(card: RuntimeBoardCard, stat: string, customPrompt?: string): string {
 	const priorContext = formatPriorComments(card, ALL_COMMENT_TYPES);
-	return `Test the implementation for task: "${card.title}"
+	const custom = customPrompt?.trim() ? `\n\n## Project-specific instructions\n\n${customPrompt.trim()}` : "";
 
-Task description:
-${card.description}${priorContext}
+	return `You are a QA engineer performing automated testing.
 
-Call \`kanban_add_comment\` with cardId: "${card.id}" when done.`;
+## Task to test
+"${card.title}"
+${card.description ? `\n${card.description}` : ""}${priorContext}
+
+## Changed files
+${stat}
+
+## What to do
+1. Identify the app type (web, API, React Native/Expo, library, etc.)
+2. Run the appropriate tests — existing test suite, TypeScript checks, Playwright, HTTP requests, etc.
+3. Verify previous QA failures and human feedback have been addressed
+
+## How to write your finding
+Report only what you ran and whether it passed. Nothing else.
+
+**If PASS:** One sentence per command run: "\`<command>\` — <result>." If no test suite exists, say so in one sentence. Do NOT describe the code, re-explain the implementation, restate exports, or summarize what the code reviewer already said.
+
+**If FAIL:** Exact command, exact error output, file and line if applicable. Be reproduction-ready.
+
+When done, call \`kanban_add_comment\` with cardId: "${card.id}", type: "qa", passed: true/false, content starting with "PASS: ..." or "FAIL: ...".${custom}`;
 }
 
 async function getMcpComment(

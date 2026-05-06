@@ -251,7 +251,7 @@ export class TaskScheduler {
 			}
 		}
 
-		const prompt = buildTaskPrompt(card);
+		const prompt = buildTaskPrompt();
 		const taskSystemPrompt = buildTaskAgentSystemPrompt(card, projectConfig.devPrompt);
 
 		await appendActivityLog(workspaceId, taskId, `Agent ${agentId} started`);
@@ -561,11 +561,22 @@ function buildTaskAgentSystemPrompt(card: RuntimeBoardCard, customPrompt?: strin
 
 Work autonomously without asking for permission or confirmation. You have full access to the codebase in your current working directory.
 
-When you finish your work, call the \`kanban_add_comment\` MCP tool with:
-- cardId: "${card.id}"
-- type: "dev"
-- passed: true
-- content: a 3-6 sentence PR-ready summary of what you implemented, key decisions made, and any caveats`];
+When you finish your work:
+1. Commit all changes with a message that describes what this specific commit changes (not just the task title): \`git add -A && git commit -m "<what changed>"\`
+2. Call the \`kanban_add_comment\` MCP tool with:
+   - cardId: "${card.id}"
+   - type: "dev"
+   - passed: true
+   - content: a 2-4 sentence summary of what you implemented, key decisions, and any caveats`];
+
+	if (card.reviewComments && card.reviewComments.length > 0) {
+		const lines = ["## Previous Review Feedback (please address these issues)"];
+		for (const comment of card.reviewComments) {
+			const label = COMMENT_TYPE_LABEL[comment.type] ?? comment.type;
+			lines.push(`\n### ${label} (${comment.agent})\n${comment.content}`);
+		}
+		parts.push(lines.join("\n"));
+	}
 
 	if (customPrompt?.trim()) {
 		parts.push(`## Project-specific instructions\n\n${customPrompt.trim()}`);
@@ -587,34 +598,23 @@ Rules:
 - Only edit files to remove conflict markers (<<<<<<< ======= >>>>>>>)
 - Preserve the intent of BOTH sides where possible; when in doubt keep the incoming (task) changes
 - Never refactor, rename, or change logic beyond resolving the conflict markers
-- After resolving all conflicts: git add -A && git commit -m "Resolve merge conflicts"
 - Exit when done`;
 
 function buildConflictResolutionPrompt(card: RuntimeBoardCard, conflictedFiles: string[]): string {
+	const descriptionSection = card.description?.trim()
+		? `\nTask description:\n${card.description.trim()}\n`
+		: "";
 	return `Resolve the git merge conflicts in this repository.
 
 Task being merged: "${card.title}"
-
+${descriptionSection}
 Conflicted files:
 ${conflictedFiles.map((f) => `- ${f}`).join("\n")}
 
-Resolve each conflict, then run: git add -A && git commit -m "Resolve merge conflicts for: ${card.title}"`;
+Resolve each conflict, preserving the task's intent. Then run:
+git add -A && git commit -m "Resolve merge conflicts for: ${card.title}"`;
 }
 
-function buildTaskPrompt(card: RuntimeBoardCard): string {
-	const parts = [`# Task: ${card.title}`, "", card.description];
-
-	if (card.reviewComments && card.reviewComments.length > 0) {
-		parts.push("", "## Previous Review Feedback (please address these issues)");
-		for (const comment of card.reviewComments) {
-			const label = COMMENT_TYPE_LABEL[comment.type] ?? comment.type;
-			parts.push(``, `### ${label} (${comment.agent})`, comment.content);
-		}
-	}
-
-	if (card.githubIssueUrl) {
-		parts.push("", `GitHub Issue: ${card.githubIssueUrl}`);
-	}
-
-	return parts.join("\n");
+function buildTaskPrompt(): string {
+	return "Start";
 }
