@@ -61,14 +61,13 @@ function displayName(comment: RuntimeReviewComment, slots?: WorkflowSlot[]): str
 	return type.charAt(0).toUpperCase() + type.slice(1);
 }
 
-const TYPE_STYLE: Record<string, string> = {
-	dev: "text-blue-400 bg-blue-400/10",
-	code_review: "text-purple-400 bg-purple-400/10",
-	qa: "text-cyan-400 bg-cyan-400/10",
+const MODEL_STYLE: Record<string, string> = {
+	claude: "text-orange-400 bg-orange-400/10",
+	codex: "text-emerald-400 bg-emerald-400/10",
 };
 
 function AgentBadge({ comment }: { comment: RuntimeReviewComment }) {
-	const { actor, type, status } = comment;
+	const { actor, status } = comment;
 
 	if (actor.type === "external") {
 		const label = (actor.source ?? "External").charAt(0).toUpperCase() + (actor.source ?? "External").slice(1);
@@ -80,8 +79,8 @@ function AgentBadge({ comment }: { comment: RuntimeReviewComment }) {
 	}
 	if (actor.type === "human") return null;
 
-	// AI actor
-	const className = TYPE_STYLE[type] ?? "text-gray-400 bg-gray-700/50";
+	// AI actor — color by model so the same model always looks the same
+	const className = MODEL_STYLE[actor.id] ?? "text-gray-400 bg-gray-700/50";
 	return (
 		<span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium ${className}`}>
 			{actor.id}
