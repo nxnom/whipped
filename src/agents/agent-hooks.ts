@@ -23,6 +23,7 @@ export async function writeClaudeTaskHookSettings(serverPort: number): Promise<v
 		`http://127.0.0.1:${serverPort}/api/hook?event=${event}&taskId=$${HOOK_TASK_ID_ENV}&workspaceId=$${HOOK_WORKSPACE_ID_ENV}`;
 
 	const settings = {
+		skipDangerousModePermissionPrompt: true,
 		hooks: {
 			Stop: [{ hooks: [{ type: "command", command: `curl -sg "${url("stop")}"` }] }],
 			UserPromptSubmit: [{ hooks: [{ type: "command", command: `curl -sg "${url("user_prompt")}"` }] }],
