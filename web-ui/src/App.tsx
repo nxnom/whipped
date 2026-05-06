@@ -2,7 +2,7 @@ import { GeckoUIPortal, toast } from "@geckoui/geckoui";
 import type { RuntimeProject } from "@runtime-contract";
 import { FolderOpen, Plus, Wifi, WifiOff } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Navigate, Route, Routes, useNavigate, useSearchParams } from "react-router-dom";
+import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { KanbanAgentPanel } from "@/components/KanbanAgentPanel";
@@ -12,8 +12,10 @@ import { trpc } from "@/runtime/trpc-client";
 
 export default function App() {
 	const navigate = useNavigate();
-	const [searchParams, setSearchParams] = useSearchParams();
-	const activeWorkspaceId = searchParams.get("ws");
+	const location = useLocation();
+
+	// Extract workspaceId from path: /:workspaceId/board or /:workspaceId/settings
+	const activeWorkspaceId = location.pathname.split("/").filter(Boolean)[0] ?? null;
 
 	const [projects, setProjects] = useState<RuntimeProject[]>([]);
 	const [connected, setConnected] = useState(false);
@@ -21,24 +23,8 @@ export default function App() {
 	const [showAddProject, setShowAddProject] = useState(false);
 	const [agentOpen, setAgentOpen] = useState(false);
 
-	const setActiveWorkspaceId = (id: string | null) => {
-		setSearchParams(
-			(prev) => {
-				const next = new URLSearchParams(prev);
-				if (id == null) next.delete("ws");
-				else next.set("ws", id);
-				return next;
-			},
-			{ replace: true },
-		);
-	};
-
 	const switchProject = (workspaceId: string) => {
-		navigate(`/board?ws=${encodeURIComponent(workspaceId)}`);
-	};
-
-	const goTo = (path: string) => {
-		navigate(activeWorkspaceId ? `${path}?ws=${encodeURIComponent(activeWorkspaceId)}` : path);
+		navigate(`/${encodeURIComponent(workspaceId)}/board`);
 	};
 
 	useEffect(() => {
@@ -51,7 +37,7 @@ export default function App() {
 			setProjects(list);
 			if (list.length > 0) {
 				const valid = list.some((p) => p.workspaceId === activeWorkspaceId);
-				if (!valid) setActiveWorkspaceId(list[0]!.workspaceId);
+				if (!valid) navigate(`/${encodeURIComponent(list[0]!.workspaceId)}/board`, { replace: true });
 			}
 		} catch {
 			toast.error("Failed to load projects");
@@ -136,40 +122,21 @@ export default function App() {
 						<ErrorBoundary>
 							<Routes>
 								<Route
-									path="/"
+									path="/:workspaceId/board"
 									element={
-										<Navigate
-											to={activeWorkspaceId ? `/board?ws=${encodeURIComponent(activeWorkspaceId)}` : "/board"}
-											replace
+										<BoardPage
+											onConnectedChange={setConnected}
+											onAutonomousChange={setAutonomousOn}
+											onOpenSettings={() => navigate(`/${encodeURIComponent(activeWorkspaceId!)}/settings`)}
+											onOpenAgent={() => setAgentOpen((v) => !v)}
 										/>
 									}
 								/>
 								<Route
-									path="/board"
-									element={
-										activeWorkspaceId ? (
-											<BoardPage
-												workspaceId={activeWorkspaceId}
-												onConnectedChange={setConnected}
-												onAutonomousChange={setAutonomousOn}
-												onOpenSettings={() => goTo("/settings")}
-												onOpenAgent={() => setAgentOpen((v) => !v)}
-											/>
-										) : (
-											noProjectState
-										)
-									}
+									path="/:workspaceId/settings"
+									element={<SettingsPage />}
 								/>
-								<Route
-									path="/settings"
-									element={
-										activeWorkspaceId ? (
-											<SettingsPage workspaceId={activeWorkspaceId} />
-										) : (
-											<Navigate to="/board" replace />
-										)
-									}
-								/>
+								<Route path="*" element={noProjectState} />
 							</Routes>
 						</ErrorBoundary>
 					</main>
@@ -188,7 +155,7 @@ export default function App() {
 						onClose={() => setShowAddProject(false)}
 						onAdded={(workspaceId) => {
 							loadProjects();
-							setActiveWorkspaceId(workspaceId);
+							navigate(`/${encodeURIComponent(workspaceId)}/board`);
 							setShowAddProject(false);
 						}}
 					/>

@@ -4,7 +4,7 @@ import { AGENT_BINARY_OPTIONS } from "@runtime-contract";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
 import { ArrowLeft, Bot, Download, GripVertical, Plus, RefreshCw, Settings2, Terminal, Ticket, Trash2, X, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { trpc } from "@/runtime/trpc-client";
 import { useWorkspaceState } from "@/stores/board-store";
 
@@ -25,12 +25,10 @@ const GLOBAL_NAV: Array<{ id: GlobalSection; label: string; icon: React.ReactNod
 
 const PROJECT_SECTIONS = new Set<SettingsSection>(["autonomous", "workflows", "environment", "jira"]);
 
-interface Props {
-	workspaceId: string;
-}
-
-export function SettingsPage({ workspaceId }: Props) {
+export function SettingsPage() {
 	const navigate = useNavigate();
+	const { workspaceId } = useParams<{ workspaceId: string }>();
+	if (!workspaceId) return null;
 	const [section, setSection] = useState<SettingsSection>("autonomous");
 	const isProject = PROJECT_SECTIONS.has(section);
 
