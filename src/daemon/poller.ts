@@ -239,7 +239,6 @@ export class BoardPoller {
 				const card = board.cards[taskId];
 				const session = state.sessions[taskId];
 				if (card && session?.state === "awaiting_review") {
-					logger.info(`[poller] Triggering review pipeline for "${card.title}"`);
 					onCardReadyForReview(card);
 				}
 			}

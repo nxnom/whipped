@@ -69,6 +69,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 		function startReview(card: RuntimeBoardCard): void {
 			if (activeReviews.has(card.id)) return;
 			activeReviews.add(card.id);
+			logger.info(`[server] Starting review pipeline for "${card.title}"`);
 
 			(async () => {
 				const latestConfig = await loadGlobalConfig();  // reload fresh each review
