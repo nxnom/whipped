@@ -263,19 +263,23 @@ export async function createRuntimeServer(options: ServerOptions) {
 				}
 			});
 
-			// Send snapshot: in-memory buffer first, then fall back to persisted disk file.
-			const memSnapshot =
-				schedulers.get(workspaceId)?.getOutputBuffer(taskId) ||
-				stateHub.getTerminalBuffer(workspaceId, taskId);
-
-			if (memSnapshot) {
-				if (ws.readyState === 1) ws.send(memSnapshot);
+			// Send snapshot: prefer active session buffer; fall back to hub/disk for completed tasks.
+			// null means no active session — safe to use stale fallback.
+			// "" means active session with no output yet — send nothing (blank terminal).
+			const activeBuffer = schedulers.get(workspaceId)?.getOutputBuffer(taskId) ?? null;
+			if (activeBuffer !== null) {
+				if (activeBuffer && ws.readyState === 1) ws.send(activeBuffer);
 			} else {
-				loadTerminalBuffer(workspaceId, taskId)
-					.then((diskSnapshot) => {
-						if (diskSnapshot && ws.readyState === 1) ws.send(diskSnapshot);
-					})
-					.catch(() => {});
+				const hubSnapshot = stateHub.getTerminalBuffer(workspaceId, taskId);
+				if (hubSnapshot) {
+					if (ws.readyState === 1) ws.send(hubSnapshot);
+				} else {
+					loadTerminalBuffer(workspaceId, taskId)
+						.then((diskSnapshot) => {
+							if (diskSnapshot && ws.readyState === 1) ws.send(diskSnapshot);
+						})
+						.catch(() => {});
+				}
 			}
 
 			// Forward keyboard input and resize messages from client to PTY

@@ -15,10 +15,11 @@ import type {
   RuntimeBoardColumnId,
   RuntimeWorkspaceStateResponse,
 } from "@runtime-contract";
-import { Plus } from "lucide-react";
+import { Bot, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
 import { useUrlParam } from "@/runtime/url-state";
+import { KanbanAgentPanel } from "@/components/KanbanAgentPanel";
 import { CardDetailPanel } from "./CardDetailPanel";
 import { KanbanColumn } from "./KanbanColumn";
 
@@ -31,6 +32,7 @@ interface KanbanBoardProps {
 const DIALOG_CLASS = "w-full";
 
 export function KanbanBoard({ state, onRefresh, onDeleteCard }: KanbanBoardProps) {
+  const [agentOpen, setAgentOpen] = useState(false);
   const [detailCardId, setDetailCardId] = useUrlParam("card");
   const detailCard = detailCardId
     ? (state.board.cards[detailCardId] ?? null)
@@ -150,59 +152,75 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard }: KanbanBoardProps
   };
 
   return (
-    <div className="flex-1 overflow-hidden flex flex-col relative">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
-        <h2 className="text-sm font-medium text-gray-300">Board</h2>
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="ghost" onClick={handleMoveAllToReady}>
-            Todo → Ready
-          </Button>
-          <Button size="sm" variant="outlined" onClick={openCreateDialog}>
-            <Plus size={13} className="mr-1" /> New task
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-x-auto">
-        <DragDropContext onDragEnd={handleDragEnd}>
-          <div className="flex gap-3 p-4 h-full">
-            {state.board.columns.map((column) => {
-              const cards = column.taskIds
-                .map((id) => state.board.cards[id])
-                .filter((c): c is RuntimeBoardCard => Boolean(c));
-              return (
-                <KanbanColumn
-                  key={column.id}
-                  column={column}
-                  cards={cards}
-                  allCards={state.board.cards}
-                  sessions={state.sessions}
-                  onCardClick={(card) => setDetailCardId(card.id)}
-                  onCardEdit={openEditDialog}
-                  onCardDelete={handleCardDelete}
-                />
-              );
-            })}
+    <div className="flex-1 overflow-hidden flex">
+      <div className="flex-1 overflow-hidden flex flex-col relative">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+          <h2 className="text-sm font-medium text-gray-300">Board</h2>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="ghost" onClick={handleMoveAllToReady}>
+              Todo → Ready
+            </Button>
+            <Button size="sm" variant="outlined" onClick={openCreateDialog}>
+              <Plus size={13} className="mr-1" /> New task
+            </Button>
+            <Button
+              size="sm"
+              variant={agentOpen ? "filled" : "ghost"}
+              onClick={() => setAgentOpen((v) => !v)}
+              title="Kanban Agent"
+            >
+              <Bot size={14} className="mr-1" /> Agent
+            </Button>
           </div>
-        </DragDropContext>
+        </div>
+
+        <div className="flex-1 overflow-x-auto">
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <div className="flex gap-3 p-4 h-full">
+              {state.board.columns.map((column) => {
+                const cards = column.taskIds
+                  .map((id) => state.board.cards[id])
+                  .filter((c): c is RuntimeBoardCard => Boolean(c));
+                return (
+                  <KanbanColumn
+                    key={column.id}
+                    column={column}
+                    cards={cards}
+                    allCards={state.board.cards}
+                    sessions={state.sessions}
+                    onCardClick={(card) => setDetailCardId(card.id)}
+                    onCardEdit={openEditDialog}
+                    onCardDelete={handleCardDelete}
+                  />
+                );
+              })}
+            </div>
+          </DragDropContext>
+        </div>
+
+        {detailCard && (
+          <CardDetailPanel
+            card={detailCard}
+            workspaceId={state.workspaceId}
+            session={state.sessions[detailCard.id]}
+            allCards={state.board.cards}
+            workflowSlots={(
+              state.projectConfig.workflows.find(w => w.id === detailCard.workflowId)
+              ?? state.projectConfig.workflows.find(w => w.isDefault)
+              ?? state.projectConfig.workflows[0]
+            )?.slots}
+            onClose={() => setDetailCardId(null)}
+            onRefresh={onRefresh}
+            onDeleteCard={onDeleteCard}
+          />
+        )}
       </div>
 
-      {detailCard && (
-        <CardDetailPanel
-          card={detailCard}
-          workspaceId={state.workspaceId}
-          session={state.sessions[detailCard.id]}
-          allCards={state.board.cards}
-          workflowSlots={(
-            state.projectConfig.workflows.find(w => w.id === detailCard.workflowId)
-            ?? state.projectConfig.workflows.find(w => w.isDefault)
-            ?? state.projectConfig.workflows[0]
-          )?.slots}
-          onClose={() => setDetailCardId(null)}
-          onRefresh={onRefresh}
-          onDeleteCard={onDeleteCard}
-        />
-      )}
+      <KanbanAgentPanel
+        workspaceId={state.workspaceId}
+        open={agentOpen}
+        onClose={() => setAgentOpen(false)}
+      />
     </div>
   );
 }

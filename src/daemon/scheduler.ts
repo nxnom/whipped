@@ -94,7 +94,11 @@ export class TaskScheduler {
 			this.homeSessions.delete(taskId);
 		}
 
-		const prompt = buildHomeAgentInitialMessage();
+		// Clear stale buffers so the new session starts with a blank terminal
+		this.recentBuffers.delete(taskId);
+		stateHub.clearTerminalBuffer(workspaceId, taskId);
+
+		const prompt = "";
 		const appendSystemPrompt = buildHomeAgentSystemPrompt(repoPath);
 		await writeClaudeHomeSettings(getMcpServerPath(), serverUrl, workspaceId).catch((err) => {
 			logger.warn({ err }, "[scheduler] Failed to write home agent MCP settings");
@@ -390,7 +394,7 @@ export class TaskScheduler {
 		}
 	}
 
-	getOutputBuffer(streamId: string): string {
+	getOutputBuffer(streamId: string): string | null {
 		// Active dev tasks: look up by streamId (unique per run)
 		for (const task of this.running.values()) {
 			if (task.streamId === streamId) return task.outputBuffer;
@@ -399,7 +403,7 @@ export class TaskScheduler {
 		const homeSession = this.homeSessions.get(streamId);
 		if (homeSession) return homeSession.outputBuffer;
 		// Completed tasks / recent buffers
-		return this.recentBuffers.get(streamId) ?? "";
+		return this.recentBuffers.get(streamId) ?? null;
 	}
 
 	resizeTerminal(streamId: string, cols: number, rows: number): void {
@@ -575,10 +579,6 @@ NEVER edit, create, or modify files in the workspace. Your only job is to manage
 - \`kanban_update_card\` — update a card's title or description
 - \`kanban_delete_card\` — delete a card
 - \`kanban_add_comment\` — record a comment on a card`;
-}
-
-function buildHomeAgentInitialMessage(): string {
-	return `Call kanban_get_board now, then greet the developer with a brief summary of the current board state and let them know you're ready to help.`;
 }
 
 

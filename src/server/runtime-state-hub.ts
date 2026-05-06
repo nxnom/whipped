@@ -102,6 +102,10 @@ export class RuntimeStateHub {
 		return this.terminalBuffers.get(`${workspaceId}:${streamId}`) ?? "";
 	}
 
+	clearTerminalBuffer(workspaceId: WorkspaceId, streamId: string): void {
+		this.terminalBuffers.delete(`${workspaceId}:${streamId}`);
+	}
+
 	broadcastAutonomousModeChange(workspaceId: WorkspaceId, enabled: boolean): void {
 		this.broadcastToWorkspace(workspaceId, { type: "autonomous_mode_changed", enabled });
 	}

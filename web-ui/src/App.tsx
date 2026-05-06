@@ -1,22 +1,18 @@
 import { GeckoUIPortal, toast } from "@geckoui/geckoui";
 import type { RuntimeProject } from "@runtime-contract";
-import { Bot, ChevronDown, FolderOpen, History, Kanban, Plus, Settings, Wifi, WifiOff } from "lucide-react";
+import { ChevronDown, FolderOpen, Kanban, Plus, Settings, Wifi, WifiOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { AgentPage } from "@/pages/AgentPage";
 import { BoardPage } from "@/pages/Board";
-import { HistoryPage } from "@/pages/History";
 import { SettingsPage } from "@/pages/Settings";
 import { trpc } from "@/runtime/trpc-client";
 import { useUrlParam } from "@/runtime/url-state";
 
-export type Page = "board" | "history" | "settings" | "agent";
+export type Page = "board" | "settings";
 
 const NAV_ITEMS: Array<{ id: Page; label: string; icon: React.ReactNode }> = [
 	{ id: "board", label: "Board", icon: <Kanban size={16} /> },
-	{ id: "agent", label: "Kanban Agent", icon: <Bot size={16} /> },
-	{ id: "history", label: "History", icon: <History size={16} /> },
 	{ id: "settings", label: "Settings", icon: <Settings size={16} /> },
 ];
 
@@ -29,10 +25,8 @@ export default function App() {
 	const [autonomousOn, setAutonomousOn] = useState(false);
 	const [showAddProject, setShowAddProject] = useState(false);
 	const [showProjectMenu, setShowProjectMenu] = useState(false);
-
 	const setPage = (p: Page) => {
 		setRawPage(p);
-		// Clear open card when navigating between pages
 		const params = new URLSearchParams(window.location.search);
 		params.delete("card");
 		const qs = params.toString();
@@ -154,8 +148,6 @@ export default function App() {
 										onAutonomousChange={setAutonomousOn}
 									/>
 								)}
-								{page === "agent" && <AgentPage workspaceId={activeWorkspaceId} />}
-								{page === "history" && <HistoryPage workspaceId={activeWorkspaceId} />}
 								{page === "settings" && <SettingsPage workspaceId={activeWorkspaceId} />}
 							</>
 						) : (
