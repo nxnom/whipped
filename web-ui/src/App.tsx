@@ -1,9 +1,10 @@
 import { GeckoUIPortal, toast } from "@geckoui/geckoui";
 import type { RuntimeProject } from "@runtime-contract";
-import { ChevronDown, FolderOpen, Kanban, Plus, Settings, Wifi, WifiOff } from "lucide-react";
+import { Bot, ChevronDown, FolderOpen, Kanban, Plus, Settings, Wifi, WifiOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { KanbanAgentPanel } from "@/components/KanbanAgentPanel";
 import { BoardPage } from "@/pages/Board";
 import { SettingsPage } from "@/pages/Settings";
 import { trpc } from "@/runtime/trpc-client";
@@ -25,6 +26,8 @@ export default function App() {
 	const [autonomousOn, setAutonomousOn] = useState(false);
 	const [showAddProject, setShowAddProject] = useState(false);
 	const [showProjectMenu, setShowProjectMenu] = useState(false);
+	const [agentOpen, setAgentOpen] = useState(false);
+
 	const setPage = (p: Page) => {
 		setRawPage(p);
 		const params = new URLSearchParams(window.location.search);
@@ -121,7 +124,7 @@ export default function App() {
 					</div>
 
 					{/* Nav */}
-					<div className="flex-1 py-1">
+					<div className="flex-1 py-1 flex flex-col">
 						{NAV_ITEMS.map((item) => (
 							<button
 								key={item.id}
@@ -133,38 +136,60 @@ export default function App() {
 								{item.label}
 							</button>
 						))}
+
+						{/* Agent toggle at the bottom */}
+						<div className="mt-auto border-t border-gray-800">
+							<button
+								onClick={() => setAgentOpen((v) => !v)}
+								className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors
+									${agentOpen ? "text-blue-400 bg-blue-400/10" : "text-gray-400 hover:text-gray-200 hover:bg-gray-900"}`}
+							>
+								<Bot size={16} />
+								Kanban Agent
+							</button>
+						</div>
 					</div>
 				</nav>
 
-				{/* Main */}
-				<main className="flex-1 overflow-hidden flex flex-col">
-					<ErrorBoundary>
-						{activeWorkspaceId ? (
-							<>
-								{page === "board" && (
-									<BoardPage
-										workspaceId={activeWorkspaceId}
-										onConnectedChange={setConnected}
-										onAutonomousChange={setAutonomousOn}
-									/>
-								)}
-								{page === "settings" && <SettingsPage workspaceId={activeWorkspaceId} />}
-							</>
-						) : (
-							<div className="flex-1 flex flex-col items-center justify-center gap-4 text-gray-500">
-								<FolderOpen size={40} />
-								<p className="text-sm">No project open</p>
-								<button
-									onClick={() => setShowAddProject(true)}
-									className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300"
-								>
-									<Plus size={14} />
-									Add a project
-								</button>
-							</div>
-						)}
-					</ErrorBoundary>
-				</main>
+				{/* Main + Agent panel */}
+				<div className="flex-1 overflow-hidden flex">
+					<main className="flex-1 overflow-hidden flex flex-col">
+						<ErrorBoundary>
+							{activeWorkspaceId ? (
+								<>
+									{page === "board" && (
+										<BoardPage
+											workspaceId={activeWorkspaceId}
+											onConnectedChange={setConnected}
+											onAutonomousChange={setAutonomousOn}
+										/>
+									)}
+									{page === "settings" && <SettingsPage workspaceId={activeWorkspaceId} />}
+								</>
+							) : (
+								<div className="flex-1 flex flex-col items-center justify-center gap-4 text-gray-500">
+									<FolderOpen size={40} />
+									<p className="text-sm">No project open</p>
+									<button
+										onClick={() => setShowAddProject(true)}
+										className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300"
+									>
+										<Plus size={14} />
+										Add a project
+									</button>
+								</div>
+							)}
+						</ErrorBoundary>
+					</main>
+
+					{activeWorkspaceId && (
+						<KanbanAgentPanel
+							workspaceId={activeWorkspaceId}
+							open={agentOpen}
+							onClose={() => setAgentOpen(false)}
+						/>
+					)}
+				</div>
 
 				{showAddProject && (
 					<AddProjectDialog

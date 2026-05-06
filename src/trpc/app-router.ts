@@ -14,6 +14,7 @@ import {
 	runtimeGlobalConfigSchema,
 	runtimeJiraImportRequestSchema,
 	runtimeProjectConfigSchema,
+	workflowSchema,
 } from "../core/api-contract.js";
 import type { BoardPoller } from "../daemon/poller.js";
 import type { TaskScheduler } from "../daemon/scheduler.js";
@@ -200,6 +201,41 @@ export const appRouter = router({
 			.input(z.object({ workspaceId: z.string(), config: runtimeProjectConfigSchema }))
 			.mutation(async ({ ctx, input }) => {
 				await saveProjectConfig(input.workspaceId, input.config);
+				ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
+				return { ok: true };
+			}),
+	}),
+
+	// ─── Workflows ────────────────────────────────────────────────────────────
+	workflows: router({
+		list: publicProcedure
+			.input(z.object({ workspaceId: z.string() }))
+			.query(async ({ input }) => {
+				const config = await loadProjectConfig(input.workspaceId);
+				return config.workflows;
+			}),
+
+		upsert: publicProcedure
+			.input(z.object({ workspaceId: z.string(), workflow: workflowSchema }))
+			.mutation(async ({ ctx, input }) => {
+				const config = await loadProjectConfig(input.workspaceId);
+				const idx = config.workflows.findIndex((w) => w.id === input.workflow.id);
+				if (idx >= 0) {
+					config.workflows[idx] = input.workflow;
+				} else {
+					config.workflows.push(input.workflow);
+				}
+				await saveProjectConfig(input.workspaceId, config);
+				ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
+				return input.workflow;
+			}),
+
+		delete: publicProcedure
+			.input(z.object({ workspaceId: z.string(), workflowId: z.string() }))
+			.mutation(async ({ ctx, input }) => {
+				const config = await loadProjectConfig(input.workspaceId);
+				config.workflows = config.workflows.filter((w) => w.id !== input.workflowId);
+				await saveProjectConfig(input.workspaceId, config);
 				ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
 				return { ok: true };
 			}),

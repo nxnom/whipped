@@ -189,5 +189,59 @@ server.registerTool(
 	},
 );
 
+server.registerTool(
+	"kanban_get_workflows",
+	{
+		description: "Get all workflows configured for this project, including their agent slots, models, and prompts.",
+		inputSchema: {},
+	},
+	async () => {
+		const workflows = await trpcQuery<Array<{
+			id: string; name: string; isDefault: boolean;
+			slots: Array<{ id: string; type: string; name: string; agentBinary: string; order: number; enabled: boolean; prompt: string }>;
+		}>>("workflows.list", { workspaceId });
+
+		const lines: string[] = [];
+		for (const wf of workflows) {
+			lines.push(`## ${wf.name}${wf.isDefault ? " (default)" : ""} [id: ${wf.id}]`);
+			const sorted = [...wf.slots].sort((a, b) => a.order - b.order);
+			for (const slot of sorted) {
+				const status = slot.enabled ? "enabled" : "disabled";
+				const prompt = slot.prompt ? `\n    prompt: ${slot.prompt.slice(0, 120)}${slot.prompt.length > 120 ? "..." : ""}` : "";
+				lines.push(`  - [${slot.id}] ${slot.name} (${slot.type}, ${slot.agentBinary}, ${status})${prompt}`);
+			}
+		}
+		return { content: [{ type: "text", text: lines.join("\n") || "No workflows configured." }] };
+	},
+);
+
+server.registerTool(
+	"kanban_upsert_workflow",
+	{
+		description: "Create or update a workflow. Pass the full workflow object including all slots. If a workflow with the given id already exists it will be replaced; otherwise a new one is created.",
+		inputSchema: {
+			id: z.string().describe("Unique workflow ID. Use a short slug like 'wf_security' for new workflows."),
+			name: z.string().describe("Human-readable workflow name, e.g. 'Security Review'"),
+			isDefault: z.boolean().optional().describe("Whether this is the default workflow (only one can be default)"),
+			slots: z.array(z.object({
+				id: z.string().describe("Unique slot ID within this workflow"),
+				type: z.enum(["dev", "code_review", "qa", "custom"]).describe("Slot type"),
+				name: z.string().describe("Display name for this slot"),
+				agentBinary: z.enum(["claude", "codex"]).describe("Agent binary to use"),
+				order: z.number().int().nonnegative().describe("Execution order (0 = first)"),
+				enabled: z.boolean().describe("Whether this slot is active in the pipeline"),
+				prompt: z.string().describe("System prompt / instructions for this agent slot. Empty string for default behavior."),
+			})).describe("Ordered list of agent slots in this workflow. Always include a dev slot (type: 'dev', order: 0)."),
+		},
+	},
+	async ({ id, name, isDefault, slots }) => {
+		const workflow = await trpc<{ id: string; name: string }>("workflows.upsert", {
+			workspaceId,
+			workflow: { id, name, isDefault: isDefault ?? false, slots },
+		});
+		return { content: [{ type: "text", text: `Workflow "${workflow.name}" [${workflow.id}] saved successfully.` }] };
+	},
+);
+
 const transport = new StdioServerTransport();
 await server.connect(transport);
