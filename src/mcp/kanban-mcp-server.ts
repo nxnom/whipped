@@ -165,7 +165,7 @@ server.registerTool(
 		inputSchema: {
 			cardId: z.string().describe("The card ID you are reviewing"),
 			content: z.string().describe("Your full comment — analysis, findings, summary, etc."),
-			type: z.enum(["dev", "code_review", "qa"]).describe("Type of comment"),
+			type: z.string().describe("Type of comment — use the slot id for custom agents (e.g. 'security_review')"),
 			passed: z.boolean().optional().describe("For code_review and qa: whether the check passed (true) or failed (false)"),
 		},
 	},
