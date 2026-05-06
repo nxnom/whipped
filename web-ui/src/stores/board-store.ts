@@ -17,14 +17,14 @@ export function useWorkspaceState(workspaceId: string) {
         wsRef.current = ws;
 
         ws.onopen = () => {
-            if (!mountedRef.current) { ws.close(); return; }
+            if (ws !== wsRef.current || !mountedRef.current) { ws.close(); return; }
             reconnectDelayRef.current = 1000; // reset backoff on success
             setConnected(true);
             ws.send(JSON.stringify({ type: "subscribe", workspaceId }));
         };
 
         ws.onclose = () => {
-            if (!mountedRef.current) return;
+            if (ws !== wsRef.current || !mountedRef.current) return;
             setConnected(false);
             const delay = reconnectDelayRef.current;
             reconnectDelayRef.current = Math.min(delay * 2, 30000); // cap at 30s
@@ -34,6 +34,7 @@ export function useWorkspaceState(workspaceId: string) {
         };
 
         ws.onmessage = (event) => {
+            if (ws !== wsRef.current) return;
             try {
                 const msg = JSON.parse(event.data as string) as RuntimeStateEvent;
                 switch (msg.type) {
