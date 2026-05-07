@@ -66,7 +66,7 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 	const freshBoard = await loadBoard(workspaceId);
 	card = freshBoard.cards[card.id] ?? card;
 	const lastTs = card.terminalSessions?.at(-1);
-	const isResume = lastTs?.state === "failed";
+	const isResume = lastTs?.state === "killed";
 	const lastDevTs = card.terminalSessions?.slice().reverse().find((ts) => ts.type === "dev");
 	const sessionStartedAt = lastDevTs?.startedAt ?? 0;
 

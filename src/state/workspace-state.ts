@@ -393,7 +393,7 @@ export async function closeAllOpenTerminalSessions(workspaceId: string, cardId: 
 		const card = board.cards[cardId];
 		if (!card) return;
 		const updated = card.terminalSessions?.map((s) =>
-			s.endedAt === undefined ? { ...s, endedAt, state: "failed" as const } : s,
+			s.endedAt === undefined ? { ...s, endedAt, state: "killed" as const } : s,
 		);
 		if (!updated) return;
 		board.cards[cardId] = { ...card, terminalSessions: updated };

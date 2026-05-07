@@ -234,7 +234,7 @@ export class TaskScheduler {
 				&& lastDevComment.createdAt >= lastDevTs.startedAt;
 			const lastTs = card.terminalSessions?.at(-1);
 
-			if (lastTs?.state === "failed" && devPassedPreviously) {
+			if (lastTs?.state === "killed" && devPassedPreviously) {
 				await moveCard(workspaceId, taskId, "in_progress");
 				await appendActivityLog(workspaceId, taskId, "Story resuming orchestrator workflow");
 				stateHub.broadcastWorkspaceUpdate(workspaceId);
@@ -274,10 +274,10 @@ export class TaskScheduler {
 			&& lastDevComment.createdAt >= lastDevTs.startedAt;
 		const lastTs = card.terminalSessions?.at(-1);
 		logger.info(`[scheduler] Resume check for "${card.title}": lastTsState=${lastTs?.state} devPassedInThisSession=${devPassedInThisSession} lastDevComment=${lastDevComment?.status} lastDevTsStart=${lastDevTs?.startedAt} devCreatedAt=${lastDevComment?.createdAt}`);
-		if (lastTs?.state === "failed" && devPassedInThisSession) {
+		if (lastTs?.state === "killed" && devPassedInThisSession) {
 			createWorktree(taskId, repoPath, effectiveBaseRef);
 			await moveCard(workspaceId, taskId, "in_progress");
-			await appendActivityLog(workspaceId, taskId, "Dev already completed — resuming AI review from last failed step");
+			await appendActivityLog(workspaceId, taskId, "Dev already completed — resuming AI review from last killed step");
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
 			this.options.onTaskCompleted(taskId);
 			return;

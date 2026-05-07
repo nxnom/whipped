@@ -147,6 +147,7 @@ export const runtimeTaskSessionStateSchema = z.enum([
 	"stopped",
 	"completed",
 	"failed",
+	"killed",
 ]);
 export type RuntimeTaskSessionState = z.infer<typeof runtimeTaskSessionStateSchema>;
 
