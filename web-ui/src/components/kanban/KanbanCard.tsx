@@ -1,12 +1,13 @@
 import { Draggable } from "@hello-pangea/dnd";
 import type { RuntimeBoardCard } from "@runtime-contract";
-import { Bot, ExternalLink, FolderOpen, GitPullRequest, Link2, Pencil, RotateCcw, Trash2, Zap } from "lucide-react";
+import { Bot, ExternalLink, FolderOpen, GitPullRequest, Link2, Pencil, RotateCcw, Trash2, Workflow, Zap } from "lucide-react";
 import { trpc } from "@/runtime/trpc-client";
 
 interface KanbanCardProps {
 	card: RuntimeBoardCard;
 	index: number;
 	allCards: Record<string, RuntimeBoardCard>;
+	workflowName?: string;
 	onClick: () => void;
 	onEdit?: () => void;
 	onDelete?: () => void;
@@ -31,7 +32,7 @@ const SESSION_STATE_COLORS: Record<string, string> = {
 	failed: "text-red-400",
 };
 
-export function KanbanCard({ card, index, allCards, onClick, onEdit, onDelete, onToggleReady }: KanbanCardProps) {
+export function KanbanCard({ card, index, allCards, workflowName, onClick, onEdit, onDelete, onToggleReady }: KanbanCardProps) {
 	const isRunning = card.terminalSessions?.some((ts) => !ts.endedAt) ?? false;
 	const agentLabel = card.agentId ? AGENT_LABELS[card.agentId] : null;
 	const lastTs = card.terminalSessions?.at(-1);
@@ -130,6 +131,12 @@ export function KanbanCard({ card, index, allCards, onClick, onEdit, onDelete, o
 							<span className="flex items-center gap-1 text-xs text-gray-400 bg-gray-700 rounded px-1.5 py-0.5">
 								<Bot size={10} />
 								{agentLabel}
+							</span>
+						)}
+						{workflowName && (
+							<span className="flex items-center gap-1 text-xs text-purple-400 bg-purple-400/10 rounded px-1.5 py-0.5">
+								<Workflow size={10} />
+								{workflowName}
 							</span>
 						)}
 

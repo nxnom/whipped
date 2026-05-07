@@ -299,7 +299,7 @@ export async function moveCard(
 export async function createCard(
 	workspaceId: string,
 	data: Pick<RuntimeBoardCard, "title" | "description"> &
-		Partial<Pick<RuntimeBoardCard, "agentId" | "priority" | "readyForDev" | "dependsOn" | "columnId" | "githubIssueUrl" | "jiraKey" | "jiraUrl">>,
+		Partial<Pick<RuntimeBoardCard, "agentId" | "priority" | "readyForDev" | "dependsOn" | "columnId" | "githubIssueUrl" | "jiraKey" | "jiraUrl" | "workflowId">>,
 	baseRef: string,
 ): Promise<RuntimeBoardCard> {
 	return withLock(workspaceId, async () => {
@@ -323,6 +323,7 @@ export async function createCard(
 			githubIssueUrl: data.githubIssueUrl,
 			jiraKey: data.jiraKey,
 			jiraUrl: data.jiraUrl,
+			workflowId: data.workflowId,
 			reviewComments: [],
 			activityLog: [],
 			terminalSessions: [],

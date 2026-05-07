@@ -203,7 +203,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
                     column={column}
                     cards={cards}
                     allCards={state.board.cards}
-
+                    workflows={state.projectConfig.workflows}
                     onCardClick={(card) => openCard(card.id)}
                     onCardEdit={openEditDialog}
                     onCardDelete={handleCardDelete}
