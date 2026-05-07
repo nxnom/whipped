@@ -313,6 +313,13 @@ export const appRouter = router({
 					return { status: "merged" as const };
 				}
 
+				if (mergeResult.dirtyBase) {
+					throw new TRPCError({
+						code: "PRECONDITION_FAILED",
+						message: "Cannot merge: the base branch has uncommitted or staged changes. Commit or stash them first.",
+					});
+				}
+
 				// Conflicts in the main repo — spawn conflict resolution agent
 				await appendActivityLog(workspaceId, cardId, `Merge conflicts in: ${mergeResult.conflictedFiles.join(", ")} — resolving...`);
 				ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);

@@ -42,6 +42,7 @@ export async function commitIfDirty(worktreePath: string, message: string): Prom
 export interface MergeResult {
 	ok: boolean;
 	conflictedFiles: string[];
+	dirtyBase?: boolean;
 }
 
 export function attemptMerge(repoPath: string, taskId: string, taskBranch: string): MergeResult {
@@ -50,6 +51,13 @@ export function attemptMerge(repoPath: string, taskId: string, taskBranch: strin
 	if (existsSync(worktreePath)) {
 		rmSync(worktreePath, { recursive: true, force: true });
 		git(["worktree", "prune"], repoPath);
+	}
+
+	// Refuse early if the base repo has staged or unstaged changes — git merge would
+	// reject with a non-conflict error and leave the task branch unmerged.
+	const statusResult = git(["status", "--porcelain"], repoPath);
+	if (statusResult.stdout.trim()) {
+		return { ok: false, conflictedFiles: [], dirtyBase: true };
 	}
 
 	const mergeResult = git(
