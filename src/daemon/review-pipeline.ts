@@ -265,6 +265,7 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 		const githubToken = options.secrets.find((s) => s.key === "GITHUB_TOKEN")?.value;
 		if (!githubToken) {
 			logger.warn(`[review] Auto PR skipped for "${card.title}" — GITHUB_TOKEN not set in project secrets`);
+			await appendActivityLog(workspaceId, card.id, "Auto PR skipped — GITHUB_TOKEN not set in project Settings > Secrets.");
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
 			return;
 		}

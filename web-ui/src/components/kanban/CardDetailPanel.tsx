@@ -194,6 +194,10 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 				setCreatingPR(true);
 				try {
 					const result = await trpc.cards.commitAndPR.mutate({ workspaceId, cardId: card.id });
+					if (result.status === "no_token") {
+						toast.error("GitHub token not configured — add GITHUB_TOKEN in project Settings > Secrets.");
+						return;
+					}
 					toast.success("PR created");
 					window.open(result.prUrl, "_blank");
 					onRefresh();
