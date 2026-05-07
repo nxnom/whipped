@@ -396,7 +396,7 @@ function CreateCardContent({
             filterable
             clearable
           >
-            {Object.values(allCards).map((c) => (
+            {Object.values(allCards).filter((c) => c.columnId !== "done").map((c) => (
               <SelectOption
                 key={c.id}
                 value={c.id}
@@ -551,7 +551,7 @@ function EditCardContent({
             clearable
           >
             {Object.values(allCards)
-              .filter((c) => c.id !== card.id)
+              .filter((c) => c.id !== card.id && c.columnId !== "done")
               .map((c) => (
                 <SelectOption
                   key={c.id}
