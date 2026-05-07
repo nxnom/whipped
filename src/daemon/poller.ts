@@ -343,6 +343,7 @@ export class BoardPoller {
 			} else if (changesRequested || authorCommented) {
 				const reason = changesRequested ? "Changes Requested review submitted" : `PR author (${info.author}) commented`;
 				logger.info(`[poller] "${card.title}": ${reason} → Reopened`);
+				await updateCard(workspaceId, taskId, { autoFixAttempts: 0 });
 				await moveCard(workspaceId, taskId, "reopened");
 				await appendActivityLog(workspaceId, taskId, `${reason} → Reopened`);
 				await removeSession(workspaceId, taskId);

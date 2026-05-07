@@ -414,6 +414,7 @@ export const appRouter = router({
 					await removeSession(workspaceId, cardId);
 				}
 				if (targetColumnId === "reopened") {
+					await updateCard(workspaceId, cardId, { autoFixAttempts: 0 });
 					const moveScheduler = ctx.getScheduler(workspaceId);
 					if (moveScheduler) {
 						const movedBoard = await loadBoard(workspaceId);
@@ -533,7 +534,7 @@ export const appRouter = router({
 						},
 					]
 					: (card.reviewComments ?? []);
-				await updateCard(input.workspaceId, input.cardId, { reviewComments: updatedComments });
+				await updateCard(input.workspaceId, input.cardId, { reviewComments: updatedComments, autoFixAttempts: 0 });
 				await moveCard(input.workspaceId, input.cardId, "reopened");
 				await removeSession(input.workspaceId, input.cardId);
 				await appendActivityLog(input.workspaceId, input.cardId, "Human feedback submitted → moved to Reopened");
