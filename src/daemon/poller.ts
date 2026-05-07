@@ -188,6 +188,7 @@ export class BoardPoller {
 	async poll(): Promise<void> {
 		const { workspaceId, repoPath, scheduler, onCardReadyForReview } = this.options;
 		const state = await loadWorkspaceState(workspaceId, repoPath);
+
 		if (!state.autonomousModeEnabled) return;
 
 		const board = state.board;

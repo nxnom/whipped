@@ -113,8 +113,10 @@ export async function createRuntimeServer(options: ServerOptions) {
 				const latestProjectConfig = await loadProjectConfig(workspaceId);
 				const latestGithubToken = resolveGithubToken(latestProjectConfig);
 				const latestGithubClient = latestGithubToken ? createGithubClient(latestGithubToken) : undefined;
+				const isStoryCard = card.type === "story";
 				const cardWorkflow = latestProjectConfig.workflows.find(w => w.id === card.workflowId)
-					?? latestProjectConfig.workflows.find(w => w.isDefault)
+					?? latestProjectConfig.workflows.find(w => w.isDefault && w.forStory === isStoryCard)
+					?? latestProjectConfig.workflows.find(w => w.forStory === isStoryCard)
 					?? latestProjectConfig.workflows[0];
 				const reviewSlots = (cardWorkflow?.slots ?? [])
 					.filter(s => s.type !== "dev" && s.enabled)

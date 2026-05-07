@@ -76,8 +76,18 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 	const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR);
 	const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
+	const isStory = card.type === "story";
 	const isReadyForReview = card.columnId === "ready_for_review";
-	const commentCount = card.reviewComments?.length ?? 0;
+
+	// Story cards have a synthetic dev session/comment that is an implementation
+	// detail — hide it so the user only sees the real orch sessions/comments.
+	const visibleSessions = isStory
+		? (card.terminalSessions ?? []).filter((ts) => ts.type !== "dev")
+		: (card.terminalSessions ?? []);
+	const commentCount = isStory
+		? (card.reviewComments ?? []).filter((c) => c.type !== "dev").length
+			+ (card.dependsOn ?? []).reduce((sum, depId) => sum + (allCards?.[depId]?.reviewComments?.length ?? 0), 0)
+		: (card.reviewComments?.length ?? 0);
 
 
 	// ── Resize drag handle ─────────────────────────────────────────────────
@@ -123,7 +133,7 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 
 	const isRunning = card.terminalSessions?.some((ts) => !ts.endedAt) ?? false;
 	const activeTerminalSession = card.terminalSessions?.find((ts) => !ts.endedAt);
-	const hasTerminalOutput = (card.terminalSessions?.length ?? 0) > 0;
+	const hasTerminalOutput = visibleSessions.length > 0;
 
 	// ── Handlers ───────────────────────────────────────────────────────────
 	const handleStart = async () => {
@@ -355,11 +365,11 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 								</div>
 							)}
 
-							{card.terminalSessions && card.terminalSessions.length > 0 && (
+							{visibleSessions.length > 0 && (
 								<div>
 									<h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Sessions</h4>
 									<div className="space-y-1">
-										{card.terminalSessions.map((ts) => {
+										{visibleSessions.map((ts) => {
 											const isActive = !ts.endedAt;
 											const isSelected = activeStreamId === ts.streamId;
 											const tsState = isActive ? "running" : ts.state;
@@ -434,7 +444,15 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 						</Button>
 					</Tooltip>
 
-					{isReadyForReview ? (
+					{isStory ? (
+						isRunning && (
+							<Tooltip content="Interrupt the running agent" side="top" triggerAsChild>
+								<Button variant="outlined" size="sm" onClick={handleStop}>
+									<Square size={12} className="mr-1" /> Stop
+								</Button>
+							</Tooltip>
+						)
+					) : isReadyForReview ? (
 						<div className="flex gap-1.5">
 							<Tooltip content={`Commit & merge directly into ${card.baseRef}`} side="top" triggerAsChild>
 								<Button variant="outlined" size="sm" onClick={handleCommitAndMerge} disabled={merging || creatingPR}>
@@ -500,16 +518,18 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 					>
 						<TerminalSquare size={11} /> Terminal
 					</button>
-					<button
-						onClick={() => setRightTab("diff")}
-						className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-b-2 ${
-							rightTab === "diff"
-								? "text-gray-100 border-blue-500"
-								: "text-gray-500 hover:text-gray-300 border-transparent"
-						}`}
-					>
-						<GitBranch size={11} /> Diff
-					</button>
+					{!isStory && (
+						<button
+							onClick={() => setRightTab("diff")}
+							className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-b-2 ${
+								rightTab === "diff"
+									? "text-gray-100 border-blue-500"
+									: "text-gray-500 hover:text-gray-300 border-transparent"
+							}`}
+						>
+							<GitBranch size={11} /> Diff
+						</button>
+					)}
 					<button
 						onClick={() => setRightTab("comments")}
 						className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-b-2 ${
@@ -556,6 +576,7 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 					<ChatComments
 						card={card}
 						workspaceId={workspaceId}
+						allCards={allCards}
 						workflowSlots={workflowSlots}
 						onRefresh={onRefresh}
 					/>

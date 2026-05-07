@@ -172,8 +172,10 @@ export class TaskScheduler {
 
 		// Reload project config early so we can resolve the dev slot + agent binary
 		const projectConfig = await loadProjectConfig(workspaceId);
+		const isStoryCard = card.type === "story";
 		const cardWorkflow = projectConfig.workflows.find(w => w.id === card.workflowId)
-			?? projectConfig.workflows.find(w => w.isDefault)
+			?? projectConfig.workflows.find(w => w.isDefault && w.forStory === isStoryCard)
+			?? projectConfig.workflows.find(w => w.forStory === isStoryCard)
 			?? projectConfig.workflows[0];
 		const devSlotEarly: WorkflowSlot = cardWorkflow?.slots.find(s => s.type === "dev")
 			?? { id: "dev", type: "dev" as const, name: "Dev", agentBinary: "claude" as const, order: 0, enabled: true, prompt: "" };
@@ -221,42 +223,9 @@ export class TaskScheduler {
 			}
 		}
 
-		// Story cards have no dev phase — skip straight to the orch review pipeline
+		// Story cards have no dev phase — go straight to the orch review pipeline
 		if (card.type === "story") {
-			const now = Date.now();
-			const devStreamId = `${taskId}-dev-${now}`;
-
-			// If resuming after a crash (dev:pass already exists from a prior cycle), just re-trigger
-			const lastDevComment = [...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev");
-			const lastDevTs = card.terminalSessions?.slice().reverse().find((ts) => ts.type === "dev");
-			const devPassedPreviously = lastDevComment?.status === "pass"
-				&& lastDevTs !== undefined
-				&& lastDevComment.createdAt >= lastDevTs.startedAt;
-			const lastTs = card.terminalSessions?.at(-1);
-
-			if (lastTs?.state === "killed" && devPassedPreviously) {
-				await moveCard(workspaceId, taskId, "in_progress");
-				await appendActivityLog(workspaceId, taskId, "Story resuming orchestrator workflow");
-				stateHub.broadcastWorkspaceUpdate(workspaceId);
-				this.options.onTaskCompleted(taskId);
-				return;
-			}
-
-			// Fresh cycle — write a synthetic dev:pass so the review pipeline sees dev as done
 			await moveCard(workspaceId, taskId, "in_progress");
-			await appendTerminalSession(workspaceId, taskId, { streamId: devStreamId, type: "dev", startedAt: now, agentId: "claude", state: "running" });
-			const freshBoard = await loadBoard(workspaceId);
-			const freshCard = freshBoard.cards[taskId] ?? card;
-			const devComment: import("../core/api-contract.js").RuntimeReviewComment = {
-				type: "dev",
-				actor: { type: "ai", id: "claude" },
-				status: "pass",
-				createdAt: now,
-				streamId: devStreamId,
-				summary: `Story picked up for orchestrator review. ${card.dependsOn?.length ?? 0} subtask(s) completed.`,
-			};
-			await updateCard(workspaceId, taskId, { reviewComments: [...(freshCard.reviewComments ?? []), devComment] });
-			await endTerminalSession(workspaceId, taskId, devStreamId, now, "completed");
 			await appendActivityLog(workspaceId, taskId, "All subtasks complete → triggering orchestrator workflow");
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
 			this.options.onTaskCompleted(taskId);

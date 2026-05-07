@@ -210,13 +210,17 @@ export async function loadWorkspaceState(
 		loadProjectConfig(workspaceId),
 	]);
 
+	// projectConfig is the single source of truth for autonomousModeEnabled.
+	// meta.autonomousModeEnabled is kept in sync by setAutonomousMode but may lag if
+	// project-config.json is saved directly, so prefer projectConfig here.
+	const autonomousModeEnabled = projectConfig.autonomousModeEnabled ?? meta.autonomousModeEnabled;
 	return {
 		workspaceId,
 		repoPath,
 		board,
 		revision: meta.revision,
-		autonomousModeEnabled: meta.autonomousModeEnabled,
-		projectConfig,
+		autonomousModeEnabled,
+		projectConfig: { ...projectConfig, autonomousModeEnabled },
 	};
 }
 

@@ -1,7 +1,7 @@
 import { Button } from "@geckoui/geckoui";
 import type { RuntimeBoardCard, RuntimeReviewComment, WorkflowSlot } from "@runtime-contract";
 import { Send } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { trpc } from "@/runtime/trpc-client";
@@ -153,10 +153,16 @@ function isDifferentDay(a: number, b: number): boolean {
 	return new Date(a).toDateString() !== new Date(b).toDateString();
 }
 
-function isSameGroup(a: RuntimeReviewComment, b: RuntimeReviewComment): boolean {
-	const keyA = `${a.actor.id}|${a.actor.type}|${a.actor.source ?? ""}|${a.type}`;
-	const keyB = `${b.actor.id}|${b.actor.type}|${b.actor.source ?? ""}|${b.type}`;
-	return keyA === keyB && b.createdAt - a.createdAt < 5 * 60 * 1000;
+interface CommentEntry {
+	comment: RuntimeReviewComment;
+	sourceCardTitle?: string;
+}
+
+function isSameGroup(a: CommentEntry, b: CommentEntry): boolean {
+	if (a.sourceCardTitle !== b.sourceCardTitle) return false;
+	const keyA = `${a.comment.actor.id}|${a.comment.actor.type}|${a.comment.actor.source ?? ""}|${a.comment.type}`;
+	const keyB = `${b.comment.actor.id}|${b.comment.actor.type}|${b.comment.actor.source ?? ""}|${b.comment.type}`;
+	return keyA === keyB && b.comment.createdAt - a.comment.createdAt < 5 * 60 * 1000;
 }
 
 // ── Markdown components (dark theme) ─────────────────────────────────────────
@@ -196,21 +202,37 @@ const mdComponents: React.ComponentProps<typeof ReactMarkdown>["components"] = {
 interface Props {
 	card: RuntimeBoardCard;
 	workspaceId: string;
+	allCards?: Record<string, RuntimeBoardCard>;
 	workflowSlots?: WorkflowSlot[];
 	onRefresh: () => void;
 }
 
-export function ChatComments({ card, workspaceId, workflowSlots, onRefresh }: Props) {
+export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRefresh }: Props) {
 	const [message, setMessage] = useState("");
 	const [sending, setSending] = useState(false);
 	const bottomRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const isReadyForReview = card.columnId === "ready_for_review";
-	const comments = card.reviewComments ?? [];
+	const isStory = card.type === "story";
+
+	const commentEntries: CommentEntry[] = useMemo(() => {
+		if (!isStory) {
+			return (card.reviewComments ?? []).map((c) => ({ comment: c }));
+		}
+		const storyEntries: CommentEntry[] = (card.reviewComments ?? [])
+			.filter((c) => c.type !== "dev")
+			.map((c) => ({ comment: c }));
+		const subtaskEntries: CommentEntry[] = (card.dependsOn ?? []).flatMap((depId) => {
+			const dep = allCards?.[depId];
+			if (!dep) return [];
+			return (dep.reviewComments ?? []).map((c) => ({ comment: c, sourceCardTitle: dep.title }));
+		});
+		return [...storyEntries, ...subtaskEntries].sort((a, b) => a.comment.createdAt - b.comment.createdAt);
+	}, [isStory, card.reviewComments, card.dependsOn, allCards]);
 
 	useEffect(() => {
 		bottomRef.current?.scrollIntoView({ behavior: "instant" });
-	}, [comments.length]);
+	}, [commentEntries.length]);
 
 	const send = async (requestChanges = false) => {
 		const text = message.trim();
@@ -239,16 +261,17 @@ export function ChatComments({ card, workspaceId, workflowSlots, onRefresh }: Pr
 		<div className="flex-1 min-h-0 flex flex-col bg-gray-950">
 			{/* Messages */}
 			<div className="flex-1 overflow-y-auto py-4">
-				{comments.length === 0 ? (
+				{commentEntries.length === 0 ? (
 					<div className="flex items-center justify-center h-full">
 						<p className="text-sm text-gray-600">No comments yet</p>
 					</div>
 				) : (
 					<>
-						{comments.map((comment, i) => {
-							const prev = comments[i - 1];
-							const showDate = i === 0 || (prev != null && isDifferentDay(prev.createdAt, comment.createdAt));
-							const showHeader = i === 0 || (prev != null && !isSameGroup(prev, comment));
+						{commentEntries.map((entry, i) => {
+							const { comment, sourceCardTitle } = entry;
+							const prev = commentEntries[i - 1];
+							const showDate = i === 0 || (prev != null && isDifferentDay(prev.comment.createdAt, comment.createdAt));
+							const showHeader = i === 0 || (prev != null && !isSameGroup(prev, entry));
 							const name = displayName(comment, workflowSlots);
 
 							return (
@@ -275,12 +298,17 @@ export function ChatComments({ card, workspaceId, workflowSlots, onRefresh }: Pr
 
 										<div className="flex-1 min-w-0">
 											{showHeader && (
-												<div className="flex items-baseline gap-2 mb-0.5">
+												<div className="flex items-baseline gap-2 mb-0.5 flex-wrap">
 													<span className="font-semibold text-sm text-gray-100">{name}</span>
 													<AgentBadge comment={comment} />
 													<span className="text-xs text-gray-600 tabular-nums">
 														{new Date(comment.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
 													</span>
+													{sourceCardTitle && (
+														<span className="text-[10px] px-1.5 py-0.5 rounded font-medium text-gray-500 bg-gray-800 truncate max-w-[160px]" title={sourceCardTitle}>
+															{sourceCardTitle}
+														</span>
+													)}
 												</div>
 											)}
 											<div className="prose-chat text-sm text-gray-300 leading-relaxed [overflow-wrap:anywhere]">

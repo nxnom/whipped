@@ -66,7 +66,8 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 	const freshBoard = await loadBoard(workspaceId);
 	card = freshBoard.cards[card.id] ?? card;
 	const lastTs = card.terminalSessions?.at(-1);
-	const isResume = lastTs?.state === "killed";
+	// Story cards have no dev session, so resume logic doesn't apply — always run orch fresh.
+	const isResume = card.type !== "story" && lastTs?.state === "killed";
 	const lastDevTs = card.terminalSessions?.slice().reverse().find((ts) => ts.type === "dev");
 	const sessionStartedAt = lastDevTs?.startedAt ?? 0;
 
@@ -139,7 +140,8 @@ async function runReviewSlot(
 	customPrompt: string,
 ): Promise<ReviewSlotResult> {
 	const { workspaceId, stateHub } = options;
-	const worktreePath = getWorktreePath(card.id);
+	// Orch slots run on the story card directly — no worktree is created for story cards
+	const worktreePath = slot.type === "orch" ? options.repoPath : getWorktreePath(card.id);
 	const stat = getGitStat(worktreePath, card.baseRef);
 	const fullDiff = getGitFullDiff(worktreePath, card.baseRef);
 	const context = formatPriorComments(card);
@@ -210,6 +212,16 @@ async function handleReviewFailure(
 	options: ReviewPipelineOptions,
 ): Promise<void> {
 	const { workspaceId, maxAutoFixAttempts, stateHub } = options;
+
+	if (card.type === "story") {
+		// Orch failure: return to todo to wait for subtask rework — no retry counting
+		logger.info(`[review] Orch review failed for story "${card.title}" → todo`);
+		await moveCard(workspaceId, card.id, "todo");
+		await appendActivityLog(workspaceId, card.id, "Orchestrator review failed → waiting for subtask rework");
+		stateHub.broadcastWorkspaceUpdate(workspaceId);
+		return;
+	}
+
 	const newAttempts = card.autoFixAttempts + 1;
 	const destination = newAttempts >= maxAutoFixAttempts ? "blocked" : "reopened";
 
@@ -260,7 +272,7 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 	await appendActivityLog(workspaceId, card.id, "All reviews passed → moved to Ready for Review");
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 
-	if (autoPR && !card.githubPrUrl) {
+	if (autoPR && !card.githubPrUrl && card.type !== "story") {
 		const worktreePath = getWorktreePath(card.id);
 		const taskBranch = getWorktreeBranch(card.id);
 		const githubToken = options.secrets.find((s) => s.key === "GITHUB_TOKEN")?.value;
@@ -642,7 +654,9 @@ summary: Which subtasks were sent back and the overall reason (1–2 sentences).
 ## Rules
 - You will run again after subtasks are fixed, so only pass when you are confident the story goal is met
 - Only reopen subtasks for issues that affect the story goal — do not reopen for minor style preferences or issues the CR/QA agent already marked as info-only
-- Never reopen a subtask without a specific, actionable comment — vague feedback blocks the dev agent${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}`;
+- Never reopen a subtask without a specific, actionable comment — vague feedback blocks the dev agent
+- **Choosing the right subtask**: When a change could apply to multiple subtasks, target the *leaf* subtask — the one furthest along the dependency chain (i.e., no other story subtask depends on it). The leaf subtask's branch is the most up-to-date: it has already merged or built on top of all earlier subtasks' work. Sending rework to an earlier subtask risks stale-ref conflicts with later subtasks that share the same files.
+- Your pass/fail summary must describe only what was built and whether it meets the story goal — nothing else.${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}`;
 }
 
 function buildCustomSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt: string, priorContext: string, secrets: RuntimeProjectSecret[], systemPrompt?: string): string {
