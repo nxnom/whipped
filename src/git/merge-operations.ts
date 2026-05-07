@@ -114,9 +114,13 @@ export async function createGithubPR(worktreePath: string, title: string, body: 
 		return data.html_url;
 	} catch (err: unknown) {
 		const msg = err instanceof Error ? err.message : String(err);
-		if (msg.includes("not all refs are readable")) {
+		const status = (err as { status?: number }).status;
+		if (status === 401 || msg.toLowerCase().includes("bad credentials")) {
+			throw new Error("GitHub token is invalid or expired — update GITHUB_TOKEN in project Settings > Secrets.");
+		}
+		if (status === 403 || msg.includes("not all refs are readable")) {
 			throw new Error(
-				`GitHub token lacks 'Contents: Read' permission — edit your fine-grained PAT at github.com/settings/personal-access-tokens and add Repository > Contents > Read-only`,
+				"GitHub token lacks required permissions — edit your fine-grained PAT at github.com/settings/personal-access-tokens and add Repository > Contents > Read-only and Pull requests > Read & Write.",
 			);
 		}
 		throw err;
