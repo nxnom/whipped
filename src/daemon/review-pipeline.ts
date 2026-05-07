@@ -126,7 +126,7 @@ async function runReviewSlot(
 	const startTime = Date.now();
 	logger.info(`[review:${streamId}] Spawning ${slot.name} agent (${slot.agentBinary}) for "${card.title}"`);
 	const secretsEnv = buildSecretsEnv(options.secrets);
-	const output = await runAgentOnce(slot.agentBinary, triggerWord, worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, mcpConfigPath, systemPrompt, context.files, secretsEnv);
+	const output = await runAgentOnce(slot.agentBinary, triggerWord, worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, mcpConfigPath, systemPrompt, context.files, secretsEnv, slot.effort);
 	logger.info(`[review:${streamId}] ${slot.name} agent done (${Date.now() - startTime}ms)`);
 
 	// Comment type: use slot.type for built-ins, slot.id for custom
@@ -277,6 +277,7 @@ function runAgentOnce(
 	appendSystemPrompt?: string,
 	files?: string[],
 	secretsEnv?: Record<string, string>,
+	effort?: import("../core/api-contract.js").EffortLevel | null,
 ): Promise<string> {
 	return new Promise((resolve) => {
 		let output = "";
@@ -302,6 +303,7 @@ function runAgentOnce(
 			mcpConfigPath: agentId === "claude" ? mcpConfigPath : undefined,
 			appendSystemPrompt: agentId === "claude" ? appendSystemPrompt : undefined,
 			files: agentId === "claude" ? files : undefined,
+			effort: agentId === "claude" ? effort : undefined,
 			onOutput: (data) => {
 				output += data;
 				stateHub.broadcastTerminalOutput(workspaceId, streamId, data);
@@ -671,6 +673,7 @@ export async function runParentReopenCascade(
 		systemPrompt,
 		undefined,
 		buildSecretsEnv(secrets),
+		"low",
 	);
 
 	await endTerminalSession(workspaceId, parentCard.id, streamId, Date.now());

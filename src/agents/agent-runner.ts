@@ -1,6 +1,6 @@
 import * as nodePty from "node-pty";
 import treeKill from "tree-kill";
-import type { RuntimeAgentId } from "../core/api-contract.js";
+import type { EffortLevel, RuntimeAgentId } from "../core/api-contract.js";
 import { buildAgentArgs, getAgentCommand } from "./agent-registry.js";
 
 export interface AgentRunOptions {
@@ -13,6 +13,7 @@ export interface AgentRunOptions {
 	appendSystemPrompt?: string;
 	files?: string[];
 	mode?: "interactive" | "print";
+	effort?: EffortLevel | null;
 	onOutput: (data: string) => void;
 	onExit: (exitCode: number) => void;
 }
@@ -24,7 +25,7 @@ export interface AgentProcess {
 }
 
 export function spawnAgent(options: AgentRunOptions): AgentProcess {
-	const { agentId, prompt, cwd, env, hookSettingsPath, mcpConfigPath, appendSystemPrompt, files, mode = "interactive", onOutput, onExit } = options;
+	const { agentId, prompt, cwd, env, hookSettingsPath, mcpConfigPath, appendSystemPrompt, files, mode = "interactive", effort, onOutput, onExit } = options;
 
 	const command = getAgentCommand(agentId);
 	const args = buildAgentArgs(agentId, prompt, mode);
@@ -41,6 +42,9 @@ export function spawnAgent(options: AgentRunOptions): AgentProcess {
 		for (const f of files) {
 			args.push("--file", f);
 		}
+	}
+	if (effort && agentId === "claude") {
+		args.push("--effort", effort);
 	}
 
 	const pty = nodePty.spawn(command, args, {

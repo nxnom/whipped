@@ -299,6 +299,7 @@ export class TaskScheduler {
 				mcpConfigPath: agentId === "claude" ? mcpConfigPath : undefined,
 				appendSystemPrompt: agentId === "claude" ? devSystemPromptResult.text : undefined,
 				files: agentId === "claude" ? devSystemPromptResult.files : undefined,
+				effort: agentId === "claude" ? (devSlotEarly.effort ?? undefined) : undefined,
 				onOutput: (data) => {
 					runningTask.outputBuffer += data;
 					stateHub.broadcastTerminalOutput(workspaceId, devStreamId, data);

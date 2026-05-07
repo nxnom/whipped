@@ -10,6 +10,17 @@ export const AGENT_BINARY_OPTIONS: ReadonlyArray<{ value: RuntimeAgentId; label:
 	{ value: "codex", label: "codex" },
 ];
 
+export const effortLevelSchema = z.enum(["low", "medium", "high", "xhigh", "max"]);
+export type EffortLevel = z.infer<typeof effortLevelSchema>;
+
+export const EFFORT_OPTIONS: ReadonlyArray<{ value: EffortLevel; label: string }> = [
+	{ value: "low", label: "Low" },
+	{ value: "medium", label: "Medium" },
+	{ value: "high", label: "High" },
+	{ value: "xhigh", label: "Extra High" },
+	{ value: "max", label: "Max" },
+];
+
 // ─── Workflows ───────────────────────────────────────────────────────────────
 
 export const workflowSlotTypeSchema = z.enum(["dev", "code_review", "qa", "custom"]);
@@ -23,6 +34,7 @@ export const workflowSlotSchema = z.object({
 	order: z.number().int().nonnegative(),
 	enabled: z.boolean(),
 	prompt: z.string().default(""),
+	effort: effortLevelSchema.nullable().optional(),
 });
 export type WorkflowSlot = z.infer<typeof workflowSlotSchema>;
 

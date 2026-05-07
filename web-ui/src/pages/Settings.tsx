@@ -1,6 +1,6 @@
 import { Button, Checkbox, Input, Select, SelectOption, Switch, Textarea, toast } from "@geckoui/geckoui";
 import type { Workflow, WorkflowSlot, RuntimeGlobalConfig, RuntimeJiraTicket, RuntimeProjectConfig, RuntimeWorktreeSetup, RuntimeProjectSecret } from "@runtime-contract";
-import { AGENT_BINARY_OPTIONS, BUILTIN_SECRET_KEYS } from "@runtime-contract";
+import { AGENT_BINARY_OPTIONS, BUILTIN_SECRET_KEYS, EFFORT_OPTIONS, type EffortLevel } from "@runtime-contract";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
 import { ArrowLeft, Bot, Download, Eye, EyeOff, GripVertical, Key, Plus, RefreshCw, Settings2, Terminal, Ticket, Trash2, X, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -526,12 +526,12 @@ function WorkflowsSection({
 			{addingCustomTo !== null && (
 				<AddCustomAgentDialog
 					defaultBinary={defaultBinary}
-					onAdd={(name, binary, prompt) => {
+					onAdd={(name, binary, effort, prompt) => {
 						const id = `slot_custom_${Date.now()}`;
 						const wf = workflows.find(w => w.id === addingCustomTo);
 						if (!wf) return;
 						const maxOrder = wf.slots.reduce((m, s) => Math.max(m, s.order), 0);
-						const newSlot: WorkflowSlot = { id, type: "custom", name, agentBinary: binary, order: maxOrder + 1, enabled: true, prompt };
+						const newSlot: WorkflowSlot = { id, type: "custom", name, agentBinary: binary, effort, order: maxOrder + 1, enabled: true, prompt };
 						updateWorkflow({ ...wf, slots: [...wf.slots, newSlot] });
 						setAddingCustomTo(null);
 					}}
@@ -678,36 +678,49 @@ function SlotCard({
 	onEdit: () => void;
 }) {
 	return (
-		<div className="bg-gray-900 rounded-xl px-3 py-2.5 flex items-center gap-2">
-			{dragHandleProps ? (
-				<span {...dragHandleProps as React.HTMLAttributes<HTMLSpanElement>} className="text-gray-600 hover:text-gray-400 cursor-grab active:cursor-grabbing shrink-0">
-					<GripVertical size={13} />
-				</span>
-			) : (
-				<span className="w-[13px] shrink-0" />
-			)}
-			<div className="flex-1 min-w-0">
-				<span className="text-sm text-gray-200">{slot.name}</span>
-				{slot.type !== "custom" && (
-					<span className="text-xs text-gray-600 ml-1.5">{slot.type.replace("_", " ")}</span>
-				)}
-				{slot.prompt && (
-					<span className="ml-1.5 text-[10px] text-blue-500">custom prompt</span>
+		<div className="bg-gray-900 rounded-xl px-3 py-2.5 flex gap-2">
+			<div className="flex items-start pt-0.5 shrink-0">
+				{dragHandleProps ? (
+					<span {...dragHandleProps as React.HTMLAttributes<HTMLSpanElement>} className="text-gray-600 hover:text-gray-400 cursor-grab active:cursor-grabbing">
+						<GripVertical size={13} />
+					</span>
+				) : (
+					<span className="w-[13px]" />
 				)}
 			</div>
-			<div className="flex items-center gap-2 shrink-0">
-				<span className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded font-mono">{slot.agentBinary}</span>
-				{!isFixed && onToggle && (
-					<Switch checked={slot.enabled} onChange={onToggle} size="sm" />
-				)}
-				{onRemove && (
-					<button onClick={onRemove} className="text-gray-600 hover:text-red-400 transition-colors">
-						<Trash2 size={13} />
-					</button>
-				)}
-				<button onClick={onEdit} className="text-gray-500 hover:text-gray-200 transition-colors">
-					<Settings2 size={13} />
-				</button>
+			<div className="flex-1 min-w-0 space-y-1">
+				{/* Row 1: name + actions */}
+				<div className="flex items-center justify-between gap-2">
+					<div className="flex items-center gap-1.5 min-w-0">
+						<span className="text-sm text-gray-200 truncate">{slot.name}</span>
+						{slot.type !== "custom" && (
+							<span className="text-xs text-gray-600 shrink-0">{slot.type.replace("_", " ")}</span>
+						)}
+					</div>
+					<div className="flex items-center gap-2 shrink-0">
+						{!isFixed && onToggle && (
+							<Switch checked={slot.enabled} onChange={onToggle} size="sm" />
+						)}
+						<button onClick={onEdit} className="text-gray-500 hover:text-gray-200 transition-colors">
+							<Settings2 size={13} />
+						</button>
+					</div>
+				</div>
+				{/* Row 2: badges + delete */}
+				<div className="flex items-center gap-1.5">
+					<span className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded font-mono">{slot.agentBinary}</span>
+					{slot.effort && (
+						<span className="text-[10px] text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded font-mono">{slot.effort}</span>
+					)}
+					{slot.prompt && (
+						<span className="text-[10px] text-blue-500 bg-blue-500/10 px-1.5 py-0.5 rounded">custom prompt</span>
+					)}
+					{onRemove && (
+						<button onClick={onRemove} className="ml-auto text-gray-600 hover:text-red-400 transition-colors">
+							<Trash2 size={13} />
+						</button>
+					)}
+				</div>
 			</div>
 		</div>
 	);
@@ -723,6 +736,7 @@ function AgentSlotDialog({
 	onClose: () => void;
 }) {
 	const [binary, setBinary] = useState<"claude" | "codex">(slot.agentBinary);
+	const [effort, setEffort] = useState<EffortLevel | "">(slot.effort ?? "");
 	const [prompt, setPrompt] = useState(slot.prompt ?? "");
 	const [promptError, setPromptError] = useState("");
 
@@ -732,7 +746,7 @@ function AgentSlotDialog({
 			return;
 		}
 		setPromptError("");
-		onSave({ ...slot, agentBinary: binary, prompt });
+		onSave({ ...slot, agentBinary: binary, effort: effort || null, prompt });
 	};
 
 	const placeholder: Record<string, string> = {
@@ -749,11 +763,19 @@ function AgentSlotDialog({
 			>
 				<h3 className="text-sm font-semibold text-gray-100">Edit — {slot.name}</h3>
 
-				<Field label="Model">
-					<Select value={binary} onChange={(v) => setBinary(v as "claude" | "codex")}>
-						{AGENT_BINARY_OPTIONS.map(o => <SelectOption key={o.value} value={o.value} label={o.label} />)}
-					</Select>
-				</Field>
+				<div className="grid grid-cols-2 gap-3">
+					<Field label="Model">
+						<Select value={binary} onChange={(v) => setBinary(v as "claude" | "codex")}>
+							{AGENT_BINARY_OPTIONS.map(o => <SelectOption key={o.value} value={o.value} label={o.label} />)}
+						</Select>
+					</Field>
+					<Field label="Effort (optional)">
+						<Select value={effort} onChange={(v) => setEffort(v as EffortLevel | "")}>
+							<SelectOption value="" label="Default" />
+							{EFFORT_OPTIONS.map(o => <SelectOption key={o.value} value={o.value} label={o.label} />)}
+						</Select>
+					</Field>
+				</div>
 
 				<Field label={`Instructions${slot.type === "custom" ? " (min 50 chars)" : " (optional)"}`}>
 					<Textarea
@@ -781,11 +803,12 @@ function AddCustomAgentDialog({
 	onClose,
 }: {
 	defaultBinary: "claude" | "codex";
-	onAdd: (name: string, binary: "claude" | "codex", prompt: string) => void;
+	onAdd: (name: string, binary: "claude" | "codex", effort: EffortLevel | null, prompt: string) => void;
 	onClose: () => void;
 }) {
 	const [name, setName] = useState("");
 	const [binary, setBinary] = useState<"claude" | "codex">(defaultBinary);
+	const [effort, setEffort] = useState<EffortLevel | "">("");
 	const [prompt, setPrompt] = useState("");
 	const [promptError, setPromptError] = useState("");
 
@@ -795,7 +818,7 @@ function AddCustomAgentDialog({
 			setPromptError("Instructions must be at least 50 characters.");
 			return;
 		}
-		onAdd(name.trim(), binary, prompt);
+		onAdd(name.trim(), binary, effort || null, prompt);
 	};
 
 	return (
@@ -820,6 +843,12 @@ function AddCustomAgentDialog({
 						</Select>
 					</Field>
 				</div>
+				<Field label="Effort (optional)">
+					<Select value={effort} onChange={(v) => setEffort(v as EffortLevel | "")}>
+						<SelectOption value="" label="Default" />
+						{EFFORT_OPTIONS.map(o => <SelectOption key={o.value} value={o.value} label={o.label} />)}
+					</Select>
+				</Field>
 				<Field label="Instructions (min 50 chars)">
 					<Textarea
 						value={prompt}
