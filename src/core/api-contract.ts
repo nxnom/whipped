@@ -254,6 +254,7 @@ export const runtimeProjectConfigSchema = z.object({
 	worktreeSetup: runtimeWorktreeSetupSchema.optional(),
 	workflows: z.array(workflowSchema).default([DEFAULT_WORKFLOW]),
 	secrets: z.array(runtimeProjectSecretSchema).default([]),
+	systemPrompt: z.string().optional(),
 });
 export type RuntimeProjectConfig = z.infer<typeof runtimeProjectConfigSchema>;
 

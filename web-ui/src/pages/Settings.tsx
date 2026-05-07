@@ -2,19 +2,20 @@ import { Button, Checkbox, Input, Select, SelectOption, Switch, Textarea, toast 
 import type { Workflow, WorkflowSlot, RuntimeGlobalConfig, RuntimeJiraTicket, RuntimeProjectConfig, RuntimeWorktreeSetup, RuntimeProjectSecret } from "@runtime-contract";
 import { AGENT_BINARY_OPTIONS, BUILTIN_SECRET_KEYS, EFFORT_OPTIONS, type EffortLevel } from "@runtime-contract";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
-import { ArrowLeft, Bot, Download, Eye, EyeOff, GripVertical, Key, Plus, RefreshCw, Settings2, Terminal, Ticket, Trash2, X, Zap } from "lucide-react";
+import { ArrowLeft, Bot, Download, Eye, EyeOff, GripVertical, Key, MessageSquare, Plus, RefreshCw, Settings2, Terminal, Ticket, Trash2, X, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { trpc } from "@/runtime/trpc-client";
 import { useWorkspaceState } from "@/stores/board-store";
 
-type ProjectSection = "autonomous" | "workflows" | "environment" | "secrets" | "jira";
+type ProjectSection = "autonomous" | "workflows" | "assistant" | "environment" | "secrets" | "jira";
 type GlobalSection = "general";
 type SettingsSection = ProjectSection | GlobalSection;
 
 const PROJECT_NAV: Array<{ id: ProjectSection; label: string; icon: React.ReactNode }> = [
 	{ id: "autonomous", label: "Autonomous", icon: <Zap size={14} /> },
 	{ id: "workflows", label: "Workflows", icon: <Bot size={14} /> },
+	{ id: "assistant", label: "Assistant", icon: <MessageSquare size={14} /> },
 	{ id: "environment", label: "Environment", icon: <Terminal size={14} /> },
 	{ id: "secrets", label: "Secrets", icon: <Key size={14} /> },
 	{ id: "jira", label: "Jira", icon: <Ticket size={14} /> },
@@ -24,7 +25,7 @@ const GLOBAL_NAV: Array<{ id: GlobalSection; label: string; icon: React.ReactNod
 	{ id: "general", label: "General", icon: <Settings2 size={14} /> },
 ];
 
-const PROJECT_SECTIONS = new Set<SettingsSection>(["autonomous", "workflows", "environment", "secrets", "jira"]);
+const PROJECT_SECTIONS = new Set<SettingsSection>(["autonomous", "workflows", "assistant", "environment", "secrets", "jira"]);
 
 export function SettingsPage() {
 	const navigate = useNavigate();
@@ -270,6 +271,25 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 					onSave={handleSave}
 					saving={saving}
 				/>
+			)}
+
+			{section === "assistant" && (
+				<>
+					<SectionHeader
+						title="Assistant"
+						description="Shared context appended to every agent — dev, code review, QA, and the Assistant chat. Use it for tech stack details, project goals, website URLs, or any information all agents should know."
+					/>
+					<Field label="Shared system prompt">
+						<Textarea
+							value={config.systemPrompt ?? ""}
+							onChange={(e) => updateConfig({ ...config, systemPrompt: e.target.value || undefined })}
+							placeholder={"Tech stack: Next.js, TypeScript, Postgres\nWebsite: https://example.com\nGoals: keep bundle size under 200kb, follow REST conventions"}
+							rows={8}
+							autoResize
+						/>
+					</Field>
+					<SaveRow saving={saving} onSave={handleSave} />
+				</>
 			)}
 
 			{section === "environment" && (

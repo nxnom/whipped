@@ -24,6 +24,7 @@ interface ReviewPipelineOptions {
 	githubClient?: GithubClient;
 	autoPR: boolean;
 	secrets: RuntimeProjectSecret[];
+	systemPrompt?: string;
 	registerStopCallback: (streamId: string, callback: () => void) => (() => void);
 	registerLiveProcess: (streamId: string, process: AgentProcess) => (() => void);
 }
@@ -142,7 +143,7 @@ async function runReviewSlot(
 	const stat = getGitStat(worktreePath, card.baseRef);
 	const fullDiff = getGitFullDiff(worktreePath, card.baseRef);
 	const context = formatPriorComments(card);
-	const systemPrompt = buildReviewSlotSystemPrompt(slot, card, stat, fullDiff, customPrompt, context.text, options.secrets);
+	const systemPrompt = buildReviewSlotSystemPrompt(slot, card, stat, fullDiff, customPrompt, context.text, options.secrets, options.systemPrompt);
 	const triggerWord = getSlotTriggerWord(slot.type);
 
 	const mcpConfigPath = getMcpConfigPath(streamId);
@@ -456,7 +457,7 @@ function formatPriorComments(card: RuntimeBoardCard): { text: string; files: str
 const INLINE_DIFF_LIMIT = 8000;
 
 // Exported — used by scheduler.ts for dev agent
-export function buildDevAgentSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, customPrompt: string, worktreePath?: string, secrets: RuntimeProjectSecret[] = [], parentCards: RuntimeBoardCard[] = []): { text: string; files: string[] } {
+export function buildDevAgentSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, customPrompt: string, worktreePath?: string, secrets: RuntimeProjectSecret[] = [], parentCards: RuntimeBoardCard[] = [], systemPrompt?: string): { text: string; files: string[] } {
 	const context = formatPriorComments(card);
 	const parts: string[] = [];
 
@@ -497,23 +498,26 @@ When you finish your work:
 	const secretsSection = buildSecretsSection(secrets);
 	if (secretsSection) parts.push(secretsSection);
 
+	if (systemPrompt?.trim()) parts.push(`## Project context\n\n${systemPrompt.trim()}`);
+
 	return { text: parts.join("\n\n"), files: context.files };
 }
 
-function buildReviewSlotSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt: string, priorContext: string, secrets: RuntimeProjectSecret[] = []): string {
+function buildReviewSlotSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt: string, priorContext: string, secrets: RuntimeProjectSecret[] = [], systemPrompt?: string): string {
 	switch (slot.type) {
-		case "code_review": return buildCodeReviewSystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets);
-		case "qa": return buildQASystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets);
-		default: return buildCustomSystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets);
+		case "code_review": return buildCodeReviewSystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets, systemPrompt);
+		case "qa": return buildQASystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets, systemPrompt);
+		default: return buildCustomSystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets, systemPrompt);
 	}
 }
 
-function buildCodeReviewSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt: string, priorContext: string, secrets: RuntimeProjectSecret[]): string {
+function buildCodeReviewSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt: string, priorContext: string, secrets: RuntimeProjectSecret[], systemPrompt?: string): string {
 	const diffSection = fullDiff.length <= INLINE_DIFF_LIMIT
 		? `Git diff:\n${fullDiff}`
 		: `Large changeset (${fullDiff.length.toLocaleString()} chars). Use \`git diff ${card.baseRef}...HEAD\` and read individual files to explore — start with the stat above to decide where to focus.`;
 	const custom = customPrompt.trim() ? `\n\n## Project-specific instructions\n\n${customPrompt.trim()}` : "";
 	const secretsSection = buildSecretsSection(secrets);
+	const projectContext = systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : "";
 
 	return `You are a senior code reviewer performing an automated review.
 
@@ -540,15 +544,16 @@ Use your tools — grep for callers, read type definitions, check related module
 ## How to report
 Write your findings to the terminal as plain text. Do NOT include pass/fail verdict words in your terminal output; those go only in the \`kanban_add_comment\` call.
 
-Then call \`kanban_add_comment\` with cardId: "${card.id}", type: "code_review", status: "pass"/"fail"/"warning", summary: your findings (specific, concise), and optionally issues: [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional note, pipeline still passes), message}].${custom}${secretsSection ? `\n\n${secretsSection}` : ""}`;
+Then call \`kanban_add_comment\` with cardId: "${card.id}", type: "code_review", status: "pass"/"fail"/"warning", summary: your findings (specific, concise), and optionally issues: [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional note, pipeline still passes), message}].${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}`;
 }
 
-function buildQASystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt: string, priorContext: string, secrets: RuntimeProjectSecret[]): string {
+function buildQASystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt: string, priorContext: string, secrets: RuntimeProjectSecret[], systemPrompt?: string): string {
 	const diffSection = fullDiff.length <= INLINE_DIFF_LIMIT
 		? `Git diff:\n${fullDiff}`
 		: `Large changeset (${fullDiff.length.toLocaleString()} chars). Use \`git diff ${card.baseRef}...HEAD\` to explore.`;
 	const custom = customPrompt.trim() ? `\n\n## Project-specific instructions\n\n${customPrompt.trim()}` : "";
 	const secretsSection = buildSecretsSection(secrets);
+	const projectContext = systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : "";
 
 	return `You are a QA engineer performing automated testing.
 
@@ -570,14 +575,15 @@ ${diffSection}
 ## How to report
 Write your findings to the terminal as plain text. Do NOT include pass/fail verdict words in your terminal output; those go only in the \`kanban_add_comment\` call.
 
-Then call \`kanban_add_comment\` with cardId: "${card.id}", type: "qa", status: "pass"/"fail"/"warning"/"skipped", summary: what you ran and the outcome, and optionally issues: [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional, pipeline still passes), message}] and attachments: [{type: "image", name, mimeType, path}].${custom}${secretsSection ? `\n\n${secretsSection}` : ""}`;
+Then call \`kanban_add_comment\` with cardId: "${card.id}", type: "qa", status: "pass"/"fail"/"warning"/"skipped", summary: what you ran and the outcome, and optionally issues: [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional, pipeline still passes), message}] and attachments: [{type: "image", name, mimeType, path}].${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}`;
 }
 
-function buildCustomSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt: string, priorContext: string, secrets: RuntimeProjectSecret[]): string {
+function buildCustomSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt: string, priorContext: string, secrets: RuntimeProjectSecret[], systemPrompt?: string): string {
 	const diffSection = fullDiff.length <= INLINE_DIFF_LIMIT
 		? `Git diff:\n${fullDiff}`
 		: `Large changeset (${fullDiff.length.toLocaleString()} chars). Use \`git diff ${card.baseRef}...HEAD\` to explore.`;
 	const secretsSection = buildSecretsSection(secrets);
+	const projectContext = systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : "";
 
 	return `You are ${slot.name}, an automated review agent.
 
@@ -596,7 +602,7 @@ ${customPrompt.trim()}
 
 Write your findings to the terminal as plain text. Do NOT include pass/fail verdict words in your terminal output; those go only in the \`kanban_add_comment\` call.
 
-Then call \`kanban_add_comment\` with cardId: "${card.id}", type: "${slot.id}", status: "pass"/"fail"/"warning"/"skipped", summary: your findings, and optionally issues: [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional note, pipeline still passes), message}].${secretsSection ? `\n\n${secretsSection}` : ""}`;
+Then call \`kanban_add_comment\` with cardId: "${card.id}", type: "${slot.id}", status: "pass"/"fail"/"warning"/"skipped", summary: your findings, and optionally issues: [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional note, pipeline still passes), message}].${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}`;
 }
 
 async function getMcpComment(

@@ -110,7 +110,7 @@ export class TaskScheduler {
 		const projectConfig = await loadProjectConfig(workspaceId);
 		const secrets = projectConfig.secrets ?? [];
 		const secretsEnv = buildSecretsEnv(secrets);
-		const appendSystemPrompt = buildHomeAgentSystemPrompt(repoPath, secrets);
+		const appendSystemPrompt = buildHomeAgentSystemPrompt(repoPath, secrets, projectConfig.systemPrompt);
 
 		const homeTask: RunningTask = {
 			taskId,
@@ -295,7 +295,7 @@ export class TaskScheduler {
 
 		const prompt = buildTaskPrompt();
 		const secrets = projectConfig.secrets ?? [];
-		const devSystemPromptResult = buildDevAgentSystemPrompt(devSlotEarly, card, devSlotEarly.prompt ?? "", worktree.path, secrets, parentCards);
+		const devSystemPromptResult = buildDevAgentSystemPrompt(devSlotEarly, card, devSlotEarly.prompt ?? "", worktree.path, secrets, parentCards, projectConfig.systemPrompt);
 		const secretsEnv = buildSecretsEnv(secrets);
 
 		await appendActivityLog(workspaceId, taskId, `Agent ${agentId} started`);
@@ -676,7 +676,7 @@ export function getMcpServerPath(): { command: string; args: string[] } {
 	};
 }
 
-function buildHomeAgentSystemPrompt(repoPath: string, secrets: import("../core/api-contract.js").RuntimeProjectSecret[] = []): string {
+function buildHomeAgentSystemPrompt(repoPath: string, secrets: import("../core/api-contract.js").RuntimeProjectSecret[] = [], systemPrompt?: string): string {
 	const secretsSection = buildSecretsSection(secrets);
 
 	return `You are the Assistant for the project at \`${repoPath}\`.
@@ -718,7 +718,7 @@ When asked to suggest or create a workflow:
 3. Suggest appropriate agent slots and write focused, specific prompts for each slot
 4. Use \`kanban_upsert_workflow\` to save — always include a dev slot (type: "dev", order: 0)
 
-Slot prompts should be specific to the project's domain and the slot's role (dev, code_review, qa, custom).${secretsSection ? `\n\n${secretsSection}` : ""}`;
+Slot prompts should be specific to the project's domain and the slot's role (dev, code_review, qa, custom).${secretsSection ? `\n\n${secretsSection}` : ""}${systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : ""}`;
 }
 
 
