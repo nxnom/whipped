@@ -281,6 +281,11 @@ export async function updateSession(
 	});
 }
 
+export async function getSession(workspaceId: string, taskId: string): Promise<RuntimeTaskSessionSummary | undefined> {
+	const sessions = await loadSessions(workspaceId);
+	return sessions[taskId];
+}
+
 export async function removeSession(workspaceId: string, taskId: string): Promise<void> {
 	return withLock(workspaceId, async () => {
 		const sessions = await loadSessions(workspaceId);

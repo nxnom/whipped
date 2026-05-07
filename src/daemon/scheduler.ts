@@ -12,7 +12,7 @@ import type { WorkflowSlot, RuntimeAgentId, RuntimeBoardCard } from "../core/api
 import { buildDevAgentSystemPrompt, buildSecretsEnv, runParentReopenCascade, tryParseAgentJson } from "./review-pipeline.js";
 import { logger } from "../core/logger.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
-import { appendActivityLog, appendTerminalSession, endTerminalSession, linkCommentToSession, loadBoard, loadProjectConfig, moveCard, removeSession, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
+import { appendActivityLog, appendTerminalSession, endTerminalSession, getSession, linkCommentToSession, loadBoard, loadProjectConfig, moveCard, removeSession, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
 import { createWorktree, getWorktreeBranch, getWorktreePath, removeWorktree, removeWorktreeAsync } from "../worktree/worktree-manager.js";
 
 export interface SchedulerOptions {
@@ -214,21 +214,14 @@ export class TaskScheduler {
 			parentCards = card.dependsOn.map(id => board.cards[id]).filter((c): c is RuntimeBoardCard => !!c);
 		}
 
-		// If dev already passed in a prior run (e.g. server restarted mid-review), skip
-		// the dev agent and resume the review pipeline from the first un-passed slot.
+		// If the last session was failed (server stopped mid-run) and dev already passed,
+		// skip spawning the dev agent. Keep the session as "failed" so runReviewPipeline
+		// knows to resume from the first un-passed slot rather than running all slots fresh.
+		const existingSession = await getSession(workspaceId, taskId);
 		const lastDevComment = [...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev");
 		const hasPassingDev = lastDevComment ? lastDevComment.status === "pass" : false;
-		if (hasPassingDev) {
-			const worktree = createWorktree(taskId, repoPath, effectiveBaseRef);
-			const resumeStartedAt = Date.now();
-			await updateSession(workspaceId, taskId, {
-				taskId,
-				state: "completed",
-				agentId,
-				worktreePath: worktree.path,
-				startedAt: resumeStartedAt,
-				completedAt: resumeStartedAt,
-			});
+		if (existingSession?.state === "failed" && hasPassingDev) {
+			createWorktree(taskId, repoPath, effectiveBaseRef);
 			await moveCard(workspaceId, taskId, "in_progress");
 			await appendActivityLog(workspaceId, taskId, "Dev already completed — resuming AI review from last failed step");
 			stateHub.broadcastWorkspaceUpdate(workspaceId);

@@ -9,7 +9,7 @@ import type { AgentProcess } from "../agents/agent-runner.js";
 import type { WorkflowSlot, RuntimeBoardCard, RuntimeReviewComment, RuntimeProjectSecret } from "../core/api-contract.js";
 import type { GithubClient } from "../github/github-client.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
-import { appendActivityLog, appendTerminalSession, endTerminalSession, linkCommentToSession, loadBoard, moveCard, saveAttachment, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
+import { appendActivityLog, appendTerminalSession, endTerminalSession, getSession, linkCommentToSession, loadBoard, moveCard, saveAttachment, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
 import { getWorktreeBranch, getWorktreePath, removeWorktreeAsync } from "../worktree/worktree-manager.js";
 import { logger } from "../core/logger.js";
 
@@ -60,7 +60,13 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 	const { workspaceId, stateHub } = options;
 	const runId = Date.now();
 
-	logger.info(`[review] Starting review pipeline for "${card.title}" (${card.id})`);
+	// Check session state BEFORE overwriting it. A "failed" session means the pipeline was
+	// interrupted (crash or agent failure) — resume from the first slot that didn't pass.
+	// Any other state means a fresh run — run all slots from the beginning.
+	const prevSession = await getSession(workspaceId, card.id);
+	const isResume = prevSession?.state === "failed";
+
+	logger.info(`[review] Starting review pipeline for "${card.title}" (${card.id})${isResume ? " — resuming" : ""}`);
 	await updateSession(workspaceId, card.id, { state: "running" });
 	await appendActivityLog(workspaceId, card.id, "AI review started");
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
@@ -70,21 +76,26 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 	const freshBoard = await loadBoard(workspaceId);
 	card = freshBoard.cards[card.id] ?? card;
 
+	// When resuming, skip slots that already passed — stop skipping at the first failure/missing.
+	let skipPassed = isResume;
+
 	for (const slot of options.reviewSlots) {
 		const customPrompt = slot.prompt ?? "";
 		const streamId = `${card.id}-${slot.id}-${runId}`;
 
-		// Skip slots that already passed in a previous run (server restart mid-pipeline).
-		const commentType = slot.type === "custom" ? slot.id : slot.type;
-		const lastSlotComment = [...(card.reviewComments ?? [])].reverse().find((c) => c.type === commentType);
-		const alreadyPassed = lastSlotComment
-			? lastSlotComment.status !== "fail" && !(lastSlotComment.issues?.some((i) => i.severity === "blocking" || i.severity === "warning") ?? false)
-			: false;
-		if (alreadyPassed) {
-			logger.info(`[review] ${slot.name} already passed for "${card.title}" — skipping`);
-			await appendActivityLog(workspaceId, card.id, `${slot.name}: already passed — skipping`);
-			stateHub.broadcastWorkspaceUpdate(workspaceId);
-			continue;
+		if (skipPassed) {
+			const commentType = slot.type === "custom" ? slot.id : slot.type;
+			const lastSlotComment = [...(card.reviewComments ?? [])].reverse().find((c) => c.type === commentType);
+			const alreadyPassed = lastSlotComment
+				? lastSlotComment.status !== "fail" && !(lastSlotComment.issues?.some((i) => i.severity === "blocking" || i.severity === "warning") ?? false)
+				: false;
+			if (alreadyPassed) {
+				logger.info(`[review] ${slot.name} already passed for "${card.title}" — skipping`);
+				await appendActivityLog(workspaceId, card.id, `${slot.name}: already passed — skipping`);
+				stateHub.broadcastWorkspaceUpdate(workspaceId);
+				continue;
+			}
+			skipPassed = false; // found the first slot to run — run this and all remaining
 		}
 
 		await appendActivityLog(workspaceId, card.id, `${slot.name} running (${slot.agentBinary})`);

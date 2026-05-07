@@ -145,7 +145,8 @@ export async function createRuntimeServer(options: ServerOptions) {
 						const session = state.sessions[taskId];
 						// Trigger review when dev just finished (idle session = no active process)
 						// and card is still in_progress (meaning it has review slots to run).
-						if (session?.state === "completed" && card?.columnId === "in_progress") {
+						// "failed" session means crash recovery — dev was skipped, resume review.
+						if ((session?.state === "completed" || session?.state === "failed") && card?.columnId === "in_progress") {
 							startReview(card);
 						}
 					})
