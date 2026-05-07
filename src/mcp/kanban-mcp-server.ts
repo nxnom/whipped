@@ -55,7 +55,7 @@ server.registerTool(
 		);
 		const board = state.board as {
 			columns: Array<{ id: string; title: string; taskIds: string[] }>;
-			cards: Record<string, { id: string; title: string; description: string; columnId: string; priority?: string; dependsOn?: string[] }>;
+			cards: Record<string, { id: string; title: string; description: string; columnId: string; type?: string; priority?: string; dependsOn?: string[] }>;
 		};
 
 		const lines: string[] = [];
@@ -65,13 +65,103 @@ server.registerTool(
 			for (const id of col.taskIds) {
 				const card = board.cards[id];
 				if (!card) continue;
+				const typeTag = card.type && card.type !== "task" ? ` [${card.type}]` : "";
 				const priorityTag = card.priority ? ` [${card.priority}]` : "";
 				const depsTag = card.dependsOn && card.dependsOn.length > 0 ? ` (depends on: ${card.dependsOn.join(", ")})` : "";
-				lines.push(`- [${id}] ${card.title}${priorityTag}${depsTag}`);
+				lines.push(`- [${id}]${typeTag} ${card.title}${priorityTag}${depsTag}`);
+				if (card.type === "story" && card.dependsOn && card.dependsOn.length > 0) {
+					const met = card.dependsOn.filter(depId => {
+						const dep = board.cards[depId];
+						return dep?.columnId === "ready_for_review" || dep?.columnId === "done";
+					});
+					lines.push(`  Progress: ${met.length}/${card.dependsOn.length} subtasks complete`);
+				}
 			}
 		}
 
 		return { content: [{ type: "text", text: lines.join("\n") || "Board is empty." }] };
+	},
+);
+
+server.registerTool(
+	"kanban_create_story",
+	{
+		description: `Create a story ticket with its subtasks in one atomic operation.
+
+Creates all subtasks first, then the story card that depends on them. The story triggers its orchestrator workflow automatically when all subtasks reach 'Ready for Review' or 'Done'.
+
+**Intra-batch dependencies:** If subtask B should run after subtask A (both in this batch), give subtask A a \`tempId\` (e.g. "auth") and list that tempId in subtask B's \`dependsOn\`. The real card IDs are wired up automatically after creation.`,
+		inputSchema: {
+			title: z.string().describe("Story title — short description of the overall goal"),
+			description: z.string().describe("Story description — what this story accomplishes as a whole, including acceptance criteria"),
+			priority: z.enum(["urgent", "high", "medium", "low"]).optional().describe("Story priority"),
+			workflowId: z.string().optional().describe("ID of the story orchestrator workflow. Omit to use the default story workflow."),
+			baseRef: z.string().optional().describe("Base branch for all cards in this story. Omit to use the repo default branch."),
+			subtasks: z.array(z.object({
+				tempId: z.string().optional().describe("Short label to reference this subtask from other subtasks' dependsOn in this batch (e.g. 'auth', 'db-schema'). Not stored — only used for wiring up intra-batch deps."),
+				title: z.string().describe("Subtask title"),
+				description: z.string().describe("Subtask description with acceptance criteria"),
+				priority: z.enum(["urgent", "high", "medium", "low"]).optional().describe("Subtask priority"),
+				workflowId: z.string().optional().describe("Workflow ID for this subtask. Omit to use the default task workflow."),
+				baseRef: z.string().optional().describe("Override base branch for this subtask only"),
+				dependsOn: z.array(z.string()).optional().describe("Dependencies for this subtask. Use real card IDs for existing cards on the board, or tempId values to reference other subtasks in this same batch."),
+			})).min(1).describe("Subtasks to create. At least one required. Each subtask gets type: 'subtask' and readyForDev: true automatically."),
+		},
+	},
+	async ({ title, description, priority, workflowId, baseRef, subtasks }) => {
+		// Pass 1: create all subtasks without intra-batch deps, build tempId → realId map
+		const tempIdToRealId = new Map<string, string>();
+		const createdSubtasks: Array<{ realId: string; title: string; rawDeps: string[] }> = [];
+
+		for (const subtask of subtasks) {
+			// Only pass existing board card IDs in this first pass — tempId refs aren't real yet
+			const existingDeps = (subtask.dependsOn ?? []).filter(dep => !subtasks.some(s => s.tempId === dep));
+			const card = await trpc<{ id: string; title: string }>("cards.create", {
+				workspaceId,
+				title: subtask.title,
+				description: subtask.description,
+				type: "subtask",
+				priority: subtask.priority,
+				readyForDev: true,
+				baseRef: subtask.baseRef || baseRef || undefined,
+				workflowId: subtask.workflowId || undefined,
+				dependsOn: existingDeps.length > 0 ? existingDeps : undefined,
+			});
+			if (subtask.tempId) tempIdToRealId.set(subtask.tempId, card.id);
+			createdSubtasks.push({ realId: card.id, title: subtask.title, rawDeps: subtask.dependsOn ?? [] });
+		}
+
+		// Pass 2: wire up any intra-batch tempId deps that are now resolvable
+		for (const { realId, rawDeps } of createdSubtasks) {
+			const batchDeps = rawDeps.filter(dep => tempIdToRealId.has(dep));
+			if (batchDeps.length === 0) continue;
+			const resolvedBatchDeps = batchDeps.map(dep => tempIdToRealId.get(dep)!);
+			const existingDeps = rawDeps.filter(dep => !tempIdToRealId.has(dep));
+			await trpc("cards.update", {
+				workspaceId,
+				cardId: realId,
+				dependsOn: [...existingDeps, ...resolvedBatchDeps],
+				revision: 0,
+			});
+		}
+
+		// Create the story card depending on all subtasks
+		const subtaskIds = createdSubtasks.map(s => s.realId);
+		const storyCard = await trpc<{ id: string; title: string }>("cards.create", {
+			workspaceId,
+			title,
+			description,
+			type: "story",
+			priority,
+			baseRef: baseRef || undefined,
+			workflowId: workflowId || undefined,
+			dependsOn: subtaskIds,
+		});
+
+		const lines = [`Created story [${storyCard.id}] "${title}" with ${subtaskIds.length} subtask(s):`];
+		for (const { realId, title: st } of createdSubtasks) lines.push(`  Subtask [${realId}] "${st}"`);
+		lines.push(`The story will trigger its orchestrator workflow once all subtasks complete.`);
+		return { content: [{ type: "text", text: lines.join("\n") }] };
 	},
 );
 
@@ -82,6 +172,10 @@ server.registerTool(
 		inputSchema: {
 			title: z.string().describe("Short task title"),
 			description: z.string().describe("Full task description including acceptance criteria"),
+			type: z
+				.enum(["task", "story", "subtask"])
+				.optional()
+				.describe("Card type — 'task' (default), 'story' (orchestrator ticket with subtasks), or 'subtask' (child of a story)"),
 			priority: z
 				.enum(["urgent", "high", "medium", "low"])
 				.optional()
@@ -89,7 +183,7 @@ server.registerTool(
 			readyForDev: z
 				.boolean()
 				.optional()
-				.describe("Mark the card as ready for the agent to pick up automatically. Defaults to false."),
+				.describe("Mark the card as ready for the agent to pick up automatically. Defaults to false (true for story cards)."),
 			columnId: z
 				.enum(["todo", "blocked"])
 				.optional()
@@ -104,11 +198,12 @@ server.registerTool(
 				.describe("ID of the workflow to use for this task. Omit to use the default."),
 		},
 	},
-	async ({ title, description, priority, readyForDev, columnId, dependsOn, workflowId }) => {
+	async ({ title, description, type, priority, readyForDev, columnId, dependsOn, workflowId }) => {
 		const card = await trpc<{ id: string; title: string; columnId: string }>("cards.create", {
 			workspaceId,
 			title,
 			description,
+			type,
 			priority,
 			readyForDev,
 			dependsOn,
@@ -259,13 +354,14 @@ server.registerTool(
 	},
 	async () => {
 		const workflows = await trpcQuery<Array<{
-			id: string; name: string; isDefault: boolean;
+			id: string; name: string; isDefault: boolean; forStory?: boolean;
 			slots: Array<{ id: string; type: string; name: string; agentBinary: string; order: number; enabled: boolean; prompt: string }>;
 		}>>("workflows.list", { workspaceId });
 
 		const lines: string[] = [];
 		for (const wf of workflows) {
-			lines.push(`## ${wf.name}${wf.isDefault ? " (default)" : ""} [id: ${wf.id}]`);
+			const kind = wf.forStory ? " [story/orch workflow]" : " [task workflow]";
+			lines.push(`## ${wf.name}${wf.isDefault ? " (default)" : ""}${kind} [id: ${wf.id}]`);
 			const sorted = [...wf.slots].sort((a, b) => a.order - b.order);
 			for (const slot of sorted) {
 				const status = slot.enabled ? "enabled" : "disabled";
@@ -285,21 +381,22 @@ server.registerTool(
 			id: z.string().describe("Unique workflow ID. Use a short slug like 'wf_security' for new workflows."),
 			name: z.string().describe("Human-readable workflow name, e.g. 'Security Review'"),
 			isDefault: z.boolean().optional().describe("Whether this is the default workflow (only one can be default)"),
+			forStory: z.boolean().optional().describe("True for story/orchestrator workflows (orch slots only). False for regular task workflows (dev/code_review/qa/custom slots)."),
 			slots: z.array(z.object({
 				id: z.string().describe("Unique slot ID within this workflow"),
-				type: z.enum(["dev", "code_review", "qa", "custom"]).describe("Slot type"),
+				type: z.enum(["dev", "code_review", "qa", "custom", "orch"]).describe("Slot type. Use 'orch' for story orchestrator slots. Task workflows use dev/code_review/qa/custom."),
 				name: z.string().describe("Display name for this slot"),
 				agentBinary: z.enum(["claude", "codex"]).describe("Agent binary to use"),
 				order: z.number().int().nonnegative().describe("Execution order (0 = first)"),
 				enabled: z.boolean().describe("Whether this slot is active in the pipeline"),
 				prompt: z.string().describe("System prompt / instructions for this agent slot. Empty string for default behavior."),
-			})).describe("Ordered list of agent slots in this workflow. Always include a dev slot (type: 'dev', order: 0)."),
+			})).describe("For task workflows: always include a dev slot (type: 'dev', order: 0). For story workflows: use only orch slots."),
 		},
 	},
-	async ({ id, name, isDefault, slots }) => {
+	async ({ id, name, isDefault, forStory, slots }) => {
 		const workflow = await trpc<{ id: string; name: string }>("workflows.upsert", {
 			workspaceId,
-			workflow: { id, name, isDefault: isDefault ?? false, slots },
+			workflow: { id, name, isDefault: isDefault ?? false, forStory: forStory ?? false, slots },
 		});
 		return { content: [{ type: "text", text: `Workflow "${workflow.name}" [${workflow.id}] saved successfully.` }] };
 	},

@@ -299,20 +299,22 @@ export async function moveCard(
 export async function createCard(
 	workspaceId: string,
 	data: Pick<RuntimeBoardCard, "title" | "description"> &
-		Partial<Pick<RuntimeBoardCard, "agentId" | "priority" | "readyForDev" | "dependsOn" | "columnId" | "githubIssueUrl" | "jiraKey" | "jiraUrl" | "workflowId">>,
+		Partial<Pick<RuntimeBoardCard, "type" | "agentId" | "priority" | "readyForDev" | "dependsOn" | "columnId" | "githubIssueUrl" | "jiraKey" | "jiraUrl" | "workflowId">>,
 	baseRef: string,
 ): Promise<RuntimeBoardCard> {
 	return withLock(workspaceId, async () => {
 		const board = await loadBoard(workspaceId);
 		const id = generateTaskId();
 		const now = Date.now();
+		const type = data.type ?? "task";
 
 		const card: RuntimeBoardCard = {
 			id,
 			title: data.title,
 			description: data.description,
 			columnId: data.columnId ?? "todo",
-			readyForDev: data.readyForDev ?? false,
+			type,
+			readyForDev: data.readyForDev ?? type === "story",
 			agentId: data.agentId,
 			priority: data.priority,
 			dependsOn: data.dependsOn ?? [],
@@ -444,7 +446,7 @@ export async function updateCard(
 	workspaceId: string,
 	cardId: string,
 	update: Partial<
-		Pick<RuntimeBoardCard, "title" | "description" | "agentId" | "priority" | "readyForDev" | "dependsOn" | "workflowId" | "githubPrUrl" | "reviewComments" | "autoFixAttempts" | "githubCommentIds" | "worktreePath">
+		Pick<RuntimeBoardCard, "type" | "title" | "description" | "agentId" | "priority" | "readyForDev" | "dependsOn" | "workflowId" | "githubPrUrl" | "reviewComments" | "autoFixAttempts" | "githubCommentIds" | "worktreePath">
 	>,
 ): Promise<RuntimeBoardCard> {
 	return withLock(workspaceId, async () => {

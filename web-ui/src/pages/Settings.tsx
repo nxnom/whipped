@@ -2,7 +2,7 @@ import { Button, Checkbox, Input, Select, SelectOption, Switch, Textarea, toast 
 import type { Workflow, WorkflowSlot, RuntimeGlobalConfig, RuntimeJiraTicket, RuntimeProjectConfig, RuntimeWorktreeSetup, RuntimeProjectSecret } from "@runtime-contract";
 import { AGENT_BINARY_OPTIONS, BUILTIN_SECRET_KEYS, EFFORT_OPTIONS, type EffortLevel } from "@runtime-contract";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
-import { ArrowLeft, Bot, Download, Eye, EyeOff, GripVertical, Key, MessageSquare, Plus, RefreshCw, Settings2, Terminal, Ticket, Trash2, X, Zap } from "lucide-react";
+import { ArrowLeft, Bot, Download, Eye, EyeOff, GripVertical, Key, Layers, MessageSquare, Plus, RefreshCw, Settings2, Terminal, Ticket, Trash2, X, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { trpc } from "@/runtime/trpc-client";
@@ -57,7 +57,7 @@ export function SettingsPage() {
 				</nav>
 
 				{/* Content */}
-				<div className="flex-1 overflow-y-auto">
+				<div className="flex-1 overflow-hidden">
 					{isProject ? (
 						<ProjectSettings workspaceId={workspaceId} section={section as ProjectSection} />
 					) : (
@@ -203,8 +203,21 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 		return <div className="flex items-center justify-center py-20 text-gray-500 text-sm">Loading...</div>;
 	}
 
+	if (section === "workflows") {
+		return (
+			<WorkflowsSection
+				workflows={config.workflows}
+				defaultBinary={globalDefaultBinary}
+				onChange={(workflows) => updateConfig({ ...config, workflows })}
+				onSave={handleSave}
+				saving={saving}
+			/>
+		);
+	}
+
 	return (
-		<div className="p-6 max-w-xl space-y-6">
+		<div className="h-full overflow-y-auto">
+			<div className="p-6 max-w-xl space-y-6">
 			{section === "autonomous" && (
 				<>
 					<SectionHeader
@@ -261,16 +274,6 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 					</div>
 					<SaveRow saving={saving} onSave={handleSave} />
 				</>
-			)}
-
-			{section === "workflows" && (
-				<WorkflowsSection
-					workflows={config.workflows}
-					defaultBinary={globalDefaultBinary}
-					onChange={(workflows) => updateConfig({ ...config, workflows })}
-					onSave={handleSave}
-					saving={saving}
-				/>
 			)}
 
 			{section === "assistant" && (
@@ -415,6 +418,7 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 				</>
 			)}
 		</div>
+		</div>
 	);
 }
 
@@ -433,13 +437,25 @@ function WorkflowsSection({
 	onSave: () => void;
 	saving: boolean;
 }) {
+	const taskWorkflows = workflows.filter(w => !w.forStory);
+	const storyWorkflows = workflows.filter(w => w.forStory);
+
+	const [activeTab, setActiveTab] = useState<"task" | "story">("task");
 	const [selectedId, setSelectedId] = useState<string>(
-		workflows.find(w => w.isDefault)?.id ?? workflows[0]?.id ?? ""
+		taskWorkflows.find(w => w.isDefault)?.id ?? taskWorkflows[0]?.id ?? ""
 	);
 	const [editingSlot, setEditingSlot] = useState<{ wfId: string; slot: WorkflowSlot } | null>(null);
 	const [addingCustomTo, setAddingCustomTo] = useState<string | null>(null);
+	const [addingOrchTo, setAddingOrchTo] = useState<string | null>(null);
 
+	const visibleWorkflows = activeTab === "task" ? taskWorkflows : storyWorkflows;
 	const selectedWorkflow = workflows.find(w => w.id === selectedId);
+
+	const handleTabSwitch = (tab: "task" | "story") => {
+		setActiveTab(tab);
+		const list = tab === "task" ? taskWorkflows : storyWorkflows;
+		setSelectedId(list.find(w => w.isDefault)?.id ?? list[0]?.id ?? "");
+	};
 
 	const updateWorkflow = (updated: Workflow) => {
 		onChange(workflows.map(w => w.id === updated.id ? updated : w));
@@ -451,9 +467,25 @@ function WorkflowsSection({
 			id,
 			name: "New Workflow",
 			isDefault: false,
+			forStory: false,
 			slots: [{ id: "dev", type: "dev", name: "Dev", agentBinary: defaultBinary, order: 0, enabled: true, prompt: "" }],
 		};
 		onChange([...workflows, newWf]);
+		setActiveTab("task");
+		setSelectedId(id);
+	};
+
+	const handleAddStoryWorkflow = () => {
+		const id = `wf_story_${Date.now()}`;
+		const newWf: Workflow = {
+			id,
+			name: "New Story Workflow",
+			isDefault: false,
+			forStory: true,
+			slots: [{ id: "orch", type: "orch", name: "Orchestrator", agentBinary: defaultBinary, order: 0, enabled: true, prompt: "" }],
+		};
+		onChange([...workflows, newWf]);
+		setActiveTab("story");
 		setSelectedId(id);
 	};
 
@@ -461,7 +493,8 @@ function WorkflowsSection({
 		const updated = workflows.filter(w => w.id !== workflowId);
 		onChange(updated);
 		if (selectedId === workflowId) {
-			setSelectedId(updated.find(w => w.isDefault)?.id ?? updated[0]?.id ?? "");
+			const remaining = updated.filter(w => activeTab === "task" ? !w.forStory : w.forStory);
+			setSelectedId(remaining.find(w => w.isDefault)?.id ?? remaining[0]?.id ?? "");
 		}
 	};
 
@@ -474,66 +507,135 @@ function WorkflowsSection({
 	};
 
 	return (
-		<>
-			<SectionHeader
-				title="Workflows"
-				description="Each workflow defines a set of agents and their prompts. Assign a workflow when creating a task."
-			/>
-
-			{/* Workflow tabs */}
-			<div className="flex gap-2 flex-wrap items-center">
-				{workflows.map(w => (
-					<button
-						key={w.id}
-						onClick={() => setSelectedId(w.id)}
-						className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
-							${selectedId === w.id ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-400 hover:text-gray-200"}`}
-					>
-						{w.name}
-						{w.isDefault && <span className="ml-1 text-[10px] opacity-60">(default)</span>}
-					</button>
-				))}
-				<Button variant="outlined" size="sm" onClick={handleAddWorkflow}>
-					<Plus size={11} className="mr-1" /> New
-				</Button>
+		<div className="flex flex-col h-full">
+			{/* Tab bar */}
+			<div className="shrink-0 flex border-b border-gray-800">
+				<button
+					onClick={() => handleTabSwitch("task")}
+					className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors
+						${activeTab === "task"
+							? "border-blue-500 text-white"
+							: "border-transparent text-gray-500 hover:text-gray-300"}`}
+				>
+					<Bot size={13} />
+					Task Workflows
+					<span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === "task" ? "bg-blue-500/20 text-blue-400" : "bg-gray-800 text-gray-500"}`}>
+						{taskWorkflows.length}
+					</span>
+				</button>
+				<button
+					onClick={() => handleTabSwitch("story")}
+					className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors
+						${activeTab === "story"
+							? "border-purple-500 text-purple-200"
+							: "border-transparent text-gray-500 hover:text-gray-300"}`}
+				>
+					<Layers size={13} />
+					Story Workflows
+					<span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === "story" ? "bg-purple-500/20 text-purple-400" : "bg-gray-800 text-gray-500"}`}>
+						{storyWorkflows.length}
+					</span>
+				</button>
 			</div>
 
-			{/* Workflow name header — outside the sortable slot area */}
-			{selectedWorkflow && (
-				<div className="flex items-center gap-2">
-					<Input
-						value={selectedWorkflow.name}
-						onChange={(e) => updateWorkflow({ ...selectedWorkflow, name: e.target.value })}
-						disabled={selectedWorkflow.isDefault}
-						inputClassName="font-semibold text-sm"
-						className="flex-1"
-					/>
-					{selectedWorkflow.isDefault && (
-						<span className="text-[10px] text-gray-500 bg-gray-800 px-2 py-1 rounded-lg shrink-0">default</span>
-					)}
-					{!selectedWorkflow.isDefault && (
+		<div className="flex flex-1 overflow-hidden">
+			{/* Left: workflow list */}
+			<div className="w-52 shrink-0 border-r border-gray-800 flex flex-col">
+				<div className="flex-1 overflow-y-auto py-1">
+					{visibleWorkflows.map(w => (
 						<button
-							onClick={() => handleDeleteWorkflow(selectedWorkflow.id)}
-							className="text-gray-600 hover:text-red-400 transition-colors shrink-0"
+							key={w.id}
+							onClick={() => setSelectedId(w.id)}
+							className={`w-full text-left flex items-center gap-2 px-4 py-2 text-sm transition-colors
+								${selectedId === w.id
+									? activeTab === "story" ? "bg-purple-900/40 text-purple-200" : "bg-gray-800 text-white"
+									: "text-gray-400 hover:text-gray-200 hover:bg-gray-900/50"}`}
 						>
-							<Trash2 size={14} />
+							{activeTab === "story" && <Layers size={12} className="shrink-0 text-purple-500" />}
+							<span className="flex-1 truncate">{w.name}</span>
+							{w.isDefault && <span className="text-[10px] text-gray-600 shrink-0">default</span>}
+						</button>
+					))}
+					{visibleWorkflows.length === 0 && (
+						<p className="px-4 py-4 text-xs text-gray-600">No workflows yet</p>
+					)}
+				</div>
+				<div className="border-t border-gray-800 p-3">
+					{activeTab === "task" ? (
+						<button
+							onClick={handleAddWorkflow}
+							className="w-full text-left flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-200 transition-colors px-1 py-1.5 rounded"
+						>
+							<Plus size={11} /> New Workflow
+						</button>
+					) : (
+						<button
+							onClick={handleAddStoryWorkflow}
+							className="w-full text-left flex items-center gap-1.5 text-xs text-gray-500 hover:text-purple-400 transition-colors px-1 py-1.5 rounded"
+						>
+							<Plus size={11} /> New Workflow
 						</button>
 					)}
 				</div>
-			)}
+			</div>
 
-			{/* Selected workflow editor */}
-			{selectedWorkflow && (
-				<WorkflowEditor
-					workflow={selectedWorkflow}
-					defaultBinary={defaultBinary}
-					onUpdate={updateWorkflow}
-					onEditSlot={(slot) => setEditingSlot({ wfId: selectedWorkflow.id, slot })}
-					onAddCustom={() => setAddingCustomTo(selectedWorkflow.id)}
-				/>
-			)}
+			{/* Right: editor */}
+			<div className="flex-1 overflow-hidden flex flex-col">
+				{selectedWorkflow ? (
+					<>
+						{/* Header */}
+						<div className="shrink-0 flex items-center gap-3 px-6 py-3 border-b border-gray-800">
+							<Input
+								value={selectedWorkflow.name}
+								onChange={(e) => updateWorkflow({ ...selectedWorkflow, name: e.target.value })}
+								disabled={selectedWorkflow.isDefault}
+								inputClassName="font-semibold text-sm"
+								className="max-w-xs"
+							/>
+							{selectedWorkflow.forStory && (
+								<span className="flex items-center gap-1 text-[10px] text-purple-400 bg-purple-400/10 px-2 py-1 rounded font-medium shrink-0">
+									<Layers size={10} /> story
+								</span>
+							)}
+							{selectedWorkflow.isDefault && (
+								<span className="text-[10px] text-gray-500 bg-gray-800 px-2 py-1 rounded shrink-0">default</span>
+							)}
+							{!selectedWorkflow.isDefault && (
+								<button
+									onClick={() => handleDeleteWorkflow(selectedWorkflow.id)}
+									className="ml-auto text-gray-600 hover:text-red-400 transition-colors"
+								>
+									<Trash2 size={14} />
+								</button>
+							)}
+						</div>
 
-			<SaveRow saving={saving} onSave={onSave} />
+						{/* Slot editor */}
+						<div className="flex-1 overflow-y-auto p-6">
+							<WorkflowEditor
+								workflow={selectedWorkflow}
+								defaultBinary={defaultBinary}
+								onUpdate={updateWorkflow}
+								onEditSlot={(slot) => setEditingSlot({ wfId: selectedWorkflow.id, slot })}
+								onAddCustom={() => setAddingCustomTo(selectedWorkflow.id)}
+								onAddOrch={() => setAddingOrchTo(selectedWorkflow.id)}
+							/>
+						</div>
+
+						{/* Footer */}
+						<div className="shrink-0 border-t border-gray-800 px-6 py-3 flex justify-end">
+							<Button size="sm" onClick={onSave} disabled={saving}>
+								{saving ? "Saving..." : "Save"}
+							</Button>
+						</div>
+					</>
+				) : (
+					<div className="flex-1 flex items-center justify-center text-sm text-gray-600">
+						Select a workflow to edit
+					</div>
+				)}
+			</div>
+		</div>
 
 			{editingSlot && (
 				<AgentSlotDialog
@@ -558,7 +660,24 @@ function WorkflowsSection({
 					onClose={() => setAddingCustomTo(null)}
 				/>
 			)}
-		</>
+
+			{addingOrchTo !== null && (
+				<AddCustomAgentDialog
+					defaultBinary={defaultBinary}
+					title="Add Orch Agent"
+					onAdd={(name, binary, effort, prompt) => {
+						const id = `slot_orch_${Date.now()}`;
+						const wf = workflows.find(w => w.id === addingOrchTo);
+						if (!wf) return;
+						const maxOrder = wf.slots.reduce((m, s) => Math.max(m, s.order), 0);
+						const newSlot: WorkflowSlot = { id, type: "orch", name, agentBinary: binary, effort, order: maxOrder + 1, enabled: true, prompt };
+						updateWorkflow({ ...wf, slots: [...wf.slots, newSlot] });
+						setAddingOrchTo(null);
+					}}
+					onClose={() => setAddingOrchTo(null)}
+				/>
+			)}
+		</div>
 	);
 }
 
@@ -568,12 +687,14 @@ function WorkflowEditor({
 	onUpdate,
 	onEditSlot,
 	onAddCustom,
+	onAddOrch,
 }: {
 	workflow: Workflow;
 	defaultBinary: "claude" | "codex";
 	onUpdate: (wf: Workflow) => void;
 	onEditSlot: (slot: WorkflowSlot) => void;
 	onAddCustom: () => void;
+	onAddOrch: () => void;
 }) {
 	const devSlot = workflow.slots.find(s => s.type === "dev");
 	const nonDevSlots = workflow.slots.filter(s => s.type !== "dev").sort((a, b) => a.order - b.order);
@@ -611,6 +732,59 @@ function WorkflowEditor({
 		const newSlot: WorkflowSlot = { ...d, type, agentBinary: defaultBinary, order: maxOrder + 1, prompt: "" };
 		onUpdate({ ...workflow, slots: [...workflow.slots, newSlot] });
 	};
+
+	// Story workflows: orch-only editor
+	if (workflow.forStory) {
+		const orchSlots = workflow.slots.filter(s => s.type === "orch").sort((a, b) => a.order - b.order);
+		const handleOrchDragEnd = (result: DropResult) => {
+			if (!result.destination || result.destination.index === result.source.index) return;
+			const reordered = [...orchSlots];
+			const [moved] = reordered.splice(result.source.index, 1);
+			if (!moved) return;
+			reordered.splice(result.destination.index, 0, moved);
+			onUpdate({ ...workflow, slots: reordered.map((s, i) => ({ ...s, order: i })) });
+		};
+		return (
+			<div className="border border-purple-900/50 rounded-xl p-4 space-y-3">
+				<DragDropContext onDragEnd={handleOrchDragEnd}>
+					<Droppable droppableId={`wf-story-${workflow.id}`}>
+						{(provided) => (
+							<div className="space-y-2" ref={provided.innerRef} {...provided.droppableProps}>
+								{orchSlots.map((slot, idx) => (
+									<Draggable key={slot.id} draggableId={`${workflow.id}-${slot.id}`} index={idx}>
+										{(drag, snapshot) => (
+											<div
+												ref={drag.innerRef}
+												{...drag.draggableProps}
+												className={`rounded-xl border transition-shadow ${snapshot.isDragging ? "border-purple-600 shadow-lg" : "border-purple-900/40"}`}
+											>
+												<SlotCard
+													slot={slot}
+													dragHandleProps={drag.dragHandleProps}
+													onToggle={(v) => handleToggle(slot.id, v)}
+													onRemove={() => handleRemove(slot.id)}
+													onEdit={() => onEditSlot(slot)}
+												/>
+											</div>
+										)}
+									</Draggable>
+								))}
+								{provided.placeholder}
+							</div>
+						)}
+					</Droppable>
+				</DragDropContext>
+				<div className="pt-1 border-t border-purple-900/30">
+					<button
+						onClick={onAddOrch}
+						className="flex items-center gap-1 text-xs text-gray-500 hover:text-purple-400 transition-colors py-1"
+					>
+						<Plus size={11} /> Orch Agent
+					</button>
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="border border-gray-800 rounded-xl p-4 space-y-3">
@@ -761,8 +935,8 @@ function AgentSlotDialog({
 	const [promptError, setPromptError] = useState("");
 
 	const handleSave = () => {
-		if (slot.type === "custom" && prompt.trim().length > 0 && prompt.trim().length < 50) {
-			setPromptError("Custom agent prompt must be at least 50 characters.");
+		if ((slot.type === "custom" || slot.type === "orch") && prompt.trim().length > 0 && prompt.trim().length < 50) {
+			setPromptError("Prompt must be at least 50 characters.");
 			return;
 		}
 		setPromptError("");
@@ -773,6 +947,7 @@ function AgentSlotDialog({
 		dev: "e.g. Always use TypeScript strict mode. Follow existing naming conventions.",
 		code_review: "e.g. Check all new API routes have auth middleware.",
 		qa: "e.g. Always run the full test suite with pnpm test.",
+		orch: "e.g. Review all subtask implementations together. Check that they integrate correctly and fulfill the story goal.",
 	};
 
 	return (
@@ -797,7 +972,7 @@ function AgentSlotDialog({
 					</Field>
 				</div>
 
-				<Field label={`Instructions${slot.type === "custom" ? " (min 50 chars)" : " (optional)"}`}>
+				<Field label={`Instructions${slot.type === "custom" || slot.type === "orch" ? " (min 50 chars)" : " (optional)"}`}>
 					<Textarea
 						value={prompt}
 						onChange={(e) => { setPrompt(e.target.value); if (promptError) setPromptError(""); }}
@@ -819,10 +994,12 @@ function AgentSlotDialog({
 
 function AddCustomAgentDialog({
 	defaultBinary,
+	title = "Add Custom Agent",
 	onAdd,
 	onClose,
 }: {
 	defaultBinary: "claude" | "codex";
+	title?: string;
 	onAdd: (name: string, binary: "claude" | "codex", effort: EffortLevel | null, prompt: string) => void;
 	onClose: () => void;
 }) {
@@ -847,7 +1024,7 @@ function AddCustomAgentDialog({
 				className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-md p-5 space-y-4"
 				onClick={(e) => e.stopPropagation()}
 			>
-				<h3 className="text-sm font-semibold text-gray-100">Add Custom Agent</h3>
+				<h3 className="text-sm font-semibold text-gray-100">{title}</h3>
 				<div className="grid grid-cols-2 gap-3">
 					<Field label="Name">
 						<Input

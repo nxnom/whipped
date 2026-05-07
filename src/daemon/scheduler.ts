@@ -207,16 +207,60 @@ export class TaskScheduler {
 				stateHub.broadcastWorkspaceUpdate(workspaceId);
 				return;
 			}
-			// Branch from the last dep that is still in ready_for_review (unmerged)
-			for (let i = card.dependsOn.length - 1; i >= 0; i--) {
-				const depId = card.dependsOn[i] as string;
-				const dep = board.cards[depId];
-				if (dep?.columnId === "ready_for_review") {
-					effectiveBaseRef = getWorktreeBranch(depId);
-					break;
+			// Story cards run the orch workflow on the base branch — don't branch off subtask worktrees
+			if (card.type !== "story") {
+				for (let i = card.dependsOn.length - 1; i >= 0; i--) {
+					const depId = card.dependsOn[i] as string;
+					const dep = board.cards[depId];
+					if (dep?.columnId === "ready_for_review") {
+						effectiveBaseRef = getWorktreeBranch(depId);
+						break;
+					}
 				}
+				parentCards = card.dependsOn.map(id => board.cards[id]).filter((c): c is RuntimeBoardCard => !!c);
 			}
-			parentCards = card.dependsOn.map(id => board.cards[id]).filter((c): c is RuntimeBoardCard => !!c);
+		}
+
+		// Story cards have no dev phase — skip straight to the orch review pipeline
+		if (card.type === "story") {
+			const now = Date.now();
+			const devStreamId = `${taskId}-dev-${now}`;
+
+			// If resuming after a crash (dev:pass already exists from a prior cycle), just re-trigger
+			const lastDevComment = [...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev");
+			const lastDevTs = card.terminalSessions?.slice().reverse().find((ts) => ts.type === "dev");
+			const devPassedPreviously = lastDevComment?.status === "pass"
+				&& lastDevTs !== undefined
+				&& lastDevComment.createdAt >= lastDevTs.startedAt;
+			const lastTs = card.terminalSessions?.at(-1);
+
+			if (lastTs?.state === "failed" && devPassedPreviously) {
+				await moveCard(workspaceId, taskId, "in_progress");
+				await appendActivityLog(workspaceId, taskId, "Story resuming orchestrator workflow");
+				stateHub.broadcastWorkspaceUpdate(workspaceId);
+				this.options.onTaskCompleted(taskId);
+				return;
+			}
+
+			// Fresh cycle — write a synthetic dev:pass so the review pipeline sees dev as done
+			await moveCard(workspaceId, taskId, "in_progress");
+			await appendTerminalSession(workspaceId, taskId, { streamId: devStreamId, type: "dev", startedAt: now, agentId: "claude", state: "running" });
+			const freshBoard = await loadBoard(workspaceId);
+			const freshCard = freshBoard.cards[taskId] ?? card;
+			const devComment: import("../core/api-contract.js").RuntimeReviewComment = {
+				type: "dev",
+				actor: { type: "ai", id: "claude" },
+				status: "pass",
+				createdAt: now,
+				streamId: devStreamId,
+				summary: `Story picked up for orchestrator review. ${card.dependsOn?.length ?? 0} subtask(s) completed.`,
+			};
+			await updateCard(workspaceId, taskId, { reviewComments: [...(freshCard.reviewComments ?? []), devComment] });
+			await endTerminalSession(workspaceId, taskId, devStreamId, now, "completed");
+			await appendActivityLog(workspaceId, taskId, "All subtasks complete → triggering orchestrator workflow");
+			stateHub.broadcastWorkspaceUpdate(workspaceId);
+			this.options.onTaskCompleted(taskId);
+			return;
 		}
 
 		// If the last session was failed (server stopped mid-run) and dev already passed
@@ -470,6 +514,8 @@ export class TaskScheduler {
 	}
 
 	async triggerParentReopenCascade(parentCard: RuntimeBoardCard, boardCards: Record<string, RuntimeBoardCard>): Promise<void> {
+		if (parentCard.type !== "task") return;
+
 		const { workspaceId, repoPath, serverUrl, stateHub } = this.options;
 
 		const childCards = Object.values(boardCards).filter(
@@ -700,25 +746,36 @@ You are a conversational project assistant. You can discuss the project, help pl
 
 ## Board
 - \`kanban_get_board\` — fetch the live board state (cards, columns, current status)
-- \`kanban_create_card\` — create a new task card
+- \`kanban_create_card\` — create a single task card (type: "task" by default; also accepts "story" or "subtask")
+- \`kanban_create_story\` — create a story with all its subtasks in one call (preferred for stories)
 - \`kanban_move_card\` — move a card to a different column
-- \`kanban_update_card\` — update a card's title or description
+- \`kanban_update_card\` — update a card's title, description, priority, or dependencies
 - \`kanban_delete_card\` — delete a card
 - \`kanban_add_comment\` — record a comment on a card
 
 ## Workflows
-- \`kanban_get_workflows\` — list all workflows with their agent slots, models, and prompts
+- \`kanban_get_workflows\` — list all workflows (task and story/orch) with their agent slots, models, and prompts
 - \`kanban_upsert_workflow\` — create or fully replace a workflow (pass complete workflow object)
+
+# Card types
+
+**task** — a normal development ticket. Runs dev → code_review → qa (based on workflow).
+
+**story** — an epic with child subtasks. After ALL subtasks complete, the story runs its orchestrator (orch) workflow which reviews the whole picture and may reopen subtasks. Use \`kanban_create_story\` to create one atomically.
+
+**subtask** — a child of a story. Runs its own full dev workflow. Created automatically by \`kanban_create_story\`, or manually via \`kanban_create_card\` with type: "subtask". Always set readyForDev: true.
 
 # Workflow guidance
 
 When asked to suggest or create a workflow:
 1. Call \`kanban_get_board\` to understand the project type and existing tasks
-2. Call \`kanban_get_workflows\` to see what already exists
+2. Call \`kanban_get_workflows\` to see what already exists — note that task and story workflows are separate
 3. Suggest appropriate agent slots and write focused, specific prompts for each slot
-4. Use \`kanban_upsert_workflow\` to save — always include a dev slot (type: "dev", order: 0)
+4. Use \`kanban_upsert_workflow\` to save
+   - Task workflows: always include a dev slot (type: "dev", order: 0). Add code_review, qa, or custom slots as needed.
+   - Story workflows: use only orch slots (type: "orch"). Set forStory: true.
 
-Slot prompts should be specific to the project's domain and the slot's role (dev, code_review, qa, custom).${secretsSection ? `\n\n${secretsSection}` : ""}${systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : ""}`;
+Slot prompts should be specific to the project's domain and the slot's role.${secretsSection ? `\n\n${secretsSection}` : ""}${systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : ""}`;
 }
 
 

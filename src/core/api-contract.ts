@@ -23,7 +23,7 @@ export const EFFORT_OPTIONS: ReadonlyArray<{ value: EffortLevel; label: string }
 
 // ─── Workflows ───────────────────────────────────────────────────────────────
 
-export const workflowSlotTypeSchema = z.enum(["dev", "code_review", "qa", "custom"]);
+export const workflowSlotTypeSchema = z.enum(["dev", "code_review", "qa", "custom", "orch"]);
 export type WorkflowSlotType = z.infer<typeof workflowSlotTypeSchema>;
 
 export const workflowSlotSchema = z.object({
@@ -42,6 +42,7 @@ export const workflowSchema = z.object({
 	id: z.string(),
 	name: z.string(),
 	isDefault: z.boolean().default(false),
+	forStory: z.boolean().default(false),
 	slots: z.array(workflowSlotSchema),
 });
 export type Workflow = z.infer<typeof workflowSchema>;
@@ -50,10 +51,21 @@ export const DEFAULT_WORKFLOW: Workflow = {
 	id: "wf_default",
 	name: "Default",
 	isDefault: true,
+	forStory: false,
 	slots: [
 		{ id: "dev", type: "dev", name: "Dev", agentBinary: "claude", order: 0, enabled: true, prompt: "" },
 		{ id: "code_review", type: "code_review", name: "Code Review", agentBinary: "claude", order: 1, enabled: true, prompt: "" },
 		{ id: "qa", type: "qa", name: "QA", agentBinary: "claude", order: 2, enabled: false, prompt: "" },
+	],
+};
+
+export const DEFAULT_STORY_WORKFLOW: Workflow = {
+	id: "wf_story_default",
+	name: "Story Default",
+	isDefault: true,
+	forStory: true,
+	slots: [
+		{ id: "orch", type: "orch", name: "Orchestrator", agentBinary: "claude", order: 0, enabled: true, prompt: "" },
 	],
 };
 
@@ -155,6 +167,11 @@ export type RuntimeTerminalSessionEntry = z.infer<typeof runtimeTerminalSessionE
 export const runtimeCardPrioritySchema = z.enum(["urgent", "high", "medium", "low"]);
 export type RuntimeCardPriority = z.infer<typeof runtimeCardPrioritySchema>;
 
+// ─── Card type ────────────────────────────────────────────────────────────────
+
+export const cardTypeSchema = z.enum(["task", "story", "subtask"]);
+export type CardType = z.infer<typeof cardTypeSchema>;
+
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
 export const runtimeBoardCardSchema = z.object({
@@ -162,6 +179,7 @@ export const runtimeBoardCardSchema = z.object({
 	title: z.string(),
 	description: z.string(),
 	columnId: runtimeBoardColumnIdSchema,
+	type: cardTypeSchema.default("task"),
 	readyForDev: z.boolean().default(false),
 	agentId: runtimeAgentIdSchema.optional(),
 	priority: runtimeCardPrioritySchema.optional(),
@@ -252,7 +270,7 @@ export const runtimeProjectConfigSchema = z.object({
 	github: runtimeGithubConfigSchema.optional(),
 	jira: runtimeJiraConfigSchema.optional(),
 	worktreeSetup: runtimeWorktreeSetupSchema.optional(),
-	workflows: z.array(workflowSchema).default([DEFAULT_WORKFLOW]),
+	workflows: z.array(workflowSchema).default([DEFAULT_WORKFLOW, DEFAULT_STORY_WORKFLOW]),
 	secrets: z.array(runtimeProjectSecretSchema).default([]),
 	systemPrompt: z.string().optional(),
 });
@@ -281,6 +299,7 @@ export type RuntimeWorkspaceStateSaveRequest = z.infer<typeof runtimeWorkspaceSt
 export const runtimeCardCreateRequestSchema = z.object({
 	title: z.string().min(1),
 	description: z.string(),
+	type: cardTypeSchema.optional(),
 	agentId: runtimeAgentIdSchema.optional(),
 	priority: runtimeCardPrioritySchema.optional(),
 	readyForDev: z.boolean().optional(),
@@ -306,6 +325,7 @@ export const runtimeCardUpdateRequestSchema = z.object({
 	cardId: z.string(),
 	title: z.string().min(1).optional(),
 	description: z.string().optional(),
+	type: cardTypeSchema.optional(),
 	agentId: runtimeAgentIdSchema.optional(),
 	priority: runtimeCardPrioritySchema.optional(),
 	readyForDev: z.boolean().optional(),

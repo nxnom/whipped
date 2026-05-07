@@ -507,6 +507,7 @@ function buildReviewSlotSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard,
 	switch (slot.type) {
 		case "code_review": return buildCodeReviewSystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets, systemPrompt);
 		case "qa": return buildQASystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets, systemPrompt);
+		case "orch": return buildOrchSystemPrompt(slot, card, customPrompt, priorContext, secrets, systemPrompt);
 		default: return buildCustomSystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets, systemPrompt);
 	}
 }
@@ -576,6 +577,72 @@ ${diffSection}
 Write your findings to the terminal as plain text. Do NOT include pass/fail verdict words in your terminal output; those go only in the \`kanban_add_comment\` call.
 
 Then call \`kanban_add_comment\` with cardId: "${card.id}", type: "qa", status: "pass"/"fail"/"warning"/"skipped", summary: what you ran and the outcome, and optionally issues: [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional, pipeline still passes), message}] and attachments: [{type: "image", name, mimeType, path}].${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}`;
+}
+
+function buildOrchSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, customPrompt: string, priorContext: string, secrets: RuntimeProjectSecret[], systemPrompt?: string): string {
+	const subtaskIds = card.dependsOn ?? [];
+	const commentType = slot.type === "custom" ? slot.id : slot.type;
+	const custom = customPrompt.trim() ? `\n\n## Additional instructions\n\n${customPrompt.trim()}` : "";
+	const secretsSection = buildSecretsSection(secrets);
+	const projectContext = systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : "";
+
+	return `You are an Orchestrator agent. All subtasks for a story have finished their dev and review workflows. Your job is to decide whether the story goal has been fully and correctly met across all subtasks.
+
+## Story
+**[${card.id}] ${card.title}**
+${card.description ? `\n${card.description}\n` : ""}
+## Subtasks
+${subtaskIds.length > 0 ? subtaskIds.map(id => `- ${id}`).join("\n") : "(none)"}
+${priorContext}
+## Step 1 — Read the board
+Call \`kanban_get_board\` to get the current state of all cards. For each subtask ID listed above, examine:
+- Its **title and description** (what it was supposed to do)
+- Its **review comments** (what was actually built, any CR/QA findings, and how issues were resolved)
+
+Do not rely on assumptions — read the actual comment summaries.
+
+## Step 2 — Evaluate against the story goal
+Work through these checks:
+
+1. **Completeness** — Does the combined implementation cover everything stated in the story description and acceptance criteria? Is anything missing?
+2. **Integration** — Do the subtasks connect correctly? If subtask A exposes an endpoint/type/function that subtask B consumes, do the interfaces actually match?
+3. **Correctness** — Based on what the CR and QA agents reported, are there unresolved issues that affect the story goal? (Info-level notes that don't block individual subtasks may still matter at the story level.)
+4. **Consistency** — Are patterns, naming, data shapes, and behaviors consistent across subtasks?
+
+## Step 3 — Act
+
+### ✅ Story goal is fully met
+Call \`kanban_add_comment\` on the **story card** (${card.id}):
+\`\`\`
+type: "${commentType}"
+status: "pass"
+summary: Confirm the story goal is met. Summarise what was built across all subtasks in 2–4 sentences. Note any design decisions or caveats worth recording for the human reviewer.
+\`\`\`
+
+### ❌ Rework needed
+For **each subtask that needs changes**:
+
+1. Call \`kanban_add_comment\` on the **subtask card**:
+\`\`\`
+type: "orch"
+status: "fail"
+summary: Exact description of what is wrong and what to change. Reference specific files, functions, endpoints, or field names. The dev agent will read this as its instruction — be precise enough that no further clarification is needed.
+issues: [{ severity: "blocking", message: "..." }]  // one issue per distinct problem
+\`\`\`
+
+2. Call \`kanban_move_card\` on that subtask to \`"reopened"\`
+
+Then call \`kanban_add_comment\` on the **story card** (${card.id}):
+\`\`\`
+type: "${commentType}"
+status: "fail"
+summary: Which subtasks were sent back and the overall reason (1–2 sentences).
+\`\`\`
+
+## Rules
+- You will run again after subtasks are fixed, so only pass when you are confident the story goal is met
+- Only reopen subtasks for issues that affect the story goal — do not reopen for minor style preferences or issues the CR/QA agent already marked as info-only
+- Never reopen a subtask without a specific, actionable comment — vague feedback blocks the dev agent${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}`;
 }
 
 function buildCustomSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt: string, priorContext: string, secrets: RuntimeProjectSecret[], systemPrompt?: string): string {

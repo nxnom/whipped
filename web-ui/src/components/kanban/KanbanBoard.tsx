@@ -16,11 +16,12 @@ import type {
   RuntimeBoardColumnId,
   RuntimeWorkspaceStateResponse,
 } from "@runtime-contract";
-import { Bot, Plus, Settings } from "lucide-react";
+import { Bot, Layers, Plus, Settings } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { trpc } from "@/runtime/trpc-client";
 import { CardDetailPanel } from "./CardDetailPanel";
+import { CreateStoryDrawer } from "./CreateStoryDrawer";
 import { KanbanColumn } from "./KanbanColumn";
 
 interface KanbanBoardProps {
@@ -38,6 +39,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
   const { workspaceId: urlWorkspaceId, cardId: detailCardId } = useParams<{ workspaceId: string; cardId?: string }>();
   const workspaceId = urlWorkspaceId!;
   const detailCard = detailCardId ? (state.board.cards[detailCardId] ?? null) : null;
+  const [storyDrawerOpen, setStoryDrawerOpen] = useState(false);
 
   const openCard = (id: string) => navigate(`/${encodeURIComponent(workspaceId)}/board/${encodeURIComponent(id)}`, { replace: true });
   const closeCard = () => navigate(`/${encodeURIComponent(workspaceId)}/board`, { replace: true });
@@ -178,6 +180,9 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
           <Button size="sm" variant="ghost" onClick={handleMoveAllToReady}>
             Todo → Ready
           </Button>
+          <Button size="sm" variant="ghost" onClick={() => setStoryDrawerOpen(true)}>
+            <Layers size={13} className="mr-1" /> New story
+          </Button>
           <Button size="sm" variant="outlined" onClick={openCreateDialog}>
             <Plus size={13} className="mr-1" /> New task
           </Button>
@@ -230,6 +235,15 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
           onDeleteCard={onDeleteCard}
         />
       )}
+
+      <CreateStoryDrawer
+        open={storyDrawerOpen}
+        onClose={() => setStoryDrawerOpen(false)}
+        workspaceId={workspaceId}
+        allCards={state.board.cards}
+        workflows={state.projectConfig.workflows}
+        onRefresh={onRefresh}
+      />
     </div>
   );
 }
@@ -265,7 +279,8 @@ function CreateCardContent({
   dismiss: () => void;
   onRefresh: () => void;
 }) {
-  const defaultWorkflow = workflows.find(w => w.isDefault);
+  const taskWorkflows = workflows.filter(w => !w.forStory);
+  const defaultWorkflow = taskWorkflows.find(w => w.isDefault) ?? taskWorkflows[0];
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<string>("");
@@ -361,7 +376,7 @@ function CreateCardContent({
               onChange={(v) => setWorkflowId(v as string)}
               placeholder="Default"
             >
-              {workflows.map((w) => (
+              {taskWorkflows.map((w) => (
                 <SelectOption
                   key={w.id}
                   value={w.id}
@@ -451,12 +466,28 @@ function EditCardContent({
   dismiss: () => void;
   onRefresh: () => void;
 }) {
+  const isStory = card.type === "story";
+  const isSubtask = card.type === "subtask";
+
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description);
   const [priority, setPriority] = useState<string>(card.priority ?? "");
   const [dependsOn, setDependsOn] = useState<string[]>(card.dependsOn ?? []);
   const [workflowId, setWorkflowId] = useState<string>(card.workflowId ?? "");
   const [loading, setLoading] = useState(false);
+
+  // Stories use story workflows; tasks/subtasks use task workflows
+  const availableWorkflows = isStory
+    ? workflows.filter((w) => w.forStory)
+    : workflows.filter((w) => !w.forStory);
+
+  // For subtasks: exclude story cards from dependsOn options (avoids circular deps)
+  // For stories: the dependsOn list IS the subtasks — don't show in edit to avoid confusion
+  const depsCardPool = Object.values(allCards).filter((c) => {
+    if (c.id === card.id || c.columnId === "done") return false;
+    if (isSubtask) return c.type !== "story";
+    return true;
+  });
 
   const handleSave = async () => {
     if (!title.trim()) return;
@@ -467,25 +498,25 @@ function EditCardContent({
         cardId: card.id,
         title: title.trim(),
         description,
-        priority:
-          (priority as "urgent" | "high" | "medium" | "low" | undefined) ||
-          undefined,
-        dependsOn,
+        priority: (priority as "urgent" | "high" | "medium" | "low" | undefined) || undefined,
+        dependsOn: isStory ? undefined : dependsOn,
         workflowId: workflowId || undefined,
         revision: 0,
       });
       dismiss();
       onRefresh();
     } catch {
-      toast.error("Failed to update task");
+      toast.error(`Failed to update ${isStory ? "story" : isSubtask ? "subtask" : "task"}`);
     } finally {
       setLoading(false);
     }
   };
 
+  const dialogTitle = isStory ? "Edit Story" : isSubtask ? "Edit Subtask" : "Edit Task";
+
   return (
     <div>
-      <h3 className="text-base font-semibold text-gray-100 mb-4">Edit Task</h3>
+      <h3 className="text-base font-semibold text-gray-100 mb-4">{dialogTitle}</h3>
 
       <div className="space-y-3">
         <div>
@@ -498,9 +529,7 @@ function EditCardContent({
           />
         </div>
         <div>
-          <label className="text-xs text-gray-400 block mb-1">
-            Description
-          </label>
+          <label className="text-xs text-gray-400 block mb-1">Description</label>
           <Textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -523,13 +552,15 @@ function EditCardContent({
             </Select>
           </div>
           <div>
-            <label className="text-xs text-gray-400 block mb-1">Workflow</label>
+            <label className="text-xs text-gray-400 block mb-1">
+              {isStory ? "Orch Workflow" : "Workflow"}
+            </label>
             <Select
               value={workflowId}
               onChange={(v) => setWorkflowId(v as string)}
               placeholder="Default"
             >
-              {workflows.map((w) => (
+              {availableWorkflows.map((w) => (
                 <SelectOption
                   key={w.id}
                   value={w.id}
@@ -539,19 +570,18 @@ function EditCardContent({
             </Select>
           </div>
         </div>
-        <div>
-          <label className="text-xs text-gray-400 block mb-1">Depends on</label>
-          <Select
-            multiple
-            value={dependsOn}
-            onChange={(v) => setDependsOn(v as string[])}
-            placeholder="None"
-            filterable
-            clearable
-          >
-            {Object.values(allCards)
-              .filter((c) => c.id !== card.id && c.columnId !== "done")
-              .map((c) => (
+        {!isStory && (
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Depends on</label>
+            <Select
+              multiple
+              value={dependsOn}
+              onChange={(v) => setDependsOn(v as string[])}
+              placeholder="None"
+              filterable
+              clearable
+            >
+              {depsCardPool.map((c) => (
                 <SelectOption
                   key={c.id}
                   value={c.id}
@@ -569,8 +599,9 @@ function EditCardContent({
                   </div>
                 </SelectOption>
               ))}
-          </Select>
-        </div>
+            </Select>
+          </div>
+        )}
       </div>
 
       <div className="flex gap-2 mt-5 justify-end">
