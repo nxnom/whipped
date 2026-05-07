@@ -57,6 +57,8 @@ export class TaskScheduler {
 	private manuallyStoppedTasks = new Set<string>();
 	// Tasks stopped because their parent was reopened — session set to "stopped" in onExit.
 	private parentReopenedTasks = new Set<string>();
+	// Set during graceful shutdown — onExit becomes a no-op to preserve cleanup state.
+	private isShuttingDown = false;
 
 	constructor(private options: SchedulerOptions) {}
 
@@ -212,6 +214,28 @@ export class TaskScheduler {
 			parentCards = card.dependsOn.map(id => board.cards[id]).filter((c): c is RuntimeBoardCard => !!c);
 		}
 
+		// If dev already passed in a prior run (e.g. server restarted mid-review), skip
+		// the dev agent and resume the review pipeline from the first un-passed slot.
+		const lastDevComment = [...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev");
+		const hasPassingDev = lastDevComment ? lastDevComment.status === "pass" : false;
+		if (hasPassingDev) {
+			const worktree = createWorktree(taskId, repoPath, effectiveBaseRef);
+			const resumeStartedAt = Date.now();
+			await updateSession(workspaceId, taskId, {
+				taskId,
+				state: "completed",
+				agentId,
+				worktreePath: worktree.path,
+				startedAt: resumeStartedAt,
+				completedAt: resumeStartedAt,
+			});
+			await moveCard(workspaceId, taskId, "in_progress");
+			await appendActivityLog(workspaceId, taskId, "Dev already completed — resuming AI review from last failed step");
+			stateHub.broadcastWorkspaceUpdate(workspaceId);
+			this.options.onTaskCompleted(taskId);
+			return;
+		}
+
 		// Write MCP config so the dev agent can call kanban_add_comment when done.
 		// Use a per-task path to avoid concurrent agents overwriting each other's config.
 		const mcpConfigPath = getMcpConfigPath(taskId);
@@ -309,6 +333,9 @@ export class TaskScheduler {
 					void saveTerminalBuffer(workspaceId, devStreamId, runningTask.outputBuffer);
 					this.running.delete(taskId);
 					unlink(mcpConfigPath).catch(() => {});
+
+					// Graceful shutdown already persisted the failed/todo state — bail out.
+					if (this.isShuttingDown) return;
 
 					// If manually stopped, clear the session so the card can be restarted.
 					if (this.manuallyStoppedTasks.has(taskId)) {
@@ -634,6 +661,12 @@ export class TaskScheduler {
 			this.stopTask(taskId);
 		}
 		this.stopHomeAgent();
+	}
+
+	// Call before stopAll() during graceful shutdown so onExit handlers bail out
+	// and do not overwrite the failed/todo state written by cleanupStaleTasks().
+	prepareShutdown(): void {
+		this.isShuttingDown = true;
 	}
 }
 

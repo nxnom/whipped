@@ -13,16 +13,38 @@ import { runReviewPipeline } from "../daemon/review-pipeline.js";
 import { getMcpServerPath, TaskScheduler } from "../daemon/scheduler.js";
 import { createGithubClient } from "../github/github-client.js";
 import {
+	appendActivityLog,
 	listWorkspaces,
+	loadBoard,
 	loadProjectConfig,
 	loadWorkspaceContext,
 	loadWorkspaceState,
+	moveCard,
+	updateSession,
 } from "../state/workspace-state.js";
 import { loadTerminalBuffer } from "../state/workspace-state.js";
 import { type AppContext, appRouter } from "../trpc/app-router.js";
 import { RuntimeStateHub } from "./runtime-state-hub.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
+
+async function cleanupStaleTasks(workspaceId: string, hub: RuntimeStateHub): Promise<void> {
+	const board = await loadBoard(workspaceId);
+	const inProgressCol = board.columns.find((c) => c.id === "in_progress");
+	if (!inProgressCol || inProgressCol.taskIds.length === 0) return;
+
+	const taskIds = [...inProgressCol.taskIds];
+	for (const taskId of taskIds) {
+		const card = board.cards[taskId];
+		if (!card) continue;
+		logger.info(`[server] Cleanup stale in-progress task "${card.title}" → todo`);
+		await updateSession(workspaceId, taskId, { state: "failed", completedAt: Date.now() });
+		await moveCard(workspaceId, taskId, "todo");
+		await appendActivityLog(workspaceId, taskId, "Server stopped — task interrupted, moved back to Todo");
+	}
+
+	if (taskIds.length > 0) hub.broadcastWorkspaceUpdate(workspaceId);
+}
 
 interface ServerOptions {
 	port?: number;
@@ -63,6 +85,9 @@ export async function createRuntimeServer(options: ServerOptions) {
 		const githubClient = resolveGithubToken(projectConfig) ? createGithubClient(resolveGithubToken(projectConfig)!) : undefined;
 
 		stateHub.registerWorkspace(workspaceId, wsRepoPath);
+
+		// On startup, move any in-progress tasks left over from a previous run back to todo.
+		await cleanupStaleTasks(workspaceId, stateHub);
 
 		// Guard against duplicate review pipelines — both onTaskCompleted and the
 		// poller can observe the same ready_for_review card. The Set is the single source
@@ -349,7 +374,12 @@ export async function createRuntimeServer(options: ServerOptions) {
 		url: `http://${host}:${port}`,
 		close: async () => {
 			for (const [, poller] of pollers) poller.stop();
-			for (const [, scheduler] of schedulers) scheduler.stopAll();
+			// Persist failed/todo state for in-progress tasks before killing processes.
+			for (const [wsId, scheduler] of schedulers) {
+				await cleanupStaleTasks(wsId, stateHub);
+				scheduler.prepareShutdown();
+				scheduler.stopAll();
+			}
 			for (const ws of stateWss.clients) ws.terminate();
 			for (const ws of terminalWss.clients) ws.terminate();
 			await new Promise<void>((resolve) => httpServer.close(() => resolve()));

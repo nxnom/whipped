@@ -74,6 +74,19 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 		const customPrompt = slot.prompt ?? "";
 		const streamId = `${card.id}-${slot.id}-${runId}`;
 
+		// Skip slots that already passed in a previous run (server restart mid-pipeline).
+		const commentType = slot.type === "custom" ? slot.id : slot.type;
+		const lastSlotComment = [...(card.reviewComments ?? [])].reverse().find((c) => c.type === commentType);
+		const alreadyPassed = lastSlotComment
+			? lastSlotComment.status !== "fail" && !(lastSlotComment.issues?.some((i) => i.severity === "blocking" || i.severity === "warning") ?? false)
+			: false;
+		if (alreadyPassed) {
+			logger.info(`[review] ${slot.name} already passed for "${card.title}" — skipping`);
+			await appendActivityLog(workspaceId, card.id, `${slot.name}: already passed — skipping`);
+			stateHub.broadcastWorkspaceUpdate(workspaceId);
+			continue;
+		}
+
 		await appendActivityLog(workspaceId, card.id, `${slot.name} running (${slot.agentBinary})`);
 		await appendTerminalSession(workspaceId, card.id, { streamId, type: slot.id, startedAt: runId });
 		stateHub.broadcastWorkspaceUpdate(workspaceId);
