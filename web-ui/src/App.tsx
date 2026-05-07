@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { KanbanAgentPanel } from "@/components/KanbanAgentPanel";
+import { AssistantPanel } from "@/components/AssistantPanel";
 import { BoardPage } from "@/pages/Board";
 import { SettingsPage } from "@/pages/Settings";
 import { trpc } from "@/runtime/trpc-client";
@@ -153,7 +153,7 @@ export default function App() {
 					</main>
 
 					{activeWorkspaceId && (
-						<KanbanAgentPanel
+						<AssistantPanel
 							workspaceId={activeWorkspaceId}
 							open={agentOpen}
 							onClose={() => setAgentOpen(false)}

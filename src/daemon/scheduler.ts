@@ -9,7 +9,7 @@ import { spawnAgent } from "../agents/agent-runner.js";
 import { getAvailableAgents } from "../agents/agent-registry.js";
 import { CLAUDE_HOME_MCP_CONFIG_PATH, CLAUDE_TASK_SETTINGS_PATH, buildTaskHookEnv, getMcpConfigPath, writeClaudeMcpConfig, writeClaudeHomeSettings } from "../agents/agent-hooks.js";
 import type { WorkflowSlot, RuntimeAgentId, RuntimeBoardCard } from "../core/api-contract.js";
-import { buildDevAgentSystemPrompt, buildSecretsEnv, runParentReopenCascade, tryParseAgentJson } from "./review-pipeline.js";
+import { buildDevAgentSystemPrompt, buildSecretsEnv, buildSecretsSection, runParentReopenCascade, tryParseAgentJson } from "./review-pipeline.js";
 import { logger } from "../core/logger.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { appendActivityLog, appendTerminalSession, clearCardSession, endTerminalSession, linkCommentToSession, loadBoard, loadProjectConfig, moveCard, saveTerminalBuffer, updateCard } from "../state/workspace-state.js";
@@ -103,13 +103,14 @@ export class TaskScheduler {
 		stateHub.clearTerminalBuffer(workspaceId, taskId);
 
 		const prompt = "";
-		const appendSystemPrompt = buildHomeAgentSystemPrompt(repoPath);
 		await writeClaudeHomeSettings(getMcpServerPath(), serverUrl, workspaceId).catch((err) => {
 			logger.warn({ err }, "[scheduler] Failed to write home agent MCP settings");
 		});
 
 		const projectConfig = await loadProjectConfig(workspaceId);
-		const secretsEnv = buildSecretsEnv(projectConfig.secrets ?? []);
+		const secrets = projectConfig.secrets ?? [];
+		const secretsEnv = buildSecretsEnv(secrets);
+		const appendSystemPrompt = buildHomeAgentSystemPrompt(repoPath, secrets);
 
 		const homeTask: RunningTask = {
 			taskId,
@@ -675,20 +676,31 @@ export function getMcpServerPath(): { command: string; args: string[] } {
 	};
 }
 
-function buildHomeAgentSystemPrompt(repoPath: string): string {
-	return `You are the Kanban Agent for the project at \`${repoPath}\`.
+function buildHomeAgentSystemPrompt(repoPath: string, secrets: import("../core/api-contract.js").RuntimeProjectSecret[] = []): string {
+	const secretsSection = buildSecretsSection(secrets);
 
-You help the developer manage their AI-driven Kanban board and configure their agent workflows. You have MCP tools to interact with the board and workflows directly — always use them rather than guessing state.
+	return `You are the Assistant for the project at \`${repoPath}\`.
 
-# CRITICAL: You are NOT a coding agent
+You are a conversational project assistant. You can discuss the project, help plan work, answer questions about the codebase, workflows, and board state, and help the developer decide what to build. You also have full control over the Kanban board and workflows via MCP tools.
 
-NEVER edit, create, or modify files in the workspace. Your only job is to manage the Kanban board and workflows using the MCP tools listed below. If the user asks you to write code or implement something, create a task card for it instead.
+# What you can do
+
+- **Discuss & plan**: Talk through ideas, requirements, tradeoffs, and implementation strategies before any tickets are created
+- **Answer questions**: About the project, its current board state, workflows, or anything the developer asks
+- **Manage the board**: Create, update, move, or delete cards once the developer is ready
+- **Configure workflows**: Suggest and save agent workflows tailored to the project
+- **Migrate tickets**: Help import tasks from external tools (Jira, Monday.com, etc.) by turning them into board cards
+
+# Important constraints
+
+- Do NOT edit, create, or modify source code files in the workspace — if the developer wants code written, create a task card for the coding agent instead
+- Always fetch live state with MCP tools rather than guessing — board and workflow state can change between messages
 
 # Available MCP Tools
 
 ## Board
-- \`kanban_get_board\` — fetch the live board state
-- \`kanban_create_card\` — create a new task
+- \`kanban_get_board\` — fetch the live board state (cards, columns, current status)
+- \`kanban_create_card\` — create a new task card
 - \`kanban_move_card\` — move a card to a different column
 - \`kanban_update_card\` — update a card's title or description
 - \`kanban_delete_card\` — delete a card
@@ -706,7 +718,7 @@ When asked to suggest or create a workflow:
 3. Suggest appropriate agent slots and write focused, specific prompts for each slot
 4. Use \`kanban_upsert_workflow\` to save — always include a dev slot (type: "dev", order: 0)
 
-Slot prompts should be specific to the project's domain and the slot's role (dev, code_review, qa, custom).`;
+Slot prompts should be specific to the project's domain and the slot's role (dev, code_review, qa, custom).${secretsSection ? `\n\n${secretsSection}` : ""}`;
 }
 
 

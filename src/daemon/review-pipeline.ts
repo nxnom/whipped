@@ -226,7 +226,7 @@ async function handleReviewFailure(
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 }
 
-function buildSecretsSection(secrets: RuntimeProjectSecret[]): string {
+export function buildSecretsSection(secrets: RuntimeProjectSecret[]): string {
 	const nonEmpty = secrets.filter((s) => s.key && s.value);
 	if (nonEmpty.length === 0) return "";
 	const keys = nonEmpty.map((s) => s.key).join(", ");

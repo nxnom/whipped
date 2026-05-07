@@ -41,7 +41,7 @@ export function AgentPage({ workspaceId }: Props) {
 			<div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 shrink-0">
 				<div className="flex items-center gap-2">
 					<Bot size={16} className="text-blue-400" />
-					<h2 className="text-sm font-medium text-gray-300">Kanban Agent</h2>
+					<h2 className="text-sm font-medium text-gray-300">Assistant</h2>
 				</div>
 				<div className="flex items-center gap-2">
 					{taskId && (

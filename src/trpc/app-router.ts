@@ -712,7 +712,7 @@ export const appRouter = router({
 		}),
 	}),
 
-	// ─── Kanban Agent terminal session ───────────────────────────────────
+	// ─── Assistant terminal session ───────────────────────────────────────
 	agent: router({
 		startSession: publicProcedure
 			.input(z.object({ workspaceId: z.string() }))
