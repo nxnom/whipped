@@ -108,6 +108,9 @@ export class TaskScheduler {
 			logger.warn({ err }, "[scheduler] Failed to write home agent MCP settings");
 		});
 
+		const projectConfig = await loadProjectConfig(workspaceId);
+		const secretsEnv = buildSecretsEnv(projectConfig.secrets ?? []);
+
 		const homeTask: RunningTask = {
 			taskId,
 			streamId: taskId, // home agent uses taskId as its stream (single session)
@@ -116,6 +119,7 @@ export class TaskScheduler {
 				agentId,
 				prompt,
 				cwd: repoPath,
+				env: secretsEnv,
 				mcpConfigPath: agentId === "claude" ? CLAUDE_HOME_MCP_CONFIG_PATH : undefined,
 				appendSystemPrompt: agentId === "claude" ? appendSystemPrompt : undefined,
 				onOutput: (data) => {
