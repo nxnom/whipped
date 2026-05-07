@@ -9,7 +9,7 @@ import type { AgentProcess } from "../agents/agent-runner.js";
 import type { WorkflowSlot, RuntimeBoardCard, RuntimeReviewComment, RuntimeProjectSecret } from "../core/api-contract.js";
 import type { GithubClient } from "../github/github-client.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
-import { appendActivityLog, appendTerminalSession, endTerminalSession, getSession, linkCommentToSession, loadBoard, moveCard, saveAttachment, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
+import { appendActivityLog, appendTerminalSession, endTerminalSession, linkCommentToSession, loadBoard, moveCard, saveAttachment, saveTerminalBuffer, updateCard } from "../state/workspace-state.js";
 import { getWorktreeBranch, getWorktreePath, removeWorktreeAsync } from "../worktree/worktree-manager.js";
 import { logger } from "../core/logger.js";
 
@@ -60,21 +60,18 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 	const { workspaceId, stateHub } = options;
 	const runId = Date.now();
 
-	// Check session state BEFORE overwriting it. A "failed" session means the pipeline was
-	// interrupted (crash or agent failure) — resume from the first slot that didn't pass.
-	// Any other state means a fresh run — run all slots from the beginning.
-	const prevSession = await getSession(workspaceId, card.id);
-	const isResume = prevSession?.state === "failed";
-
-	logger.info(`[review] Starting review pipeline for "${card.title}" (${card.id})${isResume ? " — resuming" : ""}`);
-	await updateSession(workspaceId, card.id, { state: "running" });
-	await appendActivityLog(workspaceId, card.id, "AI review started");
-	stateHub.broadcastWorkspaceUpdate(workspaceId);
-
-	// Reload card so we have the latest reviewComments including any dev summary the agent may
-	// have stored via MCP just before the Stop hook fired.
+	// Reload card to get the latest state. A "failed" last terminal session means the pipeline
+	// was interrupted (crash or agent failure) — resume from the first slot that didn't pass.
 	const freshBoard = await loadBoard(workspaceId);
 	card = freshBoard.cards[card.id] ?? card;
+	const lastTs = card.terminalSessions?.at(-1);
+	const isResume = lastTs?.state === "failed";
+	const lastDevTs = card.terminalSessions?.slice().reverse().find((ts) => ts.type === "dev");
+	const sessionStartedAt = lastDevTs?.startedAt ?? 0;
+
+	logger.info(`[review] Starting review pipeline for "${card.title}" (${card.id})${isResume ? " — resuming" : ""}`);
+	await appendActivityLog(workspaceId, card.id, "AI review started");
+	stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 	// When resuming, skip slots that already passed — stop skipping at the first failure/missing.
 	let skipPassed = isResume;
@@ -86,8 +83,11 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 		if (skipPassed) {
 			const commentType = slot.type === "custom" ? slot.id : slot.type;
 			const lastSlotComment = [...(card.reviewComments ?? [])].reverse().find((c) => c.type === commentType);
+			// Only skip if the passing comment belongs to THIS session (not a previous run).
 			const alreadyPassed = lastSlotComment
-				? lastSlotComment.status !== "fail" && !(lastSlotComment.issues?.some((i) => i.severity === "blocking" || i.severity === "warning") ?? false)
+				? lastSlotComment.createdAt >= sessionStartedAt
+					&& lastSlotComment.status !== "fail"
+					&& !(lastSlotComment.issues?.some((i) => i.severity === "blocking" || i.severity === "warning") ?? false)
 				: false;
 			if (alreadyPassed) {
 				logger.info(`[review] ${slot.name} already passed for "${card.title}" — skipping`);
@@ -99,7 +99,7 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 		}
 
 		await appendActivityLog(workspaceId, card.id, `${slot.name} running (${slot.agentBinary})`);
-		await appendTerminalSession(workspaceId, card.id, { streamId, type: slot.id, startedAt: runId });
+		await appendTerminalSession(workspaceId, card.id, { streamId, type: slot.id, startedAt: runId, agentId: slot.agentBinary, state: "running" });
 		stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 		// QA-type slots are serialized globally to avoid port/simulator conflicts
@@ -158,10 +158,10 @@ async function runReviewSlot(
 	const mcpComment = await getMcpComment(workspaceId, card.id, startTime, commentType);
 	if (mcpComment) {
 		const endedAt = Date.now();
-		await linkCommentToSession(workspaceId, card.id, mcpComment.createdAt, streamId);
-		await endTerminalSession(workspaceId, card.id, streamId, endedAt);
 		const hasMustFixIssue = mcpComment.issues?.some((i) => i.severity === "blocking" || i.severity === "warning") ?? false;
 		const passed = mcpComment.status !== "fail" && !hasMustFixIssue;
+		await linkCommentToSession(workspaceId, card.id, mcpComment.createdAt, streamId);
+		await endTerminalSession(workspaceId, card.id, streamId, endedAt, passed ? "completed" : "failed");
 		return { passed, comment: mcpComment, storedViaMcp: true };
 	}
 
@@ -181,7 +181,7 @@ async function runReviewSlot(
 		issues: parsed?.issues,
 		metadata: parsed?.metadata,
 	};
-	await endTerminalSession(workspaceId, card.id, streamId, nowFallback);
+	await endTerminalSession(workspaceId, card.id, streamId, nowFallback, passed ? "completed" : "failed");
 	return { passed, storedViaMcp: false, comment };
 }
 
@@ -222,7 +222,6 @@ async function handleReviewFailure(
 			? `Max fix attempts reached (${newAttempts}) → moved to Blocked`
 			: `Review failed (attempt ${newAttempts}/${maxAutoFixAttempts}) → moved to Reopened`,
 	);
-	await updateSession(workspaceId, card.id, { state: "completed", completedAt: Date.now() });
 	if (destination === "blocked") void removeWorktreeAsync(card.id, options.repoPath);
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 }
@@ -258,7 +257,6 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 
 	await moveCard(workspaceId, card.id, "ready_for_review");
 	await appendActivityLog(workspaceId, card.id, "All reviews passed → moved to Ready for Review");
-	await updateSession(workspaceId, card.id, { state: "completed", completedAt: Date.now() });
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 	if (autoPR && !card.githubPrUrl) {
@@ -681,7 +679,7 @@ export async function runParentReopenCascade(
 
 	logger.info(`[cascade] Spawning cascade agent for parent "${parentCard.title}" (${childCards.length} children)`);
 
-	await appendTerminalSession(workspaceId, parentCard.id, { streamId, type: "cascade", startedAt: Date.now() });
+	await appendTerminalSession(workspaceId, parentCard.id, { streamId, type: "cascade", startedAt: Date.now(), state: "running" });
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 	await runAgentOnce(
@@ -700,7 +698,7 @@ export async function runParentReopenCascade(
 		"low",
 	);
 
-	await endTerminalSession(workspaceId, parentCard.id, streamId, Date.now());
+	await endTerminalSession(workspaceId, parentCard.id, streamId, Date.now(), "completed");
 	logger.info(`[cascade] Cascade agent done for parent "${parentCard.title}"`);
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 

@@ -11,13 +11,12 @@ import {
 	type RuntimeBoardColumnId,
 	type RuntimeBoardData,
 	type RuntimeProjectConfig,
-	type RuntimeTaskSessionSummary,
+	type RuntimeTaskSessionState,
 	type RuntimeTerminalSessionEntry,
 	type RuntimeWorkspaceStateResponse,
 	type RuntimeWorkspaceStateSaveRequest,
 	runtimeBoardDataSchema,
 	runtimeProjectConfigSchema,
-	runtimeTaskSessionSummarySchema,
 } from "../core/api-contract.js";
 import { generateTaskId } from "../core/task-id.js";
 
@@ -81,10 +80,6 @@ function boardFilePath(workspaceId: string): string {
 	return join(workspaceDirPath(workspaceId), "board.json");
 }
 
-function sessionsFilePath(workspaceId: string): string {
-	return join(workspaceDirPath(workspaceId), "sessions.json");
-}
-
 function metaFilePath(workspaceId: string): string {
 	return join(workspaceDirPath(workspaceId), "meta.json");
 }
@@ -133,28 +128,6 @@ export async function loadBoard(workspaceId: string): Promise<RuntimeBoardData> 
 async function saveBoard(workspaceId: string, board: RuntimeBoardData): Promise<void> {
 	await mkdir(workspaceDirPath(workspaceId), { recursive: true });
 	await writeFile(boardFilePath(workspaceId), JSON.stringify(board, null, 2), "utf-8");
-}
-
-async function loadSessions(workspaceId: string): Promise<Record<string, RuntimeTaskSessionSummary>> {
-	try {
-		const raw = await readFile(sessionsFilePath(workspaceId), "utf-8");
-		const data = JSON.parse(raw) as Record<string, unknown>;
-		const result: Record<string, RuntimeTaskSessionSummary> = {};
-		for (const [taskId, session] of Object.entries(data)) {
-			const parsed = runtimeTaskSessionSummarySchema.safeParse(session);
-			if (parsed.success) {
-				result[taskId] = parsed.data;
-			}
-		}
-		return result;
-	} catch {
-		return {};
-	}
-}
-
-async function saveSessions(workspaceId: string, sessions: Record<string, RuntimeTaskSessionSummary>): Promise<void> {
-	await mkdir(workspaceDirPath(workspaceId), { recursive: true });
-	await writeFile(sessionsFilePath(workspaceId), JSON.stringify(sessions, null, 2), "utf-8");
 }
 
 async function loadMeta(workspaceId: string): Promise<{ revision: number; autonomousModeEnabled: boolean }> {
@@ -231,9 +204,8 @@ export async function loadWorkspaceState(
 	workspaceId: string,
 	repoPath: string,
 ): Promise<RuntimeWorkspaceStateResponse> {
-	const [board, sessions, meta, projectConfig] = await Promise.all([
+	const [board, meta, projectConfig] = await Promise.all([
 		loadBoard(workspaceId),
-		loadSessions(workspaceId),
 		loadMeta(workspaceId),
 		loadProjectConfig(workspaceId),
 	]);
@@ -242,7 +214,6 @@ export async function loadWorkspaceState(
 		workspaceId,
 		repoPath,
 		board,
-		sessions,
 		revision: meta.revision,
 		autonomousModeEnabled: meta.autonomousModeEnabled,
 		projectConfig,
@@ -264,33 +235,14 @@ export async function saveWorkspaceState(
 	});
 }
 
-export async function updateSession(
-	workspaceId: string,
-	taskId: string,
-	update: Partial<RuntimeTaskSessionSummary>,
-): Promise<void> {
+export async function clearCardSession(workspaceId: string, cardId: string): Promise<void> {
 	return withLock(workspaceId, async () => {
-		const sessions = await loadSessions(workspaceId);
-		const existing = sessions[taskId];
-		if (existing) {
-			sessions[taskId] = { ...existing, ...update };
-		} else if (update.agentId && update.state && update.startedAt) {
-			sessions[taskId] = runtimeTaskSessionSummarySchema.parse({ taskId, ...update });
-		}
-		await saveSessions(workspaceId, sessions);
-	});
-}
-
-export async function getSession(workspaceId: string, taskId: string): Promise<RuntimeTaskSessionSummary | undefined> {
-	const sessions = await loadSessions(workspaceId);
-	return sessions[taskId];
-}
-
-export async function removeSession(workspaceId: string, taskId: string): Promise<void> {
-	return withLock(workspaceId, async () => {
-		const sessions = await loadSessions(workspaceId);
-		delete sessions[taskId];
-		await saveSessions(workspaceId, sessions);
+		const board = await loadBoard(workspaceId);
+		const card = board.cards[cardId];
+		if (!card) return;
+		board.cards[cardId] = { ...card, worktreePath: undefined, updatedAt: Date.now() };
+		const meta = await loadMeta(workspaceId);
+		await Promise.all([saveBoard(workspaceId, board), saveMeta(workspaceId, { ...meta, revision: meta.revision + 1 })]);
 	});
 }
 
@@ -432,13 +384,28 @@ export async function appendTerminalSession(
 	});
 }
 
-export async function endTerminalSession(workspaceId: string, cardId: string, streamId: string, endedAt: number): Promise<void> {
+export async function closeAllOpenTerminalSessions(workspaceId: string, cardId: string, endedAt: number): Promise<void> {
 	return withLock(workspaceId, async () => {
 		const board = await loadBoard(workspaceId);
 		const card = board.cards[cardId];
 		if (!card) return;
 		const updated = card.terminalSessions?.map((s) =>
-			s.streamId === streamId ? { ...s, endedAt } : s,
+			s.endedAt === undefined ? { ...s, endedAt, state: "failed" as const } : s,
+		);
+		if (!updated) return;
+		board.cards[cardId] = { ...card, terminalSessions: updated };
+		const meta = await loadMeta(workspaceId);
+		await Promise.all([saveBoard(workspaceId, board), saveMeta(workspaceId, { ...meta, revision: meta.revision + 1 })]);
+	});
+}
+
+export async function endTerminalSession(workspaceId: string, cardId: string, streamId: string, endedAt: number, state?: RuntimeTaskSessionState): Promise<void> {
+	return withLock(workspaceId, async () => {
+		const board = await loadBoard(workspaceId);
+		const card = board.cards[cardId];
+		if (!card) return;
+		const updated = card.terminalSessions?.map((s) =>
+			s.streamId === streamId ? { ...s, endedAt, ...(state ? { state } : {}) } : s,
 		);
 		if (!updated) return;
 		board.cards[cardId] = { ...card, terminalSessions: updated };
@@ -476,7 +443,7 @@ export async function updateCard(
 	workspaceId: string,
 	cardId: string,
 	update: Partial<
-		Pick<RuntimeBoardCard, "title" | "description" | "agentId" | "priority" | "readyForDev" | "dependsOn" | "workflowId" | "githubPrUrl" | "reviewComments" | "autoFixAttempts" | "githubCommentIds">
+		Pick<RuntimeBoardCard, "title" | "description" | "agentId" | "priority" | "readyForDev" | "dependsOn" | "workflowId" | "githubPrUrl" | "reviewComments" | "autoFixAttempts" | "githubCommentIds" | "worktreePath">
 	>,
 ): Promise<RuntimeBoardCard> {
 	return withLock(workspaceId, async () => {

@@ -42,9 +42,6 @@ export function useWorkspaceState(workspaceId: string) {
                     case "workspace_updated":
                         setState(msg.state);
                         break;
-                    case "session_updated":
-                        setState((prev) => (prev ? { ...prev, sessions: { ...prev.sessions, [msg.taskId]: msg.session } } : prev));
-                        break;
                     case "autonomous_mode_changed":
                         setState((prev) => (prev ? { ...prev, autonomousModeEnabled: msg.enabled } : prev));
                         break;

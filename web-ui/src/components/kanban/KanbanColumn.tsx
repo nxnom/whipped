@@ -1,5 +1,5 @@
 import { Droppable } from "@hello-pangea/dnd";
-import type { RuntimeBoardCard, RuntimeBoardColumn, RuntimeTaskSessionSummary } from "@runtime-contract";
+import type { RuntimeBoardCard, RuntimeBoardColumn } from "@runtime-contract";
 import { KanbanCard } from "./KanbanCard";
 
 const COLUMN_COLORS: Record<string, string> = {
@@ -24,14 +24,13 @@ interface KanbanColumnProps {
 	column: RuntimeBoardColumn;
 	cards: RuntimeBoardCard[];
 	allCards: Record<string, RuntimeBoardCard>;
-	sessions: Record<string, RuntimeTaskSessionSummary>;
 	onCardClick: (card: RuntimeBoardCard) => void;
 	onCardEdit: (card: RuntimeBoardCard) => void;
 	onCardDelete: (card: RuntimeBoardCard) => void;
 	onCardToggleReady: (card: RuntimeBoardCard) => void;
 }
 
-export function KanbanColumn({ column, cards, allCards, sessions, onCardClick, onCardEdit, onCardDelete, onCardToggleReady }: KanbanColumnProps) {
+export function KanbanColumn({ column, cards, allCards, onCardClick, onCardEdit, onCardDelete, onCardToggleReady }: KanbanColumnProps) {
 	const borderColor = COLUMN_COLORS[column.id] ?? "border-gray-600";
 	const headerColor = COLUMN_HEADER_COLORS[column.id] ?? "text-gray-400";
 
@@ -60,7 +59,6 @@ export function KanbanColumn({ column, cards, allCards, sessions, onCardClick, o
 								card={card}
 								index={index}
 								allCards={allCards}
-								session={sessions[card.id]}
 								onClick={() => onCardClick(card)}
 								onEdit={() => onCardEdit(card)}
 								onDelete={() => onCardDelete(card)}

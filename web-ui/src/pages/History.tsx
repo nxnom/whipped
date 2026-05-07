@@ -38,10 +38,11 @@ export function HistoryPage({ workspaceId }: Props) {
 				) : (
 					<div className="space-y-2">
 						{doneCards.map((card) => {
-							const session = state.sessions[card.id];
+							const lastDevTs = card.terminalSessions?.slice().reverse().find((ts) => ts.type === "dev");
+							const lastTs = card.terminalSessions?.at(-1);
 							const duration =
-								session?.completedAt && session?.startedAt
-									? Math.round((session.completedAt - session.startedAt) / 1000 / 60)
+								lastDevTs?.startedAt && lastTs?.endedAt
+									? Math.round((lastTs.endedAt - lastDevTs.startedAt) / 1000 / 60)
 									: null;
 
 							return (
@@ -109,8 +110,7 @@ export function HistoryPage({ workspaceId }: Props) {
 				<CardDetailPanel
 					card={detailCard}
 					workspaceId={workspaceId}
-					session={state.sessions[detailCard.id]}
-					onClose={() => setDetailCardId(null)}
+						onClose={() => setDetailCardId(null)}
 					onRefresh={refetch}
 					onDeleteCard={optimisticDeleteCard}
 				/>

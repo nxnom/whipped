@@ -9,8 +9,6 @@ interface Props {
 	workspaceId: string;
 }
 
-const ACTIVE_STATES = new Set(["running"]);
-
 export function DashboardPage({ workspaceId }: Props) {
 	const { state, refetch } = useWorkspaceState(workspaceId);
 	const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
@@ -20,7 +18,7 @@ export function DashboardPage({ workspaceId }: Props) {
 		return <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">Loading...</div>;
 	}
 
-	const activeSessions = Object.entries(state.sessions).filter(([, s]) => ACTIVE_STATES.has(s.state));
+	const activeSessions = Object.entries(state.board.cards).filter(([, card]) => card.terminalSessions?.some((ts) => !ts.endedAt));
 
 	const handleToggleAutonomous = async () => {
 		setTogglingMode(true);
@@ -66,8 +64,7 @@ export function DashboardPage({ workspaceId }: Props) {
 					</div>
 				) : (
 					<div className="space-y-3">
-						{activeSessions.map(([taskId, session]) => {
-							const card = state.board.cards[taskId];
+						{activeSessions.map(([taskId, card]) => {
 							if (!card) return null;
 							const isExpanded = expandedTaskId === taskId;
 
@@ -82,7 +79,7 @@ export function DashboardPage({ workspaceId }: Props) {
 											<div>
 												<p className="text-sm text-gray-100">{card.title}</p>
 												<p className="text-xs text-gray-500 mt-0.5">
-													{session.agentId} · {session.state.replace(/_/g, " ")}
+													{card.terminalSessions?.find((ts) => !ts.endedAt)?.agentId} · running
 												</p>
 											</div>
 										</div>

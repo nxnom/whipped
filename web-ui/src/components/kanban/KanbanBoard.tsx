@@ -203,7 +203,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
                     column={column}
                     cards={cards}
                     allCards={state.board.cards}
-                    sessions={state.sessions}
+
                     onCardClick={(card) => openCard(card.id)}
                     onCardEdit={openEditDialog}
                     onCardDelete={handleCardDelete}
@@ -219,7 +219,6 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
         <CardDetailPanel
           card={detailCard}
           workspaceId={workspaceId}
-          session={state.sessions[detailCard.id]}
           allCards={state.board.cards}
           workflowSlots={(
             state.projectConfig.workflows.find(w => w.id === detailCard.workflowId)

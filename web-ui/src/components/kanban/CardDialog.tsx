@@ -1,18 +1,17 @@
 import { Button, ConfirmDialog, toast } from "@geckoui/geckoui";
-import type { RuntimeBoardCard, RuntimeTaskSessionSummary } from "@runtime-contract";
+import type { RuntimeBoardCard } from "@runtime-contract";
 import { ExternalLink, Play, Square, X } from "lucide-react";
 import { trpc } from "@/runtime/trpc-client";
 
 interface Props {
 	card: RuntimeBoardCard;
 	workspaceId: string;
-	session?: RuntimeTaskSessionSummary;
 	onClose: () => void;
 	onRefresh: () => void;
 }
 
-export function CardDialog({ card, workspaceId, session, onClose, onRefresh }: Props) {
-	const isRunning = session?.state === "running";
+export function CardDialog({ card, workspaceId, onClose, onRefresh }: Props) {
+	const isRunning = card.terminalSessions?.some((ts) => !ts.endedAt) ?? false;
 
 	const handleStart = async () => {
 		try {
@@ -101,21 +100,20 @@ export function CardDialog({ card, workspaceId, session, onClose, onRefresh }: P
 				</div>
 
 				{/* Session */}
-				{session && (
-					<div className="bg-gray-800 rounded-lg p-3 mb-4 text-xs space-y-1">
-						<div className="flex justify-between text-gray-400">
-							<span>
-								Status: <span className="text-gray-200">{session.state.replace(/_/g, " ")}</span>
-							</span>
-							<span>
-								Agent: <span className="text-gray-200">{session.agentId}</span>
-							</span>
+				{card.terminalSessions && card.terminalSessions.length > 0 && (() => {
+					const activeTs = card.terminalSessions.find((ts) => !ts.endedAt);
+					const displayTs = activeTs ?? card.terminalSessions.at(-1);
+					if (!displayTs) return null;
+					const state = activeTs ? "running" : displayTs.state;
+					return (
+						<div className="bg-gray-800 rounded-lg p-3 mb-4 text-xs space-y-1">
+							<div className="flex justify-between text-gray-400">
+								<span>Status: <span className="text-gray-200">{state?.replace(/_/g, " ") ?? "unknown"}</span></span>
+								<span>Agent: <span className="text-gray-200">{displayTs.agentId}</span></span>
+							</div>
 						</div>
-						{session.lastOutput && (
-							<pre className="text-gray-400 text-xs overflow-x-auto whitespace-pre-wrap mt-2">{session.lastOutput}</pre>
-						)}
-					</div>
-				)}
+					);
+				})()}
 
 				{/* Activity log */}
 				{card.activityLog && card.activityLog.length > 0 && (

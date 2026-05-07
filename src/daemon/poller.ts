@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { fetchPRInfo } from "../git/merge-operations.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
-import { appendActivityLog, loadBoard, loadWorkspaceState, moveCard, removeSession, updateCard, updateSession } from "../state/workspace-state.js";
+import { appendActivityLog, clearCardSession, loadBoard, loadWorkspaceState, moveCard, updateCard } from "../state/workspace-state.js";
 import { createWorktree, getWorktreeBranch, getWorktreePath, removeWorktree } from "../worktree/worktree-manager.js";
 import type { TaskScheduler } from "./scheduler.js";
 
@@ -103,19 +103,16 @@ async function resolvePRConflicts(
 		const conflictedFiles = conflictsOut.stdout.trim().split("\n").filter(Boolean);
 
 		await appendActivityLog(workspaceId, card.id, `PR has merge conflicts: ${conflictedFiles.join(", ")} — resolving...`);
-		await updateSession(workspaceId, card.id, { state: "running" });
 		stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 		await scheduler.startConflictResolution(card, worktreePath, conflictedFiles, async (success) => {
 			if (success) {
 				spawnSync("git", ["push", "origin", taskBranch], { cwd: worktreePath, stdio: "ignore" });
 				await appendActivityLog(workspaceId, card.id, `PR conflicts resolved → pushed`);
-				await updateSession(workspaceId, card.id, { state: "completed", completedAt: Date.now() });
 			} else {
 				spawnSync("git", ["merge", "--abort"], { cwd: worktreePath, stdio: "ignore" });
 				await moveCard(workspaceId, card.id, "blocked");
 				await appendActivityLog(workspaceId, card.id, "Could not resolve PR conflicts → Blocked");
-				await updateSession(workspaceId, card.id, { state: "completed", completedAt: Date.now() });
 			}
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
 		});
@@ -201,8 +198,7 @@ export class BoardPoller {
 		if (todoColumn) {
 			for (const taskId of todoColumn.taskIds) {
 				const card = board.cards[taskId];
-				const session = state.sessions[taskId];
-				if (card?.readyForDev && (!session || session.state === "completed" || session.state === "failed" || session.state === "stopped")) pendingCards.push(card);
+				if (card?.readyForDev && !card.terminalSessions?.some((ts) => !ts.endedAt)) pendingCards.push(card);
 			}
 		}
 
@@ -211,8 +207,7 @@ export class BoardPoller {
 		if (reopenedColumn) {
 			for (const taskId of reopenedColumn.taskIds) {
 				const card = board.cards[taskId];
-				const session = state.sessions[taskId];
-				if (card && (!session || session.state === "completed" || session.state === "failed" || session.state === "stopped")) pendingCards.push(card);
+				if (card && !card.terminalSessions?.some((ts) => !ts.endedAt)) pendingCards.push(card);
 			}
 		}
 
@@ -248,9 +243,8 @@ export class BoardPoller {
 		if (inProgressCol) {
 			for (const taskId of inProgressCol.taskIds) {
 				const card = board.cards[taskId];
-				const session = state.sessions[taskId];
 				const hasDevComment = (card?.reviewComments ?? []).some((c) => c.type === "dev");
-				if (card && hasDevComment && (!session || session.state === "completed" || session.state === "failed" || session.state === "stopped")) {
+				if (card && hasDevComment && !card.terminalSessions?.some((ts) => !ts.endedAt)) {
 					onCardReadyForReview(card);
 				}
 			}
@@ -321,7 +315,7 @@ export class BoardPoller {
 			if (info.state === "MERGED") {
 				logger.info(`[poller] PR merged for "${card.title}" → Done`);
 				await moveCard(workspaceId, taskId, "done");
-				await removeSession(workspaceId, taskId);
+				await clearCardSession(workspaceId, taskId);
 				await appendActivityLog(workspaceId, taskId, "PR merged on GitHub → Done");
 				cleanupWorktree(taskId, repoPath);
 				void syncMainRepoAfterPRMerge(repoPath, card.baseRef, card, workspaceId, scheduler, stateHub);
@@ -329,13 +323,11 @@ export class BoardPoller {
 			} else if (info.state === "CLOSED") {
 				logger.info(`[poller] PR closed without merging for "${card.title}" → Blocked`);
 				await moveCard(workspaceId, taskId, "blocked");
-				await removeSession(workspaceId, taskId);
+				await clearCardSession(workspaceId, taskId);
 				await appendActivityLog(workspaceId, taskId, "PR closed without merging → Blocked");
 				updated = true;
 			} else if (info.mergeable === "CONFLICTING") {
-				const session = state.sessions[taskId];
-				const notRunning = !session || session.state === "completed" || session.state === "failed" || session.state === "stopped";
-				if (notRunning) {
+				if (!card.terminalSessions?.some((ts) => !ts.endedAt)) {
 					logger.info(`[poller] PR has merge conflicts for "${card.title}" → resolving`);
 					void resolvePRConflicts(repoPath, card, workspaceId, scheduler, stateHub);
 					updated = true;
@@ -346,7 +338,7 @@ export class BoardPoller {
 				await updateCard(workspaceId, taskId, { autoFixAttempts: 0 });
 				await moveCard(workspaceId, taskId, "reopened");
 				await appendActivityLog(workspaceId, taskId, `${reason} → Reopened`);
-				await removeSession(workspaceId, taskId);
+				await clearCardSession(workspaceId, taskId);
 				const refreshedBoard = await loadBoard(workspaceId);
 				const refreshedCard = refreshedBoard.cards[taskId] ?? card;
 				void scheduler.triggerParentReopenCascade(refreshedCard, refreshedBoard.cards);

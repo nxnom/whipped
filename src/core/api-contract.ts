@@ -128,6 +128,16 @@ export const runtimeActivityEntrySchema = z.object({
 });
 export type RuntimeActivityEntry = z.infer<typeof runtimeActivityEntrySchema>;
 
+// ─── Session state ────────────────────────────────────────────────────────────
+
+export const runtimeTaskSessionStateSchema = z.enum([
+	"running",
+	"stopped",
+	"completed",
+	"failed",
+]);
+export type RuntimeTaskSessionState = z.infer<typeof runtimeTaskSessionStateSchema>;
+
 // ─── Terminal sessions ────────────────────────────────────────────────────────
 
 export const runtimeTerminalSessionEntrySchema = z.object({
@@ -135,6 +145,8 @@ export const runtimeTerminalSessionEntrySchema = z.object({
 	type: z.string(),
 	startedAt: z.number(),
 	endedAt: z.number().optional(),
+	agentId: runtimeAgentIdSchema.optional(),
+	state: runtimeTaskSessionStateSchema.optional(),
 });
 export type RuntimeTerminalSessionEntry = z.infer<typeof runtimeTerminalSessionEntrySchema>;
 
@@ -167,6 +179,7 @@ export const runtimeBoardCardSchema = z.object({
 	activityLog: z.array(runtimeActivityEntrySchema).default([]),
 	terminalSessions: z.array(runtimeTerminalSessionEntrySchema).default([]),
 	githubCommentIds: z.array(z.string()).default([]),
+	worktreePath: z.string().optional(),
 });
 export type RuntimeBoardCard = z.infer<typeof runtimeBoardCardSchema>;
 
@@ -187,28 +200,6 @@ export const runtimeBoardDataSchema = z.object({
 	schemaVersion: z.number().optional(),
 });
 export type RuntimeBoardData = z.infer<typeof runtimeBoardDataSchema>;
-
-// ─── Session ──────────────────────────────────────────────────────────────────
-
-export const runtimeTaskSessionStateSchema = z.enum([
-	"running",
-	"stopped",
-	"completed",
-	"failed",
-]);
-export type RuntimeTaskSessionState = z.infer<typeof runtimeTaskSessionStateSchema>;
-
-export const runtimeTaskSessionSummarySchema = z.object({
-	taskId: z.string(),
-	state: runtimeTaskSessionStateSchema,
-	agentId: runtimeAgentIdSchema,
-	worktreePath: z.string().optional(),
-	startedAt: z.number(),
-	completedAt: z.number().optional(),
-	exitCode: z.number().optional(),
-	lastOutput: z.string().optional(),
-});
-export type RuntimeTaskSessionSummary = z.infer<typeof runtimeTaskSessionSummarySchema>;
 
 // ─── Global config (shared defaults across all projects) ──────────────────────
 
@@ -272,7 +263,6 @@ export const runtimeWorkspaceStateResponseSchema = z.object({
 	workspaceId: z.string(),
 	repoPath: z.string(),
 	board: runtimeBoardDataSchema,
-	sessions: z.record(z.string(), runtimeTaskSessionSummarySchema),
 	revision: z.number(),
 	autonomousModeEnabled: z.boolean(),
 	projectConfig: runtimeProjectConfigSchema,
@@ -347,7 +337,6 @@ export type RuntimeJiraImportRequest = z.infer<typeof runtimeJiraImportRequestSc
 export type RuntimeStateEvent =
 	| { type: "snapshot"; state: RuntimeWorkspaceStateResponse }
 	| { type: "workspace_updated"; state: RuntimeWorkspaceStateResponse }
-	| { type: "session_updated"; taskId: string; session: RuntimeTaskSessionSummary }
 	| { type: "terminal_output"; taskId: string; data: string }
 	| { type: "autonomous_mode_changed"; enabled: boolean };
 

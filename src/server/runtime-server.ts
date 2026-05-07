@@ -14,13 +14,13 @@ import { getMcpServerPath, TaskScheduler } from "../daemon/scheduler.js";
 import { createGithubClient } from "../github/github-client.js";
 import {
 	appendActivityLog,
+	closeAllOpenTerminalSessions,
 	listWorkspaces,
 	loadBoard,
 	loadProjectConfig,
 	loadWorkspaceContext,
 	loadWorkspaceState,
 	moveCard,
-	updateSession,
 } from "../state/workspace-state.js";
 import { loadTerminalBuffer } from "../state/workspace-state.js";
 import { type AppContext, appRouter } from "../trpc/app-router.js";
@@ -30,6 +30,16 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 async function cleanupStaleTasks(workspaceId: string, hub: RuntimeStateHub): Promise<void> {
 	const board = await loadBoard(workspaceId);
+	const now = Date.now();
+
+	// Close open terminal sessions on every card regardless of column (crashed cascade agents
+	// can leave sessions open on rfr/done/todo cards).
+	for (const card of Object.values(board.cards)) {
+		if (card.terminalSessions?.some((s) => s.endedAt === undefined)) {
+			await closeAllOpenTerminalSessions(workspaceId, card.id, now);
+		}
+	}
+
 	const inProgressCol = board.columns.find((c) => c.id === "in_progress");
 	if (!inProgressCol || inProgressCol.taskIds.length === 0) return;
 
@@ -38,7 +48,6 @@ async function cleanupStaleTasks(workspaceId: string, hub: RuntimeStateHub): Pro
 		const card = board.cards[taskId];
 		if (!card) continue;
 		logger.info(`[server] Cleanup stale in-progress task "${card.title}" → todo`);
-		await updateSession(workspaceId, taskId, { state: "failed", completedAt: Date.now() });
 		await moveCard(workspaceId, taskId, "todo");
 		await appendActivityLog(workspaceId, taskId, "Server stopped — task interrupted, moved back to Todo");
 	}
@@ -139,18 +148,14 @@ export async function createRuntimeServer(options: ServerOptions) {
 			defaultAgent: projectConfig.defaultAgent ?? config.defaultAgent,
 			stateHub,
 			onTaskCompleted: (taskId) => {
-				loadWorkspaceState(workspaceId, wsRepoPath)
-					.then((state) => {
-						const card = state.board.cards[taskId];
-						const session = state.sessions[taskId];
-						// Trigger review when dev just finished (idle session = no active process)
-						// and card is still in_progress (meaning it has review slots to run).
-						// "failed" session means crash recovery — dev was skipped, resume review.
-						if ((session?.state === "completed" || session?.state === "failed") && card?.columnId === "in_progress") {
+				loadBoard(workspaceId)
+					.then((board) => {
+						const card = board.cards[taskId];
+						if (card?.columnId === "in_progress") {
 							startReview(card);
 						}
 					})
-					.catch((err) => logger.error({ err }, `[server] onTaskCompleted state load failed for ${taskId}:`));
+					.catch((err) => logger.error({ err }, `[server] onTaskCompleted board load failed for ${taskId}:`));
 			},
 		});
 

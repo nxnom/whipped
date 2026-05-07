@@ -12,7 +12,7 @@ import type { WorkflowSlot, RuntimeAgentId, RuntimeBoardCard } from "../core/api
 import { buildDevAgentSystemPrompt, buildSecretsEnv, runParentReopenCascade, tryParseAgentJson } from "./review-pipeline.js";
 import { logger } from "../core/logger.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
-import { appendActivityLog, appendTerminalSession, endTerminalSession, getSession, linkCommentToSession, loadBoard, loadProjectConfig, moveCard, removeSession, saveTerminalBuffer, updateCard, updateSession } from "../state/workspace-state.js";
+import { appendActivityLog, appendTerminalSession, clearCardSession, endTerminalSession, linkCommentToSession, loadBoard, loadProjectConfig, moveCard, saveTerminalBuffer, updateCard } from "../state/workspace-state.js";
 import { createWorktree, getWorktreeBranch, getWorktreePath, removeWorktree, removeWorktreeAsync } from "../worktree/worktree-manager.js";
 
 export interface SchedulerOptions {
@@ -214,13 +214,18 @@ export class TaskScheduler {
 			parentCards = card.dependsOn.map(id => board.cards[id]).filter((c): c is RuntimeBoardCard => !!c);
 		}
 
-		// If the last session was failed (server stopped mid-run) and dev already passed,
-		// skip spawning the dev agent. Keep the session as "failed" so runReviewPipeline
-		// knows to resume from the first un-passed slot rather than running all slots fresh.
-		const existingSession = await getSession(workspaceId, taskId);
+		// If the last session was failed (server stopped mid-run) and dev already passed
+		// IN THIS SESSION, skip spawning the dev agent and hand off to review pipeline.
+		// Guard: dev:pass must have been created during this session (createdAt >= last dev
+		// terminal session's startedAt) so we don't reuse a dev:pass from a prior run.
 		const lastDevComment = [...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev");
-		const hasPassingDev = lastDevComment ? lastDevComment.status === "pass" : false;
-		if (existingSession?.state === "failed" && hasPassingDev) {
+		const lastDevTs = card.terminalSessions?.slice().reverse().find((ts) => ts.type === "dev");
+		const devPassedInThisSession = lastDevComment?.status === "pass"
+			&& lastDevTs !== undefined
+			&& lastDevComment.createdAt >= lastDevTs.startedAt;
+		const lastTs = card.terminalSessions?.at(-1);
+		logger.info(`[scheduler] Resume check for "${card.title}": lastTsState=${lastTs?.state} devPassedInThisSession=${devPassedInThisSession} lastDevComment=${lastDevComment?.status} lastDevTsStart=${lastDevTs?.startedAt} devCreatedAt=${lastDevComment?.createdAt}`);
+		if (lastTs?.state === "failed" && devPassedInThisSession) {
 			createWorktree(taskId, repoPath, effectiveBaseRef);
 			await moveCard(workspaceId, taskId, "in_progress");
 			await appendActivityLog(workspaceId, taskId, "Dev already completed — resuming AI review from last failed step");
@@ -237,15 +242,8 @@ export class TaskScheduler {
 		// Create isolated worktree
 		const worktree = createWorktree(taskId, repoPath, effectiveBaseRef);
 
-		// Move card + update session immediately so the UI reflects it before setup runs
-		const taskStartedAt = Date.now();
-		await updateSession(workspaceId, taskId, {
-			taskId,
-			state: "running",
-			agentId,
-			worktreePath: worktree.path,
-			startedAt: taskStartedAt,
-		});
+		// Move card + set worktree path immediately so the UI reflects it before setup runs
+		await updateCard(workspaceId, taskId, { worktreePath: worktree.path });
 		await moveCard(workspaceId, taskId, "in_progress");
 		stateHub.broadcastWorkspaceUpdate(workspaceId);
 
@@ -300,7 +298,7 @@ export class TaskScheduler {
 		const spawnedAt = Date.now();
 		const devStreamId = `${taskId}-dev-${spawnedAt}`;
 
-		await appendTerminalSession(workspaceId, taskId, { streamId: devStreamId, type: "dev", startedAt: spawnedAt });
+		await appendTerminalSession(workspaceId, taskId, { streamId: devStreamId, type: "dev", startedAt: spawnedAt, agentId, state: "running" });
 		stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 		const runningTask: RunningTask = {
@@ -333,8 +331,8 @@ export class TaskScheduler {
 					// If manually stopped, clear the session so the card can be restarted.
 					if (this.manuallyStoppedTasks.has(taskId)) {
 						this.manuallyStoppedTasks.delete(taskId);
-						await endTerminalSession(workspaceId, taskId, devStreamId, Date.now());
-						await removeSession(workspaceId, taskId);
+						await endTerminalSession(workspaceId, taskId, devStreamId, Date.now(), "stopped");
+						await clearCardSession(workspaceId, taskId);
 						stateHub.broadcastWorkspaceUpdate(workspaceId);
 						return;
 					}
@@ -342,8 +340,7 @@ export class TaskScheduler {
 					// If stopped due to parent reopen, mark session as stopped (not failed).
 					if (this.parentReopenedTasks.has(taskId)) {
 						this.parentReopenedTasks.delete(taskId);
-						await endTerminalSession(workspaceId, taskId, devStreamId, Date.now());
-						await updateSession(workspaceId, taskId, { state: "stopped", completedAt: Date.now() });
+						await endTerminalSession(workspaceId, taskId, devStreamId, Date.now(), "stopped");
 						stateHub.broadcastWorkspaceUpdate(workspaceId);
 						return;
 					}
@@ -362,9 +359,7 @@ export class TaskScheduler {
 						if (hookDevComment) {
 							await linkCommentToSession(workspaceId, taskId, hookDevComment.createdAt, devStreamId);
 						}
-						await endTerminalSession(workspaceId, taskId, devStreamId, exitedAt);
-						// State is managed by handleHookEvent — don't overwrite it here
-						// (it may already be "running" if the review pipeline started)
+						await endTerminalSession(workspaceId, taskId, devStreamId, exitedAt, "completed");
 						stateHub.broadcastWorkspaceUpdate(workspaceId);
 						return;
 					}
@@ -379,9 +374,10 @@ export class TaskScheduler {
 					const exitBoard = await loadBoard(workspaceId);
 					const exitCard = exitBoard.cards[taskId];
 					const existingDevComment = exitCard?.reviewComments?.slice().reverse().find((c) => c.type === "dev" && c.createdAt >= spawnedAt);
+					const devState = exitCode === 0 ? "completed" : "failed";
 					if (existingDevComment) {
 						await linkCommentToSession(workspaceId, taskId, existingDevComment.createdAt, devStreamId);
-						await endTerminalSession(workspaceId, taskId, devStreamId, exitedAt);
+						await endTerminalSession(workspaceId, taskId, devStreamId, exitedAt, devState);
 					} else {
 						// Non-MCP fallback comment
 						const parsed = tryParseAgentJson(runningTask.outputBuffer);
@@ -397,15 +393,8 @@ export class TaskScheduler {
 						};
 						const existing = exitCard?.reviewComments ?? [];
 						await updateCard(workspaceId, taskId, { reviewComments: [...existing, fallbackComment] });
-						await endTerminalSession(workspaceId, taskId, devStreamId, exitedAt);
+						await endTerminalSession(workspaceId, taskId, devStreamId, exitedAt, devState);
 					}
-
-					await updateSession(workspaceId, taskId, {
-						state: exitCode === 0 ? "completed" : "failed",
-						exitCode,
-						completedAt: exitedAt,
-						lastOutput: runningTask.outputBuffer.slice(-4096),
-					});
 
 					if (exitCode === 0) {
 						const hasReviewSlots = (cardWorkflow?.slots ?? []).some(s => s.type !== "dev" && s.enabled);
@@ -584,7 +573,6 @@ export class TaskScheduler {
 			} else {
 				await appendActivityLog(workspaceId, taskId, "Agent finished → AI review starting");
 			}
-			await updateSession(workspaceId, taskId, { state: "completed", completedAt: Date.now() });
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
 			logger.info(`[scheduler] Hook Stop: task ${taskId} → ${hookHasReview ? "in_progress (review pending)" : "ready_for_review"}`);
 			this.options.onTaskCompleted(taskId);
@@ -595,7 +583,6 @@ export class TaskScheduler {
 
 			await moveCard(workspaceId, taskId, "in_progress");
 			await appendActivityLog(workspaceId, taskId, "User continued → moved back to In Progress");
-			await updateSession(workspaceId, taskId, { state: "running" });
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
 			logger.info(`[scheduler] Hook UserPromptSubmit: task ${taskId} → in_progress`);
 		}
@@ -610,7 +597,7 @@ export class TaskScheduler {
 		const { workspaceId, stateHub, defaultAgent } = this.options;
 		const streamId = `${card.id}-conflict-${Date.now()}`;
 
-		await appendTerminalSession(workspaceId, card.id, { streamId, type: "conflict", startedAt: Date.now() });
+		await appendTerminalSession(workspaceId, card.id, { streamId, type: "conflict", startedAt: Date.now(), state: "running" });
 		stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 		let outputBuffer = "";
@@ -631,7 +618,7 @@ export class TaskScheduler {
 				this.liveProcesses.delete(streamId);
 				this.setRecentBuffer(streamId, outputBuffer);
 				void saveTerminalBuffer(workspaceId, streamId, outputBuffer);
-				await endTerminalSession(workspaceId, card.id, streamId, Date.now());
+				await endTerminalSession(workspaceId, card.id, streamId, Date.now(), exitCode === 0 ? "completed" : "failed");
 				if (!hookHandled) await onComplete(exitCode === 0);
 			},
 		});
@@ -643,7 +630,7 @@ export class TaskScheduler {
 			this.liveProcesses.delete(streamId);
 			this.setRecentBuffer(streamId, outputBuffer);
 			void saveTerminalBuffer(workspaceId, streamId, outputBuffer);
-			void endTerminalSession(workspaceId, card.id, streamId, Date.now());
+			void endTerminalSession(workspaceId, card.id, streamId, Date.now(), "completed");
 			proc.kill();
 			onComplete(true).catch((err) => logger.error({ err }, `[scheduler] conflict onComplete failed for ${card.id}:`));
 		});

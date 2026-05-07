@@ -1,5 +1,5 @@
 import { Draggable } from "@hello-pangea/dnd";
-import type { RuntimeBoardCard, RuntimeTaskSessionSummary } from "@runtime-contract";
+import type { RuntimeBoardCard } from "@runtime-contract";
 import { Bot, ExternalLink, FolderOpen, GitPullRequest, Link2, Pencil, RotateCcw, Trash2, Zap } from "lucide-react";
 import { trpc } from "@/runtime/trpc-client";
 
@@ -7,7 +7,6 @@ interface KanbanCardProps {
 	card: RuntimeBoardCard;
 	index: number;
 	allCards: Record<string, RuntimeBoardCard>;
-	session?: RuntimeTaskSessionSummary;
 	onClick: () => void;
 	onEdit?: () => void;
 	onDelete?: () => void;
@@ -32,10 +31,12 @@ const SESSION_STATE_COLORS: Record<string, string> = {
 	failed: "text-red-400",
 };
 
-export function KanbanCard({ card, index, allCards, session, onClick, onEdit, onDelete, onToggleReady }: KanbanCardProps) {
-	const isRunning = session?.state === "running";
+export function KanbanCard({ card, index, allCards, onClick, onEdit, onDelete, onToggleReady }: KanbanCardProps) {
+	const isRunning = card.terminalSessions?.some((ts) => !ts.endedAt) ?? false;
 	const agentLabel = card.agentId ? AGENT_LABELS[card.agentId] : null;
-	const sessionColor = session ? (SESSION_STATE_COLORS[session.state] ?? "text-gray-400") : null;
+	const lastTs = card.terminalSessions?.at(-1);
+	const sessionState = isRunning ? "running" : lastTs?.state;
+	const sessionColor = sessionState ? (SESSION_STATE_COLORS[sessionState] ?? "text-gray-400") : null;
 
 	const deps = card.dependsOn ?? [];
 	const metDeps = deps.filter((id) => {
@@ -60,9 +61,9 @@ export function KanbanCard({ card, index, allCards, session, onClick, onEdit, on
 				>
 					{/* Hover action buttons */}
 					<div className="absolute top-2 right-2 hidden group-hover:flex items-center gap-0.5 z-10">
-						{session?.worktreePath && (
+						{card.worktreePath && (
 							<button
-								onClick={(e) => { e.stopPropagation(); trpc.fs.openPath.mutate({ path: session.worktreePath! }); }}
+								onClick={(e) => { e.stopPropagation(); trpc.fs.openPath.mutate({ path: card.worktreePath! }); }}
 								className="p-1 rounded text-gray-500 hover:text-blue-400 hover:bg-gray-700 transition-colors"
 								title="Open worktree folder"
 							>
@@ -165,8 +166,8 @@ export function KanbanCard({ card, index, allCards, session, onClick, onEdit, on
 							</a>
 						)}
 
-						{session && session.state === "running" && card.columnId !== "done" && (
-							<span className={`text-xs ml-auto ${sessionColor}`}>{session.state.replace(/_/g, " ")}</span>
+						{isRunning && card.columnId !== "done" && (
+							<span className={`text-xs ml-auto ${sessionColor}`}>running</span>
 						)}
 					</div>
 				</div>

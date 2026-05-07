@@ -1,5 +1,5 @@
 import { Button, Textarea, toast } from "@geckoui/geckoui";
-import type { RuntimeBoardCard, RuntimeTaskSessionSummary } from "@runtime-contract";
+import type { RuntimeBoardCard } from "@runtime-contract";
 import { ExternalLink, Maximize2, X } from "lucide-react";
 import { useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
@@ -7,7 +7,6 @@ import { trpc } from "@/runtime/trpc-client";
 interface Props {
 	card: RuntimeBoardCard;
 	workspaceId: string;
-	session?: RuntimeTaskSessionSummary;
 	onClose: () => void;
 	onOpenDetail: () => void;
 	onRefresh: () => void;
@@ -36,7 +35,7 @@ const COLUMN_LABELS: Record<string, string> = {
 	done: "Done",
 };
 
-export function CardQuickViewDialog({ card, workspaceId, session, onClose, onOpenDetail, onRefresh }: Props) {
+export function CardQuickViewDialog({ card, workspaceId, onClose, onOpenDetail, onRefresh }: Props) {
 	const [feedback, setFeedback] = useState("");
 	const [submitting, setSubmitting] = useState(false);
 

@@ -32,14 +32,13 @@ import {
 	loadWorkspaceContext,
 	loadWorkspaceState,
 	moveCard,
-	removeSession,
 	removeWorkspace,
+	clearCardSession,
 	saveAttachment,
 	saveProjectConfig,
 	saveWorkspaceState,
 	setAutonomousMode,
 	updateCard,
-	updateSession,
 } from "../state/workspace-state.js";
 import { removeWorktreeAsync } from "../worktree/worktree-manager.js";
 import { getDefaultBranch, getWorktreeBranch, getWorktreePath } from "../worktree/worktree-manager.js";
@@ -344,7 +343,7 @@ export const appRouter = router({
 						abortMerge(ws.repoPath);
 						await moveCard(workspaceId, cardId, "blocked");
 						await appendActivityLog(workspaceId, cardId, "Could not resolve merge conflicts → Blocked");
-						await removeSession(workspaceId, cardId);
+						await clearCardSession(workspaceId, cardId);
 					}
 					ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 				});
@@ -418,7 +417,7 @@ export const appRouter = router({
 				const board = await moveCard(workspaceId, cardId, targetColumnId, targetIndex);
 				// Clear session so the poller can pick up cards moved back to work columns
 				if (targetColumnId === "reopened" || targetColumnId === "todo") {
-					await removeSession(workspaceId, cardId);
+					await clearCardSession(workspaceId, cardId);
 				}
 				if (targetColumnId === "reopened") {
 					await updateCard(workspaceId, cardId, { autoFixAttempts: 0 });
@@ -445,7 +444,7 @@ export const appRouter = router({
 
 				await Promise.all([
 					deleteCard(workspaceId, cardId),
-					removeSession(workspaceId, cardId),
+					clearCardSession(workspaceId, cardId),
 				]);
 				ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 
@@ -543,7 +542,7 @@ export const appRouter = router({
 					: (card.reviewComments ?? []);
 				await updateCard(input.workspaceId, input.cardId, { reviewComments: updatedComments, autoFixAttempts: 0 });
 				await moveCard(input.workspaceId, input.cardId, "reopened");
-				await removeSession(input.workspaceId, input.cardId);
+				await clearCardSession(input.workspaceId, input.cardId);
 				await appendActivityLog(input.workspaceId, input.cardId, "Human feedback submitted → moved to Reopened");
 				ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
 				const feedbackScheduler = ctx.getScheduler(input.workspaceId);
