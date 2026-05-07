@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { WebSocketServer } from "ws";
 import { writeClaudeTaskHookSettings } from "../agents/agent-hooks.js";
-import { DEFAULT_PORT, loadGlobalConfig } from "../config/runtime-config.js";
+import { ATTACHMENTS_DIR, DEFAULT_PORT, loadGlobalConfig } from "../config/runtime-config.js";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { BoardPoller } from "../daemon/poller.js";
 import { runReviewPipeline } from "../daemon/review-pipeline.js";
@@ -21,6 +21,7 @@ import {
 	loadWorkspaceContext,
 	loadWorkspaceState,
 	moveCard,
+	saveAttachment,
 } from "../state/workspace-state.js";
 import { loadTerminalBuffer } from "../state/workspace-state.js";
 import { type AppContext, appRouter } from "../trpc/app-router.js";
@@ -221,6 +222,60 @@ export async function createRuntimeServer(options: ServerOptions) {
 			}
 			res.writeHead(200, { "Content-Type": "text/plain" });
 			res.end("ok");
+			return;
+		}
+
+		// ── Attachment file server ──────────────────────────────────────────────
+		// GET  /api/attachments/{cardId}/{filename}  — serve with caching
+		// POST /api/attachments/{cardId}?workspaceId=…&filename=…  — raw binary upload
+		const attachMatch = url.pathname.match(/^\/api\/attachments\/([^/]+)\/([^/]+)$/);
+		const attachUploadMatch = url.pathname.match(/^\/api\/attachments\/([^/]+)$/);
+
+		if (attachMatch && req.method === "GET") {
+			const [, cardId, filename] = attachMatch;
+			// Sanitise: no dots-dot, no slashes inside segments
+			if (!cardId || !filename || cardId.includes("..") || filename.includes("..") || filename.includes("/")) {
+				res.writeHead(400); res.end("Bad request"); return;
+			}
+			const filePath = join(ATTACHMENTS_DIR, cardId, filename);
+			const { readFile } = await import("node:fs/promises");
+			try {
+				const data = await readFile(filePath);
+				const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+				const MIME: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml" };
+				res.writeHead(200, {
+					"Content-Type": MIME[ext] ?? "application/octet-stream",
+					"Cache-Control": "public, max-age=31536000, immutable",
+					"Content-Length": String(data.length),
+				});
+				res.end(data);
+			} catch {
+				res.writeHead(404); res.end("Not found");
+			}
+			return;
+		}
+
+		if (attachUploadMatch && req.method === "POST") {
+			const [, cardId] = attachUploadMatch;
+			const workspaceId = url.searchParams.get("workspaceId");
+			const filename = url.searchParams.get("filename") ?? "image.png";
+			const mimeType = url.searchParams.get("mimeType") ?? (req.headers["content-type"] ?? "image/png");
+			if (!cardId || !workspaceId || cardId.includes("..")) {
+				res.writeHead(400); res.end("Bad request"); return;
+			}
+			if (!mimeType.startsWith("image/")) {
+				res.writeHead(400); res.end("Not an image"); return;
+			}
+			const ext = filename.split(".").pop()?.toLowerCase() ?? "bin";
+			if (!["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext)) {
+				res.writeHead(400); res.end("Unsupported format"); return;
+			}
+			const board = await loadBoard(workspaceId);
+			if (!board.cards[cardId]) { res.writeHead(404); res.end("Card not found"); return; }
+			const body = await readBody(req);
+			const filePath = await saveAttachment(body, ext, cardId);
+			res.writeHead(200, { "Content-Type": "application/json" });
+			res.end(JSON.stringify({ path: filePath, name: filename, mimeType, type: "image" }));
 			return;
 		}
 

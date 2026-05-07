@@ -16,8 +16,8 @@ import type {
   RuntimeBoardColumnId,
   RuntimeWorkspaceStateResponse,
 } from "@runtime-contract";
-import { Bot, Layers, Plus, Settings } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Bot, ImagePlus, Layers, Plus, Settings, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { trpc } from "@/runtime/trpc-client";
 import { CardDetailPanel } from "./CardDetailPanel";
@@ -266,6 +266,54 @@ const COLUMN_LABEL: Record<string, string> = {
   done: "Done",
 };
 
+interface PendingImage { dataUrl: string; file: File }
+
+async function uploadImages(workspaceId: string, cardId: string, images: PendingImage[]) {
+  const { uploadAttachmentFile } = await import("@/runtime/attachments");
+  const results = [];
+  for (const img of images) results.push(await uploadAttachmentFile(workspaceId, cardId, img.file));
+  return results;
+}
+
+function ImagePicker({ pending, onChange, onPaste }: {
+  pending: PendingImage[];
+  onChange: (imgs: PendingImage[]) => void;
+  onPaste?: (e: React.ClipboardEvent) => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const addFiles = (files: FileList | File[]) => {
+    const imgs = Array.from(files).filter(f => f.type.startsWith("image/"));
+    imgs.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = ev => onChange([...pending, { dataUrl: ev.target?.result as string, file }]);
+      reader.readAsDataURL(file);
+    });
+  };
+  return (
+    <div>
+      <input ref={ref} type="file" accept="image/*" multiple className="hidden"
+        onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }} />
+      {pending.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-2 mt-1">
+          {pending.map((img, i) => (
+            <div key={i} className="relative group">
+              <img src={img.dataUrl} alt={img.file.name} className="h-14 w-14 object-cover rounded border border-gray-700" />
+              <button type="button" onClick={() => onChange(pending.filter((_, j) => j !== i))}
+                className="absolute -top-1 -right-1 size-4 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <X size={9} className="text-gray-300" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <button type="button" onClick={() => ref.current?.click()}
+        className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-400 transition-colors mt-1">
+        <ImagePlus size={12} /> Attach image
+      </button>
+    </div>
+  );
+}
+
 function CreateCardContent({
   workspaceId,
   allCards,
@@ -283,6 +331,7 @@ function CreateCardContent({
   const defaultWorkflow = taskWorkflows.find(w => w.isDefault) ?? taskWorkflows[0];
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [priority, setPriority] = useState<string>("");
   const [readyForDev, setReadyForDev] = useState(true);
   const [dependsOn, setDependsOn] = useState<string[]>([]);
@@ -305,18 +354,20 @@ function CreateCardContent({
     if (!title.trim()) return;
     setLoading(true);
     try {
-      await trpc.cards.create.mutate({
+      const card = await trpc.cards.create.mutate({
         workspaceId,
         title: title.trim(),
         description,
-        priority:
-          (priority as "urgent" | "high" | "medium" | "low" | undefined) ||
-          undefined,
+        priority: (priority as "urgent" | "high" | "medium" | "low" | undefined) || undefined,
         readyForDev: readyForDev || undefined,
         dependsOn: dependsOn.length > 0 ? dependsOn : undefined,
         baseRef: baseRef || undefined,
         workflowId: workflowId || undefined,
       });
+      if (pendingImages.length > 0) {
+        const uploaded = await uploadImages(workspaceId, card.id, pendingImages);
+        await trpc.cards.update.mutate({ workspaceId, cardId: card.id, descriptionAttachments: uploaded, revision: 0 });
+      }
       dismiss();
       onRefresh();
     } catch {
@@ -350,9 +401,14 @@ function CreateCardContent({
           <Textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            onPaste={(e) => {
+              const files = Array.from(e.clipboardData.files).filter(f => f.type.startsWith("image/"));
+              if (files.length) { e.preventDefault(); files.forEach(file => { const r = new FileReader(); r.onload = ev => setPendingImages(p => [...p, { dataUrl: ev.target?.result as string, file }]); r.readAsDataURL(file); }); }
+            }}
             placeholder="Describe what needs to be done..."
             rows={4}
           />
+          <ImagePicker pending={pendingImages} onChange={setPendingImages} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -471,6 +527,8 @@ function EditCardContent({
 
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description);
+  const [existingAttachments, setExistingAttachments] = useState(card.descriptionAttachments ?? []);
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [priority, setPriority] = useState<string>(card.priority ?? "");
   const [dependsOn, setDependsOn] = useState<string[]>(card.dependsOn ?? []);
   const [workflowId, setWorkflowId] = useState<string>(card.workflowId ?? "");
@@ -493,11 +551,13 @@ function EditCardContent({
     if (!title.trim()) return;
     setLoading(true);
     try {
+      const newUploads = pendingImages.length > 0 ? await uploadImages(workspaceId, card.id, pendingImages) : [];
       await trpc.cards.update.mutate({
         workspaceId,
         cardId: card.id,
         title: title.trim(),
         description,
+        descriptionAttachments: [...existingAttachments, ...newUploads],
         priority: (priority as "urgent" | "high" | "medium" | "low" | undefined) || undefined,
         dependsOn: isStory ? undefined : dependsOn,
         workflowId: workflowId || undefined,
@@ -533,8 +593,23 @@ function EditCardContent({
           <Textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            onPaste={(e) => {
+              const files = Array.from(e.clipboardData.files).filter(f => f.type.startsWith("image/"));
+              if (files.length) { e.preventDefault(); files.forEach(file => { const r = new FileReader(); r.onload = ev => setPendingImages(p => [...p, { dataUrl: ev.target?.result as string, file }]); r.readAsDataURL(file); }); }
+            }}
             rows={4}
           />
+          {existingAttachments.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-1">
+              {existingAttachments.map((att, i) => (
+                <span key={i} className="inline-flex items-center gap-1 text-[11px] text-gray-400 bg-gray-800 border border-gray-700 rounded px-1.5 py-0.5">
+                  <ImagePlus size={10} className="shrink-0" /> {att.name}
+                  <button type="button" onClick={() => setExistingAttachments(a => a.filter((_, j) => j !== i))} className="text-gray-600 hover:text-red-400 transition-colors"><X size={9} /></button>
+                </span>
+              ))}
+            </div>
+          )}
+          <ImagePicker pending={pendingImages} onChange={setPendingImages} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>

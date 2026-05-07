@@ -445,10 +445,8 @@ function formatPriorComments(card: RuntimeBoardCard): { text: string; files: str
 		}
 
 		if (c.attachments?.length) {
-			for (const att of c.attachments) {
-				parts.push(`- attachment: ${att.name}`);
-				allFiles.push(att.path);
-			}
+			const attLines = c.attachments.map((att) => `  - ${att.name}: ${att.path}`).join("\n");
+			parts.push(`Attached images (use Read tool to view):\n${attLines}`);
 		}
 
 		if (c.metadata && Object.keys(c.metadata).length > 0) {
@@ -476,7 +474,10 @@ export function buildDevAgentSystemPrompt(slot: WorkflowSlot, card: RuntimeBoard
 	const stat = worktreePath ? getGitStat(worktreePath, card.baseRef) : null;
 	const statSection = stat ? `\n\n## Current worktree state (vs ${card.baseRef})\n${stat}` : "";
 
-	parts.push(`## Task: ${card.title}${card.description ? `\n\n${card.description}` : ""}${statSection}${context.text}`);
+	const descAttachNote = (card.descriptionAttachments?.length ?? 0) > 0
+		? `\n\n**Attached images** (use the Read tool to view each one):\n${card.descriptionAttachments!.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
+		: "";
+	parts.push(`## Task: ${card.title}${card.description ? `\n\n${card.description}` : ""}${descAttachNote}${statSection}${context.text}`);
 
 	if (parentCards.length > 0) {
 		const parentSummaries = parentCards
@@ -532,11 +533,15 @@ function buildCodeReviewSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard,
 	const secretsSection = buildSecretsSection(secrets);
 	const projectContext = systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : "";
 
+	const descAttachSection = (card.descriptionAttachments?.length ?? 0) > 0
+		? `\n\n**Attached images** (use Read tool to view):\n${card.descriptionAttachments!.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
+		: "";
+
 	return `You are a senior code reviewer performing an automated review.
 
 ## Task to review
 "${card.title}"
-${card.description ? `\n${card.description}` : ""}${priorContext}
+${card.description ? `\n${card.description}` : ""}${descAttachSection}${priorContext}
 
 ## Changed files
 ${stat}
@@ -568,11 +573,15 @@ function buildQASystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: s
 	const secretsSection = buildSecretsSection(secrets);
 	const projectContext = systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : "";
 
+	const qaDescAttachSection = (card.descriptionAttachments?.length ?? 0) > 0
+		? `\n\n**Attached images** (use Read tool to view):\n${card.descriptionAttachments!.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
+		: "";
+
 	return `You are a QA engineer performing automated testing.
 
 ## Task to test
 "${card.title}"
-${card.description ? `\n${card.description}` : ""}${priorContext}
+${card.description ? `\n${card.description}` : ""}${qaDescAttachSection}${priorContext}
 
 ## Changed files
 ${stat}

@@ -1,9 +1,10 @@
 import { Button } from "@geckoui/geckoui";
 import type { RuntimeBoardCard, RuntimeReviewComment, WorkflowSlot } from "@runtime-contract";
-import { Send } from "lucide-react";
+import { ImagePlus, Send, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { attachmentUrl, uploadAttachmentFile } from "@/runtime/attachments";
 import { trpc } from "@/runtime/trpc-client";
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
@@ -96,29 +97,10 @@ function AgentBadge({ comment }: { comment: RuntimeReviewComment }) {
 
 function AttachmentImage({ path, name }: { path: string; name: string }) {
 	const [expanded, setExpanded] = useState(false);
-	const [src, setSrc] = useState<string | null>(null);
-	const [loading, setLoading] = useState(true);
-
-	useEffect(() => {
-		let cancelled = false;
-		void trpc.cards.getAttachment.query({ path }).then((data) => {
-			if (!cancelled) {
-				setSrc(`data:${data.mimeType};base64,${data.data}`);
-				setLoading(false);
-			}
-		}).catch(() => {
-			if (!cancelled) setLoading(false);
-		});
-		return () => { cancelled = true; };
-	}, [path]);
-
-	if (loading) return <div className="text-[11px] text-gray-500">Loading {name}…</div>;
-	if (!src) return null;
-
 	return (
 		<div className="mt-1">
 			<img
-				src={src}
+				src={attachmentUrl(path)}
 				alt={name}
 				className={`rounded border border-gray-700 cursor-pointer object-contain ${expanded ? "max-w-full max-h-96" : "max-h-24 max-w-48"}`}
 				onClick={() => setExpanded((v) => !v)}
@@ -207,11 +189,19 @@ interface Props {
 	onRefresh: () => void;
 }
 
+interface PendingAttachment {
+	dataUrl: string; // local preview only
+	file: File;
+	name: string;
+}
+
 export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRefresh }: Props) {
 	const [message, setMessage] = useState("");
 	const [sending, setSending] = useState(false);
+	const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
 	const bottomRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
+	const fileInputRef = useRef<HTMLInputElement>(null);
 	const isReadyForReview = card.columnId === "ready_for_review";
 	const isStory = card.type === "story";
 
@@ -234,23 +224,53 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 		bottomRef.current?.scrollIntoView({ behavior: "instant" });
 	}, [commentEntries.length]);
 
+	const addImageFiles = (files: FileList | File[]) => {
+		for (const file of Array.from(files)) {
+			if (!file.type.startsWith("image/")) continue;
+			const reader = new FileReader();
+			reader.onload = (ev) => {
+				const dataUrl = ev.target?.result as string;
+				setPendingAttachments((prev) => [...prev, { dataUrl, file, name: file.name || "image.png" }]);
+			};
+			reader.readAsDataURL(file);
+		}
+	};
+
+	const uploadPending = async () => {
+		const uploaded = [];
+		for (const att of pendingAttachments) {
+			uploaded.push(await uploadAttachmentFile(workspaceId, card.id, att.file));
+		}
+		return uploaded;
+	};
+
 	const send = async (requestChanges = false) => {
 		const text = message.trim();
-		if (!requestChanges && !text) return;
+		if (!requestChanges && !text && pendingAttachments.length === 0) return;
 		setSending(true);
 		try {
+			const uploaded = await uploadPending();
+			const attachments = uploaded.length > 0 ? uploaded : undefined;
+
 			if (requestChanges) {
-				await trpc.cards.submitHumanFeedback.mutate({ workspaceId, cardId: card.id, comment: text || undefined });
+				await trpc.cards.submitHumanFeedback.mutate({
+					workspaceId,
+					cardId: card.id,
+					comment: text || undefined,
+					attachments,
+				});
 			} else {
 				await trpc.cards.addReviewComment.mutate({
 					workspaceId,
 					cardId: card.id,
 					type: "human",
 					actor: { type: "human", id: "human" },
-					summary: text,
+					summary: text || (uploaded.length > 0 ? `${uploaded.map((a) => a.name).join(", ")}` : ""),
+					attachments,
 				});
 			}
 			setMessage("");
+			setPendingAttachments([]);
 			onRefresh();
 		} finally {
 			setSending(false);
@@ -359,7 +379,36 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 
 			{/* Input */}
 			<div className="shrink-0 border-t border-gray-800 p-3">
+				<input
+					ref={fileInputRef}
+					type="file"
+					accept="image/*"
+					multiple
+					className="hidden"
+					onChange={(e) => { if (e.target.files) addImageFiles(e.target.files); e.target.value = ""; }}
+				/>
 				<div className="rounded-lg border border-gray-700 bg-gray-900 focus-within:border-gray-600 transition-colors">
+					{/* Pending attachment previews */}
+					{pendingAttachments.length > 0 && (
+						<div className="flex flex-wrap gap-2 px-3 pt-2">
+							{pendingAttachments.map((att, idx) => (
+								<div key={idx} className="relative group">
+									<img
+										src={att.dataUrl}
+										alt={att.name}
+										className="h-16 w-16 object-cover rounded border border-gray-700"
+										title={att.name}
+									/>
+									<button
+										onClick={() => setPendingAttachments((prev) => prev.filter((_, i) => i !== idx))}
+										className="absolute -top-1 -right-1 size-4 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+									>
+										<X size={10} className="text-gray-300" />
+									</button>
+								</div>
+							))}
+						</div>
+					)}
 					<textarea
 						ref={textareaRef}
 						value={message}
@@ -367,19 +416,43 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 						onKeyDown={(e) => {
 							if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); }
 						}}
-						placeholder="Add a comment…"
+						onPaste={(e) => {
+							if (e.clipboardData.files.length > 0) {
+								const hasImage = Array.from(e.clipboardData.files).some((f) => f.type.startsWith("image/"));
+								if (hasImage) {
+									e.preventDefault();
+									addImageFiles(e.clipboardData.files);
+								}
+							}
+						}}
+						onDrop={(e) => {
+							e.preventDefault();
+							if (e.dataTransfer.files.length > 0) addImageFiles(e.dataTransfer.files);
+						}}
+						onDragOver={(e) => e.preventDefault()}
+						placeholder="Add a comment… (paste or drop images)"
 						rows={2}
 						className="w-full bg-transparent text-sm text-gray-200 px-3 pt-3 pb-1 resize-none outline-none placeholder-gray-600"
 					/>
 					<div className="flex items-center justify-between px-3 pb-2">
-						<span className="text-[10px] text-gray-700">↵ Send · ⇧↵ Newline</span>
+						<div className="flex items-center gap-2">
+							<button
+								onClick={() => fileInputRef.current?.click()}
+								className="text-gray-600 hover:text-gray-400 transition-colors"
+								title="Attach image"
+								type="button"
+							>
+								<ImagePlus size={14} />
+							</button>
+							<span className="text-[10px] text-gray-700">↵ Send · ⇧↵ Newline</span>
+						</div>
 						<div className="flex gap-1.5">
 							{isReadyForReview && (
 								<Button variant="outlined" size="sm" disabled={sending} onClick={() => void send(true)}>
-									{message.trim() ? "Request Changes" : "Reopen"}
+									{message.trim() || pendingAttachments.length > 0 ? "Request Changes" : "Reopen"}
 								</Button>
 							)}
-							<Button size="sm" disabled={sending || !message.trim()} onClick={() => void send()}>
+							<Button size="sm" disabled={sending || (!message.trim() && pendingAttachments.length === 0)} onClick={() => void send()}>
 								<Send size={11} className="mr-1" />
 								Send
 							</Button>

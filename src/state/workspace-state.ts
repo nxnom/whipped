@@ -330,6 +330,7 @@ export async function createCard(
 			jiraKey: data.jiraKey,
 			jiraUrl: data.jiraUrl,
 			workflowId: data.workflowId,
+			descriptionAttachments: [],
 			reviewComments: [],
 			activityLog: [],
 			terminalSessions: [],
@@ -450,7 +451,7 @@ export async function updateCard(
 	workspaceId: string,
 	cardId: string,
 	update: Partial<
-		Pick<RuntimeBoardCard, "type" | "title" | "description" | "agentId" | "priority" | "readyForDev" | "dependsOn" | "workflowId" | "githubPrUrl" | "reviewComments" | "autoFixAttempts" | "githubCommentIds" | "worktreePath">
+		Pick<RuntimeBoardCard, "type" | "title" | "description" | "descriptionAttachments" | "agentId" | "priority" | "readyForDev" | "dependsOn" | "workflowId" | "githubPrUrl" | "reviewComments" | "autoFixAttempts" | "githubCommentIds" | "worktreePath">
 	>,
 ): Promise<RuntimeBoardCard> {
 	return withLock(workspaceId, async () => {

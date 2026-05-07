@@ -1,8 +1,9 @@
 import { Button, ConfirmDialog, Tooltip, toast } from "@geckoui/geckoui";
 import type { WorkflowSlot, RuntimeBoardCard } from "@runtime-contract";
-import { ArrowLeft, ExternalLink, FolderOpen, GitBranch, GitMerge, GitPullRequest, Play, Square, TerminalSquare, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, FolderOpen, GitBranch, GitMerge, GitPullRequest, ImagePlus, Play, Square, TerminalSquare, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
+import { attachmentUrl, uploadAttachmentFile } from "@/runtime/attachments";
 import { trpc } from "@/runtime/trpc-client";
 import { ChatComments } from "./ChatComments";
 import { DiffView } from "./DiffView";
@@ -65,6 +66,21 @@ const DEFAULT_SIDEBAR = 340;
 type SidebarTab = "overview" | "activity";
 type RightTab = "terminal" | "diff" | "comments";
 
+function DescAttachmentImage({ path, name }: { path: string; name: string }) {
+	const [expanded, setExpanded] = useState(false);
+	return (
+		<div className="relative group">
+			<img
+				src={attachmentUrl(path)}
+				alt={name}
+				onClick={() => setExpanded((v) => !v)}
+				title={expanded ? "Click to collapse" : name}
+				className={`rounded border border-gray-700 cursor-pointer object-contain ${expanded ? "max-w-full max-h-64" : "h-16 w-16 object-cover"}`}
+			/>
+		</div>
+	);
+}
+
 export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, onClose, onRefresh, onDeleteCard }: Props) {
 	const [activeStreamId, setActiveStreamId] = useState<string>(
 		() => card.terminalSessions?.at(-1)?.streamId ?? card.id,
@@ -74,6 +90,8 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 	const [activeTab, setActiveTab] = useState<SidebarTab>("overview");
 	const [rightTab, setRightTab] = useState<RightTab>("terminal");
 	const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR);
+	const [uploadingDesc, setUploadingDesc] = useState(false);
+	const descFileInputRef = useRef<HTMLInputElement>(null);
 	const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
 	const isStory = card.type === "story";
@@ -221,6 +239,41 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 		});
 	};
 
+	const handleDescriptionAttach = async (files: FileList) => {
+		const imageFiles = Array.from(files).filter((f) => f.type.startsWith("image/"));
+		if (imageFiles.length === 0) return;
+		setUploadingDesc(true);
+		try {
+			const newAttachments = [];
+			for (const file of imageFiles) {
+				newAttachments.push(await uploadAttachmentFile(workspaceId, card.id, file));
+			}
+			const existing = card.descriptionAttachments ?? [];
+			await trpc.cards.update.mutate({
+				workspaceId,
+				cardId: card.id,
+				descriptionAttachments: [...existing, ...newAttachments],
+				revision: 0,
+			});
+			onRefresh();
+		} catch {
+			toast.error("Failed to upload image");
+		} finally {
+			setUploadingDesc(false);
+		}
+	};
+
+	const handleRemoveDescAttachment = async (idx: number) => {
+		const existing = card.descriptionAttachments ?? [];
+		await trpc.cards.update.mutate({
+			workspaceId,
+			cardId: card.id,
+			descriptionAttachments: existing.filter((_, i) => i !== idx),
+			revision: 0,
+		});
+		onRefresh();
+	};
+
 	const handleDelete = () => {
 		ConfirmDialog.show({
 			title: "Delete task?",
@@ -310,6 +363,41 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 							{card.description && (
 								<p className="text-xs text-gray-400 whitespace-pre-wrap leading-relaxed">{card.description}</p>
 							)}
+
+							{/* Description attachments */}
+							<div>
+								<input
+									ref={descFileInputRef}
+									type="file"
+									accept="image/*"
+									multiple
+									className="hidden"
+									onChange={(e) => { if (e.target.files) void handleDescriptionAttach(e.target.files); e.target.value = ""; }}
+								/>
+								{(card.descriptionAttachments?.length ?? 0) > 0 && (
+									<div className="flex flex-wrap gap-2 mb-2">
+										{(card.descriptionAttachments ?? []).map((att, idx) => (
+											<div key={idx} className="relative group">
+												<DescAttachmentImage path={att.path} name={att.name} />
+												<button
+													onClick={() => void handleRemoveDescAttachment(idx)}
+													className="absolute -top-1 -right-1 size-4 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+												>
+													<X size={10} className="text-gray-300" />
+												</button>
+											</div>
+										))}
+									</div>
+								)}
+								<button
+									onClick={() => descFileInputRef.current?.click()}
+									disabled={uploadingDesc}
+									className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-400 transition-colors disabled:opacity-50"
+								>
+									<ImagePlus size={12} />
+									{uploadingDesc ? "Uploading…" : "Attach image"}
+								</button>
+							</div>
 
 							{/* Priority */}
 							{card.priority && (

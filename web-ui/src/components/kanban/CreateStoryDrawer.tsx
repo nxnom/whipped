@@ -1,8 +1,51 @@
 import { Button, Drawer, Input, Select, SelectOption, Textarea, toast } from "@geckoui/geckoui";
 import type { RuntimeBoardCard, Workflow } from "@runtime-contract";
-import { Layers, Pencil, Plus, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ImagePlus, Layers, Pencil, Plus, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
+
+interface PendingImage { dataUrl: string; file: File }
+
+async function uploadImages(workspaceId: string, cardId: string, images: PendingImage[]) {
+  const { uploadAttachmentFile } = await import("@/runtime/attachments");
+  const results = [];
+  for (const img of images) results.push(await uploadAttachmentFile(workspaceId, cardId, img.file));
+  return results;
+}
+
+function ImagePicker({ pending, onChange }: { pending: PendingImage[]; onChange: (imgs: PendingImage[]) => void }) {
+  const ref = useRef<HTMLInputElement>(null);
+  const addFiles = (files: FileList | File[]) => {
+    Array.from(files).filter(f => f.type.startsWith("image/")).forEach(file => {
+      const r = new FileReader();
+      r.onload = ev => onChange([...pending, { dataUrl: ev.target?.result as string, file }]);
+      r.readAsDataURL(file);
+    });
+  };
+  return (
+    <div>
+      <input ref={ref} type="file" accept="image/*" multiple className="hidden"
+        onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }} />
+      {pending.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-1 mt-1">
+          {pending.map((img, i) => (
+            <div key={i} className="relative group">
+              <img src={img.dataUrl} alt={img.file.name} className="h-12 w-12 object-cover rounded border border-gray-700" />
+              <button type="button" onClick={() => onChange(pending.filter((_, j) => j !== i))}
+                className="absolute -top-1 -right-1 size-4 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <X size={9} className="text-gray-300" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <button type="button" onClick={() => ref.current?.click()}
+        className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-400 transition-colors mt-1">
+        <ImagePlus size={12} /> Attach image
+      </button>
+    </div>
+  );
+}
 
 const COLUMN_BADGE: Record<string, string> = {
   todo: "text-gray-400 bg-gray-700",
@@ -31,6 +74,7 @@ interface SubtaskDraft {
   workflowId: string;
   // real card IDs for existing board cards, or tempId strings for other drafts in this batch
   dependsOn: string[];
+  pendingImages: PendingImage[];
 }
 
 interface CreateStoryDrawerProps {
@@ -55,6 +99,7 @@ export function CreateStoryDrawer({
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [storyPendingImages, setStoryPendingImages] = useState<PendingImage[]>([]);
   const [priority, setPriority] = useState("");
   const [baseRef, setBaseRef] = useState("");
   const [workflowId, setWorkflowId] = useState(defaultStoryWorkflow?.id ?? "");
@@ -79,6 +124,7 @@ export function CreateStoryDrawer({
   const handleClose = () => {
     setTitle("");
     setDescription("");
+    setStoryPendingImages([]);
     setPriority("");
     setWorkflowId(defaultStoryWorkflow?.id ?? "");
     setSubtasks([]);
@@ -133,6 +179,10 @@ export function CreateStoryDrawer({
           dependsOn: existingDeps.length > 0 ? existingDeps : undefined,
           readyForDev: true,
         });
+        if (subtask.pendingImages.length > 0) {
+          const uploaded = await uploadImages(workspaceId, card.id, subtask.pendingImages);
+          await trpc.cards.update.mutate({ workspaceId, cardId: card.id, descriptionAttachments: uploaded, revision: 0 });
+        }
         tempIdToRealId.set(subtask.tempId, card.id);
         created.push({ realId: card.id, rawDeps: subtask.dependsOn });
       }
@@ -152,7 +202,7 @@ export function CreateStoryDrawer({
       }
 
       // Create the story card depending on all subtasks
-      await trpc.cards.create.mutate({
+      const storyCard = await trpc.cards.create.mutate({
         workspaceId,
         title: title.trim(),
         description,
@@ -162,6 +212,10 @@ export function CreateStoryDrawer({
         workflowId: workflowId || undefined,
         dependsOn: created.map((c) => c.realId),
       });
+      if (storyPendingImages.length > 0) {
+        const uploaded = await uploadImages(workspaceId, storyCard.id, storyPendingImages);
+        await trpc.cards.update.mutate({ workspaceId, cardId: storyCard.id, descriptionAttachments: uploaded, revision: 0 });
+      }
 
       handleClose();
       onRefresh();
@@ -212,9 +266,14 @@ export function CreateStoryDrawer({
               <Textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                onPaste={(e) => {
+                  const files = Array.from(e.clipboardData.files).filter(f => f.type.startsWith("image/"));
+                  if (files.length) { e.preventDefault(); files.forEach(file => { const r = new FileReader(); r.onload = ev => setStoryPendingImages(p => [...p, { dataUrl: ev.target?.result as string, file }]); r.readAsDataURL(file); }); }
+                }}
                 placeholder="What does this story accomplish?"
                 rows={3}
               />
+              <ImagePicker pending={storyPendingImages} onChange={setStoryPendingImages} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -370,6 +429,7 @@ function AddSubtaskDrawer({
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [priority, setPriority] = useState("");
   const [baseRef, setBaseRef] = useState(defaultBranch);
   const [workflowId, setWorkflowId] = useState(defaultWorkflow?.id ?? "");
@@ -381,6 +441,7 @@ function AddSubtaskDrawer({
       if (editingSubtask) {
         setTitle(editingSubtask.title);
         setDescription(editingSubtask.description);
+        setPendingImages(editingSubtask.pendingImages);
         setPriority(editingSubtask.priority);
         setBaseRef(editingSubtask.baseRef || defaultBranch);
         setWorkflowId(editingSubtask.workflowId || (defaultWorkflow?.id ?? ""));
@@ -388,6 +449,7 @@ function AddSubtaskDrawer({
       } else {
         setTitle("");
         setDescription("");
+        setPendingImages([]);
         setPriority("");
         setBaseRef(defaultBranch);
         setWorkflowId(defaultWorkflow?.id ?? "");
@@ -406,6 +468,7 @@ function AddSubtaskDrawer({
       tempId: editingSubtask?.tempId ?? `draft-${Date.now()}-${Math.random()}`,
       title: title.trim(),
       description,
+      pendingImages,
       priority,
       baseRef,
       workflowId,
@@ -455,9 +518,14 @@ function AddSubtaskDrawer({
           <Textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            onPaste={(e) => {
+              const files = Array.from(e.clipboardData.files).filter(f => f.type.startsWith("image/"));
+              if (files.length) { e.preventDefault(); files.forEach(file => { const r = new FileReader(); r.onload = ev => setPendingImages(p => [...p, { dataUrl: ev.target?.result as string, file }]); r.readAsDataURL(file); }); }
+            }}
             placeholder="Describe what needs to be done..."
             rows={4}
           />
+          <ImagePicker pending={pendingImages} onChange={setPendingImages} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>

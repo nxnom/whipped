@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getAvailableAgents } from "../agents/agent-registry.js";
-import { ATTACHMENTS_DIR, loadGlobalConfig, saveGlobalConfig, updateGlobalConfig } from "../config/runtime-config.js";
+import { loadGlobalConfig, saveGlobalConfig, updateGlobalConfig } from "../config/runtime-config.js";
 import { abortMerge, attemptMerge, closePR, commitIfDirty, createGithubPR, finalizeMerge, listLocalBranches, pushBranch } from "../git/merge-operations.js";
 import {
 	type RuntimeGlobalConfig,
@@ -522,21 +522,28 @@ export const appRouter = router({
 			}),
 
 		submitHumanFeedback: publicProcedure
-			.input(z.object({ workspaceId: z.string(), cardId: z.string(), comment: z.string().optional() }))
+			.input(z.object({
+				workspaceId: z.string(),
+				cardId: z.string(),
+				comment: z.string().optional(),
+				attachments: z.array(reviewAttachmentSchema).optional(),
+			}))
 			.mutation(async ({ ctx, input }) => {
 				const board = await loadBoard(input.workspaceId);
 				const card = board.cards[input.cardId];
 				if (!card) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
 
 				const trimmed = input.comment?.trim();
-				const updatedComments = trimmed
+				const hasContent = trimmed || (input.attachments?.length ?? 0) > 0;
+				const updatedComments = hasContent
 					? [
 						...(card.reviewComments ?? []),
 						{
 							type: "human" as const,
 							actor: { type: "human" as const, id: "human" },
 							createdAt: Date.now(),
-							summary: trimmed,
+							summary: trimmed ?? "Feedback with attachments",
+							attachments: input.attachments?.length ? input.attachments : undefined,
 						},
 					]
 					: (card.reviewComments ?? []);
@@ -621,26 +628,6 @@ export const appRouter = router({
 				return { diff: result.stdout ?? "", error: null, baseBehindCount };
 			}),
 
-		getAttachment: publicProcedure
-			.input(z.object({ path: z.string() }))
-			.query(async ({ input }) => {
-				if (!input.path.startsWith(ATTACHMENTS_DIR)) {
-					throw new TRPCError({ code: "FORBIDDEN", message: "Path is outside attachments directory" });
-				}
-				const { readFile } = await import("node:fs/promises");
-				const data = await readFile(input.path);
-				const ext = input.path.split(".").pop()?.toLowerCase() ?? "";
-				const mimeTypes: Record<string, string> = {
-					png: "image/png",
-					jpg: "image/jpeg",
-					jpeg: "image/jpeg",
-					gif: "image/gif",
-					webp: "image/webp",
-					svg: "image/svg+xml",
-				};
-				const mimeType = mimeTypes[ext] ?? "application/octet-stream";
-				return { data: data.toString("base64"), mimeType };
-			}),
 	}),
 
 	// ─── Terminal ──────────────────────────────────────────────────────────────
