@@ -604,7 +604,7 @@ export const appRouter = router({
 				}
 
 				const result = spawnSync(
-					"git", ["diff", card.baseRef, "--no-color", "-U3"],
+					"git", ["diff", `${card.baseRef}...HEAD`, "--no-color", "-U3"],
 					{ cwd: worktreePath, encoding: "utf-8", maxBuffer: 4 * 1024 * 1024 }
 				);
 
@@ -612,7 +612,13 @@ export const appRouter = router({
 					return { diff: null, error: result.stderr.trim() };
 				}
 
-				return { diff: result.stdout ?? "", error: null };
+				const behindResult = spawnSync(
+					"git", ["rev-list", "--count", `HEAD..${card.baseRef}`],
+					{ cwd: worktreePath, encoding: "utf-8" }
+				);
+				const baseBehindCount = parseInt(behindResult.stdout?.trim() ?? "0") || 0;
+
+				return { diff: result.stdout ?? "", error: null, baseBehindCount };
 			}),
 
 		getAttachment: publicProcedure

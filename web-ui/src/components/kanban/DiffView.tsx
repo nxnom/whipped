@@ -1,5 +1,5 @@
 import { Button } from "@geckoui/geckoui";
-import { ChevronDown, ChevronRight, MessageSquare, Plus, RefreshCw, Send, X } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, MessageSquare, Plus, RefreshCw, Send, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
 
@@ -106,6 +106,7 @@ interface Props {
 
 export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: Props) {
 	const [files, setFiles] = useState<DiffFile[]>([]);
+	const [baseBehindCount, setBaseBehindCount] = useState(0);
 	const [loading, setLoading] = useState(true);
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -126,6 +127,7 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 				setFiles([]);
 			} else {
 				setFiles(r.diff ? parseDiff(r.diff) : []);
+				setBaseBehindCount(r.baseBehindCount ?? 0);
 			}
 		} catch (e: unknown) {
 			setLoadError(e instanceof Error ? e.message : "Failed to load diff");
@@ -239,6 +241,16 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 					<RefreshCw size={13} />
 				</button>
 			</div>
+
+			{/* Base branch drift notice */}
+			{baseBehindCount > 0 && (
+				<div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-amber-950/40 border-b border-amber-800/40 font-sans">
+					<AlertTriangle size={12} className="text-amber-400 shrink-0" />
+					<span className="text-amber-300/90 text-xs">
+						Base branch has {baseBehindCount} new commit{baseBehindCount !== 1 ? "s" : ""} not yet in this branch — they will be included when merged and are not shown here.
+					</span>
+				</div>
+			)}
 
 			{/* Files */}
 			<div className="flex-1 overflow-y-auto overflow-x-auto">
