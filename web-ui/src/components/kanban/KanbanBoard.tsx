@@ -269,7 +269,7 @@ function CreateCardContent({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<string>("");
-  const [readyForDev, setReadyForDev] = useState(false);
+  const [readyForDev, setReadyForDev] = useState(true);
   const [dependsOn, setDependsOn] = useState<string[]>([]);
   const [baseRef, setBaseRef] = useState<string>("");
   const [workflowId, setWorkflowId] = useState<string>(defaultWorkflow?.id ?? "");
