@@ -284,23 +284,19 @@ server.registerTool(
 server.registerTool(
 	"kanban_update_card",
 	{
-		description: "Update a card's title, description, priority, dependencies, or attachments.",
+		description: "Update a card's title, description, priority, dependencies, workflow, readyForDev flag, or attachments.",
 		inputSchema: {
 			cardId: z.string().describe("The card ID"),
 			title: z.string().optional().describe("New title"),
 			description: z.string().optional().describe("New description"),
-			priority: z
-				.enum(["urgent", "high", "medium", "low"])
-				.optional()
-				.describe("New priority level"),
-			dependsOn: z
-				.array(z.string())
-				.optional()
-				.describe("Full replacement list of card IDs this task depends on (pass [] to clear)"),
+			priority: z.enum(["urgent", "high", "medium", "low"]).optional().describe("New priority level"),
+			dependsOn: z.array(z.string()).optional().describe("Full replacement list of card IDs this task depends on (pass [] to clear)"),
+			workflowId: z.string().optional().describe("ID of the workflow to assign to this card"),
+			readyForDev: z.boolean().optional().describe("Whether the card is ready for the agent to pick up automatically"),
 			attachments: z.array(attachmentInputSchema).optional().describe("New files to append to the card's existing description attachments"),
 		},
 	},
-	async ({ cardId, title, description, priority, dependsOn, attachments }) => {
+	async ({ cardId, title, description, priority, dependsOn, workflowId, readyForDev, attachments }) => {
 		let descriptionAttachments: Array<{ type: string; name: string; mimeType: string; path: string }> | undefined;
 		if (attachments?.length) {
 			const state = await trpcQuery<{ board: { cards: Record<string, { descriptionAttachments?: Array<{ type: string; name: string; mimeType: string; path: string }> }> } }>("workspace.state", { workspaceId });
@@ -308,7 +304,7 @@ server.registerTool(
 			const processed = await processAttachments(attachments, cardId);
 			descriptionAttachments = [...existing, ...processed];
 		}
-		await trpc("cards.update", { workspaceId, cardId, title, description, priority, dependsOn, descriptionAttachments, revision: 0 });
+		await trpc("cards.update", { workspaceId, cardId, title, description, priority, dependsOn, workflowId, readyForDev, descriptionAttachments, revision: 0 });
 		return { content: [{ type: "text", text: `Updated card ${cardId}.` }] };
 	},
 );
