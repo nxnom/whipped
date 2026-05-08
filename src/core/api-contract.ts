@@ -312,6 +312,7 @@ export const runtimeCardCreateRequestSchema = z.object({
 	jiraKey: z.string().optional(),
 	jiraUrl: z.string().optional(),
 	workflowId: z.string().optional(),
+	descriptionAttachments: z.array(reviewAttachmentSchema).optional(),
 });
 export type RuntimeCardCreateRequest = z.infer<typeof runtimeCardCreateRequestSchema>;
 

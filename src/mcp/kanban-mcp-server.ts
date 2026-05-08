@@ -42,6 +42,33 @@ async function trpcQuery<T>(procedure: string, input: unknown): Promise<T> {
 
 const server = new McpServer({ name: "kanbom", version: "1.0.0" });
 
+const attachmentInputSchema = z.object({
+	type: z.string().describe("Attachment type — 'image' for images, 'file' for other files"),
+	name: z.string().describe("Human-readable name for the attachment"),
+	mimeType: z.string().describe("MIME type, e.g. image/png, application/pdf"),
+	path: z.string().describe("Absolute file path to read from"),
+});
+
+async function processAttachments(
+	attachments: Array<{ type: string; name: string; mimeType: string; path: string }>,
+	cardId: string,
+): Promise<Array<{ type: string; name: string; mimeType: string; path: string }>> {
+	const { readFile } = await import("node:fs/promises");
+	const { saveAttachment } = await import("../state/workspace-state.js");
+	const results = [];
+	for (const att of attachments) {
+		try {
+			const data = await readFile(att.path);
+			const ext = att.path.split(".").pop() ?? "bin";
+			const canonicalPath = await saveAttachment(data, ext, cardId);
+			results.push({ type: att.type, name: att.name, mimeType: att.mimeType, path: canonicalPath });
+		} catch {
+			// Skip unreadable attachments
+		}
+	}
+	return results;
+}
+
 server.registerTool(
 	"kanban_get_board",
 	{
@@ -97,6 +124,7 @@ Creates all subtasks first, then the story card that depends on them. The story 
 			priority: z.enum(["urgent", "high", "medium", "low"]).optional().describe("Story priority"),
 			workflowId: z.string().optional().describe("ID of the story orchestrator workflow. Omit to use the default story workflow."),
 			baseRef: z.string().optional().describe("Base branch for all cards in this story. Omit to use the repo default branch."),
+			attachments: z.array(attachmentInputSchema).optional().describe("Files to attach to the story description (e.g. design docs, screenshots)"),
 			subtasks: z.array(z.object({
 				tempId: z.string().optional().describe("Short label to reference this subtask from other subtasks' dependsOn in this batch (e.g. 'auth', 'db-schema'). Not stored — only used for wiring up intra-batch deps."),
 				title: z.string().describe("Subtask title"),
@@ -105,10 +133,11 @@ Creates all subtasks first, then the story card that depends on them. The story 
 				workflowId: z.string().optional().describe("Workflow ID for this subtask. Omit to use the default task workflow."),
 				baseRef: z.string().optional().describe("Override base branch for this subtask only"),
 				dependsOn: z.array(z.string()).optional().describe("Dependencies for this subtask. Use real card IDs for existing cards on the board, or tempId values to reference other subtasks in this same batch."),
+				attachments: z.array(attachmentInputSchema).optional().describe("Files to attach to this subtask's description"),
 			})).min(1).describe("Subtasks to create. At least one required. Each subtask gets type: 'subtask' and readyForDev: true automatically."),
 		},
 	},
-	async ({ title, description, priority, workflowId, baseRef, subtasks }) => {
+	async ({ title, description, priority, workflowId, baseRef, attachments, subtasks }) => {
 		// Pass 1: create all subtasks without intra-batch deps, build tempId → realId map
 		const tempIdToRealId = new Map<string, string>();
 		const createdSubtasks: Array<{ realId: string; title: string; rawDeps: string[] }> = [];
@@ -127,6 +156,12 @@ Creates all subtasks first, then the story card that depends on them. The story 
 				workflowId: subtask.workflowId || undefined,
 				dependsOn: existingDeps.length > 0 ? existingDeps : undefined,
 			});
+			if (subtask.attachments?.length) {
+				const processed = await processAttachments(subtask.attachments, card.id);
+				if (processed.length) {
+					await trpc("cards.update", { workspaceId, cardId: card.id, descriptionAttachments: processed, revision: 0 });
+				}
+			}
 			if (subtask.tempId) tempIdToRealId.set(subtask.tempId, card.id);
 			createdSubtasks.push({ realId: card.id, title: subtask.title, rawDeps: subtask.dependsOn ?? [] });
 		}
@@ -157,6 +192,12 @@ Creates all subtasks first, then the story card that depends on them. The story 
 			workflowId: workflowId || undefined,
 			dependsOn: subtaskIds,
 		});
+		if (attachments?.length) {
+			const processed = await processAttachments(attachments, storyCard.id);
+			if (processed.length) {
+				await trpc("cards.update", { workspaceId, cardId: storyCard.id, descriptionAttachments: processed, revision: 0 });
+			}
+		}
 
 		const lines = [`Created story [${storyCard.id}] "${title}" with ${subtaskIds.length} subtask(s):`];
 		for (const { realId, title: st } of createdSubtasks) lines.push(`  Subtask [${realId}] "${st}"`);
@@ -196,9 +237,10 @@ server.registerTool(
 				.string()
 				.optional()
 				.describe("ID of the workflow to use for this task. Omit to use the default."),
+			attachments: z.array(attachmentInputSchema).optional().describe("Files to attach to the card description (e.g. screenshots, design docs, PDFs)"),
 		},
 	},
-	async ({ title, description, type, priority, readyForDev, columnId, dependsOn, workflowId }) => {
+	async ({ title, description, type, priority, readyForDev, columnId, dependsOn, workflowId, attachments }) => {
 		const card = await trpc<{ id: string; title: string; columnId: string }>("cards.create", {
 			workspaceId,
 			title,
@@ -210,6 +252,12 @@ server.registerTool(
 			columnId: columnId ?? "todo",
 			workflowId,
 		});
+		if (attachments?.length) {
+			const processed = await processAttachments(attachments, card.id);
+			if (processed.length) {
+				await trpc("cards.update", { workspaceId, cardId: card.id, descriptionAttachments: processed, revision: 0 });
+			}
+		}
 		return {
 			content: [{ type: "text", text: `Created card [${card.id}] "${card.title}" in ${card.columnId}.` }],
 		};
@@ -236,7 +284,7 @@ server.registerTool(
 server.registerTool(
 	"kanban_update_card",
 	{
-		description: "Update a card's title, description, priority, or dependencies.",
+		description: "Update a card's title, description, priority, dependencies, or attachments.",
 		inputSchema: {
 			cardId: z.string().describe("The card ID"),
 			title: z.string().optional().describe("New title"),
@@ -249,10 +297,18 @@ server.registerTool(
 				.array(z.string())
 				.optional()
 				.describe("Full replacement list of card IDs this task depends on (pass [] to clear)"),
+			attachments: z.array(attachmentInputSchema).optional().describe("New files to append to the card's existing description attachments"),
 		},
 	},
-	async ({ cardId, title, description, priority, dependsOn }) => {
-		await trpc("cards.update", { workspaceId, cardId, title, description, priority, dependsOn, revision: 0 });
+	async ({ cardId, title, description, priority, dependsOn, attachments }) => {
+		let descriptionAttachments: Array<{ type: string; name: string; mimeType: string; path: string }> | undefined;
+		if (attachments?.length) {
+			const state = await trpcQuery<{ board: { cards: Record<string, { descriptionAttachments?: Array<{ type: string; name: string; mimeType: string; path: string }> }> } }>("workspace.state", { workspaceId });
+			const existing = state.board.cards[cardId]?.descriptionAttachments ?? [];
+			const processed = await processAttachments(attachments, cardId);
+			descriptionAttachments = [...existing, ...processed];
+		}
+		await trpc("cards.update", { workspaceId, cardId, title, description, priority, dependsOn, descriptionAttachments, revision: 0 });
 		return { content: [{ type: "text", text: `Updated card ${cardId}.` }] };
 	},
 );
@@ -274,33 +330,14 @@ server.registerTool(
 				severity: z.enum(["blocking", "warning", "info"]).describe("Severity level"),
 				message: z.string().describe("Description of the issue"),
 			})).optional().describe("Specific issues found during review"),
-			attachments: z.array(z.object({
-				type: z.literal("image").describe("Attachment type"),
-				name: z.string().describe("Human-readable name for the attachment"),
-				mimeType: z.string().describe("MIME type, e.g. image/png"),
-				path: z.string().describe("Absolute file path to the attachment"),
-			})).optional().describe("File attachments (e.g. screenshots)"),
+			attachments: z.array(attachmentInputSchema).optional().describe("File attachments (e.g. screenshots, PDFs)"),
 			metadata: z.record(z.string(), z.unknown()).optional().describe("Additional metadata key-value pairs"),
 		},
 	},
 	async ({ cardId, type, streamId, summary, status, issues, attachments, metadata }) => {
-		// Process attachments: read each file and save to canonical attachment store
-		let processedAttachments: Array<{ type: "image"; name: string; mimeType: string; path: string }> | undefined;
-		if (attachments?.length) {
-			const { readFile } = await import("node:fs/promises");
-			const { saveAttachment: saveFn } = await import("../state/workspace-state.js");
-			processedAttachments = [];
-			for (const att of attachments) {
-				try {
-					const data = await readFile(att.path);
-					const ext = att.path.split(".").pop() ?? "bin";
-					const canonicalPath = await saveFn(data, ext, cardId);
-					processedAttachments.push({ type: "image", name: att.name, mimeType: att.mimeType, path: canonicalPath });
-				} catch {
-					// Skip unreadable attachments
-				}
-			}
-		}
+		const processedAttachments = attachments?.length
+			? await processAttachments(attachments, cardId)
+			: undefined;
 
 		await trpc("cards.addReviewComment", {
 			workspaceId,
