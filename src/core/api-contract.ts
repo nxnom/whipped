@@ -110,7 +110,7 @@ export const reviewIssueSchema = z.object({
 export type RuntimeReviewIssue = z.infer<typeof reviewIssueSchema>;
 
 export const reviewAttachmentSchema = z.object({
-	type: z.literal("image"),
+	type: z.string(), // "image" | "file" | any mime category
 	name: z.string(),
 	mimeType: z.string(),
 	path: z.string(), // absolute path in ~/.kanbom/attachments/

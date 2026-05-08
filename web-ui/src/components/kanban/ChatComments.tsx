@@ -1,8 +1,9 @@
 import { Button } from "@geckoui/geckoui";
 import type { RuntimeBoardCard, RuntimeReviewComment, WorkflowSlot } from "@runtime-contract";
-import { ImagePlus, Send, X } from "lucide-react";
+import { Paperclip, Send, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
 import { attachmentUrl, uploadAttachmentFile } from "@/runtime/attachments";
 import { trpc } from "@/runtime/trpc-client";
@@ -95,19 +96,34 @@ function AgentBadge({ comment }: { comment: RuntimeReviewComment }) {
 
 // ── Attachment image ──────────────────────────────────────────────────────────
 
-function AttachmentImage({ path, name }: { path: string; name: string }) {
+function AttachmentItem({ path, name, mimeType }: { path: string; name: string; mimeType?: string }) {
 	const [expanded, setExpanded] = useState(false);
+	const isImage = (mimeType ?? "").startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(name);
+	if (isImage) {
+		return (
+			<div className="mt-1">
+				<img
+					src={attachmentUrl(path)}
+					alt={name}
+					className={`rounded border border-gray-700 cursor-pointer object-contain ${expanded ? "max-w-full max-h-96" : "max-h-24 max-w-48"}`}
+					onClick={() => setExpanded((v) => !v)}
+					title={expanded ? "Click to collapse" : "Click to expand"}
+				/>
+				<div className="text-[10px] text-gray-600 mt-0.5">{name}</div>
+			</div>
+		);
+	}
 	return (
-		<div className="mt-1">
-			<img
-				src={attachmentUrl(path)}
-				alt={name}
-				className={`rounded border border-gray-700 cursor-pointer object-contain ${expanded ? "max-w-full max-h-96" : "max-h-24 max-w-48"}`}
-				onClick={() => setExpanded((v) => !v)}
-				title={expanded ? "Click to collapse" : "Click to expand"}
-			/>
-			<div className="text-[10px] text-gray-600 mt-0.5">{name}</div>
-		</div>
+		<a
+			href={attachmentUrl(path)}
+			target="_blank"
+			rel="noreferrer"
+			className="mt-1 inline-flex items-center gap-1.5 px-2 py-1 rounded border border-gray-700 bg-gray-800 text-xs text-gray-300 hover:text-gray-100 hover:border-gray-600 transition-colors max-w-[200px]"
+			title={name}
+		>
+			<Paperclip size={11} className="shrink-0" />
+			<span className="truncate">{name}</span>
+		</a>
 	);
 }
 
@@ -149,35 +165,38 @@ function isSameGroup(a: CommentEntry, b: CommentEntry): boolean {
 
 // ── Markdown components (dark theme) ─────────────────────────────────────────
 
-const mdComponents: React.ComponentProps<typeof ReactMarkdown>["components"] = {
-	p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
-	strong: ({ children }) => <strong className="font-semibold text-gray-100">{children}</strong>,
-	em: ({ children }) => <em className="italic">{children}</em>,
-	code: ({ children, className }) => {
-		const isBlock = className?.includes("language-");
-		return isBlock ? (
-			<code className="block bg-gray-800 rounded px-3 py-2 text-xs font-mono text-gray-200 overflow-x-auto whitespace-pre my-1">
-				{children}
-			</code>
-		) : (
-			<code className="bg-gray-800 rounded px-1 py-0.5 text-xs font-mono text-gray-200">{children}</code>
-		);
-	},
-	pre: ({ children }) => <pre className="my-1 overflow-x-auto">{children}</pre>,
-	ul: ({ children }) => <ul className="list-disc list-inside my-1 space-y-0.5">{children}</ul>,
-	ol: ({ children }) => <ol className="list-decimal list-inside my-1 space-y-0.5">{children}</ol>,
-	li: ({ children }) => <li className="text-gray-300">{children}</li>,
-	blockquote: ({ children }) => (
-		<blockquote className="border-l-2 border-gray-600 pl-3 my-1 text-gray-400 italic">{children}</blockquote>
-	),
-	a: ({ href, children }) => (
-		<a href={href} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">{children}</a>
-	),
-	h1: ({ children }) => <h1 className="text-base font-semibold text-gray-100 mt-2 mb-1">{children}</h1>,
-	h2: ({ children }) => <h2 className="text-sm font-semibold text-gray-100 mt-2 mb-1">{children}</h2>,
-	h3: ({ children }) => <h3 className="text-sm font-medium text-gray-200 mt-1 mb-0.5">{children}</h3>,
-	hr: () => <hr className="border-gray-700 my-2" />,
-};
+function makeMdComponents(): React.ComponentProps<typeof ReactMarkdown>["components"] {
+	return {
+		p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
+		strong: ({ children }) => <strong className="font-semibold text-gray-100">{children}</strong>,
+		em: ({ children }) => <em className="italic">{children}</em>,
+		code: ({ children, className }) => {
+			const isBlock = className?.includes("language-");
+			return isBlock ? (
+				<code className="block bg-gray-800 rounded px-3 py-2 text-xs font-mono text-gray-200 overflow-x-auto whitespace-pre my-1">
+					{children}
+				</code>
+			) : (
+				<code className="bg-gray-800 rounded px-1 py-0.5 text-xs font-mono text-gray-200">{children}</code>
+			);
+		},
+		pre: ({ children }) => <pre className="my-1 overflow-x-auto">{children}</pre>,
+		ul: ({ children }) => <ul className="list-disc list-inside my-1 space-y-0.5">{children}</ul>,
+		ol: ({ children }) => <ol className="list-decimal list-inside my-1 space-y-0.5">{children}</ol>,
+		li: ({ children }) => <li className="text-gray-300">{children}</li>,
+		blockquote: ({ children }) => (
+			<blockquote className="border-l-2 border-gray-600 pl-3 my-1 text-gray-400 italic">{children}</blockquote>
+		),
+		a: ({ href, children }) => (
+			<a href={href} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">{children}</a>
+		),
+		h1: ({ children }) => <h1 className="text-base font-semibold text-gray-100 mt-2 mb-1">{children}</h1>,
+		h2: ({ children }) => <h2 className="text-sm font-semibold text-gray-100 mt-2 mb-1">{children}</h2>,
+		h3: ({ children }) => <h3 className="text-sm font-medium text-gray-200 mt-1 mb-0.5">{children}</h3>,
+		hr: () => <hr className="border-gray-700 my-2" />,
+		img: ({ src, alt }) => <img src={src} alt={alt} className="max-w-full max-h-64 rounded my-1 object-contain" />,
+	};
+}
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -190,7 +209,7 @@ interface Props {
 }
 
 interface PendingAttachment {
-	dataUrl: string; // local preview only
+	dataUrl: string | null; // local preview for images; null for non-image files
 	file: File;
 	name: string;
 }
@@ -224,15 +243,17 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 		bottomRef.current?.scrollIntoView({ behavior: "instant" });
 	}, [commentEntries.length]);
 
-	const addImageFiles = (files: FileList | File[]) => {
+	const addFiles = (files: FileList | File[]) => {
 		for (const file of Array.from(files)) {
-			if (!file.type.startsWith("image/")) continue;
-			const reader = new FileReader();
-			reader.onload = (ev) => {
-				const dataUrl = ev.target?.result as string;
-				setPendingAttachments((prev) => [...prev, { dataUrl, file, name: file.name || "image.png" }]);
-			};
-			reader.readAsDataURL(file);
+			if (file.type.startsWith("image/")) {
+				const reader = new FileReader();
+				reader.onload = (ev) => {
+					setPendingAttachments((prev) => [...prev, { dataUrl: ev.target?.result as string, file, name: file.name }]);
+				};
+				reader.readAsDataURL(file);
+			} else {
+				setPendingAttachments((prev) => [...prev, { dataUrl: null, file, name: file.name }]);
+			}
 		}
 	};
 
@@ -332,7 +353,7 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 												</div>
 											)}
 											<div className="prose-chat text-sm text-gray-300 leading-relaxed [overflow-wrap:anywhere]">
-												<ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+												<ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={makeMdComponents()}>
 													{comment.summary.trimEnd()}
 												</ReactMarkdown>
 											</div>
@@ -356,17 +377,26 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 											)}
 
 											{/* Attachments */}
-											{comment.attachments && comment.attachments.length > 0 && (
-												<div className="mt-1 flex flex-wrap gap-2">
-													{comment.attachments.map((att, idx) => (
-														<AttachmentImage
-															key={idx}
-															path={att.path}
-															name={att.name}
-														/>
-													))}
-												</div>
-											)}
+											{comment.attachments && comment.attachments.length > 0 && (() => {
+												const isImg = (att: { mimeType?: string; name: string }) =>
+													(att.mimeType ?? "").startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(att.name);
+												const images = comment.attachments.filter(isImg);
+												const files = comment.attachments.filter((a) => !isImg(a));
+												return (
+													<div className="mt-1 space-y-1.5">
+														{images.length > 0 && (
+															<div className="flex flex-wrap gap-2">
+																{images.map((att, idx) => <AttachmentItem key={idx} path={att.path} name={att.name} mimeType={att.mimeType} />)}
+															</div>
+														)}
+														{files.length > 0 && (
+															<div className="flex flex-wrap gap-1.5">
+																{files.map((att, idx) => <AttachmentItem key={idx} path={att.path} name={att.name} mimeType={att.mimeType} />)}
+															</div>
+														)}
+													</div>
+												);
+											})()}
 										</div>
 									</div>
 								</div>
@@ -382,10 +412,10 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 				<input
 					ref={fileInputRef}
 					type="file"
-					accept="image/*"
+					accept="*/*"
 					multiple
 					className="hidden"
-					onChange={(e) => { if (e.target.files) addImageFiles(e.target.files); e.target.value = ""; }}
+					onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }}
 				/>
 				<div className="rounded-lg border border-gray-700 bg-gray-900 focus-within:border-gray-600 transition-colors">
 					{/* Pending attachment previews */}
@@ -393,12 +423,14 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 						<div className="flex flex-wrap gap-2 px-3 pt-2">
 							{pendingAttachments.map((att, idx) => (
 								<div key={idx} className="relative group">
-									<img
-										src={att.dataUrl}
-										alt={att.name}
-										className="h-16 w-16 object-cover rounded border border-gray-700"
-										title={att.name}
-									/>
+									{att.dataUrl ? (
+										<img src={att.dataUrl} alt={att.name} className="h-16 w-16 object-cover rounded border border-gray-700" title={att.name} />
+									) : (
+										<div className="h-16 w-16 flex flex-col items-center justify-center gap-1 rounded border border-gray-700 bg-gray-800 px-1" title={att.name}>
+											<Paperclip size={16} className="shrink-0 text-gray-500" />
+											<span className="text-[10px] text-gray-400 w-full text-center truncate">{att.name}</span>
+										</div>
+									)}
 									<button
 										onClick={() => setPendingAttachments((prev) => prev.filter((_, i) => i !== idx))}
 										className="absolute -top-1 -right-1 size-4 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
@@ -421,13 +453,13 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 								const hasImage = Array.from(e.clipboardData.files).some((f) => f.type.startsWith("image/"));
 								if (hasImage) {
 									e.preventDefault();
-									addImageFiles(e.clipboardData.files);
+									addFiles(e.clipboardData.files);
 								}
 							}
 						}}
 						onDrop={(e) => {
 							e.preventDefault();
-							if (e.dataTransfer.files.length > 0) addImageFiles(e.dataTransfer.files);
+							if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files);
 						}}
 						onDragOver={(e) => e.preventDefault()}
 						placeholder="Add a comment… (paste or drop images)"
@@ -439,10 +471,10 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 							<button
 								onClick={() => fileInputRef.current?.click()}
 								className="text-gray-600 hover:text-gray-400 transition-colors"
-								title="Attach image"
+								title="Attach file"
 								type="button"
 							>
-								<ImagePlus size={14} />
+								<Paperclip size={14} />
 							</button>
 							<span className="text-[10px] text-gray-700">↵ Send · ⇧↵ Newline</span>
 						</div>

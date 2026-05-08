@@ -247,3 +247,23 @@ export function listLocalBranches(repoPath: string): string[] {
 		.split("\n")
 		.filter((b) => b && !b.startsWith("kanbom/"));
 }
+
+// Fetches body_html for a single issue comment, which contains pre-signed CDN URLs
+// for private GitHub attachment images. Only call this for new, unseen comments.
+export async function fetchCommentBodyHtml(prUrl: string, commentId: string, token: string): Promise<string | undefined> {
+	const parsed = parsePRUrl(prUrl);
+	if (!parsed) return undefined;
+	const octokit = new Octokit({ auth: token });
+	try {
+		const resp = await octokit.request("GET /repos/{owner}/{repo}/issues/comments/{comment_id}", {
+			owner: parsed.owner,
+			repo: parsed.repo,
+			comment_id: Number(commentId),
+			headers: { accept: "application/vnd.github.full+json" },
+		});
+		return (resp.data as { body_html?: string }).body_html;
+	} catch (err) {
+		logger.warn({ err }, `[gh-images] failed to fetch body_html for comment ${commentId}`);
+		return undefined;
+	}
+}

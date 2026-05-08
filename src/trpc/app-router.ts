@@ -43,6 +43,9 @@ import {
 import { removeWorktreeAsync } from "../worktree/worktree-manager.js";
 import { getDefaultBranch, getWorktreeBranch, getWorktreePath } from "../worktree/worktree-manager.js";
 
+// ─── GitHub image downloader ──────────────────────────────────────────────────
+// Finds GitHub user-attachment image URLs in comment text, downloads them,
+// saves as local attachments, and rewrites the URLs in place.
 // ─── Background cleanup queue ─────────────────────────────────────────────────
 // All worktree removals run serially in this queue so they never block the
 // event loop (each step uses async I/O) and never contend on the git lock.

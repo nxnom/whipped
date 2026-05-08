@@ -1,6 +1,6 @@
 import { Button, ConfirmDialog, Tooltip, toast } from "@geckoui/geckoui";
 import type { WorkflowSlot, RuntimeBoardCard } from "@runtime-contract";
-import { ArrowLeft, ExternalLink, FolderOpen, GitBranch, GitMerge, GitPullRequest, ImagePlus, Play, Square, TerminalSquare, Trash2, X } from "lucide-react";
+import { ArrowLeft, ExternalLink, FolderOpen, GitBranch, GitMerge, GitPullRequest, ImagePlus, Paperclip, Play, Square, TerminalSquare, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { attachmentUrl, uploadAttachmentFile } from "@/runtime/attachments";
@@ -66,18 +66,32 @@ const DEFAULT_SIDEBAR = 340;
 type SidebarTab = "overview" | "activity";
 type RightTab = "terminal" | "diff" | "comments";
 
-function DescAttachmentImage({ path, name }: { path: string; name: string }) {
+function DescAttachment({ path, name, mimeType }: { path: string; name: string; mimeType?: string }) {
 	const [expanded, setExpanded] = useState(false);
+	const isImage = (mimeType ?? "").startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(name);
+	if (isImage) {
+		return (
+			<div className="relative group">
+				<img
+					src={attachmentUrl(path)}
+					alt={name}
+					onClick={() => setExpanded((v) => !v)}
+					title={expanded ? "Click to collapse" : name}
+					className={`rounded border border-gray-700 cursor-pointer object-contain ${expanded ? "max-w-full max-h-64" : "h-16 w-16 object-cover"}`}
+				/>
+			</div>
+		);
+	}
 	return (
-		<div className="relative group">
-			<img
-				src={attachmentUrl(path)}
-				alt={name}
-				onClick={() => setExpanded((v) => !v)}
-				title={expanded ? "Click to collapse" : name}
-				className={`rounded border border-gray-700 cursor-pointer object-contain ${expanded ? "max-w-full max-h-64" : "h-16 w-16 object-cover"}`}
-			/>
-		</div>
+		<a
+			href={attachmentUrl(path)}
+			target="_blank"
+			rel="noreferrer"
+			title={name}
+			className="flex items-center gap-1.5 px-2 py-1 rounded border border-gray-700 bg-gray-800 text-xs text-gray-300 hover:text-gray-100 hover:border-gray-600 transition-colors max-w-[160px] truncate"
+		>
+			<Paperclip size={11} className="shrink-0" />{name}
+		</a>
 	);
 }
 
@@ -240,7 +254,7 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 	};
 
 	const handleDescriptionAttach = async (files: FileList) => {
-		const imageFiles = Array.from(files).filter((f) => f.type.startsWith("image/"));
+		const imageFiles = Array.from(files);
 		if (imageFiles.length === 0) return;
 		setUploadingDesc(true);
 		try {
@@ -369,7 +383,7 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 								<input
 									ref={descFileInputRef}
 									type="file"
-									accept="image/*"
+									accept="*/*"
 									multiple
 									className="hidden"
 									onChange={(e) => { if (e.target.files) void handleDescriptionAttach(e.target.files); e.target.value = ""; }}
@@ -378,7 +392,7 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 									<div className="flex flex-wrap gap-2 mb-2">
 										{(card.descriptionAttachments ?? []).map((att, idx) => (
 											<div key={idx} className="relative group">
-												<DescAttachmentImage path={att.path} name={att.name} />
+												<DescAttachment path={att.path} name={att.name} mimeType={att.mimeType} />
 												<button
 													onClick={() => void handleRemoveDescAttachment(idx)}
 													className="absolute -top-1 -right-1 size-4 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"

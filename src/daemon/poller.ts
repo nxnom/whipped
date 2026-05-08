@@ -2,9 +2,9 @@ import { logger } from "../core/logger.js";
 import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
-import { fetchPRInfo } from "../git/merge-operations.js";
+import { fetchCommentBodyHtml, fetchPRInfo } from "../git/merge-operations.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
-import { appendActivityLog, clearCardSession, loadBoard, loadWorkspaceState, moveCard, updateCard } from "../state/workspace-state.js";
+import { appendActivityLog, clearCardSession, downloadGithubImages, loadBoard, loadWorkspaceState, moveCard, updateCard } from "../state/workspace-state.js";
 import { createWorktree, getWorktreeBranch, getWorktreePath, removeWorktree } from "../worktree/worktree-manager.js";
 import type { TaskScheduler } from "./scheduler.js";
 
@@ -283,7 +283,10 @@ export class BoardPoller {
 			const newBotIds = botEntries.filter((e) => !seenIds.has(e.id)).map((e) => e.id);
 			if (newBotIds.length > 0) newBotIds.forEach((id) => seenIds.add(id));
 
+			// Don't count comments with in-progress GitHub uploads as seen — recheck next poll
 			const newEntries = humanEntries.filter((e) => !seenIds.has(e.id));
+			const pendingUploadEntries = newEntries.filter((e) => e.body.includes("![Uploading"));
+			const readyEntries = newEntries.filter((e) => !e.body.includes("![Uploading"));
 
 			let updated = false;
 
@@ -291,26 +294,32 @@ export class BoardPoller {
 			const cleanedComments = (card.reviewComments ?? []).filter((c) => !DEPLOYMENT_BOTS.has(c.actor?.id ?? ""));
 			const hadBotComments = cleanedComments.length !== (card.reviewComments ?? []).length;
 
-			if (newEntries.length > 0 || hadBotComments || newBotIds.length > 0) {
+			if (readyEntries.length > 0 || hadBotComments || newBotIds.length > 0) {
 				const newComments = [
 					...cleanedComments,
-					...newEntries.map((e) => ({
-						type: "human" as const,
-						actor: { type: "external" as const, id: e.author, source: "github" },
-						createdAt: new Date(e.createdAt).getTime(),
-						summary: e.body,
+					...await Promise.all(readyEntries.map(async (e) => {
+						const prUrl = card.githubPrUrl;
+						const fetchHtml = (prUrl && githubToken)
+							? () => fetchCommentBodyHtml(prUrl, e.id, githubToken)
+							: undefined;
+						return {
+							type: "human" as const,
+							actor: { type: "external" as const, id: e.author, source: "github" },
+							createdAt: new Date(e.createdAt).getTime(),
+							summary: await downloadGithubImages(e.body, taskId, workspaceId, fetchHtml),
+						};
 					})),
 				];
-				const newIds = [...seenIds, ...newEntries.map((e) => e.id)];
+				const newIds = [...seenIds, ...readyEntries.map((e) => e.id)];
 				await updateCard(workspaceId, taskId, { reviewComments: newComments, githubCommentIds: newIds });
-				if (newEntries.length > 0) {
-					logger.info(`[poller] ${newEntries.length} new comment(s) from GitHub PR for "${card.title}"`);
-					await appendActivityLog(workspaceId, taskId, `${newEntries.length} new comment(s) imported from GitHub PR`);
+				if (readyEntries.length > 0) {
+					logger.info(`[poller] ${readyEntries.length} new comment(s) from GitHub PR for "${card.title}"`);
+					await appendActivityLog(workspaceId, taskId, `${readyEntries.length} new comment(s) imported from GitHub PR`);
 				}
 				updated = true;
 			}
 
-			const authorCommented = newEntries.some((e) => e.author === info.author);
+			const authorCommented = readyEntries.some((e) => e.author === info.author);
 			const changesRequested = info.reviewDecision === "CHANGES_REQUESTED";
 
 			if (info.state === "MERGED") {

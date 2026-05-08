@@ -242,7 +242,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 			try {
 				const data = await readFile(filePath);
 				const ext = filename.split(".").pop()?.toLowerCase() ?? "";
-				const MIME: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml" };
+				const MIME: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", pdf: "application/pdf", txt: "text/plain", json: "application/json", zip: "application/zip", mp4: "video/mp4", mp3: "audio/mpeg" };
 				res.writeHead(200, {
 					"Content-Type": MIME[ext] ?? "application/octet-stream",
 					"Cache-Control": "public, max-age=31536000, immutable",
@@ -258,24 +258,20 @@ export async function createRuntimeServer(options: ServerOptions) {
 		if (attachUploadMatch && req.method === "POST") {
 			const [, cardId] = attachUploadMatch;
 			const workspaceId = url.searchParams.get("workspaceId");
-			const filename = url.searchParams.get("filename") ?? "image.png";
-			const mimeType = url.searchParams.get("mimeType") ?? (req.headers["content-type"] ?? "image/png");
+			const filename = url.searchParams.get("filename") ?? "file";
+			const mimeType = url.searchParams.get("mimeType") ?? (req.headers["content-type"] ?? "application/octet-stream");
 			if (!cardId || !workspaceId || cardId.includes("..")) {
 				res.writeHead(400); res.end("Bad request"); return;
 			}
-			if (!mimeType.startsWith("image/")) {
-				res.writeHead(400); res.end("Not an image"); return;
-			}
-			const ext = filename.split(".").pop()?.toLowerCase() ?? "bin";
-			if (!["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext)) {
-				res.writeHead(400); res.end("Unsupported format"); return;
-			}
+			const ext = (filename.split(".").pop()?.toLowerCase() ?? "bin").replace(/[^a-z0-9]/g, "");
+			if (!ext) { res.writeHead(400); res.end("Bad filename"); return; }
 			const board = await loadBoard(workspaceId);
 			if (!board.cards[cardId]) { res.writeHead(404); res.end("Card not found"); return; }
 			const body = await readBody(req);
 			const filePath = await saveAttachment(body, ext, cardId);
+			const attachType = mimeType.startsWith("image/") ? "image" : "file";
 			res.writeHead(200, { "Content-Type": "application/json" });
-			res.end(JSON.stringify({ path: filePath, name: filename, mimeType, type: "image" }));
+			res.end(JSON.stringify({ path: filePath, name: filename, mimeType, type: attachType }));
 			return;
 		}
 

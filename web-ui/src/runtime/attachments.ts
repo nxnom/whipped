@@ -13,7 +13,7 @@ export async function uploadAttachmentFile(
 	workspaceId: string,
 	cardId: string,
 	file: File,
-): Promise<{ path: string; name: string; mimeType: string; type: "image" }> {
+): Promise<{ path: string; name: string; mimeType: string; type: string }> {
 	const params = new URLSearchParams({ workspaceId, filename: file.name, mimeType: file.type });
 	const res = await fetch(`/api/attachments/${encodeURIComponent(cardId)}?${params}`, {
 		method: "POST",
@@ -21,5 +21,5 @@ export async function uploadAttachmentFile(
 		headers: { "Content-Type": file.type },
 	});
 	if (!res.ok) throw new Error(`Upload failed: ${res.statusText}`);
-	return res.json() as Promise<{ path: string; name: string; mimeType: string; type: "image" }>;
+	return res.json() as Promise<{ path: string; name: string; mimeType: string; type: string }>;
 }

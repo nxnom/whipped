@@ -16,7 +16,7 @@ import type {
   RuntimeBoardColumnId,
   RuntimeWorkspaceStateResponse,
 } from "@runtime-contract";
-import { Bot, ImagePlus, Layers, Plus, Settings, X } from "lucide-react";
+import { Bot, Layers, Paperclip, Plus, Settings, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { trpc } from "@/runtime/trpc-client";
@@ -266,7 +266,7 @@ const COLUMN_LABEL: Record<string, string> = {
   done: "Done",
 };
 
-interface PendingImage { dataUrl: string; file: File }
+interface PendingImage { dataUrl: string | null; file: File }
 
 async function uploadImages(workspaceId: string, cardId: string, images: PendingImage[]) {
   const { uploadAttachmentFile } = await import("@/runtime/attachments");
@@ -282,22 +282,32 @@ function ImagePicker({ pending, onChange, onPaste }: {
 }) {
   const ref = useRef<HTMLInputElement>(null);
   const addFiles = (files: FileList | File[]) => {
-    const imgs = Array.from(files).filter(f => f.type.startsWith("image/"));
-    imgs.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = ev => onChange([...pending, { dataUrl: ev.target?.result as string, file }]);
-      reader.readAsDataURL(file);
+    Array.from(files).forEach(file => {
+      if (file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onload = ev => onChange([...pending, { dataUrl: ev.target?.result as string, file }]);
+        reader.readAsDataURL(file);
+      } else {
+        onChange([...pending, { dataUrl: null, file }]);
+      }
     });
   };
   return (
     <div>
-      <input ref={ref} type="file" accept="image/*" multiple className="hidden"
+      <input ref={ref} type="file" accept="*/*" multiple className="hidden"
         onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }} />
       {pending.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-2 mt-1">
           {pending.map((img, i) => (
             <div key={i} className="relative group">
-              <img src={img.dataUrl} alt={img.file.name} className="h-14 w-14 object-cover rounded border border-gray-700" />
+              {img.dataUrl ? (
+                <img src={img.dataUrl} alt={img.file.name} className="h-14 w-14 object-cover rounded border border-gray-700" />
+              ) : (
+                <div className="h-14 w-14 flex flex-col items-center justify-center rounded border border-gray-700 bg-gray-800 gap-1">
+                  <Paperclip size={14} className="text-gray-400" />
+                  <span className="text-[9px] text-gray-400 truncate w-12 text-center px-1">{img.file.name}</span>
+                </div>
+              )}
               <button type="button" onClick={() => onChange(pending.filter((_, j) => j !== i))}
                 className="absolute -top-1 -right-1 size-4 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                 <X size={9} className="text-gray-300" />
@@ -308,7 +318,7 @@ function ImagePicker({ pending, onChange, onPaste }: {
       )}
       <button type="button" onClick={() => ref.current?.click()}
         className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-400 transition-colors mt-1">
-        <ImagePlus size={12} /> Attach image
+        <Paperclip size={12} /> Attach file
       </button>
     </div>
   );
@@ -402,8 +412,8 @@ function CreateCardContent({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             onPaste={(e) => {
-              const files = Array.from(e.clipboardData.files).filter(f => f.type.startsWith("image/"));
-              if (files.length) { e.preventDefault(); files.forEach(file => { const r = new FileReader(); r.onload = ev => setPendingImages(p => [...p, { dataUrl: ev.target?.result as string, file }]); r.readAsDataURL(file); }); }
+              const files = Array.from(e.clipboardData.files);
+              if (files.length) { e.preventDefault(); files.forEach(file => { if (file.type.startsWith("image/")) { const r = new FileReader(); r.onload = ev => setPendingImages(p => [...p, { dataUrl: ev.target?.result as string, file }]); r.readAsDataURL(file); } else { setPendingImages(p => [...p, { dataUrl: null, file }]); } }); }
             }}
             placeholder="Describe what needs to be done..."
             rows={4}
@@ -594,8 +604,8 @@ function EditCardContent({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             onPaste={(e) => {
-              const files = Array.from(e.clipboardData.files).filter(f => f.type.startsWith("image/"));
-              if (files.length) { e.preventDefault(); files.forEach(file => { const r = new FileReader(); r.onload = ev => setPendingImages(p => [...p, { dataUrl: ev.target?.result as string, file }]); r.readAsDataURL(file); }); }
+              const files = Array.from(e.clipboardData.files);
+              if (files.length) { e.preventDefault(); files.forEach(file => { if (file.type.startsWith("image/")) { const r = new FileReader(); r.onload = ev => setPendingImages(p => [...p, { dataUrl: ev.target?.result as string, file }]); r.readAsDataURL(file); } else { setPendingImages(p => [...p, { dataUrl: null, file }]); } }); }
             }}
             rows={4}
           />
@@ -603,7 +613,7 @@ function EditCardContent({
             <div className="flex flex-wrap gap-1.5 mt-1">
               {existingAttachments.map((att, i) => (
                 <span key={i} className="inline-flex items-center gap-1 text-[11px] text-gray-400 bg-gray-800 border border-gray-700 rounded px-1.5 py-0.5">
-                  <ImagePlus size={10} className="shrink-0" /> {att.name}
+                  <Paperclip size={10} className="shrink-0" /> {att.name}
                   <button type="button" onClick={() => setExistingAttachments(a => a.filter((_, j) => j !== i))} className="text-gray-600 hover:text-red-400 transition-colors"><X size={9} /></button>
                 </span>
               ))}

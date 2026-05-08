@@ -436,6 +436,71 @@ export async function linkCommentToSession(workspaceId: string, cardId: string, 
 	});
 }
 
+// bodyHtml: the `body_html` field from GitHub API (application/vnd.github.full+json).
+// It contains pre-signed private-user-images.githubusercontent.com URLs that are
+// downloadable server-side. When provided, we use those instead of the raw asset URLs.
+// Extracts UUID → signed CDN URL pairs from a body_html string.
+export function extractSignedImageUrls(bodyHtml: string): Map<string, string> {
+	const map = new Map<string, string>();
+	const cdnPattern = /https:\/\/private-user-images\.githubusercontent\.com\/[^"'<>\s]+/g;
+	const uuidPattern = /([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\./i;
+	for (const cdnUrl of bodyHtml.match(cdnPattern) ?? []) {
+		const uuidMatch = cdnUrl.match(uuidPattern);
+		if (uuidMatch?.[1]) map.set(uuidMatch[1].toLowerCase(), cdnUrl);
+	}
+	return map;
+}
+
+export async function downloadGithubImages(
+	text: string,
+	cardId: string,
+	_workspaceId: string,
+	fetchHtml?: () => Promise<string | undefined>,
+): Promise<string> {
+	const assetPattern = /https:\/\/github\.com\/user-attachments\/assets\/[^\s"'<>\]]+/g;
+	const assetUrls = [...new Set(text.match(assetPattern) ?? [])];
+	if (assetUrls.length === 0) return text;
+
+	let signedUrlMap: Map<string, string> | undefined;
+
+	const tryDownload = async (url: string) => {
+		const res = await fetch(url);
+		if (!res.ok) return null;
+		return res;
+	};
+
+	let result = text;
+	for (const assetUrl of assetUrls) {
+		try {
+			// Try direct download first (works for public repos)
+			let res = await tryDownload(assetUrl);
+
+			// On failure, fetch body_html once and use signed URL
+			if (!res && fetchHtml) {
+				if (!signedUrlMap) {
+					const html = await fetchHtml();
+					signedUrlMap = html ? extractSignedImageUrls(html) : new Map();
+				}
+				const assetUuid = assetUrl.split("/").pop()?.toLowerCase() ?? "";
+				const signedUrl = signedUrlMap.get(assetUuid);
+				if (signedUrl) res = await tryDownload(signedUrl);
+			}
+
+			if (!res) continue;
+			const contentType = res.headers.get("content-type") ?? "image/png";
+			const extMap: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp" };
+			const ext = extMap[contentType.split(";")[0]!.trim()] ?? "png";
+			const buffer = Buffer.from(await res.arrayBuffer());
+			const localPath = await saveAttachment(buffer, ext, cardId);
+			const parts = localPath.replace(/\\/g, "/").split("/");
+			const filename = parts[parts.length - 1]!;
+			const localUrl = `/api/attachments/${encodeURIComponent(cardId)}/${encodeURIComponent(filename)}`;
+			result = result.replaceAll(assetUrl, localUrl);
+		} catch { /* leave original URL on error */ }
+	}
+	return result;
+}
+
 export async function saveAttachment(data: Buffer, ext: string, cardId: string): Promise<string> {
 	const dir = join(ATTACHMENTS_DIR, cardId);
 	await mkdir(dir, { recursive: true });

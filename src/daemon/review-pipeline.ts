@@ -446,7 +446,7 @@ function formatPriorComments(card: RuntimeBoardCard): { text: string; files: str
 
 		if (c.attachments?.length) {
 			const attLines = c.attachments.map((att) => `  - ${att.name}: ${att.path}`).join("\n");
-			parts.push(`Attached images (use Read tool to view):\n${attLines}`);
+			parts.push(`Attached files (use Read tool to view):\n${attLines}`);
 		}
 
 		if (c.metadata && Object.keys(c.metadata).length > 0) {
@@ -475,7 +475,7 @@ export function buildDevAgentSystemPrompt(slot: WorkflowSlot, card: RuntimeBoard
 	const statSection = stat ? `\n\n## Current worktree state (vs ${card.baseRef})\n${stat}` : "";
 
 	const descAttachNote = (card.descriptionAttachments?.length ?? 0) > 0
-		? `\n\n**Attached images** (use the Read tool to view each one):\n${card.descriptionAttachments!.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
+		? `\n\n**Attached files** (use the Read tool to view each one):\n${card.descriptionAttachments!.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
 		: "";
 	parts.push(`## Task: ${card.title}${card.description ? `\n\n${card.description}` : ""}${descAttachNote}${statSection}${context.text}`);
 
@@ -534,7 +534,7 @@ function buildCodeReviewSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard,
 	const projectContext = systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : "";
 
 	const descAttachSection = (card.descriptionAttachments?.length ?? 0) > 0
-		? `\n\n**Attached images** (use Read tool to view):\n${card.descriptionAttachments!.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
+		? `\n\n**Attached files** (use Read tool to view):\n${card.descriptionAttachments!.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
 		: "";
 
 	return `You are a senior code reviewer performing an automated review.
@@ -574,7 +574,7 @@ function buildQASystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: s
 	const projectContext = systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : "";
 
 	const qaDescAttachSection = (card.descriptionAttachments?.length ?? 0) > 0
-		? `\n\n**Attached images** (use Read tool to view):\n${card.descriptionAttachments!.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
+		? `\n\n**Attached files** (use Read tool to view):\n${card.descriptionAttachments!.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
 		: "";
 
 	return `You are a QA engineer performing automated testing.
@@ -597,7 +597,7 @@ ${diffSection}
 ## How to report
 Write your findings to the terminal as plain text. Do NOT include pass/fail verdict words in your terminal output; those go only in the \`kanban_add_comment\` call.
 
-Then call \`kanban_add_comment\` with cardId: "${card.id}", type: "qa", status: "pass"/"fail"/"warning"/"skipped", summary: what you ran and the outcome, and optionally issues: [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional, pipeline still passes), message}] and attachments: [{type: "image", name, mimeType, path}].${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}`;
+Then call \`kanban_add_comment\` with cardId: "${card.id}", type: "qa", status: "pass"/"fail"/"warning"/"skipped", summary: what you ran and the outcome, and optionally issues: [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional, pipeline still passes), message}] and attachments: [{type: "image"|"file", name, mimeType, path}].${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}`;
 }
 
 function buildOrchSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, customPrompt: string, priorContext: string, secrets: RuntimeProjectSecret[], systemPrompt?: string): string {
