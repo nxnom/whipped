@@ -1,6 +1,6 @@
 import { Button, ConfirmDialog, Tooltip, toast } from "@geckoui/geckoui";
 import type { WorkflowSlot, RuntimeBoardCard } from "@runtime-contract";
-import { ArrowLeft, ExternalLink, FolderOpen, GitBranch, GitMerge, GitPullRequest, ImagePlus, Paperclip, Play, Square, TerminalSquare, Trash2, X } from "lucide-react";
+import { ArrowLeft, ExternalLink, FolderOpen, GitBranch, GitMerge, GitPullRequest, Paperclip, Play, Square, TerminalSquare, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { attachmentUrl, uploadAttachmentFile } from "@/runtime/attachments";
@@ -388,28 +388,52 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 									className="hidden"
 									onChange={(e) => { if (e.target.files) void handleDescriptionAttach(e.target.files); e.target.value = ""; }}
 								/>
-								{(card.descriptionAttachments?.length ?? 0) > 0 && (
-									<div className="flex flex-wrap gap-2 mb-2">
-										{(card.descriptionAttachments ?? []).map((att, idx) => (
-											<div key={idx} className="relative group">
-												<DescAttachment path={att.path} name={att.name} mimeType={att.mimeType} />
-												<button
-													onClick={() => void handleRemoveDescAttachment(idx)}
-													className="absolute -top-1 -right-1 size-4 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-												>
-													<X size={10} className="text-gray-300" />
-												</button>
-											</div>
-										))}
-									</div>
-								)}
+								{(card.descriptionAttachments?.length ?? 0) > 0 && (() => {
+									const isImg = (att: { mimeType?: string; name: string }) =>
+										(att.mimeType ?? "").startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(att.name);
+									const indexed = (card.descriptionAttachments ?? []).map((att, idx) => ({ att, idx }));
+									const imgs = indexed.filter(({ att }) => isImg(att));
+									const files = indexed.filter(({ att }) => !isImg(att));
+									const RemoveBtn = ({ idx }: { idx: number }) => (
+										<button
+											onClick={() => void handleRemoveDescAttachment(idx)}
+											className="absolute -top-1 -right-1 size-4 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+										>
+											<X size={10} className="text-gray-300" />
+										</button>
+									);
+									return (
+										<div className="flex flex-col gap-1.5 mb-2">
+											{imgs.length > 0 && (
+												<div className="flex flex-wrap gap-2">
+													{imgs.map(({ att, idx }) => (
+														<div key={idx} className="relative group">
+															<DescAttachment path={att.path} name={att.name} mimeType={att.mimeType} />
+															<RemoveBtn idx={idx} />
+														</div>
+													))}
+												</div>
+											)}
+											{files.length > 0 && (
+												<div className="flex flex-wrap gap-1.5">
+													{files.map(({ att, idx }) => (
+														<div key={idx} className="relative group inline-flex">
+															<DescAttachment path={att.path} name={att.name} mimeType={att.mimeType} />
+															<RemoveBtn idx={idx} />
+														</div>
+													))}
+												</div>
+											)}
+										</div>
+									);
+								})()}
 								<button
 									onClick={() => descFileInputRef.current?.click()}
 									disabled={uploadingDesc}
 									className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-400 transition-colors disabled:opacity-50"
 								>
-									<ImagePlus size={12} />
-									{uploadingDesc ? "Uploading…" : "Attach image"}
+									<Paperclip size={12} />
+									{uploadingDesc ? "Uploading…" : "Attach file"}
 								</button>
 							</div>
 
