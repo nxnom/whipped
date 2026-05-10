@@ -388,7 +388,7 @@ server.registerTool(
 	async () => {
 		const workflows = await trpcQuery<Array<{
 			id: string; name: string; isDefault: boolean; forStory?: boolean;
-			slots: Array<{ id: string; type: string; name: string; agentBinary: string; order: number; enabled: boolean; prompt: string }>;
+			slots: Array<{ id: string; type: string; name: string; agentBinary: string; order: number; enabled: boolean; prompt: string; effort?: string | null }>;
 		}>>("workflows.list", { workspaceId });
 
 		const lines: string[] = [];
@@ -398,8 +398,9 @@ server.registerTool(
 			const sorted = [...wf.slots].sort((a, b) => a.order - b.order);
 			for (const slot of sorted) {
 				const status = slot.enabled ? "enabled" : "disabled";
+				const effortTag = slot.effort ? `, effort: ${slot.effort}` : "";
 				const prompt = slot.prompt ? `\n    prompt: ${slot.prompt.slice(0, 120)}${slot.prompt.length > 120 ? "..." : ""}` : "";
-				lines.push(`  - [${slot.id}] ${slot.name} (${slot.type}, ${slot.agentBinary}, ${status})${prompt}`);
+				lines.push(`  - [${slot.id}] ${slot.name} (${slot.type}, ${slot.agentBinary}, ${status}${effortTag})${prompt}`);
 			}
 		}
 		return { content: [{ type: "text", text: lines.join("\n") || "No workflows configured." }] };
@@ -423,6 +424,7 @@ server.registerTool(
 				order: z.number().int().nonnegative().describe("Execution order (0 = first)"),
 				enabled: z.boolean().describe("Whether this slot is active in the pipeline"),
 				prompt: z.string().describe("System prompt / instructions for this agent slot. Empty string for default behavior."),
+				effort: z.enum(["low", "medium", "high"]).nullable().optional().describe("Effort level override for this slot — 'low', 'medium', or 'high'. Omit or pass null to use the agent's default."),
 			})).describe("For task workflows: always include a dev slot (type: 'dev', order: 0). For story workflows: use only orch slots."),
 		},
 	},
