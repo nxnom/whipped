@@ -587,6 +587,7 @@ export const appRouter = router({
 				if (!card) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
 				const scheduler = ctx.getScheduler(input.workspaceId);
 				if (!scheduler) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Scheduler not ready" });
+				await updateCard(input.workspaceId, input.cardId, { autoFixAttempts: 0 });
 				await scheduler.startTask(card);
 				return { ok: true };
 			}),

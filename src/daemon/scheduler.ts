@@ -445,7 +445,7 @@ export class TaskScheduler {
 						}
 
 						await moveCard(workspaceId, taskId, destination);
-						if (destination === "blocked") void removeWorktreeAsync(taskId, repoPath);
+						// Worktree is intentionally kept when blocked so prior commits survive a manual restart
 					}
 					stateHub.broadcastWorkspaceUpdate(workspaceId);
 					this.options.onTaskCompleted(taskId);
