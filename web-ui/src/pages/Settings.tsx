@@ -1,8 +1,8 @@
 import { Button, Checkbox, Input, Select, SelectOption, Switch, Textarea, toast } from "@geckoui/geckoui";
 import type { Workflow, WorkflowSlot, RuntimeGlobalConfig, RuntimeJiraTicket, RuntimeProjectConfig, RuntimeWorktreeSetup, RuntimeProjectSecret } from "@runtime-contract";
-import { AGENT_BINARY_OPTIONS, BUILTIN_SECRET_KEYS, EFFORT_OPTIONS, type EffortLevel } from "@runtime-contract";
+import { AGENT_BINARY_OPTIONS, BUILTIN_SECRET_KEYS, EFFORT_OPTIONS, type EffortLevel, workflowSchema } from "@runtime-contract";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
-import { ArrowLeft, Bot, Download, Eye, EyeOff, GripVertical, Key, Layers, MessageSquare, Plus, RefreshCw, Settings2, Terminal, Ticket, Trash2, X, Zap } from "lucide-react";
+import { ArrowLeft, Bot, Download, Eye, EyeOff, GripVertical, Key, Layers, MessageSquare, Plus, RefreshCw, Settings2, Terminal, Ticket, Trash2, Upload, X, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { trpc } from "@/runtime/trpc-client";
@@ -287,7 +287,7 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 							value={config.systemPrompt ?? ""}
 							onChange={(e) => updateConfig({ ...config, systemPrompt: e.target.value || undefined })}
 							placeholder={"Tech stack: Next.js, TypeScript, Postgres\nWebsite: https://example.com\nGoals: keep bundle size under 200kb, follow REST conventions"}
-							rows={8}
+							maxRows={20}
 							autoResize
 						/>
 					</Field>
@@ -500,6 +500,47 @@ function WorkflowsSection({
 		}
 	};
 
+	const importFileRef = useRef<HTMLInputElement>(null);
+
+	const handleExport = (wf: Workflow) => {
+		const blob = new Blob([JSON.stringify(wf, null, 2)], { type: "application/json" });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement("a");
+		a.href = url;
+		a.download = `${wf.name.toLowerCase().replace(/\s+/g, "-")}.workflow.json`;
+		a.click();
+		URL.revokeObjectURL(url);
+	};
+
+	const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		e.target.value = "";
+		if (!file) return;
+		const reader = new FileReader();
+		reader.onload = (ev) => {
+			try {
+				const raw = JSON.parse(ev.target?.result as string);
+				const parsed = workflowSchema.safeParse(raw);
+				if (!parsed.success) {
+					toast.error("Invalid workflow file: " + parsed.error.issues[0]?.message);
+					return;
+				}
+				const imported: Workflow = {
+					...parsed.data,
+					id: `wf_${Date.now()}`,
+					isDefault: false,
+				};
+				onChange([...workflows, imported]);
+				setActiveTab(imported.forStory ? "story" : "task");
+				setSelectedId(imported.id);
+				toast.success(`Imported "${imported.name}"`);
+			} catch {
+				toast.error("Failed to parse workflow file");
+			}
+		};
+		reader.readAsText(file);
+	};
+
 	const handleSaveSlot = (updatedSlot: WorkflowSlot) => {
 		if (!editingSlot) return;
 		const wf = workflows.find(w => w.id === editingSlot.wfId);
@@ -562,7 +603,14 @@ function WorkflowsSection({
 						<p className="px-4 py-4 text-xs text-gray-600">No workflows yet</p>
 					)}
 				</div>
-				<div className="border-t border-gray-800 p-3">
+				<div className="border-t border-gray-800 p-3 flex flex-col gap-0.5">
+					<input
+						ref={importFileRef}
+						type="file"
+						accept=".json"
+						className="hidden"
+						onChange={handleImportFile}
+					/>
 					{activeTab === "task" ? (
 						<button
 							onClick={handleAddWorkflow}
@@ -578,6 +626,12 @@ function WorkflowsSection({
 							<Plus size={11} /> New Workflow
 						</button>
 					)}
+					<button
+						onClick={() => importFileRef.current?.click()}
+						className="w-full text-left flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-400 transition-colors px-1 py-1.5 rounded"
+					>
+						<Upload size={11} /> Import Workflow
+					</button>
 				</div>
 			</div>
 
@@ -602,14 +656,24 @@ function WorkflowsSection({
 							{selectedWorkflow.isDefault && (
 								<span className="text-[10px] text-gray-500 bg-gray-800 px-2 py-1 rounded shrink-0">default</span>
 							)}
-							{!selectedWorkflow.isDefault && (
+							<div className="ml-auto flex items-center gap-1">
 								<button
-									onClick={() => handleDeleteWorkflow(selectedWorkflow.id)}
-									className="ml-auto text-gray-600 hover:text-red-400 transition-colors"
+									onClick={() => handleExport(selectedWorkflow)}
+									className="p-1.5 rounded text-gray-500 hover:text-blue-400 hover:bg-gray-800 transition-colors"
+									title="Export workflow as JSON"
 								>
-									<Trash2 size={14} />
+									<Download size={14} />
 								</button>
-							)}
+								{!selectedWorkflow.isDefault && (
+									<button
+										onClick={() => handleDeleteWorkflow(selectedWorkflow.id)}
+										className="p-1.5 rounded text-gray-600 hover:text-red-400 hover:bg-gray-800 transition-colors"
+										title="Delete workflow"
+									>
+										<Trash2 size={14} />
+									</button>
+								)}
+							</div>
 						</div>
 
 						{/* Slot editor */}
@@ -953,9 +1017,9 @@ function AgentSlotDialog({
 	};
 
 	return (
-		<div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
+		<div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
 			<div
-				className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-md p-5 space-y-4"
+				className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-md p-5 space-y-4 max-h-[90vh] overflow-y-auto"
 				onClick={(e) => e.stopPropagation()}
 			>
 				<h3 className="text-sm font-semibold text-gray-100">Edit — {slot.name}</h3>
@@ -979,8 +1043,8 @@ function AgentSlotDialog({
 						value={prompt}
 						onChange={(e) => { setPrompt(e.target.value); if (promptError) setPromptError(""); }}
 						placeholder={placeholder[slot.type] ?? "Describe what this agent should check or do..."}
-						rows={4}
-						autoResize
+						rows={6}
+						className="max-h-64 overflow-y-auto resize-y"
 					/>
 					{promptError && <p className="text-xs text-red-400 mt-1">{promptError}</p>}
 				</Field>
@@ -1053,7 +1117,7 @@ function AddCustomAgentDialog({
 						value={prompt}
 						onChange={(e) => { setPrompt(e.target.value); if (promptError) setPromptError(""); }}
 						placeholder="Describe what this agent should check or do..."
-						rows={4}
+            maxRows={20}
 						autoResize
 					/>
 					{promptError && <p className="text-xs text-red-400 mt-1">{promptError}</p>}
@@ -1372,7 +1436,7 @@ function SecretsSection({
 			{/* Paste .env */}
 			<div className="border-t border-gray-800 pt-4 space-y-2">
 				<p className="text-xs text-gray-400">Paste <code className="text-gray-500">.env</code> — add or overwrite multiple secrets at once</p>
-				<textarea
+				<Textarea
 					value={envText}
 					onChange={(e) => setEnvText(e.target.value)}
 					placeholder={"GITHUB_TOKEN=ghp_xxx\nFIGMA_TOKEN=\"abc123\"\n# comments ignored"}
