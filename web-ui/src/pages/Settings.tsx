@@ -300,6 +300,8 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 					workspaceId={workspaceId}
 					setup={config.worktreeSetup ?? { filesToCopy: [], installCommand: "" }}
 					onChange={(worktreeSetup) => updateConfig({ ...config, worktreeSetup })}
+					startCommand={config.startCommand ?? ""}
+					onStartCommandChange={(startCommand) => updateConfig({ ...config, startCommand })}
 					onSave={handleSave}
 					saving={saving}
 				/>
@@ -1071,12 +1073,16 @@ function EnvironmentSection({
 	workspaceId,
 	setup,
 	onChange,
+	startCommand,
+	onStartCommandChange,
 	onSave,
 	saving,
 }: {
 	workspaceId: string;
 	setup: RuntimeWorktreeSetup;
 	onChange: (setup: RuntimeWorktreeSetup) => void;
+	startCommand: string;
+	onStartCommandChange: (cmd: string) => void;
 	onSave: () => void;
 	saving: boolean;
 }) {
@@ -1213,6 +1219,19 @@ function EnvironmentSection({
 				/>
 				<p className="text-xs text-gray-500 mt-1">
 					Runs in the worktree directory. Use <code className="text-gray-400 bg-gray-800 px-1 py-0.5 rounded">$REPO_PATH</code> to reference the main repo.
+				</p>
+			</Field>
+
+			{/* Start command */}
+			<Field label="Start Command">
+				<Input
+					value={startCommand}
+					onChange={(e) => onStartCommandChange(e.target.value)}
+					placeholder="pnpm dev"
+					inputClassName="font-mono text-xs"
+				/>
+				<p className="text-xs text-gray-500 mt-1">
+					Command to run when you press ▶ on a ticket. Runs in the ticket's worktree (or repo root if no worktree exists yet).
 				</p>
 			</Field>
 

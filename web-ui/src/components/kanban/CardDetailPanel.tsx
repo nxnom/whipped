@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { attachmentUrl, uploadAttachmentFile } from "@/runtime/attachments";
 import { trpc } from "@/runtime/trpc-client";
+import { useRunSession } from "@/stores/run-session-store";
 import { ChatComments } from "./ChatComments";
 import { DiffView } from "./DiffView";
 
@@ -166,6 +167,18 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 	const isRunning = card.terminalSessions?.some((ts) => !ts.endedAt) ?? false;
 	const activeTerminalSession = card.terminalSessions?.find((ts) => !ts.endedAt);
 	const hasTerminalOutput = visibleSessions.length > 0;
+
+	const { session: runSession, start: startRun } = useRunSession(workspaceId);
+	const isThisCardRunning = runSession.status === "running" && runSession.cardId === card.id;
+
+	const handleRunTicket = async () => {
+		try {
+			await startRun(card.id);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			toast.error(msg);
+		}
+	};
 
 	// ── Handlers ───────────────────────────────────────────────────────────
 	const handleStart = async () => {
@@ -331,6 +344,22 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 					{isRunning && (
 						<span className="size-1.5 rounded-full shrink-0 bg-blue-400 animate-pulse" />
 					)}
+					{!isThisCardRunning && (
+						<button
+							onClick={handleRunTicket}
+							className="p-1 rounded text-gray-500 hover:text-emerald-400 hover:bg-gray-800 transition-colors"
+							title="Run this ticket's start command"
+						>
+							<Play size={13} />
+						</button>
+					)}
+					<button
+						onClick={handleDelete}
+						className="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-gray-800 transition-colors"
+						title="Delete this task"
+					>
+						<Trash2 size={13} />
+					</button>
 				</div>
 
 				{/* Tab bar */}
@@ -563,13 +592,7 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 				</div>
 
 				{/* Footer actions */}
-				<div className="border-t border-gray-800 p-3 flex items-center justify-between gap-2 shrink-0">
-					<Tooltip content="Delete this task permanently" side="top" triggerAsChild>
-						<Button variant="ghost" size="sm" onClick={handleDelete}>
-							<Trash2 size={13} className="mr-1 text-gray-500" /> Delete
-						</Button>
-					</Tooltip>
-
+				<div className="border-t border-gray-800 p-3 flex items-center justify-end gap-2 shrink-0">
 					{isStory ? (
 						isRunning && (
 							<Tooltip content="Interrupt the running agent" side="top" triggerAsChild>

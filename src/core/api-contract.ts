@@ -272,6 +272,7 @@ export const runtimeProjectConfigSchema = z.object({
 	github: runtimeGithubConfigSchema.optional(),
 	jira: runtimeJiraConfigSchema.optional(),
 	worktreeSetup: runtimeWorktreeSetupSchema.optional(),
+	startCommand: z.string().default(""),
 	workflows: z.array(workflowSchema).default([DEFAULT_WORKFLOW, DEFAULT_STORY_WORKFLOW]),
 	secrets: z.array(runtimeProjectSecretSchema).default([]),
 	systemPrompt: z.string().optional(),
@@ -359,11 +360,14 @@ export type RuntimeJiraImportRequest = z.infer<typeof runtimeJiraImportRequestSc
 
 // ─── WebSocket events ─────────────────────────────────────────────────────────
 
+export type RunSessionStatus = "running" | "stopped" | "error";
+
 export type RuntimeStateEvent =
 	| { type: "snapshot"; state: RuntimeWorkspaceStateResponse }
 	| { type: "workspace_updated"; state: RuntimeWorkspaceStateResponse }
 	| { type: "terminal_output"; taskId: string; data: string }
-	| { type: "autonomous_mode_changed"; enabled: boolean };
+	| { type: "autonomous_mode_changed"; enabled: boolean }
+	| { type: "run_session_changed"; cardId: string | null; status: RunSessionStatus; errorMessage?: string };
 
 // ─── Project ──────────────────────────────────────────────────────────────────
 

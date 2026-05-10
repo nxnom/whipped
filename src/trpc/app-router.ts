@@ -70,6 +70,14 @@ async function drainCleanupQueue(): Promise<void> {
 	cleanupRunning = false;
 }
 
+export interface RunSession {
+	cardId: string;
+	status: "running" | "stopped" | "error";
+	errorMessage?: string;
+	outputBuffer: string;
+	kill: () => void;
+}
+
 export interface AppContext {
 	stateHub: RuntimeStateHub;
 	getScheduler: (workspaceId: string) => TaskScheduler | undefined;
@@ -77,6 +85,9 @@ export interface AppContext {
 	ensureWorkspace: (workspaceId: string) => Promise<{ workspaceId: string; repoPath: string }>;
 	currentWorkspaceId: string | null;
 	currentRepoPath: string | null;
+	startRun: (workspaceId: string, cardId: string, command: string, cwd: string) => void;
+	stopRun: (workspaceId: string) => void;
+	getRunSession: (workspaceId: string) => RunSession | null;
 }
 
 const t = initTRPC.context<AppContext>().create();
@@ -732,6 +743,41 @@ export const appRouter = router({
 					running: scheduler.isHomeAgentRunning(),
 					taskId: scheduler.homeAgentTaskId,
 				};
+			}),
+	}),
+
+	// ─── Run session (per-project) ────────────────────────────────────────────
+	run: router({
+		status: publicProcedure
+			.input(z.object({ workspaceId: z.string() }))
+			.query(({ ctx, input }) => {
+				const session = ctx.getRunSession(input.workspaceId);
+				if (!session) return { cardId: null, status: "stopped" as const, errorMessage: undefined };
+				return { cardId: session.cardId, status: session.status, errorMessage: session.errorMessage };
+			}),
+
+		start: publicProcedure
+			.input(z.object({ workspaceId: z.string(), cardId: z.string() }))
+			.mutation(async ({ ctx, input }) => {
+				const ws = await ctx.ensureWorkspace(input.workspaceId);
+				const projectConfig = await loadProjectConfig(input.workspaceId);
+				const command = projectConfig.startCommand?.trim();
+				if (!command) {
+					throw new TRPCError({ code: "PRECONDITION_FAILED", message: "No start command configured. Add one in Settings → Environment." });
+				}
+				const board = await loadBoard(input.workspaceId);
+				const card = board.cards[input.cardId];
+				if (!card) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
+				const cwd = card.worktreePath ?? ws.repoPath;
+				ctx.startRun(input.workspaceId, input.cardId, command, cwd);
+				return { ok: true };
+			}),
+
+		stop: publicProcedure
+			.input(z.object({ workspaceId: z.string() }))
+			.mutation(({ ctx, input }) => {
+				ctx.stopRun(input.workspaceId);
+				return { ok: true };
 			}),
 	}),
 

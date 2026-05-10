@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { WebSocketServer } from "ws";
+import * as nodePty from "node-pty";
 import { writeClaudeTaskHookSettings } from "../agents/agent-hooks.js";
 import { ATTACHMENTS_DIR, DEFAULT_PORT, loadGlobalConfig } from "../config/runtime-config.js";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
@@ -24,7 +25,7 @@ import {
 	saveAttachment,
 } from "../state/workspace-state.js";
 import { loadTerminalBuffer } from "../state/workspace-state.js";
-import { type AppContext, appRouter } from "../trpc/app-router.js";
+import { type AppContext, type RunSession, appRouter } from "../trpc/app-router.js";
 import { RuntimeStateHub } from "./runtime-state-hub.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
@@ -71,6 +72,60 @@ export async function createRuntimeServer(options: ServerOptions) {
 	const stateHub = new RuntimeStateHub();
 	const schedulers = new Map<string, TaskScheduler>();
 	const pollers = new Map<string, BoardPoller>();
+	const runSessions = new Map<string, RunSession>();
+	type RunTerminalListener = (data: string) => void;
+	const runTerminalListeners = new Map<string, Set<RunTerminalListener>>();
+
+	function startRun(workspaceId: string, cardId: string, command: string, cwd: string): void {
+		stopRun(workspaceId);
+		const shell = process.env.SHELL ?? "/bin/bash";
+		const pty = nodePty.spawn(shell, ["-c", command], {
+			name: "xterm-256color",
+			cols: 120,
+			rows: 40,
+			cwd,
+			env: { ...process.env, TERM: "xterm-color" },
+		});
+		const session: RunSession = {
+			cardId,
+			status: "running",
+			outputBuffer: "",
+			kill: () => { try { pty.kill(); } catch { /* already dead */ } },
+		};
+		runSessions.set(workspaceId, session);
+		stateHub.broadcastRunSessionChange(workspaceId, cardId, "running");
+
+		pty.onData((data) => {
+			session.outputBuffer = (session.outputBuffer + data).slice(-131072); // keep last 128KB
+			runTerminalListeners.get(workspaceId)?.forEach((cb) => cb(data));
+		});
+
+		pty.onExit(({ exitCode }) => {
+			const current = runSessions.get(workspaceId);
+			if (current !== session) return; // superseded by a newer run
+			if (exitCode === 0 || exitCode == null) {
+				session.status = "stopped";
+				stateHub.broadcastRunSessionChange(workspaceId, cardId, "stopped");
+			} else {
+				session.status = "error";
+				session.errorMessage = `Process exited with code ${exitCode}`;
+				stateHub.broadcastRunSessionChange(workspaceId, cardId, "error", session.errorMessage);
+			}
+		});
+	}
+
+	function stopRun(workspaceId: string): void {
+		const session = runSessions.get(workspaceId);
+		if (!session) return;
+		session.kill();
+		session.status = "stopped";
+		runSessions.delete(workspaceId);
+		stateHub.broadcastRunSessionChange(workspaceId, null, "stopped");
+	}
+
+	function getRunSession(workspaceId: string): RunSession | null {
+		return runSessions.get(workspaceId) ?? null;
+	}
 
 	async function ensureWorkspace(workspaceId: string): Promise<{ workspaceId: string; repoPath: string }> {
 		const workspaces = await listWorkspaces();
@@ -200,6 +255,9 @@ export async function createRuntimeServer(options: ServerOptions) {
 			ensureWorkspace,
 			currentWorkspaceId: initialCtx.workspaceId,
 			currentRepoPath: repoPath,
+			startRun,
+			stopRun,
+			getRunSession,
 		};
 	}
 
@@ -320,6 +378,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 	// listener registration happen in the same tick; live output can only arrive after.
 	const stateWss = new WebSocketServer({ noServer: true });
 	const terminalWss = new WebSocketServer({ noServer: true });
+	const runTerminalWss = new WebSocketServer({ noServer: true });
 
 	httpServer.on("upgrade", (req, socket, head) => {
 		try {
@@ -331,6 +390,10 @@ export async function createRuntimeServer(options: ServerOptions) {
 			} else if (url.pathname === "/api/terminal") {
 				terminalWss.handleUpgrade(req, socket as import("node:net").Socket, head, (ws) => {
 					terminalWss.emit("connection", ws, req);
+				});
+			} else if (url.pathname === "/api/run-terminal") {
+				runTerminalWss.handleUpgrade(req, socket as import("node:net").Socket, head, (ws) => {
+					runTerminalWss.emit("connection", ws, req);
 				});
 			} else {
 				(socket as import("node:net").Socket).end("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
@@ -389,6 +452,28 @@ export async function createRuntimeServer(options: ServerOptions) {
 
 			ws.on("error", () => {});
 			ws.on("close", () => { unsubscribe(); });
+		} catch { ws.close(1011, "Internal error"); }
+	});
+
+	runTerminalWss.on("connection", (ws, req) => {
+		try {
+			const url = new URL(req.url ?? "/", `http://${host}`);
+			const workspaceId = url.searchParams.get("workspaceId") ?? "";
+			if (!workspaceId) { ws.close(1008, "Missing params"); return; }
+
+			// Register live output listener
+			if (!runTerminalListeners.has(workspaceId)) runTerminalListeners.set(workspaceId, new Set());
+			const listener: RunTerminalListener = (data) => {
+				if (ws.readyState === 1) { try { ws.send(data); } catch { /* */ } }
+			};
+			runTerminalListeners.get(workspaceId)!.add(listener);
+
+			// Send buffered output so far
+			const session = runSessions.get(workspaceId);
+			if (session?.outputBuffer && ws.readyState === 1) ws.send(session.outputBuffer);
+
+			ws.on("error", () => {});
+			ws.on("close", () => { runTerminalListeners.get(workspaceId)?.delete(listener); });
 		} catch { ws.close(1011, "Internal error"); }
 	});
 

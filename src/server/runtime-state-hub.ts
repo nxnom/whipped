@@ -1,5 +1,5 @@
 import type { WebSocket } from "ws";
-import type { RuntimeStateEvent, RuntimeWorkspaceStateResponse } from "../core/api-contract.js";
+import type { RunSessionStatus, RuntimeStateEvent, RuntimeWorkspaceStateResponse } from "../core/api-contract.js";
 import { loadWorkspaceState } from "../state/workspace-state.js";
 
 type WorkspaceId = string;
@@ -108,6 +108,10 @@ export class RuntimeStateHub {
 
 	broadcastAutonomousModeChange(workspaceId: WorkspaceId, enabled: boolean): void {
 		this.broadcastToWorkspace(workspaceId, { type: "autonomous_mode_changed", enabled });
+	}
+
+	broadcastRunSessionChange(workspaceId: WorkspaceId, cardId: string | null, status: RunSessionStatus, errorMessage?: string): void {
+		this.broadcastToWorkspace(workspaceId, { type: "run_session_changed", cardId, status, errorMessage });
 	}
 
 	private broadcastToWorkspace(workspaceId: WorkspaceId, event: RuntimeStateEvent): void {

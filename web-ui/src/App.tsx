@@ -6,6 +6,7 @@ import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AssistantPanel } from "@/components/AssistantPanel";
+import { RunBar } from "@/components/RunBar";
 import { BoardPage } from "@/pages/Board";
 import { SettingsPage } from "@/pages/Settings";
 import { trpc } from "@/runtime/trpc-client";
@@ -119,37 +120,40 @@ export default function App() {
 				{/* Main + Agent panel */}
 				<div className="flex-1 overflow-hidden flex">
 					<main className="flex-1 overflow-hidden flex flex-col">
-						<ErrorBoundary>
-							<Routes>
-								<Route
-									path="/:workspaceId/board"
-									element={
-										<BoardPage
-											onConnectedChange={setConnected}
-											onAutonomousChange={setAutonomousOn}
-											onOpenSettings={() => navigate(`/${encodeURIComponent(activeWorkspaceId!)}/settings`)}
-											onOpenAgent={() => setAgentOpen((v) => !v)}
-										/>
-									}
-								/>
-								<Route
-									path="/:workspaceId/board/:cardId"
-									element={
-										<BoardPage
-											onConnectedChange={setConnected}
-											onAutonomousChange={setAutonomousOn}
-											onOpenSettings={() => navigate(`/${encodeURIComponent(activeWorkspaceId!)}/settings`)}
-											onOpenAgent={() => setAgentOpen((v) => !v)}
-										/>
-									}
-								/>
-								<Route
-									path="/:workspaceId/settings"
-									element={<SettingsPage />}
-								/>
-								<Route path="*" element={noProjectState} />
-							</Routes>
-						</ErrorBoundary>
+						<div className="flex-1 overflow-hidden flex flex-col min-h-0">
+							<ErrorBoundary>
+								<Routes>
+									<Route
+										path="/:workspaceId/board"
+										element={
+											<BoardPage
+												onConnectedChange={setConnected}
+												onAutonomousChange={setAutonomousOn}
+												onOpenSettings={() => navigate(`/${encodeURIComponent(activeWorkspaceId!)}/settings`)}
+												onOpenAgent={() => setAgentOpen((v) => !v)}
+											/>
+										}
+									/>
+									<Route
+										path="/:workspaceId/board/:cardId"
+										element={
+											<BoardPage
+												onConnectedChange={setConnected}
+												onAutonomousChange={setAutonomousOn}
+												onOpenSettings={() => navigate(`/${encodeURIComponent(activeWorkspaceId!)}/settings`)}
+												onOpenAgent={() => setAgentOpen((v) => !v)}
+											/>
+										}
+									/>
+									<Route
+										path="/:workspaceId/settings"
+										element={<SettingsPage />}
+									/>
+									<Route path="*" element={noProjectState} />
+								</Routes>
+							</ErrorBoundary>
+						</div>
+						{activeWorkspaceId && <RunBar workspaceId={activeWorkspaceId} />}
 					</main>
 
 					{activeWorkspaceId && (

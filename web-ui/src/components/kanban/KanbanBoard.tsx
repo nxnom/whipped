@@ -20,6 +20,7 @@ import { Bot, Layers, Paperclip, Plus, Settings, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { trpc } from "@/runtime/trpc-client";
+import { useRunSession } from "@/stores/run-session-store";
 import { CardDetailPanel } from "./CardDetailPanel";
 import { CreateStoryDrawer } from "./CreateStoryDrawer";
 import { KanbanColumn } from "./KanbanColumn";
@@ -38,6 +39,24 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
   const navigate = useNavigate();
   const { workspaceId: urlWorkspaceId, cardId: detailCardId } = useParams<{ workspaceId: string; cardId?: string }>();
   const workspaceId = urlWorkspaceId!;
+  const { session: runSession, start: startRun, stop: stopRun } = useRunSession(workspaceId);
+
+  const handleRun = async (cardId: string) => {
+    try {
+      await startRun(cardId);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(msg);
+    }
+  };
+
+  const handleStop = async () => {
+    try {
+      await stopRun();
+    } catch {
+      toast.error("Failed to stop");
+    }
+  };
   const detailCard = detailCardId ? (state.board.cards[detailCardId] ?? null) : null;
   const [storyDrawerOpen, setStoryDrawerOpen] = useState(false);
 
@@ -209,10 +228,14 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
                     cards={cards}
                     allCards={state.board.cards}
                     workflows={state.projectConfig.workflows}
+                    workspaceId={workspaceId}
+                    runningCardId={runSession.status === "running" ? runSession.cardId : null}
                     onCardClick={(card) => openCard(card.id)}
                     onCardEdit={openEditDialog}
                     onCardDelete={handleCardDelete}
                     onCardToggleReady={handleToggleReady}
+                    onCardRun={handleRun}
+                    onCardStop={handleStop}
                   />
                 );
               })}

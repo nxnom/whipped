@@ -1,6 +1,6 @@
 import { Draggable } from "@hello-pangea/dnd";
 import type { RuntimeBoardCard } from "@runtime-contract";
-import { Bot, ExternalLink, FolderOpen, GitPullRequest, Layers, Link2, Pencil, RotateCcw, Trash2, Workflow, Zap } from "lucide-react";
+import { Bot, ExternalLink, FolderOpen, GitPullRequest, Layers, Link2, Pencil, Play, RotateCcw, Square, Trash2, Workflow, Zap } from "lucide-react";
 import { trpc } from "@/runtime/trpc-client";
 
 interface KanbanCardProps {
@@ -8,10 +8,14 @@ interface KanbanCardProps {
 	index: number;
 	allCards: Record<string, RuntimeBoardCard>;
 	workflowName?: string;
+	workspaceId: string;
+	isRunning: boolean;
 	onClick: () => void;
 	onEdit?: () => void;
 	onDelete?: () => void;
 	onToggleReady?: () => void;
+	onRun?: () => void;
+	onStop?: () => void;
 }
 
 const AGENT_LABELS: Record<string, string> = {
@@ -32,7 +36,7 @@ const SESSION_STATE_COLORS: Record<string, string> = {
 	failed: "text-red-400",
 };
 
-export function KanbanCard({ card, index, allCards, workflowName, onClick, onEdit, onDelete, onToggleReady }: KanbanCardProps) {
+export function KanbanCard({ card, index, allCards, workflowName, workspaceId: _workspaceId, isRunning: isRunningNow, onClick, onEdit, onDelete, onToggleReady, onRun, onStop }: KanbanCardProps) {
 	const isRunning = card.terminalSessions?.some((ts) => !ts.endedAt) ?? false;
 	const agentLabel = card.agentId ? AGENT_LABELS[card.agentId] : null;
 	const lastTs = card.terminalSessions?.at(-1);
@@ -72,6 +76,23 @@ export function KanbanCard({ card, index, allCards, workflowName, onClick, onEdi
 				>
 					{/* Hover action buttons */}
 					<div className="absolute top-2 right-2 hidden group-hover:flex items-center gap-0.5 z-10">
+						{isRunningNow ? (
+							<button
+								onClick={(e) => { e.stopPropagation(); onStop?.(); }}
+								className="p-1 rounded text-red-400 hover:bg-gray-700 transition-colors"
+								title="Stop running"
+							>
+								<Square size={11} className="fill-current" />
+							</button>
+						) : (
+							<button
+								onClick={(e) => { e.stopPropagation(); onRun?.(); }}
+								className="p-1 rounded text-gray-500 hover:text-emerald-400 hover:bg-gray-700 transition-colors"
+								title="Run ticket"
+							>
+								<Play size={11} />
+							</button>
+						)}
 						{card.worktreePath && (
 							<button
 								onClick={(e) => { e.stopPropagation(); trpc.fs.openPath.mutate({ path: card.worktreePath! }); }}

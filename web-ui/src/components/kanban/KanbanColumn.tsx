@@ -25,13 +25,17 @@ interface KanbanColumnProps {
 	cards: RuntimeBoardCard[];
 	allCards: Record<string, RuntimeBoardCard>;
 	workflows: Workflow[];
+	workspaceId: string;
+	runningCardId: string | null;
 	onCardClick: (card: RuntimeBoardCard) => void;
 	onCardEdit: (card: RuntimeBoardCard) => void;
 	onCardDelete: (card: RuntimeBoardCard) => void;
 	onCardToggleReady: (card: RuntimeBoardCard) => void;
+	onCardRun: (cardId: string) => void;
+	onCardStop: () => void;
 }
 
-export function KanbanColumn({ column, cards, allCards, workflows, onCardClick, onCardEdit, onCardDelete, onCardToggleReady }: KanbanColumnProps) {
+export function KanbanColumn({ column, cards, allCards, workflows, workspaceId, runningCardId, onCardClick, onCardEdit, onCardDelete, onCardToggleReady, onCardRun, onCardStop }: KanbanColumnProps) {
 	const borderColor = COLUMN_COLORS[column.id] ?? "border-gray-600";
 	const headerColor = COLUMN_HEADER_COLORS[column.id] ?? "text-gray-400";
 
@@ -61,10 +65,14 @@ export function KanbanColumn({ column, cards, allCards, workflows, onCardClick, 
 								index={index}
 								allCards={allCards}
 								workflowName={workflows.find(w => w.id === card.workflowId)?.name}
+								workspaceId={workspaceId}
+								isRunning={runningCardId === card.id}
 								onClick={() => onCardClick(card)}
 								onEdit={() => onCardEdit(card)}
 								onDelete={() => onCardDelete(card)}
 								onToggleReady={() => onCardToggleReady(card)}
+								onRun={() => onCardRun(card.id)}
+								onStop={onCardStop}
 							/>
 						))}
 						{provided.placeholder}
