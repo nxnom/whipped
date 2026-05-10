@@ -280,7 +280,8 @@ export const appRouter = router({
 				const ws = workspaces.find((w) => w.workspaceId === input.workspaceId);
 				if (!ws) return { branches: [], defaultBranch: "main" };
 				const branches = listLocalBranches(ws.repoPath);
-				const defaultBranch = getDefaultBranch(ws.repoPath);
+				const config = await loadProjectConfig(input.workspaceId);
+				const defaultBranch = config.defaultBaseBranch ?? getDefaultBranch(ws.repoPath);
 				return { branches, defaultBranch };
 			}),
 

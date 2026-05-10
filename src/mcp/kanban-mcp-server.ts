@@ -399,7 +399,7 @@ server.registerTool(
 			for (const slot of sorted) {
 				const status = slot.enabled ? "enabled" : "disabled";
 				const effortTag = slot.effort ? `, effort: ${slot.effort}` : "";
-				const prompt = slot.prompt ? `\n    prompt: ${slot.prompt.slice(0, 120)}${slot.prompt.length > 120 ? "..." : ""}` : "";
+				const prompt = slot.prompt ? `\n    prompt: ${slot.prompt}` : "";
 				lines.push(`  - [${slot.id}] ${slot.name} (${slot.type}, ${slot.agentBinary}, ${status}${effortTag})${prompt}`);
 			}
 		}

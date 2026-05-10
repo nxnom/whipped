@@ -269,6 +269,7 @@ export const runtimeProjectConfigSchema = z.object({
 	maxParallelTasks: z.number().int().positive().optional(),
 	autonomousModeEnabled: z.boolean().default(false),
 	autoPR: z.boolean().default(false),
+	defaultBaseBranch: z.string().optional(),
 	github: runtimeGithubConfigSchema.optional(),
 	jira: runtimeJiraConfigSchema.optional(),
 	worktreeSetup: runtimeWorktreeSetupSchema.optional(),

@@ -1,4 +1,5 @@
 import { Button, Drawer, Input, Select, SelectOption, Textarea, toast } from "@geckoui/geckoui";
+import { BranchSelect } from "@/components/BranchSelect";
 import type { RuntimeBoardCard, Workflow } from "@runtime-contract";
 import { Layers, Paperclip, Pencil, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -289,11 +290,7 @@ export function CreateStoryDrawer({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-gray-400 block mb-1">Base Branch</label>
-                <Select value={baseRef} onChange={(v) => setBaseRef(v as string)} placeholder="Select branch">
-                  {branches.map((b) => (
-                    <SelectOption key={b} value={b} label={b} />
-                  ))}
-                </Select>
+                <BranchSelect branches={branches} value={baseRef} onChange={setBaseRef} />
               </div>
               <div>
                 <label className="text-xs text-gray-400 block mb-1">Orch Workflow</label>
@@ -541,11 +538,7 @@ function AddSubtaskDrawer({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs text-gray-400 block mb-1">Base Branch</label>
-            <Select value={baseRef} onChange={(v) => setBaseRef(v as string)} placeholder="Select branch">
-              {branches.map((b) => (
-                <SelectOption key={b} value={b} label={b} />
-              ))}
-            </Select>
+            <BranchSelect branches={branches} value={baseRef} onChange={setBaseRef} />
           </div>
           <div>
             <label className="text-xs text-gray-400 block mb-1">Workflow</label>

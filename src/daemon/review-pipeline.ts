@@ -180,7 +180,7 @@ async function runReviewSlot(
 		status: status as RuntimeReviewComment["status"],
 		createdAt: nowFallback,
 		streamId,
-		summary: parsed?.summary ?? output.trim().slice(0, 2000),
+		summary: parsed?.summary ?? output.trim(),
 		issues: parsed?.issues,
 		metadata: parsed?.metadata,
 	};

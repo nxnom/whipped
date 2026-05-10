@@ -21,6 +21,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { trpc } from "@/runtime/trpc-client";
 import { useRunSession } from "@/stores/run-session-store";
+import { BranchSelect } from "@/components/BranchSelect";
 import { CardDetailPanel } from "./CardDetailPanel";
 import { CreateStoryDrawer } from "./CreateStoryDrawer";
 import { KanbanColumn } from "./KanbanColumn";
@@ -448,15 +449,11 @@ function CreateCardContent({
             <label className="text-xs text-gray-400 block mb-1">
               Base Branch
             </label>
-            <Select
+            <BranchSelect
+              branches={branches}
               value={baseRef}
-              onChange={(v) => setBaseRef(v as string)}
-              placeholder="Select branch"
-            >
-              {branches.map((b) => (
-                <SelectOption key={b} value={b} label={b} />
-              ))}
-            </Select>
+              onChange={setBaseRef}
+            />
           </div>
           <div>
             <label className="text-xs text-gray-400 block mb-1">Workflow</label>

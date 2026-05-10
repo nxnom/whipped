@@ -2,13 +2,14 @@ import { Button, Checkbox, Input, Select, SelectOption, Switch, Textarea, toast 
 import type { Workflow, WorkflowSlot, RuntimeGlobalConfig, RuntimeJiraTicket, RuntimeProjectConfig, RuntimeWorktreeSetup, RuntimeProjectSecret } from "@runtime-contract";
 import { AGENT_BINARY_OPTIONS, BUILTIN_SECRET_KEYS, EFFORT_OPTIONS, type EffortLevel, workflowSchema } from "@runtime-contract";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
-import { ArrowLeft, Bot, Download, Eye, EyeOff, GripVertical, Key, Layers, MessageSquare, Plus, RefreshCw, Settings2, Terminal, Ticket, Trash2, Upload, X, Zap } from "lucide-react";
+import { ArrowLeft, Bot, Download, Eye, EyeOff, GitBranch, GripVertical, Key, Layers, MessageSquare, Plus, RefreshCw, Settings2, Terminal, Ticket, Trash2, Upload, X, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { trpc } from "@/runtime/trpc-client";
 import { useWorkspaceState } from "@/stores/board-store";
+import { BranchSelect } from "@/components/BranchSelect";
 
-type ProjectSection = "autonomous" | "workflows" | "assistant" | "environment" | "secrets" | "jira";
+type ProjectSection = "autonomous" | "workflows" | "assistant" | "environment" | "secrets" | "jira" | "git";
 type GlobalSection = "general";
 type SettingsSection = ProjectSection | GlobalSection;
 
@@ -17,6 +18,7 @@ const PROJECT_NAV: Array<{ id: ProjectSection; label: string; icon: React.ReactN
 	{ id: "workflows", label: "Workflows", icon: <Bot size={14} /> },
 	{ id: "assistant", label: "Assistant", icon: <MessageSquare size={14} /> },
 	{ id: "environment", label: "Environment", icon: <Terminal size={14} /> },
+	{ id: "git", label: "Git", icon: <GitBranch size={14} /> },
 	{ id: "secrets", label: "Secrets", icon: <Key size={14} /> },
 	{ id: "jira", label: "Jira", icon: <Ticket size={14} /> },
 ];
@@ -25,7 +27,7 @@ const GLOBAL_NAV: Array<{ id: GlobalSection; label: string; icon: React.ReactNod
 	{ id: "general", label: "General", icon: <Settings2 size={14} /> },
 ];
 
-const PROJECT_SECTIONS = new Set<SettingsSection>(["autonomous", "workflows", "assistant", "environment", "secrets", "jira"]);
+const PROJECT_SECTIONS = new Set<SettingsSection>(["autonomous", "workflows", "assistant", "environment", "secrets", "jira", "git"]);
 
 export function SettingsPage() {
 	const navigate = useNavigate();
@@ -109,6 +111,7 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 	const [selectedTickets, setSelectedTickets] = useState<Set<string>>(new Set());
 	const [fetchingJira, setFetchingJira] = useState(false);
 	const [importing, setImporting] = useState(false);
+	const [branches, setBranches] = useState<string[]>([]);
 	const isDirtyRef = useRef(false);
 
 	const { state: wsState } = useWorkspaceState(workspaceId);
@@ -120,6 +123,16 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 			.then((g) => setGlobalDefaultBinary(g.defaultAgent as "claude" | "codex"))
 			.catch(() => {});
 	}, []);
+
+	// Fetch branches when git section is active
+	useEffect(() => {
+		if (section === "git") {
+			trpc.cards.listBranches
+				.query({ workspaceId })
+				.then(({ branches: b }) => setBranches(b))
+				.catch(() => {});
+		}
+	}, [section, workspaceId]);
 
 	// Reset dirty flag when workspace changes
 	useEffect(() => {
@@ -314,6 +327,27 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 					onSave={handleSave}
 					saving={saving}
 				/>
+			)}
+
+			{section === "git" && (
+				<>
+					<SectionHeader
+						title="Git"
+						description="Repository defaults used when creating new tickets."
+					/>
+					<Field label="Default base branch">
+						<BranchSelect
+							branches={branches}
+							value={config.defaultBaseBranch ?? ""}
+							onChange={(v) => updateConfig({ ...config, defaultBaseBranch: v || undefined })}
+							placeholder="Use repo default"
+						/>
+						<p className="text-xs text-gray-500 mt-1.5">
+							New tasks and stories will default to this branch. Leave empty to use the repo's default branch.
+						</p>
+					</Field>
+					<SaveRow saving={saving} onSave={handleSave} />
+				</>
 			)}
 
 			{section === "jira" && (
