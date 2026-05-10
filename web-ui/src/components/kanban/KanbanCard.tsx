@@ -66,71 +66,14 @@ export function KanbanCard({ card, index, allCards, workflowName, workspaceId: _
 					ref={provided.innerRef}
 					{...provided.draggableProps}
 					{...provided.dragHandleProps}
-					onClick={onClick}
 					className={`
-						relative group border rounded-lg p-3 cursor-pointer select-none
+						border rounded-lg overflow-hidden select-none
 						transition-all duration-150
-						${isStory ? "bg-purple-950/30 hover:bg-purple-950/50 hover:border-purple-700" : "bg-gray-800 hover:bg-gray-750 hover:border-gray-500"}
+						${isStory ? "bg-purple-950/30 hover:border-purple-700" : "bg-gray-800 hover:border-gray-500"}
 						${borderClass(snapshot.isDragging)}
 					`}
 				>
-					{/* Hover action buttons */}
-					<div className="absolute top-2 right-2 hidden group-hover:flex items-center gap-0.5 z-10">
-						{isRunningNow ? (
-							<button
-								onClick={(e) => { e.stopPropagation(); onStop?.(); }}
-								className="p-1 rounded text-red-400 hover:bg-gray-700 transition-colors"
-								title="Stop running"
-							>
-								<Square size={11} className="fill-current" />
-							</button>
-						) : (
-							<button
-								onClick={(e) => { e.stopPropagation(); onRun?.(); }}
-								className="p-1 rounded text-gray-500 hover:text-emerald-400 hover:bg-gray-700 transition-colors"
-								title="Run ticket"
-							>
-								<Play size={11} />
-							</button>
-						)}
-						{card.worktreePath && (
-							<button
-								onClick={(e) => { e.stopPropagation(); trpc.fs.openPath.mutate({ path: card.worktreePath! }); }}
-								className="p-1 rounded text-gray-500 hover:text-blue-400 hover:bg-gray-700 transition-colors"
-								title="Open worktree folder"
-							>
-								<FolderOpen size={11} />
-							</button>
-						)}
-						{card.columnId === "todo" && onToggleReady && !isStory && !isSubtask && (
-							<button
-								onClick={(e) => { e.stopPropagation(); onToggleReady(); }}
-								className={`p-1 rounded transition-colors ${card.readyForDev ? "text-emerald-400 hover:text-gray-400 hover:bg-gray-700" : "text-gray-500 hover:text-emerald-400 hover:bg-gray-700"}`}
-								title={card.readyForDev ? "Unmark as ready" : "Mark as ready for agent"}
-							>
-								<Zap size={11} />
-							</button>
-						)}
-						{!isRunning && onEdit && (
-							<button
-								onClick={(e) => { e.stopPropagation(); onEdit(); }}
-								className="p-1 rounded text-gray-500 hover:text-gray-200 hover:bg-gray-700 transition-colors"
-								title={isStory ? "Edit story" : "Edit task"}
-							>
-								<Pencil size={11} />
-							</button>
-						)}
-						{onDelete && (
-							<button
-								onClick={(e) => { e.stopPropagation(); onDelete(); }}
-								className="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-gray-700 transition-colors"
-								title="Delete"
-							>
-								<Trash2 size={11} />
-							</button>
-						)}
-					</div>
-
+				<div onClick={onClick} className="p-3 cursor-pointer">
 					{/* Story header */}
 					{isStory && (
 						<div className="flex items-center gap-1.5 mb-2">
@@ -140,7 +83,7 @@ export function KanbanCard({ card, index, allCards, workflowName, workspaceId: _
 					)}
 
 					<div className="flex items-start justify-between gap-2">
-						<p className={`text-sm font-medium leading-snug flex-1 pr-10 ${isStory ? "text-purple-100" : "text-gray-100"}`}>
+						<p className={`text-sm font-medium leading-snug flex-1 ${isStory ? "text-purple-100" : "text-gray-100"}`}>
 							{card.title}
 						</p>
 						<div className="flex items-center gap-1 shrink-0">
@@ -233,6 +176,67 @@ export function KanbanCard({ card, index, allCards, workflowName, workspaceId: _
 						)}
 						{isRunning && card.columnId !== "done" && (
 							<span className={`text-xs ml-auto ${sessionColor}`}>running</span>
+						)}
+					</div>
+
+				</div>
+					{/* Action bar — always visible at bottom */}
+					<div className="px-3 pb-2 border-t border-gray-700/60 flex items-center gap-0.5 pt-1.5" onClick={(e) => e.stopPropagation()}>
+						{isRunningNow ? (
+							<button
+								onClick={(e) => { e.stopPropagation(); onStop?.(); }}
+								className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-red-400 hover:bg-gray-700 transition-colors cursor-pointer"
+								title="Stop running"
+							>
+								<Square size={13} className="fill-current" />
+								Stop
+							</button>
+						) : (
+							<button
+								onClick={(e) => { e.stopPropagation(); onRun?.(); }}
+								className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-gray-500 hover:text-emerald-400 hover:bg-gray-700 transition-colors cursor-pointer"
+								title="Run ticket"
+							>
+								<Play size={13} />
+								Run
+							</button>
+						)}
+						{card.columnId === "todo" && onToggleReady && !isStory && !isSubtask && (
+							<button
+								onClick={(e) => { e.stopPropagation(); onToggleReady(); }}
+								className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs transition-colors cursor-pointer ${card.readyForDev ? "text-emerald-400 hover:text-gray-400 hover:bg-gray-700" : "text-gray-500 hover:text-emerald-400 hover:bg-gray-700"}`}
+								title={card.readyForDev ? "Unmark as ready" : "Mark as ready for agent"}
+							>
+								<Zap size={13} />
+							</button>
+						)}
+						{card.worktreePath && (
+							<button
+								onClick={(e) => { e.stopPropagation(); trpc.fs.openPath.mutate({ path: card.worktreePath! }); }}
+								className="px-2.5 py-1.5 rounded text-xs text-gray-500 hover:text-blue-400 hover:bg-gray-700 transition-colors cursor-pointer"
+								title="Open worktree folder"
+							>
+								<FolderOpen size={13} />
+							</button>
+						)}
+						<div className="flex-1" />
+						{!isRunning && onEdit && (
+							<button
+								onClick={(e) => { e.stopPropagation(); onEdit(); }}
+								className="px-2.5 py-1.5 rounded text-xs text-gray-500 hover:text-gray-200 hover:bg-gray-700 transition-colors cursor-pointer"
+								title={isStory ? "Edit story" : "Edit task"}
+							>
+								<Pencil size={13} />
+							</button>
+						)}
+						{onDelete && (
+							<button
+								onClick={(e) => { e.stopPropagation(); onDelete(); }}
+								className="px-2.5 py-1.5 rounded text-xs text-gray-500 hover:text-red-400 hover:bg-gray-700 transition-colors cursor-pointer"
+								title="Delete"
+							>
+								<Trash2 size={13} />
+							</button>
 						)}
 					</div>
 				</div>
