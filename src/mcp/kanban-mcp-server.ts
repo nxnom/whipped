@@ -437,5 +437,36 @@ server.registerTool(
 	},
 );
 
+server.registerTool(
+	"kanban_get_system_prompt",
+	{
+		description: "Get the shared system prompt for this project. This prompt is appended to every agent — dev, code review, QA, and the assistant chat.",
+		inputSchema: {},
+	},
+	async () => {
+		const config = await trpcQuery<{ systemPrompt?: string }>("projectConfig.get", { workspaceId });
+		const prompt = config.systemPrompt?.trim();
+		return { content: [{ type: "text", text: prompt ? prompt : "(no shared system prompt set)" }] };
+	},
+);
+
+server.registerTool(
+	"kanban_set_system_prompt",
+	{
+		description: "Set or update the shared system prompt for this project. The prompt is appended to every agent — dev, code review, QA, and the assistant chat. Pass an empty string to clear it.",
+		inputSchema: {
+			prompt: z.string().describe("The new shared system prompt. Pass an empty string to clear the existing prompt."),
+		},
+	},
+	async ({ prompt }) => {
+		const config = await trpcQuery<Record<string, unknown>>("projectConfig.get", { workspaceId });
+		await trpc("projectConfig.save", {
+			workspaceId,
+			config: { ...config, systemPrompt: prompt.trim() || undefined },
+		});
+		return { content: [{ type: "text", text: prompt.trim() ? `Shared system prompt updated.` : `Shared system prompt cleared.` }] };
+	},
+);
+
 const transport = new StdioServerTransport();
 await server.connect(transport);
