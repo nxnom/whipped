@@ -13,7 +13,7 @@ import { buildDevAgentSystemPrompt, buildSecretsEnv, buildSecretsSection, runPar
 import { logger } from "../core/logger.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { appendActivityLog, appendTerminalSession, clearCardSession, endTerminalSession, linkCommentToSession, loadBoard, loadProjectConfig, moveCard, saveTerminalBuffer, updateCard } from "../state/workspace-state.js";
-import { createWorktree, getWorktreeBranch, getWorktreePath, removeWorktree, removeWorktreeAsync } from "../worktree/worktree-manager.js";
+import { createWorktree, getWorktreeBranch, getWorktreePath } from "../worktree/worktree-manager.js";
 
 export interface SchedulerOptions {
 	workspaceId: string;

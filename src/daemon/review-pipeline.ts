@@ -10,7 +10,7 @@ import type { WorkflowSlot, RuntimeBoardCard, RuntimeReviewComment, RuntimeProje
 import type { GithubClient } from "../github/github-client.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { appendActivityLog, appendTerminalSession, endTerminalSession, linkCommentToSession, loadBoard, moveCard, saveAttachment, saveTerminalBuffer, updateCard } from "../state/workspace-state.js";
-import { getWorktreeBranch, getWorktreePath, removeWorktreeAsync } from "../worktree/worktree-manager.js";
+import { getWorktreeBranch, getWorktreePath } from "../worktree/worktree-manager.js";
 import { logger } from "../core/logger.js";
 
 interface ReviewPipelineOptions {
@@ -235,7 +235,7 @@ async function handleReviewFailure(
 			? `Max fix attempts reached (${newAttempts}) → moved to Blocked`
 			: `Review failed (attempt ${newAttempts}/${maxAutoFixAttempts}) → moved to Reopened`,
 	);
-	if (destination === "blocked") void removeWorktreeAsync(card.id, options.repoPath);
+	// Worktree is intentionally kept when blocked so prior commits survive a manual restart
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 }
 
