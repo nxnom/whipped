@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { trpc } from "@/runtime/trpc-client";
 
+const MIN_WIDTH = 320;
+const MAX_WIDTH = 900;
+const DEFAULT_WIDTH = 520;
+
 interface Props {
 	workspaceId: string;
 	open: boolean;
@@ -14,6 +18,26 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 	const [taskId, setTaskId] = useState<string | null>(null);
 	const [starting, setStarting] = useState(false);
 	const startingRef = useRef(false);
+	const [width, setWidth] = useState(DEFAULT_WIDTH);
+	const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+	const onDragStart = (e: React.MouseEvent) => {
+		e.preventDefault();
+		dragRef.current = { startX: e.clientX, startWidth: width };
+		const onMove = (ev: MouseEvent) => {
+			if (!dragRef.current) return;
+			// Dragging left increases width (panel is on the right)
+			const delta = dragRef.current.startX - ev.clientX;
+			setWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, dragRef.current.startWidth + delta)));
+		};
+		const onUp = () => {
+			dragRef.current = null;
+			window.removeEventListener("mousemove", onMove);
+			window.removeEventListener("mouseup", onUp);
+		};
+		window.addEventListener("mousemove", onMove);
+		window.addEventListener("mouseup", onUp);
+	};
 
 	useEffect(() => {
 		if (!open) return;
@@ -76,7 +100,13 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 	const handleClose = () => onClose();
 
 	return (
-		<div className={`w-96 shrink-0 border-l border-gray-800 flex flex-col overflow-hidden ${open ? "" : "hidden"}`}>
+		<div className={`shrink-0 flex overflow-hidden ${open ? "" : "hidden"}`} style={{ width }}>
+			{/* Drag handle */}
+			<div
+				onMouseDown={onDragStart}
+				className="w-1 shrink-0 cursor-col-resize hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors bg-gray-800"
+			/>
+			<div className="flex-1 border-l border-gray-800 flex flex-col overflow-hidden">
 			<div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 shrink-0">
 				<div className="flex items-center gap-2">
 					<Bot size={16} className="text-blue-400" />
@@ -106,6 +136,7 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 						</Button>
 					</div>
 				)}
+			</div>
 			</div>
 		</div>
 	);
