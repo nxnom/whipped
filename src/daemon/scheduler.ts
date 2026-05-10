@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync } from "node:fs";
 import { unlink } from "node:fs/promises";
 import { commitIfDirty, pushBranch } from "../git/merge-operations.js";
 import { dirname, join, resolve } from "node:path";
@@ -276,7 +276,7 @@ export class TaskScheduler {
 					if (!existsSync(src)) continue;
 					const dst = join(worktree.path, relPath);
 					mkdirSync(dirname(dst), { recursive: true });
-					try { copyFileSync(src, dst); copied.push(relPath); } catch { /* best-effort */ }
+					try { cpSync(src, dst, { recursive: true }); copied.push(relPath); } catch { /* best-effort */ }
 				}
 				if (copied.length > 0) {
 					await appendActivityLog(workspaceId, taskId, `Copied to worktree: ${copied.join(", ")}`);
