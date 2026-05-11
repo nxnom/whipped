@@ -55,6 +55,9 @@ export class TaskScheduler {
 	private hookHandledTasks = new Set<string>();
 	// Tasks that were manually stopped — prevents onExit from running the failure path.
 	private manuallyStoppedTasks = new Set<string>();
+	// Same set but persists until handleHookEvent has consumed it — handles the race where
+	// the Claude Code Stop hook fires (async HTTP) after stopTask() has already killed the process.
+	private manuallyStoppedForHook = new Set<string>();
 	// Tasks stopped because their parent was reopened — session set to "stopped" in onExit.
 	private parentReopenedTasks = new Set<string>();
 	// Set during graceful shutdown — onExit becomes a no-op to preserve cleanup state.
@@ -349,8 +352,17 @@ export class TaskScheduler {
 					// If manually stopped, clear the session so the card can be restarted.
 					if (this.manuallyStoppedTasks.has(taskId)) {
 						this.manuallyStoppedTasks.delete(taskId);
+						this.manuallyStoppedForHook.delete(taskId);
 						await endTerminalSession(workspaceId, taskId, devStreamId, Date.now(), "stopped");
 						await clearCardSession(workspaceId, taskId);
+						// Move back to todo only if handleHookEvent hasn't already done it
+						const stoppedBoard = await loadBoard(workspaceId);
+						const stoppedCard = stoppedBoard.cards[taskId];
+						if (stoppedCard?.columnId === "in_progress") {
+							await moveCard(workspaceId, taskId, "todo");
+							await updateCard(workspaceId, taskId, { readyForDev: false });
+							await appendActivityLog(workspaceId, taskId, "Moved back to Todo");
+						}
 						stateHub.broadcastWorkspaceUpdate(workspaceId);
 						return;
 					}
@@ -463,6 +475,7 @@ export class TaskScheduler {
 		if (task) {
 			logger.info(`[scheduler] Stopping task ${taskId}`);
 			this.manuallyStoppedTasks.add(taskId);
+			this.manuallyStoppedForHook.add(taskId);
 			task.process.kill();
 			this.running.delete(taskId);
 			void appendActivityLog(this.options.workspaceId, taskId, "Agent stopped manually");
@@ -561,6 +574,25 @@ export class TaskScheduler {
 			const board = await loadBoard(workspaceId);
 			const card = board.cards[taskId];
 			if (!card || card.columnId !== "in_progress") return;
+
+			// If the stop was triggered manually via stopTask(), move the card back to
+			// todo (readyForDev=false) instead of treating it as "agent finished".
+			if (this.manuallyStoppedForHook.has(taskId)) {
+				this.manuallyStoppedForHook.delete(taskId);
+				const task = this.running.get(taskId);
+				if (task) {
+					this.setRecentBuffer(task.streamId, task.outputBuffer);
+					void saveTerminalBuffer(workspaceId, task.streamId, task.outputBuffer);
+					task.process.kill();
+					this.running.delete(taskId);
+				}
+				await moveCard(workspaceId, taskId, "todo");
+				await updateCard(workspaceId, taskId, { readyForDev: false });
+				await appendActivityLog(workspaceId, taskId, "Moved back to Todo");
+				stateHub.broadcastWorkspaceUpdate(workspaceId);
+				logger.info(`[scheduler] Hook Stop (manual): task ${taskId} → todo`);
+				return;
+			}
 
 			// Mark before killing — onExit checks this synchronously to skip the
 			// duplicate onTaskCompleted call (kill fires onExit before moveCard runs).
