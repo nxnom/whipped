@@ -1,6 +1,6 @@
 import { Draggable } from "@hello-pangea/dnd";
 import type { RuntimeBoardCard } from "@runtime-contract";
-import { Bot, ExternalLink, FolderOpen, GitPullRequest, Layers, Link2, Pencil, Play, RotateCcw, Square, Trash2, Workflow, Zap } from "lucide-react";
+import { Bot, ExternalLink, FolderOpen, GitBranch, GitPullRequest, Layers, Link2, Pencil, Play, RotateCcw, Square, Trash2, Workflow, Zap } from "lucide-react";
 import { trpc } from "@/runtime/trpc-client";
 
 interface KanbanCardProps {
@@ -173,6 +173,12 @@ export function KanbanCard({ card, index, allCards, workflowName, workspaceId: _
 							>
 								{card.jiraKey}
 							</a>
+						)}
+						{card.baseRef && (
+							<span className="flex items-center gap-1 text-[10px] text-gray-600 bg-gray-700/30 rounded px-1.5 py-0.5 font-mono" title={`Base branch: ${card.baseRef}`}>
+								<GitBranch size={9} />
+								{card.baseRef}
+							</span>
 						)}
 						{isRunning && card.columnId !== "done" && (
 							<span className={`text-xs ml-auto ${sessionColor}`}>running</span>

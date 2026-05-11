@@ -401,6 +401,18 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 										<span className="font-mono truncate max-w-[220px]">{card.worktreePath.split("/").slice(-2).join("/")}</span>
 									</button>
 								)}
+								{card.baseRef && (
+									<div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+										<GitBranch size={11} className="shrink-0" />
+										{card.worktreePath && (
+											<>
+												<span className="font-mono text-gray-400 truncate max-w-[140px]">{`kanbom/task-${card.id}`}</span>
+												<span className="text-gray-600">→</span>
+											</>
+										)}
+										<span className="font-mono text-gray-400 truncate max-w-[140px]">{card.baseRef}</span>
+									</div>
+								)}
 							</div>
 
 							{card.description && (
