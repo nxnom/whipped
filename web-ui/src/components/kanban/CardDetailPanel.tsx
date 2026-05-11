@@ -106,6 +106,7 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 	const [rightTab, setRightTab] = useState<RightTab>("terminal");
 	const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR);
 	const [uploadingDesc, setUploadingDesc] = useState(false);
+	const [descExpanded, setDescExpanded] = useState(false);
 	const descFileInputRef = useRef<HTMLInputElement>(null);
 	const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
@@ -416,7 +417,19 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 							</div>
 
 							{card.description && (
-								<p className="text-xs text-gray-400 whitespace-pre-wrap leading-relaxed">{card.description}</p>
+								<div>
+									<p className={`text-xs text-gray-400 whitespace-pre-wrap leading-relaxed ${descExpanded ? "" : "line-clamp-4"}`}>
+										{card.description}
+									</p>
+									{card.description.split("\n").length > 4 || card.description.length > 240 ? (
+										<button
+											onClick={() => setDescExpanded((v) => !v)}
+											className="mt-1 text-[11px] text-gray-600 hover:text-gray-400 transition-colors"
+										>
+											{descExpanded ? "Show less" : "Show more"}
+										</button>
+									) : null}
+								</div>
 							)}
 
 							{/* Description attachments */}
