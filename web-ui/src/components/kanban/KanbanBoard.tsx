@@ -215,9 +215,9 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
         </div>
       </div>
 
-        <div className="flex-1 overflow-x-auto">
+        <div className="flex-1 overflow-x-auto flex flex-col">
           <DragDropContext onDragEnd={handleDragEnd}>
-            <div className="flex gap-3 p-4 h-full">
+            <div className="flex gap-3 p-4 flex-1 w-max">
               {state.board.columns.map((column) => {
                 const cards = column.taskIds
                   .map((id) => state.board.cards[id])
