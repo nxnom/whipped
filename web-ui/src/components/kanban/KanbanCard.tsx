@@ -207,7 +207,7 @@ export function KanbanCard({ card, index, allCards, workflowName, workspaceId: _
 								Run
 							</button>
 						)}
-						{card.columnId === "todo" && onToggleReady && !isStory && !isSubtask && (
+						{card.columnId === "todo" && onToggleReady && !isStory && (
 							<button
 								onClick={(e) => { e.stopPropagation(); onToggleReady(); }}
 								className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs transition-colors cursor-pointer ${card.readyForDev ? "text-emerald-400 hover:text-gray-400 hover:bg-gray-700" : "text-gray-500 hover:text-emerald-400 hover:bg-gray-700"}`}

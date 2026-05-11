@@ -89,7 +89,7 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 			const alreadyPassed = lastSlotComment
 				? lastSlotComment.createdAt >= sessionStartedAt
 					&& lastSlotComment.status !== "fail"
-					&& !(lastSlotComment.issues?.some((i) => i.severity === "blocking" || i.severity === "warning") ?? false)
+					&& !(lastSlotComment.issues?.some((i) => i.severity === "blocking") ?? false)
 				: false;
 			if (alreadyPassed) {
 				logger.info(`[review] ${slot.name} already passed for "${card.title}" — skipping`);
@@ -161,7 +161,7 @@ async function runReviewSlot(
 	const mcpComment = await getMcpComment(workspaceId, card.id, startTime, commentType);
 	if (mcpComment) {
 		const endedAt = Date.now();
-		const hasMustFixIssue = mcpComment.issues?.some((i) => i.severity === "blocking" || i.severity === "warning") ?? false;
+		const hasMustFixIssue = mcpComment.issues?.some((i) => i.severity === "blocking") ?? false;
 		const passed = mcpComment.status !== "fail" && !hasMustFixIssue;
 		await linkCommentToSession(workspaceId, card.id, mcpComment.createdAt, streamId);
 		await endTerminalSession(workspaceId, card.id, streamId, endedAt, passed ? "completed" : "failed");
@@ -171,7 +171,7 @@ async function runReviewSlot(
 	// Non-MCP fallback: try to parse JSON from output
 	const parsed = tryParseAgentJson(output);
 	const status = parsed?.status ?? (/(FAIL|REJECT|CRITICAL|BLOCKING|ERROR|CRASH|BROKEN)/i.test(output) ? "fail" : "pass");
-	const hasMustFixIssue = parsed?.issues?.some((i: { severity: string }) => i.severity === "blocking" || i.severity === "warning") ?? false;
+	const hasMustFixIssue = parsed?.issues?.some((i: { severity: string }) => i.severity === "blocking") ?? false;
 	const passed = status !== "fail" && !hasMustFixIssue;
 	const nowFallback = Date.now();
 	const comment: RuntimeReviewComment = {
