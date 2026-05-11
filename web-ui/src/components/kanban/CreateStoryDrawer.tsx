@@ -14,6 +14,21 @@ async function uploadImages(workspaceId: string, cardId: string, images: Pending
   return results;
 }
 
+function addFilesFromClipboard(e: { clipboardData: DataTransfer; preventDefault(): void }, setter: (fn: (prev: PendingImage[]) => PendingImage[]) => void) {
+  const files = Array.from(e.clipboardData.files);
+  if (!files.length) return;
+  e.preventDefault();
+  for (const file of files) {
+    if (file.type.startsWith("image/")) {
+      const r = new FileReader();
+      r.onload = ev => setter(p => [...p, { dataUrl: ev.target?.result as string, file }]);
+      r.readAsDataURL(file);
+    } else {
+      setter(p => [...p, { dataUrl: null, file }]);
+    }
+  }
+}
+
 function ImagePicker({ pending, onChange }: { pending: PendingImage[]; onChange: (imgs: PendingImage[]) => void }) {
   const ref = useRef<HTMLInputElement>(null);
   const addFiles = (files: FileList | File[]) => {
@@ -261,7 +276,7 @@ export function CreateStoryDrawer({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5" onPaste={(e) => addFilesFromClipboard(e, setStoryPendingImages)}>
           <div className="space-y-3">
             <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Story</p>
             <div>
@@ -278,10 +293,6 @@ export function CreateStoryDrawer({
               <Textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                onPaste={(e) => {
-                  const files = Array.from(e.clipboardData.files);
-                  if (files.length) { e.preventDefault(); files.forEach(file => { if (file.type.startsWith("image/")) { const r = new FileReader(); r.onload = ev => setStoryPendingImages(p => [...p, { dataUrl: ev.target?.result as string, file }]); r.readAsDataURL(file); } else { setStoryPendingImages(p => [...p, { dataUrl: null, file }]); } }); }
-                }}
                 placeholder="What does this story accomplish?"
                 rows={3}
               />
@@ -510,7 +521,7 @@ function AddSubtaskDrawer({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3" onPaste={(e) => addFilesFromClipboard(e, setPendingImages)}>
         <div>
           <label className="text-xs text-gray-400 block mb-1">Title</label>
           <Input
@@ -526,10 +537,6 @@ function AddSubtaskDrawer({
           <Textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            onPaste={(e) => {
-              const files = Array.from(e.clipboardData.files);
-              if (files.length) { e.preventDefault(); files.forEach(file => { if (file.type.startsWith("image/")) { const r = new FileReader(); r.onload = ev => setPendingImages(p => [...p, { dataUrl: ev.target?.result as string, file }]); r.readAsDataURL(file); } else { setPendingImages(p => [...p, { dataUrl: null, file }]); } }); }
-            }}
             placeholder="Describe what needs to be done..."
             rows={4}
           />
