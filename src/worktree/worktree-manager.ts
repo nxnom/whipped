@@ -27,6 +27,7 @@ export interface WorktreeInfo {
 
 export interface WorktreeCreateResult extends WorktreeInfo {
 	isNew: boolean;
+	conflictedFiles: string[];
 }
 
 export function createWorktree(taskId: string, repoPath: string, baseRef: string): WorktreeCreateResult {
@@ -37,7 +38,7 @@ export function createWorktree(taskId: string, repoPath: string, baseRef: string
 
 	// Reuse existing worktree so retries (reopened cards) build on prior work
 	if (existsSync(worktreePath)) {
-		return { taskId, path: worktreePath, branch, isNew: false };
+		return { taskId, path: worktreePath, branch, isNew: false, conflictedFiles: [] };
 	}
 
 	// Prune stale git refs in case a previous run left the worktree deregistered
@@ -54,7 +55,56 @@ export function createWorktree(taskId: string, repoPath: string, baseRef: string
 		if (!r.ok) throw new Error(`Failed to create worktree branch ${branch} at ${worktreePath}`);
 	}
 
-	return { taskId, path: worktreePath, branch, isNew: true };
+	return { taskId, path: worktreePath, branch, isNew: true, conflictedFiles: [] };
+}
+
+// Creates a worktree from baseRef and merges in any additional dependency branches.
+// Used when a card depends on multiple independent tickets so all code is present.
+export function createMergedWorktree(
+	taskId: string,
+	repoPath: string,
+	baseRef: string,
+	extraBranches: string[],
+): WorktreeCreateResult {
+	mkdirSync(WORKTREES_DIR, { recursive: true });
+
+	const branch = `kanbom/task-${taskId}`;
+	const worktreePath = join(WORKTREES_DIR, taskId);
+
+	if (existsSync(worktreePath)) {
+		return { taskId, path: worktreePath, branch, isNew: false, conflictedFiles: [] };
+	}
+
+	git(["worktree", "prune"], repoPath);
+
+	const branchCheck = git(["branch", "--list", branch], repoPath);
+	const branchExists = branchCheck.stdout.includes(branch);
+
+	if (branchExists) {
+		const r = git(["worktree", "add", worktreePath, branch], repoPath);
+		if (!r.ok) throw new Error(`Failed to add worktree at ${worktreePath}`);
+		return { taskId, path: worktreePath, branch, isNew: false, conflictedFiles: [] };
+	}
+
+	const r = git(["worktree", "add", "-b", branch, worktreePath, baseRef], repoPath);
+	if (!r.ok) throw new Error(`Failed to create worktree branch ${branch} at ${worktreePath}`);
+
+	for (const mergeBranch of extraBranches) {
+		const mergeResult = git(["merge", "--no-edit", mergeBranch], worktreePath);
+		if (!mergeResult.ok) {
+			// Leave the worktree in the conflicted state so the resolution agent can fix it.
+			const conflictsOut = spawnSync("git", ["diff", "--name-only", "--diff-filter=U"], {
+				cwd: worktreePath,
+				encoding: "utf-8",
+				stdio: ["ignore", "pipe", "pipe"],
+			});
+			const conflictedFiles = conflictsOut.stdout.trim().split("\n").filter(Boolean);
+			logger.warn(`[worktree] Merge conflict merging ${mergeBranch} into ${branch}: ${conflictedFiles.join(", ")}`);
+			return { taskId, path: worktreePath, branch, isNew: true, conflictedFiles };
+		}
+	}
+
+	return { taskId, path: worktreePath, branch, isNew: true, conflictedFiles: [] };
 }
 
 export function removeWorktree(taskId: string, repoPath: string): void {

@@ -13,7 +13,7 @@ import { buildDevAgentSystemPrompt, buildSecretsEnv, buildSecretsSection, runPar
 import { logger } from "../core/logger.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { appendActivityLog, appendTerminalSession, clearCardSession, endTerminalSession, linkCommentToSession, loadBoard, loadProjectConfig, moveCard, saveTerminalBuffer, updateCard } from "../state/workspace-state.js";
-import { createWorktree, getWorktreeBranch, getWorktreePath } from "../worktree/worktree-manager.js";
+import { createMergedWorktree, createWorktree, getWorktreeBranch, getWorktreePath } from "../worktree/worktree-manager.js";
 
 export interface SchedulerOptions {
 	workspaceId: string;
@@ -198,6 +198,7 @@ export class TaskScheduler {
 
 		// Check and resolve dependencies
 		let effectiveBaseRef = card.baseRef;
+		let extraDepBranches: string[] = [];
 		let parentCards: RuntimeBoardCard[] = [];
 		if (card.dependsOn && card.dependsOn.length > 0) {
 			const board = await loadBoard(workspaceId);
@@ -214,13 +215,19 @@ export class TaskScheduler {
 			}
 			// Story cards run the orch workflow on the base branch — don't branch off subtask worktrees
 			if (card.type !== "story") {
-				for (let i = card.dependsOn.length - 1; i >= 0; i--) {
-					const depId = card.dependsOn[i] as string;
-					const dep = board.cards[depId];
-					if (dep?.columnId === "ready_for_review") {
-						effectiveBaseRef = getWorktreeBranch(depId);
-						break;
+				// Collect all resolved dep branches in order; use last as primary base, merge in the rest.
+				// Including "done" deps here is intentional — their branches are kept alive until all
+				// dependents complete (see poller cleanup logic).
+				const resolvedDepBranches: string[] = [];
+				for (const depId of card.dependsOn) {
+					const dep = board.cards[depId as string];
+					if (dep?.columnId === "ready_for_review" || dep?.columnId === "done") {
+						resolvedDepBranches.push(getWorktreeBranch(depId as string));
 					}
+				}
+				if (resolvedDepBranches.length > 0) {
+					effectiveBaseRef = resolvedDepBranches[resolvedDepBranches.length - 1]!;
+					extraDepBranches = resolvedDepBranches.slice(0, -1);
 				}
 				parentCards = card.dependsOn.map(id => board.cards[id]).filter((c): c is RuntimeBoardCard => !!c);
 			}
@@ -247,7 +254,9 @@ export class TaskScheduler {
 		const lastTs = card.terminalSessions?.at(-1);
 		logger.info(`[scheduler] Resume check for "${card.title}": lastTsState=${lastTs?.state} devPassedInThisSession=${devPassedInThisSession} lastDevComment=${lastDevComment?.status} lastDevTsStart=${lastDevTs?.startedAt} devCreatedAt=${lastDevComment?.createdAt}`);
 		if (lastTs?.state === "killed" && devPassedInThisSession) {
-			createWorktree(taskId, repoPath, effectiveBaseRef);
+			extraDepBranches.length > 0
+				? createMergedWorktree(taskId, repoPath, effectiveBaseRef, extraDepBranches)
+				: createWorktree(taskId, repoPath, effectiveBaseRef);
 			await moveCard(workspaceId, taskId, "in_progress");
 			await appendActivityLog(workspaceId, taskId, "Dev already completed — resuming AI review from last killed step");
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
@@ -260,214 +269,237 @@ export class TaskScheduler {
 		const mcpConfigPath = getMcpConfigPath(taskId);
 		await writeClaudeMcpConfig(getMcpServerPath(), this.options.serverUrl, workspaceId, agentId as string, mcpConfigPath).catch(() => {});
 
-		// Create isolated worktree
-		const worktree = createWorktree(taskId, repoPath, effectiveBaseRef);
+		// Create isolated worktree; merge extra dep branches when card has multiple independent deps
+		const worktree = extraDepBranches.length > 0
+			? createMergedWorktree(taskId, repoPath, effectiveBaseRef, extraDepBranches)
+			: createWorktree(taskId, repoPath, effectiveBaseRef);
 
 		// Move card + set worktree path immediately so the UI reflects it before setup runs
 		await updateCard(workspaceId, taskId, { worktreePath: worktree.path });
 		await moveCard(workspaceId, taskId, "in_progress");
 		stateHub.broadcastWorkspaceUpdate(workspaceId);
 
-		// On first creation, copy files and run install command — each step is logged
-		if (worktree.isNew && projectConfig.worktreeSetup) {
-			const { filesToCopy, installCommand } = projectConfig.worktreeSetup;
+		// Extracted so it can be called either directly or after conflict resolution completes.
+		const launchDevAgent = async () => {
+			// On first creation, copy files and run install command — each step is logged
+			if (worktree.isNew && projectConfig.worktreeSetup) {
+				const { filesToCopy, installCommand } = projectConfig.worktreeSetup;
 
-			if (filesToCopy.length > 0) {
-				const copied: string[] = [];
-				for (const relPath of filesToCopy) {
-					const src = join(repoPath, relPath);
-					if (!existsSync(src)) continue;
-					const dst = join(worktree.path, relPath);
-					mkdirSync(dirname(dst), { recursive: true });
-					try { cpSync(src, dst, { recursive: true }); copied.push(relPath); } catch { /* best-effort */ }
+				if (filesToCopy.length > 0) {
+					const copied: string[] = [];
+					for (const relPath of filesToCopy) {
+						const src = join(repoPath, relPath);
+						if (!existsSync(src)) continue;
+						const dst = join(worktree.path, relPath);
+						mkdirSync(dirname(dst), { recursive: true });
+						try { cpSync(src, dst, { recursive: true }); copied.push(relPath); } catch { /* best-effort */ }
+					}
+					if (copied.length > 0) {
+						await appendActivityLog(workspaceId, taskId, `Copied to worktree: ${copied.join(", ")}`);
+						stateHub.broadcastWorkspaceUpdate(workspaceId);
+					}
 				}
-				if (copied.length > 0) {
-					await appendActivityLog(workspaceId, taskId, `Copied to worktree: ${copied.join(", ")}`);
+
+				if (installCommand.trim()) {
+					await appendActivityLog(workspaceId, taskId, `Running: ${installCommand.trim()}`);
+					stateHub.broadcastWorkspaceUpdate(workspaceId);
+					await new Promise<void>((resolve) => {
+						const proc = spawn("sh", ["-c", installCommand.trim()], {
+							cwd: worktree.path,
+							stdio: "ignore",
+							env: { ...process.env, REPO_PATH: repoPath },
+						});
+						proc.on("close", (code) => {
+							if (code !== 0) {
+								logger.error(`[scheduler] Install command failed (code ${code}) for task ${taskId}`);
+								void appendActivityLog(workspaceId, taskId, `Install command failed (code ${code}) — proceeding anyway`);
+							}
+							resolve();
+						});
+					});
+					await appendActivityLog(workspaceId, taskId, "Install complete");
 					stateHub.broadcastWorkspaceUpdate(workspaceId);
 				}
 			}
 
-			if (installCommand.trim()) {
-				await appendActivityLog(workspaceId, taskId, `Running: ${installCommand.trim()}`);
-				stateHub.broadcastWorkspaceUpdate(workspaceId);
-				await new Promise<void>((resolve) => {
-					const proc = spawn("sh", ["-c", installCommand.trim()], {
-						cwd: worktree.path,
-						stdio: "ignore",
-						env: { ...process.env, REPO_PATH: repoPath },
-					});
-					proc.on("close", (code) => {
-						if (code !== 0) {
-							logger.error(`[scheduler] Install command failed (code ${code}) for task ${taskId}`);
-							void appendActivityLog(workspaceId, taskId, `Install command failed (code ${code}) — proceeding anyway`);
-						}
-						resolve();
-					});
-				});
-				await appendActivityLog(workspaceId, taskId, "Install complete");
-				stateHub.broadcastWorkspaceUpdate(workspaceId);
-			}
-		}
+			const prompt = buildTaskPrompt();
+			const secrets = projectConfig.secrets ?? [];
+			const devSystemPromptResult = buildDevAgentSystemPrompt(devSlotEarly, card, devSlotEarly.prompt ?? "", worktree.path, secrets, parentCards, projectConfig.systemPrompt);
+			const secretsEnv = buildSecretsEnv(secrets);
 
-		const prompt = buildTaskPrompt();
-		const secrets = projectConfig.secrets ?? [];
-		const devSystemPromptResult = buildDevAgentSystemPrompt(devSlotEarly, card, devSlotEarly.prompt ?? "", worktree.path, secrets, parentCards, projectConfig.systemPrompt);
-		const secretsEnv = buildSecretsEnv(secrets);
+			await appendActivityLog(workspaceId, taskId, `Agent ${agentId} started`);
 
-		await appendActivityLog(workspaceId, taskId, `Agent ${agentId} started`);
+			const spawnedAt = Date.now();
+			const devStreamId = `${taskId}-dev-${spawnedAt}`;
 
-		const spawnedAt = Date.now();
-		const devStreamId = `${taskId}-dev-${spawnedAt}`;
+			await appendTerminalSession(workspaceId, taskId, { streamId: devStreamId, type: "dev", startedAt: spawnedAt, agentId, state: "running" });
+			stateHub.broadcastWorkspaceUpdate(workspaceId);
 
-		await appendTerminalSession(workspaceId, taskId, { streamId: devStreamId, type: "dev", startedAt: spawnedAt, agentId, state: "running" });
-		stateHub.broadcastWorkspaceUpdate(workspaceId);
-
-		const runningTask: RunningTask = {
-			taskId,
-			streamId: devStreamId,
-			agentId,
-			process: spawnAgent({
+			const runningTask: RunningTask = {
+				taskId,
+				streamId: devStreamId,
 				agentId,
-				prompt,
-				cwd: worktree.path,
-				env: { ...buildTaskHookEnv(taskId, workspaceId), ...secretsEnv },
-				hookSettingsPath: agentId === "claude" ? CLAUDE_TASK_SETTINGS_PATH : undefined,
-				mcpConfigPath: agentId === "claude" ? mcpConfigPath : undefined,
-				appendSystemPrompt: agentId === "claude" ? devSystemPromptResult.text : undefined,
-				files: agentId === "claude" ? devSystemPromptResult.files : undefined,
-				effort: agentId === "claude" ? (devSlotEarly.effort ?? undefined) : undefined,
-				onOutput: (data) => {
-					runningTask.outputBuffer += data;
-					stateHub.broadcastTerminalOutput(workspaceId, devStreamId, data);
-				},
-				onExit: async (exitCode) => {
-					this.setRecentBuffer(devStreamId, runningTask.outputBuffer);
-					void saveTerminalBuffer(workspaceId, devStreamId, runningTask.outputBuffer);
-					this.running.delete(taskId);
-					unlink(mcpConfigPath).catch(() => {});
+				process: spawnAgent({
+					agentId,
+					prompt,
+					cwd: worktree.path,
+					env: { ...buildTaskHookEnv(taskId, workspaceId), ...secretsEnv },
+					hookSettingsPath: agentId === "claude" ? CLAUDE_TASK_SETTINGS_PATH : undefined,
+					mcpConfigPath: agentId === "claude" ? mcpConfigPath : undefined,
+					appendSystemPrompt: agentId === "claude" ? devSystemPromptResult.text : undefined,
+					files: agentId === "claude" ? devSystemPromptResult.files : undefined,
+					effort: agentId === "claude" ? (devSlotEarly.effort ?? undefined) : undefined,
+					onOutput: (data) => {
+						runningTask.outputBuffer += data;
+						stateHub.broadcastTerminalOutput(workspaceId, devStreamId, data);
+					},
+					onExit: async (exitCode) => {
+						this.setRecentBuffer(devStreamId, runningTask.outputBuffer);
+						void saveTerminalBuffer(workspaceId, devStreamId, runningTask.outputBuffer);
+						this.running.delete(taskId);
+						unlink(mcpConfigPath).catch(() => {});
 
-					// Graceful shutdown already persisted the failed/todo state — bail out.
-					if (this.isShuttingDown) return;
+						// Graceful shutdown already persisted the failed/todo state — bail out.
+						if (this.isShuttingDown) return;
 
-					// If manually stopped, clear the session so the card can be restarted.
-					if (this.manuallyStoppedTasks.has(taskId)) {
-						this.manuallyStoppedTasks.delete(taskId);
-						this.manuallyStoppedForHook.delete(taskId);
-						await endTerminalSession(workspaceId, taskId, devStreamId, Date.now(), "stopped");
-						await clearCardSession(workspaceId, taskId);
-						// Move back to todo only if handleHookEvent hasn't already done it
-						const stoppedBoard = await loadBoard(workspaceId);
-						const stoppedCard = stoppedBoard.cards[taskId];
-						if (stoppedCard?.columnId === "in_progress") {
-							await moveCard(workspaceId, taskId, "todo");
-							await updateCard(workspaceId, taskId, { readyForDev: false });
-							await appendActivityLog(workspaceId, taskId, "Moved back to Todo");
+						// If manually stopped, clear the session so the card can be restarted.
+						if (this.manuallyStoppedTasks.has(taskId)) {
+							this.manuallyStoppedTasks.delete(taskId);
+							this.manuallyStoppedForHook.delete(taskId);
+							await endTerminalSession(workspaceId, taskId, devStreamId, Date.now(), "stopped");
+							await clearCardSession(workspaceId, taskId);
+							// Move back to todo only if handleHookEvent hasn't already done it
+							const stoppedBoard = await loadBoard(workspaceId);
+							const stoppedCard = stoppedBoard.cards[taskId];
+							if (stoppedCard?.columnId === "in_progress") {
+								await moveCard(workspaceId, taskId, "todo");
+								await updateCard(workspaceId, taskId, { readyForDev: false });
+								await appendActivityLog(workspaceId, taskId, "Moved back to Todo");
+							}
+							stateHub.broadcastWorkspaceUpdate(workspaceId);
+							return;
 						}
-						stateHub.broadcastWorkspaceUpdate(workspaceId);
-						return;
-					}
 
-					// If stopped due to parent reopen, mark session as stopped (not failed).
-					if (this.parentReopenedTasks.has(taskId)) {
-						this.parentReopenedTasks.delete(taskId);
-						await endTerminalSession(workspaceId, taskId, devStreamId, Date.now(), "stopped");
-						stateHub.broadcastWorkspaceUpdate(workspaceId);
-						return;
-					}
+						// If stopped due to parent reopen, mark session as stopped (not failed).
+						if (this.parentReopenedTasks.has(taskId)) {
+							this.parentReopenedTasks.delete(taskId);
+							await endTerminalSession(workspaceId, taskId, devStreamId, Date.now(), "stopped");
+							stateHub.broadcastWorkspaceUpdate(workspaceId);
+							return;
+						}
 
-					// Synchronous check — must happen before any await.
-					// The Stop hook sets this flag before calling kill() so that when
-					// onExit fires (synchronously during kill), we skip the duplicate
-					// onTaskCompleted call and card transition entirely.
-					if (this.hookHandledTasks.has(taskId)) {
-						this.hookHandledTasks.delete(taskId);
+						// Synchronous check — must happen before any await.
+						// The Stop hook sets this flag before calling kill() so that when
+						// onExit fires (synchronously during kill), we skip the duplicate
+						// onTaskCompleted call and card transition entirely.
+						if (this.hookHandledTasks.has(taskId)) {
+							this.hookHandledTasks.delete(taskId);
+							const exitedAt = Date.now();
+							// Set endedAt on any dev comment stored via MCP
+							const hookBoard = await loadBoard(workspaceId);
+							const hookCard = hookBoard.cards[taskId];
+							const hookDevComment = hookCard?.reviewComments?.slice().reverse().find((c) => c.type === "dev" && c.createdAt >= spawnedAt);
+							if (hookDevComment) {
+								await linkCommentToSession(workspaceId, taskId, hookDevComment.createdAt, devStreamId);
+							}
+							await endTerminalSession(workspaceId, taskId, devStreamId, exitedAt, "completed");
+							stateHub.broadcastWorkspaceUpdate(workspaceId);
+							return;
+						}
+
+						const elapsed = Date.now() - spawnedAt;
+						const isFastExit = elapsed < FAST_EXIT_THRESHOLD_MS;
 						const exitedAt = Date.now();
-						// Set endedAt on any dev comment stored via MCP
-						const hookBoard = await loadBoard(workspaceId);
-						const hookCard = hookBoard.cards[taskId];
-						const hookDevComment = hookCard?.reviewComments?.slice().reverse().find((c) => c.type === "dev" && c.createdAt >= spawnedAt);
-						if (hookDevComment) {
-							await linkCommentToSession(workspaceId, taskId, hookDevComment.createdAt, devStreamId);
+
+						logger.info(`[scheduler] Task ${taskId} exited with code ${exitCode} after ${Math.round(elapsed / 1000)}s`);
+
+						// Check if agent stored a dev comment via MCP; if not, create a fallback
+						const exitBoard = await loadBoard(workspaceId);
+						const exitCard = exitBoard.cards[taskId];
+						const existingDevComment = exitCard?.reviewComments?.slice().reverse().find((c) => c.type === "dev" && c.createdAt >= spawnedAt);
+						const devState = exitCode === 0 ? "completed" : "failed";
+						if (existingDevComment) {
+							await linkCommentToSession(workspaceId, taskId, existingDevComment.createdAt, devStreamId);
+							await endTerminalSession(workspaceId, taskId, devStreamId, exitedAt, devState);
+						} else {
+							// Non-MCP fallback comment
+							const parsed = tryParseAgentJson(runningTask.outputBuffer);
+							const fallbackComment: import("../core/api-contract.js").RuntimeReviewComment = {
+								type: "dev",
+								actor: { type: "ai", id: agentId },
+								status: exitCode === 0 ? "pass" : "fail",
+								createdAt: exitedAt,
+								streamId: devStreamId,
+								summary: parsed?.summary ?? "Agent completed.",
+								issues: parsed?.issues,
+								metadata: parsed?.metadata,
+							};
+							const existing = exitCard?.reviewComments ?? [];
+							await updateCard(workspaceId, taskId, { reviewComments: [...existing, fallbackComment] });
+							await endTerminalSession(workspaceId, taskId, devStreamId, exitedAt, devState);
 						}
-						await endTerminalSession(workspaceId, taskId, devStreamId, exitedAt, "completed");
+
+						if (exitCode === 0) {
+							const hasReviewSlots = (cardWorkflow?.slots ?? []).some(s => s.type !== "dev" && s.enabled);
+							if (!hasReviewSlots) {
+								await moveCard(workspaceId, taskId, "ready_for_review");
+								await appendActivityLog(workspaceId, taskId, "Agent finished → moved to Ready for Review");
+							} else {
+								await appendActivityLog(workspaceId, taskId, "Agent finished → AI review starting");
+							}
+						} else {
+							const latestBoard = await loadBoard(workspaceId);
+							const latestCard = latestBoard.cards[taskId] ?? card;
+							const newAttempts = latestCard.autoFixAttempts + 1;
+							await updateCard(workspaceId, taskId, { autoFixAttempts: newAttempts });
+							const destination = newAttempts >= this.options.maxAutoFixAttempts ? "blocked" : "reopened";
+
+							if (isFastExit) {
+								logger.error(`[scheduler] Task ${taskId} failed within ${Math.round(elapsed / 1000)}s — possible launch error`);
+								await appendActivityLog(
+									workspaceId,
+									taskId,
+									`Agent failed to launch (code ${exitCode}, ${Math.round(elapsed / 1000)}s) → ${destination === "blocked" ? "Blocked" : "Reopened"} (attempt ${newAttempts}/${this.options.maxAutoFixAttempts})`,
+								);
+							} else {
+								await appendActivityLog(
+									workspaceId,
+									taskId,
+									`Agent exited with error (code ${exitCode}) → ${destination === "blocked" ? "Blocked" : "Reopened"} (attempt ${newAttempts}/${this.options.maxAutoFixAttempts})`,
+								);
+							}
+
+							await moveCard(workspaceId, taskId, destination);
+							// Worktree is intentionally kept when blocked so prior commits survive a manual restart
+						}
 						stateHub.broadcastWorkspaceUpdate(workspaceId);
-						return;
-					}
+						this.options.onTaskCompleted(taskId);
+					},
+				}),
+				startedAt: spawnedAt,
+				outputBuffer: "",
+			};
 
-					const elapsed = Date.now() - spawnedAt;
-					const isFastExit = elapsed < FAST_EXIT_THRESHOLD_MS;
-					const exitedAt = Date.now();
-
-					logger.info(`[scheduler] Task ${taskId} exited with code ${exitCode} after ${Math.round(elapsed / 1000)}s`);
-
-					// Check if agent stored a dev comment via MCP; if not, create a fallback
-					const exitBoard = await loadBoard(workspaceId);
-					const exitCard = exitBoard.cards[taskId];
-					const existingDevComment = exitCard?.reviewComments?.slice().reverse().find((c) => c.type === "dev" && c.createdAt >= spawnedAt);
-					const devState = exitCode === 0 ? "completed" : "failed";
-					if (existingDevComment) {
-						await linkCommentToSession(workspaceId, taskId, existingDevComment.createdAt, devStreamId);
-						await endTerminalSession(workspaceId, taskId, devStreamId, exitedAt, devState);
-					} else {
-						// Non-MCP fallback comment
-						const parsed = tryParseAgentJson(runningTask.outputBuffer);
-						const fallbackComment: import("../core/api-contract.js").RuntimeReviewComment = {
-							type: "dev",
-							actor: { type: "ai", id: agentId },
-							status: exitCode === 0 ? "pass" : "fail",
-							createdAt: exitedAt,
-							streamId: devStreamId,
-							summary: parsed?.summary ?? "Agent completed.",
-							issues: parsed?.issues,
-							metadata: parsed?.metadata,
-						};
-						const existing = exitCard?.reviewComments ?? [];
-						await updateCard(workspaceId, taskId, { reviewComments: [...existing, fallbackComment] });
-						await endTerminalSession(workspaceId, taskId, devStreamId, exitedAt, devState);
-					}
-
-					if (exitCode === 0) {
-						const hasReviewSlots = (cardWorkflow?.slots ?? []).some(s => s.type !== "dev" && s.enabled);
-						if (!hasReviewSlots) {
-							await moveCard(workspaceId, taskId, "ready_for_review");
-							await appendActivityLog(workspaceId, taskId, "Agent finished → moved to Ready for Review");
-						} else {
-							await appendActivityLog(workspaceId, taskId, "Agent finished → AI review starting");
-						}
-					} else {
-						const latestBoard = await loadBoard(workspaceId);
-						const latestCard = latestBoard.cards[taskId] ?? card;
-						const newAttempts = latestCard.autoFixAttempts + 1;
-						await updateCard(workspaceId, taskId, { autoFixAttempts: newAttempts });
-						const destination = newAttempts >= this.options.maxAutoFixAttempts ? "blocked" : "reopened";
-
-						if (isFastExit) {
-							logger.error(`[scheduler] Task ${taskId} failed within ${Math.round(elapsed / 1000)}s — possible launch error`);
-							await appendActivityLog(
-								workspaceId,
-								taskId,
-								`Agent failed to launch (code ${exitCode}, ${Math.round(elapsed / 1000)}s) → ${destination === "blocked" ? "Blocked" : "Reopened"} (attempt ${newAttempts}/${this.options.maxAutoFixAttempts})`,
-							);
-						} else {
-							await appendActivityLog(
-								workspaceId,
-								taskId,
-								`Agent exited with error (code ${exitCode}) → ${destination === "blocked" ? "Blocked" : "Reopened"} (attempt ${newAttempts}/${this.options.maxAutoFixAttempts})`,
-							);
-						}
-
-						await moveCard(workspaceId, taskId, destination);
-						// Worktree is intentionally kept when blocked so prior commits survive a manual restart
-					}
-					stateHub.broadcastWorkspaceUpdate(workspaceId);
-					this.options.onTaskCompleted(taskId);
-				},
-			}),
-			startedAt: spawnedAt,
-			outputBuffer: "",
+			this.running.set(taskId, runningTask);
 		};
 
-		this.running.set(taskId, runningTask);
+		if (worktree.conflictedFiles.length > 0) {
+			await appendActivityLog(workspaceId, taskId, `Merging dependency branches → conflicts in: ${worktree.conflictedFiles.join(", ")} — resolving...`);
+			stateHub.broadcastWorkspaceUpdate(workspaceId);
+			await this.startConflictResolution(card, worktree.path, worktree.conflictedFiles, async (success) => {
+				if (success) {
+					await appendActivityLog(workspaceId, taskId, `Dep branch conflicts resolved (${worktree.conflictedFiles.join(", ")}) — starting dev agent`);
+					stateHub.broadcastWorkspaceUpdate(workspaceId);
+					await launchDevAgent();
+				} else {
+					await moveCard(workspaceId, taskId, "blocked");
+					await appendActivityLog(workspaceId, taskId, "Could not resolve dep merge conflicts → Blocked");
+					stateHub.broadcastWorkspaceUpdate(workspaceId);
+				}
+			});
+		} else {
+			await launchDevAgent();
+		}
 	}
 
 	stopTask(taskId: string): void {

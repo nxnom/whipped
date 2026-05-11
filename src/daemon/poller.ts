@@ -327,7 +327,27 @@ export class BoardPoller {
 				await moveCard(workspaceId, taskId, "done");
 				await clearCardSession(workspaceId, taskId);
 				await appendActivityLog(workspaceId, taskId, "PR merged on GitHub → Done");
-				cleanupWorktree(taskId, repoPath);
+				// Defer branch cleanup until no non-done card still needs this branch as a base.
+				// Dependent cards branch off this task's worktree branch, so deleting it early
+				// causes them to fall back to the wrong base when they eventually start.
+				const boardAfterDone = await loadBoard(workspaceId);
+				const hasPendingDependents = Object.values(boardAfterDone.cards).some(
+					(c) => c.dependsOn.includes(taskId) && c.columnId !== "done",
+				);
+				if (!hasPendingDependents) {
+					cleanupWorktree(taskId, repoPath);
+					// Also check whether any of this card's own deps can now be cleaned up
+					// (covers the case where a dep was waiting for all its dependents to finish).
+					for (const depId of (card.dependsOn ?? [])) {
+						const dep = boardAfterDone.cards[depId as string];
+						if (dep?.columnId === "done") {
+							const depStillNeeded = Object.values(boardAfterDone.cards).some(
+								(c) => c.dependsOn.includes(depId as string) && c.columnId !== "done",
+							);
+							if (!depStillNeeded) cleanupWorktree(depId as string, repoPath);
+						}
+					}
+				}
 				void syncMainRepoAfterPRMerge(repoPath, card.baseRef, card, workspaceId, scheduler, stateHub);
 				updated = true;
 			} else if (info.state === "CLOSED") {
