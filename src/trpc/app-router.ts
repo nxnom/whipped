@@ -267,7 +267,8 @@ export const appRouter = router({
 				const workspaces = await listWorkspaces();
 				const ws = workspaces.find((w) => w.workspaceId === workspaceId);
 				if (!ws) throw new TRPCError({ code: "NOT_FOUND", message: "Workspace not found" });
-				const baseRef = requestedBase || getDefaultBranch(ws.repoPath);
+				const config = await loadProjectConfig(workspaceId);
+				const baseRef = requestedBase || config.defaultBaseBranch || getDefaultBranch(ws.repoPath);
 				const card = await createCard(workspaceId, cardData, baseRef);
 				ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 				return card;
