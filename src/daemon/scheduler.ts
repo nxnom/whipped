@@ -13,7 +13,7 @@ import { buildDevAgentSystemPrompt, buildSecretsEnv, buildSecretsSection, runPar
 import { logger } from "../core/logger.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { appendActivityLog, appendTerminalSession, clearCardSession, endTerminalSession, linkCommentToSession, loadBoard, loadProjectConfig, moveCard, saveTerminalBuffer, updateCard } from "../state/workspace-state.js";
-import { createMergedWorktree, createWorktree, getWorktreeBranch, getWorktreePath } from "../worktree/worktree-manager.js";
+import { createMergedWorktree, createWorktree, getCardBranch, getWorktreePath } from "../worktree/worktree-manager.js";
 
 export interface SchedulerOptions {
 	workspaceId: string;
@@ -222,7 +222,7 @@ export class TaskScheduler {
 				for (const depId of card.dependsOn) {
 					const dep = board.cards[depId as string];
 					if (dep?.columnId === "ready_for_review" || dep?.columnId === "done") {
-						resolvedDepBranches.push(getWorktreeBranch(depId as string));
+						resolvedDepBranches.push(getCardBranch(dep));
 					}
 				}
 				if (resolvedDepBranches.length > 0) {
@@ -255,8 +255,8 @@ export class TaskScheduler {
 		logger.info(`[scheduler] Resume check for "${card.title}": lastTsState=${lastTs?.state} devPassedInThisSession=${devPassedInThisSession} lastDevComment=${lastDevComment?.status} lastDevTsStart=${lastDevTs?.startedAt} devCreatedAt=${lastDevComment?.createdAt}`);
 		if (lastTs?.state === "killed" && devPassedInThisSession) {
 			extraDepBranches.length > 0
-				? createMergedWorktree(taskId, repoPath, effectiveBaseRef, extraDepBranches)
-				: createWorktree(taskId, repoPath, effectiveBaseRef);
+				? createMergedWorktree(taskId, repoPath, effectiveBaseRef, extraDepBranches, card.branchName)
+				: createWorktree(taskId, repoPath, effectiveBaseRef, card.branchName);
 			await moveCard(workspaceId, taskId, "in_progress");
 			await appendActivityLog(workspaceId, taskId, "Dev already completed — resuming AI review from last killed step");
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
@@ -271,8 +271,8 @@ export class TaskScheduler {
 
 		// Create isolated worktree; merge extra dep branches when card has multiple independent deps
 		const worktree = extraDepBranches.length > 0
-			? createMergedWorktree(taskId, repoPath, effectiveBaseRef, extraDepBranches)
-			: createWorktree(taskId, repoPath, effectiveBaseRef);
+			? createMergedWorktree(taskId, repoPath, effectiveBaseRef, extraDepBranches, card.branchName)
+			: createWorktree(taskId, repoPath, effectiveBaseRef, card.branchName);
 
 		// Move card + set worktree path immediately so the UI reflects it before setup runs
 		await updateCard(workspaceId, taskId, { worktreePath: worktree.path });
@@ -639,7 +639,7 @@ export class TaskScheduler {
 
 			if (card.githubPrUrl) {
 				const worktreePath = getWorktreePath(taskId);
-				const taskBranch = getWorktreeBranch(taskId);
+				const taskBranch = getCardBranch(card);
 				await commitIfDirty(worktreePath, card.title);
 				await pushBranch(worktreePath, taskBranch).then(
 					() => appendActivityLog(workspaceId, taskId, `Pushed to PR`),

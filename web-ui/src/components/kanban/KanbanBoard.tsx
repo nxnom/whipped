@@ -25,6 +25,7 @@ import { BranchSelect } from "@/components/BranchSelect";
 import { CardDetailPanel } from "./CardDetailPanel";
 import { CreateStoryDrawer } from "./CreateStoryDrawer";
 import { KanbanColumn } from "./KanbanColumn";
+import { deriveBranchName } from "@/utils/branch";
 
 interface KanbanBoardProps {
   state: RuntimeWorkspaceStateResponse;
@@ -372,6 +373,8 @@ function CreateCardContent({
   const [baseRef, setBaseRef] = useState<string>("");
   const [workflowId, setWorkflowId] = useState<string>(defaultWorkflow?.id ?? "");
   const [branches, setBranches] = useState<string[]>([]);
+  const [branchName, setBranchName] = useState<string>("");
+  const [branchNameEdited, setBranchNameEdited] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -397,6 +400,7 @@ function CreateCardContent({
         dependsOn: dependsOn.length > 0 ? dependsOn : undefined,
         baseRef: baseRef || undefined,
         workflowId: workflowId || undefined,
+        branchName: branchName.trim() || undefined,
       });
       if (pendingImages.length > 0) {
         const uploaded = await uploadImages(workspaceId, card.id, pendingImages);
@@ -421,11 +425,28 @@ function CreateCardContent({
           <Input
             autoFocus
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              setTitle(v);
+              if (!branchNameEdited) {
+                setBranchName(deriveBranchName(v));
+              }
+            }}
             onKeyDown={(e) =>
               e.key === "Enter" && !e.shiftKey && handleCreate()
             }
             placeholder="Task title..."
+          />
+        </div>
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Branch Name</label>
+          <Input
+            value={branchName}
+            onChange={(e) => {
+              setBranchName(e.target.value);
+              setBranchNameEdited(true);
+            }}
+            placeholder="feat/auto-generated-from-title"
           />
         </div>
         <div>

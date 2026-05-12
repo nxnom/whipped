@@ -40,8 +40,7 @@ import {
 	setAutonomousMode,
 	updateCard,
 } from "../state/workspace-state.js";
-import { removeWorktreeAsync } from "../worktree/worktree-manager.js";
-import { getDefaultBranch, getWorktreeBranch, getWorktreePath } from "../worktree/worktree-manager.js";
+import { getCardBranch, getDefaultBranch, getWorktreePath, removeWorktreeAsync } from "../worktree/worktree-manager.js";
 
 // ─── GitHub image downloader ──────────────────────────────────────────────────
 // Finds GitHub user-attachment image URLs in comment text, downloads them,
@@ -302,7 +301,7 @@ export const appRouter = router({
 				}
 
 				const worktreePath = getWorktreePath(cardId);
-				const taskBranch = getWorktreeBranch(cardId);
+				const taskBranch = getCardBranch(card);
 
 				await commitIfDirty(worktreePath, card.title);
 
@@ -390,7 +389,7 @@ export const appRouter = router({
 				}
 
 				const worktreePath = getWorktreePath(cardId);
-				const taskBranch = getWorktreeBranch(cardId);
+				const taskBranch = getCardBranch(card);
 
 				await commitIfDirty(worktreePath, card.title);
 
@@ -476,7 +475,7 @@ export const appRouter = router({
 							});
 						}
 					}
-					await removeWorktreeAsync(cardId, ws.repoPath);
+					await removeWorktreeAsync(cardId, ws.repoPath, card?.branchName);
 				});
 
 				return { ok: true };

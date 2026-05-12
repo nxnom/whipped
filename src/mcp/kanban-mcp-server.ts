@@ -132,6 +132,7 @@ Creates all subtasks first, then the story card that depends on them. The story 
 				priority: z.enum(["urgent", "high", "medium", "low"]).optional().describe("Subtask priority"),
 				workflowId: z.string().optional().describe("Workflow ID for this subtask. Omit to use the default task workflow."),
 				baseRef: z.string().optional().describe("Override base branch for this subtask only"),
+				branchName: z.string().optional().describe("Custom git branch name for this subtask (e.g. 'fix/user_auth_bug', 'feat/dark_mode'). Omit to auto-generate from title."),
 				dependsOn: z.array(z.string()).optional().describe("Dependencies for this subtask. Use real card IDs for existing cards on the board, or tempId values to reference other subtasks in this same batch."),
 				attachments: z.array(attachmentInputSchema).optional().describe("Files to attach to this subtask's description"),
 			})).min(1).describe("Subtasks to create. At least one required. Each subtask gets type: 'subtask' and readyForDev: true automatically."),
@@ -154,6 +155,7 @@ Creates all subtasks first, then the story card that depends on them. The story 
 				readyForDev: true,
 				baseRef: subtask.baseRef || baseRef || undefined,
 				workflowId: subtask.workflowId || undefined,
+				branchName: subtask.branchName || undefined,
 				dependsOn: existingDeps.length > 0 ? existingDeps : undefined,
 			});
 			if (subtask.attachments?.length) {
@@ -238,9 +240,10 @@ server.registerTool(
 				.optional()
 				.describe("ID of the workflow to use for this task. Omit to use the default."),
 			attachments: z.array(attachmentInputSchema).optional().describe("Files to attach to the card description (e.g. screenshots, design docs, PDFs)"),
+			branchName: z.string().optional().describe("Custom git branch name for this card (e.g. 'fix/user_auth_bug', 'feat/dark_mode'). Omit to auto-generate from title."),
 		},
 	},
-	async ({ title, description, type, priority, readyForDev, columnId, dependsOn, workflowId, attachments }) => {
+	async ({ title, description, type, priority, readyForDev, columnId, dependsOn, workflowId, attachments, branchName }) => {
 		const card = await trpc<{ id: string; title: string; columnId: string }>("cards.create", {
 			workspaceId,
 			title,
@@ -251,6 +254,7 @@ server.registerTool(
 			dependsOn,
 			columnId: columnId ?? "todo",
 			workflowId,
+			branchName: branchName || undefined,
 		});
 		if (attachments?.length) {
 			const processed = await processAttachments(attachments, card.id);

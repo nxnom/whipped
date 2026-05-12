@@ -4,6 +4,7 @@ import type { RuntimeBoardCard, Workflow } from "@runtime-contract";
 import { Layers, Paperclip, Pencil, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
+import { deriveBranchName } from "@/utils/branch";
 
 interface PendingImage { dataUrl: string | null; file: File }
 
@@ -99,6 +100,7 @@ interface SubtaskDraft {
   priority: string;
   baseRef: string;
   workflowId: string;
+  branchName: string;
   // real card IDs for existing board cards, or tempId strings for other drafts in this batch
   dependsOn: string[];
   pendingImages: PendingImage[];
@@ -203,6 +205,7 @@ export function CreateStoryDrawer({
           priority: (subtask.priority as "urgent" | "high" | "medium" | "low") || undefined,
           baseRef: subtask.baseRef || baseRef || undefined,
           workflowId: subtask.workflowId || undefined,
+          branchName: subtask.branchName.trim() || undefined,
           dependsOn: existingDeps.length > 0 ? existingDeps : undefined,
           readyForDev: true,
         });
@@ -453,6 +456,8 @@ function AddSubtaskDrawer({
   const [baseRef, setBaseRef] = useState(defaultBranch);
   const [workflowId, setWorkflowId] = useState(defaultWorkflow?.id ?? "");
   const [dependsOn, setDependsOn] = useState<string[]>([]);
+  const [branchName, setBranchName] = useState("");
+  const [branchNameEdited, setBranchNameEdited] = useState(false);
 
   // Populate fields when editing or when drawer opens
   useEffect(() => {
@@ -465,6 +470,8 @@ function AddSubtaskDrawer({
         setBaseRef(editingSubtask.baseRef || defaultBranch);
         setWorkflowId(editingSubtask.workflowId || (defaultWorkflow?.id ?? ""));
         setDependsOn(editingSubtask.dependsOn);
+        setBranchName(editingSubtask.branchName || "");
+        setBranchNameEdited(!!editingSubtask.branchName);
       } else {
         setTitle("");
         setDescription("");
@@ -473,6 +480,8 @@ function AddSubtaskDrawer({
         setBaseRef(defaultBranch);
         setWorkflowId(defaultWorkflow?.id ?? "");
         setDependsOn([]);
+        setBranchName("");
+        setBranchNameEdited(false);
       }
     }
   }, [open, editingSubtask]);
@@ -491,6 +500,7 @@ function AddSubtaskDrawer({
       priority,
       baseRef,
       workflowId,
+      branchName,
       dependsOn,
     });
   };
@@ -527,9 +537,26 @@ function AddSubtaskDrawer({
           <Input
             autoFocus
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              setTitle(v);
+              if (!branchNameEdited) {
+                setBranchName(deriveBranchName(v));
+              }
+            }}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSave()}
             placeholder="Subtask title..."
+          />
+        </div>
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Branch Name</label>
+          <Input
+            value={branchName}
+            onChange={(e) => {
+              setBranchName(e.target.value);
+              setBranchNameEdited(true);
+            }}
+            placeholder="feat/auto-generated-from-title"
           />
         </div>
         <div>

@@ -10,7 +10,7 @@ import type { WorkflowSlot, RuntimeBoardCard, RuntimeReviewComment, RuntimeProje
 import type { GithubClient } from "../github/github-client.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { appendActivityLog, appendTerminalSession, endTerminalSession, linkCommentToSession, loadBoard, moveCard, saveAttachment, saveTerminalBuffer, updateCard } from "../state/workspace-state.js";
-import { getWorktreeBranch, getWorktreePath } from "../worktree/worktree-manager.js";
+import { getCardBranch, getWorktreePath } from "../worktree/worktree-manager.js";
 import { logger } from "../core/logger.js";
 
 interface ReviewPipelineOptions {
@@ -274,7 +274,7 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 
 	if (autoPR && !card.githubPrUrl && card.type !== "story") {
 		const worktreePath = getWorktreePath(card.id);
-		const taskBranch = getWorktreeBranch(card.id);
+		const taskBranch = getCardBranch(card);
 		const githubToken = options.secrets.find((s) => s.key === "GITHUB_TOKEN")?.value;
 		if (!githubToken) {
 			logger.warn(`[review] Auto PR skipped for "${card.title}" — GITHUB_TOKEN not set in project secrets`);
@@ -771,7 +771,7 @@ export async function runParentReopenCascade(
 	const mcpConfigPath = getMcpConfigPath(streamId);
 	await writeClaudeMcpConfig(mcpBinary, serverUrl, workspaceId, "claude", mcpConfigPath).catch(() => {});
 
-	const parentBranch = getWorktreeBranch(parentCard.id);
+	const parentBranch = getCardBranch(parentCard);
 	const systemPrompt = buildCascadeSystemPrompt(parentCard, parentBranch, childCards);
 
 	logger.info(`[cascade] Spawning cascade agent for parent "${parentCard.title}" (${childCards.length} children)`);

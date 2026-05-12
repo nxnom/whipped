@@ -200,6 +200,7 @@ export const runtimeBoardCardSchema = z.object({
 	terminalSessions: z.array(runtimeTerminalSessionEntrySchema).default([]),
 	githubCommentIds: z.array(z.string()).default([]),
 	worktreePath: z.string().optional(),
+	branchName: z.string().optional(),
 });
 export type RuntimeBoardCard = z.infer<typeof runtimeBoardCardSchema>;
 
@@ -315,6 +316,7 @@ export const runtimeCardCreateRequestSchema = z.object({
 	jiraUrl: z.string().optional(),
 	workflowId: z.string().optional(),
 	descriptionAttachments: z.array(reviewAttachmentSchema).optional(),
+	branchName: z.string().optional(),
 });
 export type RuntimeCardCreateRequest = z.infer<typeof runtimeCardCreateRequestSchema>;
 

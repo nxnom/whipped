@@ -5,7 +5,7 @@ import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { fetchCommentBodyHtml, fetchPRInfo } from "../git/merge-operations.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { appendActivityLog, clearCardSession, downloadGithubImages, loadBoard, loadWorkspaceState, moveCard, updateCard } from "../state/workspace-state.js";
-import { createWorktree, getWorktreeBranch, getWorktreePath, removeWorktree } from "../worktree/worktree-manager.js";
+import { createWorktree, getCardBranch, getWorktreePath, removeWorktree } from "../worktree/worktree-manager.js";
 import type { TaskScheduler } from "./scheduler.js";
 
 function git(args: string[], cwd: string): string {
@@ -13,9 +13,9 @@ function git(args: string[], cwd: string): string {
 	return r.stdout?.trim() ?? "";
 }
 
-function cleanupWorktree(taskId: string, repoPath: string): void {
+function cleanupWorktree(taskId: string, repoPath: string, branchName?: string): void {
 	try {
-		removeWorktree(taskId, repoPath);
+		removeWorktree(taskId, repoPath, branchName);
 	} catch (err) {
 		logger.error({ err }, `[poller] cleanupWorktree failed for ${taskId}:`);
 	}
@@ -73,11 +73,11 @@ async function resolvePRConflicts(
 	stateHub: RuntimeStateHub,
 ): Promise<void> {
 	try {
-		const taskBranch = getWorktreeBranch(card.id);
+		const taskBranch = getCardBranch(card);
 		const worktreePath = getWorktreePath(card.id);
 
 		if (!existsSync(worktreePath)) {
-			createWorktree(card.id, repoPath, card.baseRef);
+			createWorktree(card.id, repoPath, card.baseRef, card.branchName);
 		}
 
 		spawnSync("git", ["fetch", "origin", card.baseRef], { cwd: repoPath, stdio: "ignore" });
@@ -335,7 +335,7 @@ export class BoardPoller {
 					(c) => c.dependsOn.includes(taskId) && c.columnId !== "done",
 				);
 				if (!hasPendingDependents) {
-					cleanupWorktree(taskId, repoPath);
+					cleanupWorktree(taskId, repoPath, card.branchName);
 					// Also check whether any of this card's own deps can now be cleaned up
 					// (covers the case where a dep was waiting for all its dependents to finish).
 					for (const depId of (card.dependsOn ?? [])) {
@@ -344,7 +344,7 @@ export class BoardPoller {
 							const depStillNeeded = Object.values(boardAfterDone.cards).some(
 								(c) => c.dependsOn.includes(depId as string) && c.columnId !== "done",
 							);
-							if (!depStillNeeded) cleanupWorktree(depId as string, repoPath);
+							if (!depStillNeeded) cleanupWorktree(depId as string, repoPath, dep.branchName);
 						}
 					}
 				}

@@ -19,6 +19,18 @@ function git(args: string[], cwd: string): { stdout: string; ok: boolean } {
 	return { stdout: result.stdout?.trim() ?? "", ok: result.status === 0 };
 }
 
+export function titleToSnakeCase(title: string): string {
+	return title
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "_")
+		.replace(/^_+|_+$/g, "")
+		.slice(0, 50);
+}
+
+export function getCardBranch(card: { id: string; branchName?: string }): string {
+	return card.branchName ?? getWorktreeBranch(card.id);
+}
+
 export interface WorktreeInfo {
 	taskId: string;
 	path: string;
@@ -30,10 +42,10 @@ export interface WorktreeCreateResult extends WorktreeInfo {
 	conflictedFiles: string[];
 }
 
-export function createWorktree(taskId: string, repoPath: string, baseRef: string): WorktreeCreateResult {
+export function createWorktree(taskId: string, repoPath: string, baseRef: string, branchName?: string): WorktreeCreateResult {
 	mkdirSync(WORKTREES_DIR, { recursive: true });
 
-	const branch = `kanbom/task-${taskId}`;
+	const branch = branchName ?? `kanbom/task-${taskId}`;
 	const worktreePath = join(WORKTREES_DIR, taskId);
 
 	// Reuse existing worktree so retries (reopened cards) build on prior work
@@ -65,10 +77,11 @@ export function createMergedWorktree(
 	repoPath: string,
 	baseRef: string,
 	extraBranches: string[],
+	branchName?: string,
 ): WorktreeCreateResult {
 	mkdirSync(WORKTREES_DIR, { recursive: true });
 
-	const branch = `kanbom/task-${taskId}`;
+	const branch = branchName ?? `kanbom/task-${taskId}`;
 	const worktreePath = join(WORKTREES_DIR, taskId);
 
 	if (existsSync(worktreePath)) {
@@ -107,9 +120,9 @@ export function createMergedWorktree(
 	return { taskId, path: worktreePath, branch, isNew: true, conflictedFiles: [] };
 }
 
-export function removeWorktree(taskId: string, repoPath: string): void {
+export function removeWorktree(taskId: string, repoPath: string, branchName?: string): void {
 	const worktreePath = join(WORKTREES_DIR, taskId);
-	const branch = `kanbom/task-${taskId}`;
+	const branch = branchName ?? `kanbom/task-${taskId}`;
 
 	const removeResult = git(["worktree", "remove", "--force", worktreePath], repoPath);
 	if (!removeResult.ok && existsSync(worktreePath)) {
@@ -119,9 +132,9 @@ export function removeWorktree(taskId: string, repoPath: string): void {
 	git(["branch", "-D", branch], repoPath); // ignore result — branch may not exist
 }
 
-export async function removeWorktreeAsync(taskId: string, repoPath: string): Promise<void> {
+export async function removeWorktreeAsync(taskId: string, repoPath: string, branchName?: string): Promise<void> {
 	const worktreePath = join(WORKTREES_DIR, taskId);
-	const branch = `kanbom/task-${taskId}`;
+	const branch = branchName ?? `kanbom/task-${taskId}`;
 
 	const t0 = Date.now();
 	logger.info(`[cleanup:${taskId}] starting worktree removal`);
