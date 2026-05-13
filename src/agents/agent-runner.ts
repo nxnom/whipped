@@ -20,6 +20,7 @@ export interface AgentRunOptions {
 	files?: string[];
 	mode?: "interactive" | "print";
 	effort?: EffortLevel | null;
+	model?: string | null;
 	onOutput: (data: string) => void;
 	onExit: (exitCode: number) => void;
 }
@@ -43,6 +44,7 @@ export function spawnAgent(options: AgentRunOptions): AgentProcess {
 		appendSystemPrompt: options.appendSystemPrompt,
 		files: options.files,
 		effort: options.effort,
+		model: options.model,
 	});
 
 	const pty = nodePty.spawn(command, args, {

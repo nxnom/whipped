@@ -68,6 +68,9 @@ export interface AgentArgsContext {
 	appendSystemPrompt?: string;
 	files?: string[];
 	effort?: EffortLevel | null;
+	// Model name or alias. Empty/undefined uses the agent's default.
+	// Claude: 'opus', 'sonnet', 'haiku', or a full ID. Codex: e.g. 'gpt-5', 'gpt-5-codex'.
+	model?: string | null;
 }
 
 // "interactive": stays alive after finishing (task agents — Stop hook handles completion).
@@ -82,6 +85,7 @@ export function buildAgentArgs(agentId: RuntimeAgentId, prompt: string, ctx: Age
 			} else {
 				args.push("--dangerously-skip-permissions");
 			}
+			if (ctx.model) args.push("--model", ctx.model);
 			if (ctx.hookSettingsPath) args.push("--settings", ctx.hookSettingsPath);
 			if (ctx.mcpConfigPath) args.push("--mcp-config", ctx.mcpConfigPath);
 			if (ctx.appendSystemPrompt) args.push("--append-system-prompt", ctx.appendSystemPrompt);
@@ -101,6 +105,7 @@ export function buildAgentArgs(agentId: RuntimeAgentId, prompt: string, ctx: Age
 			if (ctx.effort) overrides.push(...buildCodexEffortOverride(ctx.effort));
 
 			const args: string[] = [...overrides];
+			if (ctx.model) args.push("-m", ctx.model);
 			if (mode === "print") {
 				args.push("exec", "--dangerously-bypass-approvals-and-sandbox", prompt);
 			} else {

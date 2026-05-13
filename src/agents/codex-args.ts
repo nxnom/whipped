@@ -93,13 +93,14 @@ export function buildCodexDeveloperInstructions(text: string): string[] {
 	return ["-c", `developer_instructions=${JSON.stringify(text)}`];
 }
 
-// Codex accepts low/medium/high. We collapse xhigh/max → high.
+// Codex accepts: none, minimal, low, medium, high, xhigh.
+// Our `max` has no equivalent and collapses to xhigh (the highest codex offers).
 const CODEX_EFFORT_MAP: Record<EffortLevel, string> = {
 	low: "low",
 	medium: "medium",
 	high: "high",
-	xhigh: "high",
-	max: "high",
+	xhigh: "xhigh",
+	max: "xhigh",
 };
 
 export function buildCodexEffortOverride(effort: EffortLevel): string[] {

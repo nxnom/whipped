@@ -352,6 +352,7 @@ export class TaskScheduler {
 					appendSystemPrompt: devSystemPromptResult.text,
 					files: agentId === "claude" ? devSystemPromptResult.files : undefined,
 					effort: devSlotEarly.effort ?? undefined,
+					model: devSlotEarly.model ?? undefined,
 					onOutput: (data) => {
 						runningTask.outputBuffer += data;
 						stateHub.broadcastTerminalOutput(workspaceId, devStreamId, data);

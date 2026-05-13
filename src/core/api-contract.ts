@@ -21,6 +21,27 @@ export const EFFORT_OPTIONS: ReadonlyArray<{ value: EffortLevel; label: string }
 	{ value: "max", label: "Max" },
 ];
 
+// Curated model presets per agent. Empty value = agent default. Users may also
+// type a custom model string (e.g. a dated release name) via the "Custom" option.
+// Claude options use the full model ID as the value so version is pinned;
+// the aliases ("opus"/"sonnet"/"haiku") also work but drift over time.
+export const MODEL_OPTIONS: Record<RuntimeAgentId, ReadonlyArray<{ value: string; label: string }>> = {
+	claude: [
+		{ value: "claude-opus-4-7", label: "Opus 4.7" },
+		{ value: "claude-opus-4-6", label: "Opus 4.6" },
+		{ value: "claude-sonnet-4-6", label: "Sonnet 4.6" },
+		{ value: "claude-sonnet-4-5", label: "Sonnet 4.5" },
+		{ value: "claude-haiku-4-5", label: "Haiku 4.5" },
+	],
+	codex: [
+		{ value: "gpt-5.5", label: "GPT-5.5 (default)" },
+		{ value: "gpt-5.4", label: "GPT-5.4" },
+		{ value: "gpt-5.4-mini", label: "GPT-5.4 Mini" },
+		{ value: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
+		{ value: "gpt-5.2", label: "GPT-5.2" },
+	],
+};
+
 // ─── Workflows ───────────────────────────────────────────────────────────────
 
 export const workflowSlotTypeSchema = z.enum(["dev", "code_review", "qa", "custom", "orch"]);
@@ -35,6 +56,7 @@ export const workflowSlotSchema = z.object({
 	enabled: z.boolean(),
 	prompt: z.string().default(""),
 	effort: effortLevelSchema.nullable().optional(),
+	model: z.string().nullable().optional(),
 });
 export type WorkflowSlot = z.infer<typeof workflowSlotSchema>;
 

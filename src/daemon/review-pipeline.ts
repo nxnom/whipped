@@ -157,7 +157,7 @@ async function runReviewSlot(
 	const mcpServer = slot.agentBinary === "codex"
 		? buildKanbomMcpServerSpec(options.mcpBinary, options.serverUrl, workspaceId, slot.agentBinary)
 		: undefined;
-	const output = await runAgentOnce(slot.agentBinary, triggerWord, worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, mcpConfigPath, systemPrompt, context.files, secretsEnv, slot.effort, hookServerPort, mcpServer);
+	const output = await runAgentOnce(slot.agentBinary, triggerWord, worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, mcpConfigPath, systemPrompt, context.files, secretsEnv, slot.effort, hookServerPort, mcpServer, slot.model);
 	logger.info(`[review:${streamId}] ${slot.name} agent done (${Date.now() - startTime}ms)`);
 
 	// Comment type: use slot.type for built-ins, slot.id for custom
@@ -320,6 +320,7 @@ function runAgentOnce(
 	effort?: import("../core/api-contract.js").EffortLevel | null,
 	hookServerPort?: number,
 	mcpServer?: { command: string; args: string[] },
+	model?: string | null,
 ): Promise<string> {
 	return new Promise((resolve) => {
 		let output = "";
@@ -348,6 +349,7 @@ function runAgentOnce(
 			appendSystemPrompt,
 			files: agentId === "claude" ? files : undefined,
 			effort,
+			model,
 			onOutput: (data) => {
 				output += data;
 				stateHub.broadcastTerminalOutput(workspaceId, streamId, data);

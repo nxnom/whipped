@@ -1,6 +1,6 @@
 import { Button, Checkbox, Input, Select, SelectOption, Switch, Textarea, toast } from "@geckoui/geckoui";
 import type { Workflow, WorkflowSlot, RuntimeGlobalConfig, RuntimeJiraTicket, RuntimeProjectConfig, RuntimeWorktreeSetup, RuntimeProjectSecret } from "@runtime-contract";
-import { AGENT_BINARY_OPTIONS, BUILTIN_SECRET_KEYS, EFFORT_OPTIONS, type EffortLevel, workflowSchema } from "@runtime-contract";
+import { AGENT_BINARY_OPTIONS, BUILTIN_SECRET_KEYS, EFFORT_OPTIONS, MODEL_OPTIONS, type EffortLevel, type RuntimeAgentId, workflowSchema } from "@runtime-contract";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
 import { ArrowLeft, Bot, Download, Eye, EyeOff, GitBranch, GripVertical, Key, Layers, MessageSquare, Plus, RefreshCw, Settings2, Terminal, Ticket, Trash2, Upload, X, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -748,12 +748,12 @@ function WorkflowsSection({
 			{addingCustomTo !== null && (
 				<AddCustomAgentDialog
 					defaultBinary={defaultBinary}
-					onAdd={(name, binary, effort, prompt) => {
+					onAdd={(name, binary, model, effort, prompt) => {
 						const id = `slot_custom_${Date.now()}`;
 						const wf = workflows.find(w => w.id === addingCustomTo);
 						if (!wf) return;
 						const maxOrder = wf.slots.reduce((m, s) => Math.max(m, s.order), 0);
-						const newSlot: WorkflowSlot = { id, type: "custom", name, agentBinary: binary, effort, order: maxOrder + 1, enabled: true, prompt };
+						const newSlot: WorkflowSlot = { id, type: "custom", name, agentBinary: binary, model, effort, order: maxOrder + 1, enabled: true, prompt };
 						updateWorkflow({ ...wf, slots: [...wf.slots, newSlot] });
 						setAddingCustomTo(null);
 					}}
@@ -765,12 +765,12 @@ function WorkflowsSection({
 				<AddCustomAgentDialog
 					defaultBinary={defaultBinary}
 					title="Add Orch Agent"
-					onAdd={(name, binary, effort, prompt) => {
+					onAdd={(name, binary, model, effort, prompt) => {
 						const id = `slot_orch_${Date.now()}`;
 						const wf = workflows.find(w => w.id === addingOrchTo);
 						if (!wf) return;
 						const maxOrder = wf.slots.reduce((m, s) => Math.max(m, s.order), 0);
-						const newSlot: WorkflowSlot = { id, type: "orch", name, agentBinary: binary, effort, order: maxOrder + 1, enabled: true, prompt };
+						const newSlot: WorkflowSlot = { id, type: "orch", name, agentBinary: binary, model, effort, order: maxOrder + 1, enabled: true, prompt };
 						updateWorkflow({ ...wf, slots: [...wf.slots, newSlot] });
 						setAddingOrchTo(null);
 					}}
@@ -1003,6 +1003,9 @@ function SlotCard({
 				{/* Row 2: badges + delete */}
 				<div className="flex items-center gap-1.5">
 					<span className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded font-mono">{slot.agentBinary}</span>
+					{slot.model && (
+						<span className="text-[10px] text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded font-mono">{slot.model}</span>
+					)}
 					{slot.effort && (
 						<span className="text-[10px] text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded font-mono">{slot.effort}</span>
 					)}
@@ -1020,6 +1023,49 @@ function SlotCard({
 	);
 }
 
+// Dropdown of curated per-agent model presets with an optional custom override.
+// Empty string = use the agent's default model.
+function ModelSelect({
+	agentId,
+	value,
+	onChange,
+}: {
+	agentId: RuntimeAgentId;
+	value: string;
+	onChange: (v: string) => void;
+}) {
+	const options = MODEL_OPTIONS[agentId];
+	const isPresetValue = value === "" || options.some((o) => o.value === value);
+	const [customMode, setCustomMode] = useState(!isPresetValue);
+
+	return (
+		<div className="space-y-2">
+			<Select
+				value={customMode ? "__custom__" : value}
+				onChange={(v) => {
+					if (v === "__custom__") {
+						setCustomMode(true);
+					} else {
+						setCustomMode(false);
+						onChange(v);
+					}
+				}}
+			>
+				<SelectOption value="" label="Default" />
+				{options.map((o) => <SelectOption key={o.value} value={o.value} label={o.label} />)}
+				<SelectOption value="__custom__" label="Custom..." />
+			</Select>
+			{customMode && (
+				<Input
+					value={value}
+					onChange={(e) => onChange(e.target.value)}
+					placeholder={agentId === "claude" ? "e.g. claude-opus-4-7" : "e.g. gpt-5-codex"}
+				/>
+			)}
+		</div>
+	);
+}
+
 function AgentSlotDialog({
 	slot,
 	onSave,
@@ -1030,6 +1076,7 @@ function AgentSlotDialog({
 	onClose: () => void;
 }) {
 	const [binary, setBinary] = useState<"claude" | "codex">(slot.agentBinary);
+	const [model, setModel] = useState<string>(slot.model ?? "");
 	const [effort, setEffort] = useState<EffortLevel | "">(slot.effort ?? "");
 	const [prompt, setPrompt] = useState(slot.prompt ?? "");
 	const [promptError, setPromptError] = useState("");
@@ -1040,7 +1087,7 @@ function AgentSlotDialog({
 			return;
 		}
 		setPromptError("");
-		onSave({ ...slot, agentBinary: binary, effort: effort || null, prompt });
+		onSave({ ...slot, agentBinary: binary, model: model || null, effort: effort || null, prompt });
 	};
 
 	const placeholder: Record<string, string> = {
@@ -1059,8 +1106,8 @@ function AgentSlotDialog({
 				<h3 className="text-sm font-semibold text-gray-100">Edit — {slot.name}</h3>
 
 				<div className="grid grid-cols-2 gap-3">
-					<Field label="Model">
-						<Select value={binary} onChange={(v) => setBinary(v as "claude" | "codex")}>
+					<Field label="Agent">
+						<Select value={binary} onChange={(v) => { setBinary(v as "claude" | "codex"); setModel(""); }}>
 							{AGENT_BINARY_OPTIONS.map(o => <SelectOption key={o.value} value={o.value} label={o.label} />)}
 						</Select>
 					</Field>
@@ -1071,6 +1118,10 @@ function AgentSlotDialog({
 						</Select>
 					</Field>
 				</div>
+
+				<Field label="Model (optional)">
+					<ModelSelect key={binary} agentId={binary} value={model} onChange={setModel} />
+				</Field>
 
 				<Field label={`Instructions${slot.type === "custom" || slot.type === "orch" ? " (min 50 chars)" : " (optional)"}`}>
 					<Textarea
@@ -1100,11 +1151,12 @@ function AddCustomAgentDialog({
 }: {
 	defaultBinary: "claude" | "codex";
 	title?: string;
-	onAdd: (name: string, binary: "claude" | "codex", effort: EffortLevel | null, prompt: string) => void;
+	onAdd: (name: string, binary: "claude" | "codex", model: string | null, effort: EffortLevel | null, prompt: string) => void;
 	onClose: () => void;
 }) {
 	const [name, setName] = useState("");
 	const [binary, setBinary] = useState<"claude" | "codex">(defaultBinary);
+	const [model, setModel] = useState<string>("");
 	const [effort, setEffort] = useState<EffortLevel | "">("");
 	const [prompt, setPrompt] = useState("");
 	const [promptError, setPromptError] = useState("");
@@ -1115,7 +1167,7 @@ function AddCustomAgentDialog({
 			setPromptError("Instructions must be at least 50 characters.");
 			return;
 		}
-		onAdd(name.trim(), binary, effort || null, prompt);
+		onAdd(name.trim(), binary, model || null, effort || null, prompt);
 	};
 
 	return (
@@ -1134,18 +1186,23 @@ function AddCustomAgentDialog({
 							autoFocus
 						/>
 					</Field>
-					<Field label="Model">
-						<Select value={binary} onChange={(v) => setBinary(v as "claude" | "codex")}>
+					<Field label="Agent">
+						<Select value={binary} onChange={(v) => { setBinary(v as "claude" | "codex"); setModel(""); }}>
 							{AGENT_BINARY_OPTIONS.map(o => <SelectOption key={o.value} value={o.value} label={o.label} />)}
 						</Select>
 					</Field>
 				</div>
-				<Field label="Effort (optional)">
-					<Select value={effort} onChange={(v) => setEffort(v as EffortLevel | "")}>
-						<SelectOption value="" label="Default" />
-						{EFFORT_OPTIONS.map(o => <SelectOption key={o.value} value={o.value} label={o.label} />)}
-					</Select>
-				</Field>
+				<div className="grid grid-cols-2 gap-3">
+					<Field label="Model (optional)">
+						<ModelSelect key={binary} agentId={binary} value={model} onChange={setModel} />
+					</Field>
+					<Field label="Effort (optional)">
+						<Select value={effort} onChange={(v) => setEffort(v as EffortLevel | "")}>
+							<SelectOption value="" label="Default" />
+							{EFFORT_OPTIONS.map(o => <SelectOption key={o.value} value={o.value} label={o.label} />)}
+						</Select>
+					</Field>
+				</div>
 				<Field label="Instructions (min 50 chars)">
 					<Textarea
 						value={prompt}
