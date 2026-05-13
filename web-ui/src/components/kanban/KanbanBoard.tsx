@@ -576,6 +576,8 @@ function EditCardContent({
   const isStory = card.type === "story";
   const isSubtask = card.type === "subtask";
 
+  const canEditBranch = !isStory && !card.worktreePath;
+
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description);
   const [existingAttachments, setExistingAttachments] = useState(card.descriptionAttachments ?? []);
@@ -583,6 +585,8 @@ function EditCardContent({
   const [priority, setPriority] = useState<string>(card.priority ?? "");
   const [dependsOn, setDependsOn] = useState<string[]>(card.dependsOn ?? []);
   const [workflowId, setWorkflowId] = useState<string>(card.workflowId ?? "");
+  const [branchName, setBranchName] = useState<string>(card.branchName ?? "");
+  const [branchNameEdited, setBranchNameEdited] = useState(!!card.branchName);
   const [loading, setLoading] = useState(false);
 
   // Stories use story workflows; tasks/subtasks use task workflows
@@ -612,6 +616,7 @@ function EditCardContent({
         priority: (priority as "urgent" | "high" | "medium" | "low" | undefined) || undefined,
         dependsOn: isStory ? undefined : dependsOn,
         workflowId: workflowId || undefined,
+        branchName: canEditBranch ? (branchName.trim() || undefined) : undefined,
         revision: 0,
       });
       dismiss();
@@ -635,10 +640,29 @@ function EditCardContent({
           <Input
             autoFocus
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              setTitle(v);
+              if (canEditBranch && !branchNameEdited) {
+                setBranchName(deriveBranchName(v));
+              }
+            }}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSave()}
           />
         </div>
+        {canEditBranch && (
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Branch Name</label>
+            <Input
+              value={branchName}
+              onChange={(e) => {
+                setBranchName(e.target.value);
+                setBranchNameEdited(true);
+              }}
+              placeholder="feat/auto-generated-from-title"
+            />
+          </div>
+        )}
         <div>
           <label className="text-xs text-gray-400 block mb-1">Description</label>
           <Textarea

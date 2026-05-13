@@ -1,6 +1,6 @@
-import { Button, ConfirmDialog, Tooltip, toast } from "@geckoui/geckoui";
+import { Button, ConfirmDialog, Input, Tooltip, toast } from "@geckoui/geckoui";
 import type { WorkflowSlot, RuntimeBoardCard } from "@runtime-contract";
-import { ArrowLeft, ExternalLink, FolderOpen, GitBranch, GitMerge, GitPullRequest, Paperclip, Play, Square, TerminalSquare, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, ExternalLink, FolderOpen, GitBranch, GitMerge, GitPullRequest, Paperclip, Pencil, Play, Square, TerminalSquare, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { attachmentUrl, uploadAttachmentFile } from "@/runtime/attachments";
@@ -107,6 +107,9 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 	const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR);
 	const [uploadingDesc, setUploadingDesc] = useState(false);
 	const [descExpanded, setDescExpanded] = useState(false);
+	const [editingBranch, setEditingBranch] = useState(false);
+	const [branchInput, setBranchInput] = useState("");
+	const [savingBranch, setSavingBranch] = useState(false);
 	const descFileInputRef = useRef<HTMLInputElement>(null);
 	const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
@@ -302,6 +305,43 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 		onRefresh();
 	};
 
+	const currentBranch = card.branchName ?? `kanbom/task-${card.id}`;
+	const canEditBranch = !card.worktreePath;
+
+	const startEditBranch = () => {
+		setBranchInput(card.branchName ?? "");
+		setEditingBranch(true);
+	};
+
+	const cancelEditBranch = () => {
+		setEditingBranch(false);
+		setBranchInput("");
+	};
+
+	const saveBranchName = async () => {
+		const next = branchInput.trim();
+		if (next === (card.branchName ?? "")) {
+			cancelEditBranch();
+			return;
+		}
+		setSavingBranch(true);
+		try {
+			await trpc.cards.update.mutate({
+				workspaceId,
+				cardId: card.id,
+				branchName: next || undefined,
+				revision: 0,
+			});
+			toast.success("Branch name updated");
+			cancelEditBranch();
+			onRefresh();
+		} catch {
+			toast.error("Failed to update branch name");
+		} finally {
+			setSavingBranch(false);
+		}
+	};
+
 	const handleDelete = () => {
 		ConfirmDialog.show({
 			title: "Delete task?",
@@ -405,13 +445,52 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 								{card.baseRef && (
 									<div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
 										<GitBranch size={11} className="shrink-0" />
-										{card.worktreePath && (
+										{editingBranch ? (
+											<div className="flex items-center gap-1 flex-1 min-w-0">
+												<Input
+													autoFocus
+													value={branchInput}
+													onChange={(e) => setBranchInput(e.target.value)}
+													onKeyDown={(e) => {
+														if (e.key === "Enter") void saveBranchName();
+														if (e.key === "Escape") cancelEditBranch();
+													}}
+													placeholder={`kanbom/task-${card.id}`}
+													disabled={savingBranch}
+												/>
+												<button
+													onClick={() => void saveBranchName()}
+													disabled={savingBranch}
+													className="p-1 rounded text-gray-500 hover:text-emerald-400 hover:bg-gray-800 transition-colors disabled:opacity-50"
+													title="Save branch name"
+												>
+													<Check size={12} />
+												</button>
+												<button
+													onClick={cancelEditBranch}
+													disabled={savingBranch}
+													className="p-1 rounded text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors disabled:opacity-50"
+													title="Cancel"
+												>
+													<X size={12} />
+												</button>
+											</div>
+										) : (
 											<>
-												<span className="font-mono text-gray-400 truncate max-w-[140px]">{`kanbom/task-${card.id}`}</span>
+												<span className="font-mono text-gray-400 truncate max-w-[140px]" title={currentBranch}>{currentBranch}</span>
+												{canEditBranch && (
+													<button
+														onClick={startEditBranch}
+														className="p-1 rounded text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors"
+														title="Edit branch name"
+													>
+														<Pencil size={11} />
+													</button>
+												)}
 												<span className="text-gray-600">→</span>
+												<span className="font-mono text-gray-400 truncate max-w-[140px]">{card.baseRef}</span>
 											</>
 										)}
-										<span className="font-mono text-gray-400 truncate max-w-[140px]">{card.baseRef}</span>
 									</div>
 								)}
 							</div>

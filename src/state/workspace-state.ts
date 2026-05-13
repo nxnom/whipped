@@ -517,7 +517,7 @@ export async function updateCard(
 	workspaceId: string,
 	cardId: string,
 	update: Partial<
-		Pick<RuntimeBoardCard, "type" | "title" | "description" | "descriptionAttachments" | "agentId" | "priority" | "readyForDev" | "dependsOn" | "workflowId" | "githubPrUrl" | "reviewComments" | "autoFixAttempts" | "githubCommentIds" | "worktreePath">
+		Pick<RuntimeBoardCard, "type" | "title" | "description" | "descriptionAttachments" | "agentId" | "priority" | "readyForDev" | "dependsOn" | "workflowId" | "githubPrUrl" | "reviewComments" | "autoFixAttempts" | "githubCommentIds" | "worktreePath" | "branchName">
 	>,
 ): Promise<RuntimeBoardCard> {
 	return withLock(workspaceId, async () => {

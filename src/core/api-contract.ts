@@ -339,6 +339,7 @@ export const runtimeCardUpdateRequestSchema = z.object({
 	readyForDev: z.boolean().optional(),
 	dependsOn: z.array(z.string()).optional(),
 	workflowId: z.string().optional(),
+	branchName: z.string().optional(),
 	revision: z.number(),
 });
 export type RuntimeCardUpdateRequest = z.infer<typeof runtimeCardUpdateRequestSchema>;
