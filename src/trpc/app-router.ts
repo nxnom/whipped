@@ -17,8 +17,10 @@ import {
 	runtimeGlobalConfigSchema,
 	runtimeJiraImportRequestSchema,
 	runtimeProjectConfigSchema,
+	projectsLayoutSchema,
 	workflowSchema,
 } from "../core/api-contract.js";
+import { loadProjectsLayout, saveProjectsLayout } from "../state/projects-layout.js";
 import type { BoardPoller } from "../daemon/poller.js";
 import type { TaskScheduler } from "../daemon/scheduler.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
@@ -149,6 +151,12 @@ export const appRouter = router({
 			await removeWorkspace(input.workspaceId);
 			return { ok: true };
 		}),
+
+		getLayout: publicProcedure.query(() => loadProjectsLayout()),
+
+		saveLayout: publicProcedure
+			.input(projectsLayoutSchema)
+			.mutation(({ input }) => { saveProjectsLayout(input); return { ok: true }; }),
 	}),
 
 	// ─── Workspace ─────────────────────────────────────────────────────────────

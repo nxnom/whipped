@@ -372,6 +372,27 @@ export type RuntimeStateEvent =
 	| { type: "autonomous_mode_changed"; enabled: boolean }
 	| { type: "run_session_changed"; cardId: string | null; status: RunSessionStatus; errorMessage?: string };
 
+// ─── Projects layout ─────────────────────────────────────────────────────────
+
+export const projectFolderSchema = z.object({
+	id: z.string(),
+	name: z.string(),
+	collapsed: z.boolean().default(false),
+	projectIds: z.array(z.string()),
+});
+
+export const topLevelItemSchema = z.discriminatedUnion("type", [
+	z.object({ type: z.literal("folder"), id: z.string() }),
+	z.object({ type: z.literal("project"), workspaceId: z.string() }),
+]);
+
+export const projectsLayoutSchema = z.object({
+	version: z.literal(1),
+	topLevel: z.array(topLevelItemSchema),
+	folders: z.record(z.string(), projectFolderSchema),
+});
+export type ProjectsLayout = z.infer<typeof projectsLayoutSchema>;
+
 // ─── Project ──────────────────────────────────────────────────────────────────
 
 export const runtimeProjectSchema = z.object({

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ProjectsSidebar } from "@/components/ProjectsSidebar";
 import { AssistantPanel } from "@/components/AssistantPanel";
 import { RunBar } from "@/components/RunBar";
 import { BoardPage } from "@/pages/Board";
@@ -71,20 +72,11 @@ export default function App() {
 
 					{/* Projects list — scrollable */}
 					<div className="flex-1 overflow-y-auto py-2">
-						<p className="px-4 mb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-600">Projects</p>
-						{projects.map((p) => (
-							<button
-								key={p.workspaceId}
-								onClick={() => switchProject(p.workspaceId)}
-								className={`w-full flex items-center gap-2.5 px-4 py-2 text-sm transition-colors text-left
-									${p.workspaceId === activeWorkspaceId ? "text-white bg-gray-800" : "text-gray-400 hover:text-gray-200 hover:bg-gray-900"}`}
-							>
-								<span
-									className={`size-1.5 rounded-full shrink-0 ${p.workspaceId === activeWorkspaceId ? "bg-blue-400" : "bg-gray-700"}`}
-								/>
-								<span className="truncate">{p.name}</span>
-							</button>
-						))}
+						<ProjectsSidebar
+							projects={projects}
+							activeWorkspaceId={activeWorkspaceId}
+							onSwitch={switchProject}
+						/>
 						{projects.length === 0 && (
 							<p className="px-4 py-2 text-xs text-gray-600">No projects yet</p>
 						)}
