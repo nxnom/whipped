@@ -1,21 +1,21 @@
 import { Button, ConfirmDialog, Dialog, Input, Select, SelectOption, Switch, Textarea, toast } from "@geckoui/geckoui";
 import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
 import type {
-	Workflow,
 	RuntimeBoardCard,
 	RuntimeBoardColumnId,
 	RuntimeWorkspaceStateResponse,
+	Workflow,
 } from "@runtime-contract";
 import { Bot, Layers, Paperclip, Plus, Settings, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { BranchSelect } from "@/components/BranchSelect";
 import { trpc } from "@/runtime/trpc-client";
 import { useRunSession } from "@/stores/run-session-store";
-import { BranchSelect } from "@/components/BranchSelect";
+import { deriveBranchName } from "@/utils/branch";
 import { CardDetailPanel } from "./CardDetailPanel";
 import { CreateStoryDrawer } from "./CreateStoryDrawer";
 import { KanbanColumn } from "./KanbanColumn";
-import { deriveBranchName } from "@/utils/branch";
 
 interface KanbanBoardProps {
 	state: RuntimeWorkspaceStateResponse;
@@ -292,15 +292,7 @@ async function uploadImages(workspaceId: string, cardId: string, images: Pending
 	return results;
 }
 
-function ImagePicker({
-	pending,
-	onChange,
-	onPaste,
-}: {
-	pending: PendingImage[];
-	onChange: (imgs: PendingImage[]) => void;
-	onPaste?: (e: React.ClipboardEvent) => void;
-}) {
+function ImagePicker({ pending, onChange }: { pending: PendingImage[]; onChange: (imgs: PendingImage[]) => void }) {
 	const ref = useRef<HTMLInputElement>(null);
 	const addFiles = (files: FileList | File[]) => {
 		Array.from(files).forEach((file) => {

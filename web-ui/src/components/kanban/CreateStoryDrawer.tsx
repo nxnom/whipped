@@ -1,8 +1,8 @@
 import { Button, Drawer, Input, Select, SelectOption, Textarea, toast } from "@geckoui/geckoui";
-import { BranchSelect } from "@/components/BranchSelect";
 import type { RuntimeBoardCard, Workflow } from "@runtime-contract";
 import { Layers, Paperclip, Pencil, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { BranchSelect } from "@/components/BranchSelect";
 import { trpc } from "@/runtime/trpc-client";
 import { deriveBranchName } from "@/utils/branch";
 

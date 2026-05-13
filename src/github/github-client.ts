@@ -8,7 +8,7 @@ export interface GithubIssueComment {
 
 export function createGithubClient(token: string) {
 	const octokit = new Octokit({ auth: token });
-	const gql = graphql.defaults({ headers: { authorization: `token ${token}` } });
+	const _gql = graphql.defaults({ headers: { authorization: `token ${token}` } });
 
 	return {
 		async postComment(issueUrl: string, body: string): Promise<void> {

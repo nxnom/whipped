@@ -1,7 +1,7 @@
-import { logger } from "../core/logger.js";
-import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
+import { logger } from "../core/logger.js";
 import { fetchCommentBodyHtml, fetchPRInfo } from "../git/merge-operations.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import {
@@ -302,11 +302,13 @@ export class BoardPoller {
 
 			// Mark bot IDs as seen so we never reprocess them
 			const newBotIds = botEntries.filter((e) => !seenIds.has(e.id)).map((e) => e.id);
-			if (newBotIds.length > 0) newBotIds.forEach((id) => seenIds.add(id));
+			if (newBotIds.length > 0) {
+				for (const id of newBotIds) seenIds.add(id);
+			}
 
 			// Don't count comments with in-progress GitHub uploads as seen — recheck next poll
 			const newEntries = humanEntries.filter((e) => !seenIds.has(e.id));
-			const pendingUploadEntries = newEntries.filter((e) => e.body.includes("![Uploading"));
+			const _pendingUploadEntries = newEntries.filter((e) => e.body.includes("![Uploading"));
 			const readyEntries = newEntries.filter((e) => !e.body.includes("![Uploading"));
 
 			let updated = false;

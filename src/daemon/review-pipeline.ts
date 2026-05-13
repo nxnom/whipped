@@ -476,7 +476,7 @@ function getGitFullDiff(worktreePath: string, baseRef: string): string {
 	].filter(Boolean);
 
 	if (diffParts.length > 0) {
-		sections.push("```diff\n" + diffParts.join("\n") + "\n```");
+		sections.push(`\`\`\`diff\n${diffParts.join("\n")}\n\`\`\``);
 	}
 
 	const newUntracked = git(["ls-files", "--others", "--exclude-standard"], worktreePath)
@@ -490,7 +490,7 @@ function getGitFullDiff(worktreePath: string, baseRef: string): string {
 			const ext = file.split(".").pop() ?? "";
 			newFileContents.push(content ? `### ${file}\n\`\`\`${ext}\n${content}\n\`\`\`` : `### ${file} (unreadable)`);
 		}
-		sections.push("New files (full content):\n\n" + newFileContents.join("\n\n"));
+		sections.push(`New files (full content):\n\n${newFileContents.join("\n\n")}`);
 	}
 
 	return sections.join("\n\n");
@@ -545,7 +545,7 @@ const INLINE_DIFF_LIMIT = 8000;
 
 // Exported — used by scheduler.ts for dev agent
 export function buildDevAgentSystemPrompt(
-	slot: WorkflowSlot,
+	_slot: WorkflowSlot,
 	card: RuntimeBoardCard,
 	customPrompt: string,
 	worktreePath?: string,
@@ -561,7 +561,7 @@ export function buildDevAgentSystemPrompt(
 
 	const descAttachNote =
 		(card.descriptionAttachments?.length ?? 0) > 0
-			? `\n\n**Attached files** (use the Read tool to view each one):\n${card.descriptionAttachments!.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
+			? `\n\n**Attached files** (use the Read tool to view each one):\n${card.descriptionAttachments?.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
 			: "";
 	parts.push(
 		`## Task: ${card.title}${card.description ? `\n\n${card.description}` : ""}${descAttachNote}${statSection}${context.text}`,
@@ -629,7 +629,7 @@ function buildReviewSlotSystemPrompt(
 }
 
 function buildCodeReviewSystemPrompt(
-	slot: WorkflowSlot,
+	_slot: WorkflowSlot,
 	card: RuntimeBoardCard,
 	stat: string,
 	fullDiff: string,
@@ -648,7 +648,7 @@ function buildCodeReviewSystemPrompt(
 
 	const descAttachSection =
 		(card.descriptionAttachments?.length ?? 0) > 0
-			? `\n\n**Attached files** (use Read tool to view):\n${card.descriptionAttachments!.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
+			? `\n\n**Attached files** (use Read tool to view):\n${card.descriptionAttachments?.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
 			: "";
 
 	return `You are a senior code reviewer performing an automated review.
@@ -680,7 +680,7 @@ Then call \`kanban_add_comment\` with cardId: "${card.id}", type: "code_review",
 }
 
 function buildQASystemPrompt(
-	slot: WorkflowSlot,
+	_slot: WorkflowSlot,
 	card: RuntimeBoardCard,
 	stat: string,
 	fullDiff: string,
@@ -699,7 +699,7 @@ function buildQASystemPrompt(
 
 	const qaDescAttachSection =
 		(card.descriptionAttachments?.length ?? 0) > 0
-			? `\n\n**Attached files** (use Read tool to view):\n${card.descriptionAttachments!.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
+			? `\n\n**Attached files** (use Read tool to view):\n${card.descriptionAttachments?.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
 			: "";
 
 	return `You are a QA engineer performing automated testing.
@@ -968,7 +968,7 @@ function buildCascadeSystemPrompt(
 
 	const lastDevIdx = (() => {
 		for (let i = comments.length - 1; i >= 0; i--) {
-			if (comments[i]!.type === "dev") return i;
+			if (comments[i]?.type === "dev") return i;
 		}
 		return -1;
 	})();

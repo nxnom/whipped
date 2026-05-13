@@ -1,4 +1,3 @@
-import { logger } from "./core/logger.js";
 import { spawnSync } from "node:child_process";
 import { createServer } from "node:net";
 import { Command } from "commander";
@@ -6,6 +5,7 @@ import open from "open";
 import ora from "ora";
 import { DEFAULT_PORT } from "./config/runtime-config.js";
 import { installGracefulShutdownHandlers } from "./core/graceful-shutdown.js";
+import { logger } from "./core/logger.js";
 import { createRuntimeServer } from "./server/runtime-server.js";
 
 // Ignore SIGPIPE so a closed pipe/socket doesn't crash the process

@@ -76,9 +76,9 @@ const PROJECT_SECTIONS = new Set<SettingsSection>([
 export function SettingsPage() {
 	const navigate = useNavigate();
 	const { workspaceId } = useParams<{ workspaceId: string }>();
-	if (!workspaceId) return null;
 	const [section, setSection] = useState<SettingsSection>("autonomous");
 	const isProject = PROJECT_SECTIONS.has(section);
+	if (!workspaceId) return null;
 
 	return (
 		<div className="flex-1 overflow-hidden flex flex-col">
@@ -605,7 +605,7 @@ function WorkflowsSection({
 				const raw = JSON.parse(ev.target?.result as string);
 				const parsed = workflowSchema.safeParse(raw);
 				if (!parsed.success) {
-					toast.error("Invalid workflow file: " + parsed.error.issues[0]?.message);
+					toast.error(`Invalid workflow file: ${parsed.error.issues[0]?.message}`);
 					return;
 				}
 				const imported: Workflow = {

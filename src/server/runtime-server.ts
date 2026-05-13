@@ -1,14 +1,14 @@
-import { logger } from "../core/logger.js";
 import { existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
-import { WebSocketServer } from "ws";
 import * as nodePty from "node-pty";
+import { WebSocketServer } from "ws";
 import { writeClaudeTaskHookSettings } from "../agents/agent-hooks.js";
 import { ATTACHMENTS_DIR, DEFAULT_PORT, loadGlobalConfig } from "../config/runtime-config.js";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
+import { logger } from "../core/logger.js";
 import { BoardPoller } from "../daemon/poller.js";
 import { runReviewPipeline } from "../daemon/review-pipeline.js";
 import { getMcpServerPath, TaskScheduler } from "../daemon/scheduler.js";
@@ -19,13 +19,12 @@ import {
 	listWorkspaces,
 	loadBoard,
 	loadProjectConfig,
+	loadTerminalBuffer,
 	loadWorkspaceContext,
-	loadWorkspaceState,
 	moveCard,
 	saveAttachment,
 } from "../state/workspace-state.js";
-import { loadTerminalBuffer } from "../state/workspace-state.js";
-import { type AppContext, type RunSession, appRouter } from "../trpc/app-router.js";
+import { type AppContext, appRouter, type RunSession } from "../trpc/app-router.js";
 import { RuntimeStateHub } from "./runtime-state-hub.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
@@ -66,7 +65,7 @@ interface ServerOptions {
 export async function createRuntimeServer(options: ServerOptions) {
 	const { port = DEFAULT_PORT, host = "127.0.0.1", repoPath } = options;
 
-	const globalConfig = await loadGlobalConfig();
+	const _globalConfig = await loadGlobalConfig();
 	const initialCtx = await loadWorkspaceContext(repoPath);
 
 	const stateHub = new RuntimeStateHub();
@@ -103,7 +102,9 @@ export async function createRuntimeServer(options: ServerOptions) {
 
 		pty.onData((data) => {
 			session.outputBuffer = (session.outputBuffer + data).slice(-131072); // keep last 128KB
-			runTerminalListeners.get(workspaceId)?.forEach((cb) => cb(data));
+			runTerminalListeners.get(workspaceId)?.forEach((cb) => {
+				cb(data);
+			});
 		});
 
 		pty.onExit(({ exitCode }) => {
@@ -153,7 +154,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 		const resolveGithubToken = (cfg: typeof projectConfig): string | undefined =>
 			cfg.secrets?.find((s) => s.key === "GITHUB_TOKEN")?.value ?? cfg.github?.token;
 
-		const githubClient = resolveGithubToken(projectConfig)
+		const _githubClient = resolveGithubToken(projectConfig)
 			? createGithubClient(resolveGithubToken(projectConfig)!)
 			: undefined;
 
@@ -523,7 +524,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 					}
 				}
 			};
-			runTerminalListeners.get(workspaceId)!.add(listener);
+			runTerminalListeners.get(workspaceId)?.add(listener);
 
 			// Send buffered output so far
 			const session = runSessions.get(workspaceId);

@@ -1,12 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { z } from "zod";
-import {
-	type RuntimeGlobalConfig,
-	runtimeGlobalConfigSchema,
-	runtimeProjectConfigSchema,
-} from "../core/api-contract.js";
+import { type RuntimeGlobalConfig, runtimeGlobalConfigSchema } from "../core/api-contract.js";
 
 export const KANBOM_HOME_DIR = join(homedir(), ".kanbom");
 export const CONFIG_FILE = join(KANBOM_HOME_DIR, "config.json");

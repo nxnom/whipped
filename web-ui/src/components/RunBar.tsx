@@ -1,9 +1,9 @@
+import { toast } from "@geckoui/geckoui";
 import { ChevronDown, ChevronUp, Square } from "lucide-react";
 import { useEffect, useState } from "react";
-import { toast } from "@geckoui/geckoui";
 import { RunTerminal } from "@/components/terminal/RunTerminal";
-import { useRunSession } from "@/stores/run-session-store";
 import { trpc } from "@/runtime/trpc-client";
+import { useRunSession } from "@/stores/run-session-store";
 
 interface RunBarProps {
 	workspaceId: string;

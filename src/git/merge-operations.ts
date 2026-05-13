@@ -1,10 +1,10 @@
-import { logger } from "../core/logger.js";
+import { execFile, spawnSync } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { execFile, spawnSync } from "node:child_process";
 import { promisify } from "node:util";
 import { Octokit } from "@octokit/rest";
+import { logger } from "../core/logger.js";
 
 const execFileAsync = promisify(execFile);
 

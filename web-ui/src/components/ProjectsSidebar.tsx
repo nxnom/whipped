@@ -1,6 +1,5 @@
-import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import type { ProjectsLayout } from "@runtime-contract";
-import type { RuntimeProject } from "@runtime-contract";
+import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
+import type { ProjectsLayout, RuntimeProject } from "@runtime-contract";
 import { ChevronDown, ChevronRight, FolderPlus, GripVertical, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
@@ -77,10 +76,12 @@ function syncLayout(layout: ProjectsLayout, projects: RuntimeProject[]): Project
 		]),
 	);
 	const inLayout = new Set<string>();
-	topLevel.forEach((i) => {
+	for (const i of topLevel) {
 		if (i.type === "project") inLayout.add(i.workspaceId);
-	});
-	Object.values(folders).forEach((f) => f.projectIds.forEach((id) => inLayout.add(id)));
+	}
+	for (const f of Object.values(folders)) {
+		for (const id of f.projectIds) inLayout.add(id);
+	}
 	const newItems = projects
 		.filter((p) => !inLayout.has(p.workspaceId))
 		.map((p) => ({ type: "project" as const, workspaceId: p.workspaceId }));

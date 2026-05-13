@@ -1,9 +1,24 @@
-import { logger } from "../core/logger.js";
 import { spawnSync } from "node:child_process";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getAvailableAgents } from "../agents/agent-registry.js";
-import { loadGlobalConfig, saveGlobalConfig, updateGlobalConfig } from "../config/runtime-config.js";
+import { loadGlobalConfig, updateGlobalConfig } from "../config/runtime-config.js";
+import {
+	projectsLayoutSchema,
+	type RuntimeGlobalConfig,
+	reviewActorSchema,
+	reviewAttachmentSchema,
+	reviewIssueSchema,
+	runtimeCardCreateRequestSchema,
+	runtimeCardMoveRequestSchema,
+	runtimeCardUpdateRequestSchema,
+	runtimeGlobalConfigSchema,
+	runtimeProjectConfigSchema,
+	workflowSchema,
+} from "../core/api-contract.js";
+import { logger } from "../core/logger.js";
+import type { BoardPoller } from "../daemon/poller.js";
+import type { TaskScheduler } from "../daemon/scheduler.js";
 import {
 	abortMerge,
 	attemptMerge,
@@ -14,27 +29,11 @@ import {
 	listLocalBranches,
 	pushBranch,
 } from "../git/merge-operations.js";
-import {
-	type RuntimeGlobalConfig,
-	type RuntimeProjectConfig,
-	reviewActorSchema,
-	reviewAttachmentSchema,
-	reviewIssueSchema,
-	runtimeCardCreateRequestSchema,
-	runtimeCardMoveRequestSchema,
-	runtimeCardUpdateRequestSchema,
-	runtimeGlobalConfigSchema,
-	runtimeJiraImportRequestSchema,
-	runtimeProjectConfigSchema,
-	projectsLayoutSchema,
-	workflowSchema,
-} from "../core/api-contract.js";
-import { loadProjectsLayout, saveProjectsLayout } from "../state/projects-layout.js";
-import type { BoardPoller } from "../daemon/poller.js";
-import type { TaskScheduler } from "../daemon/scheduler.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
+import { loadProjectsLayout, saveProjectsLayout } from "../state/projects-layout.js";
 import {
 	appendActivityLog,
+	clearCardSession,
 	createCard,
 	deleteCard,
 	listWorkspaces,
@@ -44,7 +43,6 @@ import {
 	loadWorkspaceState,
 	moveCard,
 	removeWorkspace,
-	clearCardSession,
 	saveAttachment,
 	saveProjectConfig,
 	saveWorkspaceState,
@@ -328,7 +326,7 @@ export const appRouter = router({
 
 				await commitIfDirty(worktreePath, card.title);
 
-				let mergeResult;
+				let mergeResult: ReturnType<typeof attemptMerge>;
 				try {
 					mergeResult = attemptMerge(ws.repoPath, cardId, taskBranch);
 				} catch (err) {
@@ -666,7 +664,7 @@ export const appRouter = router({
 					cwd: worktreePath,
 					encoding: "utf-8",
 				});
-				const baseBehindCount = parseInt(behindResult.stdout?.trim() ?? "0") || 0;
+				const baseBehindCount = parseInt(behindResult.stdout?.trim() ?? "0", 10) || 0;
 
 				return { diff: result.stdout ?? "", error: null, baseBehindCount };
 			}),
@@ -715,7 +713,7 @@ export const appRouter = router({
 		}),
 
 		listDir: publicProcedure.input(z.object({ path: z.string() })).query(async ({ input }) => {
-			const { readdirSync, statSync } = await import("node:fs");
+			const { readdirSync } = await import("node:fs");
 			const { join: pathJoin, dirname, resolve } = await import("node:path");
 			const { homedir } = await import("node:os");
 			const target = input.path || homedir();

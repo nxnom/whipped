@@ -1,5 +1,5 @@
 import { Button, ConfirmDialog, Input, Tooltip, toast } from "@geckoui/geckoui";
-import type { WorkflowSlot, RuntimeBoardCard } from "@runtime-contract";
+import type { RuntimeBoardCard, WorkflowSlot } from "@runtime-contract";
 import {
 	ArrowLeft,
 	Check,

@@ -2,11 +2,9 @@ import { createHash, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { z } from "zod";
 import { ATTACHMENTS_DIR, WORKSPACES_DIR } from "../config/runtime-config.js";
 import {
 	BOARD_COLUMNS,
-	SCHEMA_VERSION,
 	type RuntimeBoardCard,
 	type RuntimeBoardColumnId,
 	type RuntimeBoardData,
@@ -17,6 +15,7 @@ import {
 	type RuntimeWorkspaceStateSaveRequest,
 	runtimeBoardDataSchema,
 	runtimeProjectConfigSchema,
+	SCHEMA_VERSION,
 } from "../core/api-contract.js";
 import { generateTaskId } from "../core/task-id.js";
 
@@ -529,7 +528,7 @@ export async function downloadGithubImages(
 				"image/gif": "gif",
 				"image/webp": "webp",
 			};
-			const ext = extMap[contentType.split(";")[0]!.trim()] ?? "png";
+			const ext = extMap[contentType.split(";")[0]?.trim()] ?? "png";
 			const buffer = Buffer.from(await res.arrayBuffer());
 			const localPath = await saveAttachment(buffer, ext, cardId);
 			const parts = localPath.replace(/\\/g, "/").split("/");
@@ -597,7 +596,7 @@ export async function updateCard(
 }
 
 export async function deleteCard(workspaceId: string, cardId: string): Promise<void> {
-	return withLock(workspaceId, async () => {
+	await withLock(workspaceId, async () => {
 		const board = await loadBoard(workspaceId);
 		delete board.cards[cardId];
 		for (const col of board.columns) {

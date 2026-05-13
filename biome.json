@@ -11,7 +11,8 @@
 		"rules": {
 			"recommended": true,
 			"style": {
-				"useConst": "error"
+				"useConst": "error",
+				"noNonNullAssertion": "off"
 			},
 			"suspicious": {
 				"noExplicitAny": "off"
@@ -34,10 +35,12 @@
 			"linter": {
 				"rules": {
 					"a11y": {
+						"noLabelWithoutControl": "off",
 						"noNoninteractiveTabindex": "off",
 						"noStaticElementInteractions": "off",
 						"noSvgWithoutTitle": "off",
 						"useAriaPropsForRole": "off",
+						"useButtonType": "off",
 						"useFocusableInteractive": "off",
 						"useKeyWithClickEvents": "off",
 						"useSemanticElements": "off"

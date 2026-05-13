@@ -74,8 +74,8 @@ function parseDiff(raw: string): DiffFile[] {
 		} else if (file && line.startsWith("@@ ")) {
 			const m = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
 			if (m) {
-				oldLine = parseInt(m[1]!) - 1;
-				newLine = parseInt(m[2]!) - 1;
+				oldLine = parseInt(m[1]!, 10) - 1;
+				newLine = parseInt(m[2]!, 10) - 1;
 			}
 			hunk = { header: line, lines: [] };
 			file.hunks.push(hunk);

@@ -1,5 +1,5 @@
 import type { WebSocket } from "ws";
-import type { RunSessionStatus, RuntimeStateEvent, RuntimeWorkspaceStateResponse } from "../core/api-contract.js";
+import type { RunSessionStatus, RuntimeStateEvent } from "../core/api-contract.js";
 import { loadWorkspaceState } from "../state/workspace-state.js";
 
 type WorkspaceId = string;
@@ -25,7 +25,7 @@ export class RuntimeStateHub {
 		if (!this.terminalListeners.has(workspaceId)) {
 			this.terminalListeners.set(workspaceId, new Set());
 		}
-		this.terminalListeners.get(workspaceId)!.add(cb);
+		this.terminalListeners.get(workspaceId)?.add(cb);
 		return () => {
 			this.terminalListeners.get(workspaceId)?.delete(cb);
 			const set = this.terminalListeners.get(workspaceId);
@@ -95,7 +95,9 @@ export class RuntimeStateHub {
 			if (oldest) this.terminalBuffers.delete(oldest);
 		}
 		this.broadcastToWorkspace(workspaceId, { type: "terminal_output", taskId, data });
-		this.terminalListeners.get(workspaceId)?.forEach((cb) => cb(taskId, data));
+		this.terminalListeners.get(workspaceId)?.forEach((cb) => {
+			cb(taskId, data);
+		});
 	}
 
 	getTerminalBuffer(workspaceId: WorkspaceId, streamId: string): string {
