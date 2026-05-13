@@ -4,7 +4,15 @@ import { spawnSync } from "node:child_process";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { fetchCommentBodyHtml, fetchPRInfo } from "../git/merge-operations.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
-import { appendActivityLog, clearCardSession, downloadGithubImages, loadBoard, loadWorkspaceState, moveCard, updateCard } from "../state/workspace-state.js";
+import {
+	appendActivityLog,
+	clearCardSession,
+	downloadGithubImages,
+	loadBoard,
+	loadWorkspaceState,
+	moveCard,
+	updateCard,
+} from "../state/workspace-state.js";
 import { createWorktree, getCardBranch, getWorktreePath, removeWorktree } from "../worktree/worktree-manager.js";
 import type { TaskScheduler } from "./scheduler.js";
 
@@ -54,7 +62,9 @@ async function syncMainRepoAfterPRMerge(
 		});
 		const conflictedFiles = conflictsOut.stdout.trim().split("\n").filter(Boolean);
 
-		logger.info(`[poller] Merge conflicts in main repo after PR merge for "${card.title}": ${conflictedFiles.join(", ")}`);
+		logger.info(
+			`[poller] Merge conflicts in main repo after PR merge for "${card.title}": ${conflictedFiles.join(", ")}`,
+		);
 		await scheduler.startConflictResolution(card, repoPath, conflictedFiles, async (success) => {
 			if (!success) spawnSync("git", ["merge", "--abort"], { cwd: repoPath, stdio: "ignore" });
 			logger.info(`[poller] Conflict resolution ${success ? "succeeded" : "failed"} for "${card.title}"`);
@@ -102,7 +112,11 @@ async function resolvePRConflicts(
 		});
 		const conflictedFiles = conflictsOut.stdout.trim().split("\n").filter(Boolean);
 
-		await appendActivityLog(workspaceId, card.id, `PR has merge conflicts: ${conflictedFiles.join(", ")} — resolving...`);
+		await appendActivityLog(
+			workspaceId,
+			card.id,
+			`PR has merge conflicts: ${conflictedFiles.join(", ")} — resolving...`,
+		);
 		stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 		await scheduler.startConflictResolution(card, worktreePath, conflictedFiles, async (success) => {
@@ -159,8 +173,14 @@ export class BoardPoller {
 	stop(): void {
 		this.running = false;
 		this.prPollingActive = false;
-		if (this.timer) { clearTimeout(this.timer); this.timer = null; }
-		if (this.prTimer) { clearTimeout(this.prTimer); this.prTimer = null; }
+		if (this.timer) {
+			clearTimeout(this.timer);
+			this.timer = null;
+		}
+		if (this.prTimer) {
+			clearTimeout(this.prTimer);
+			this.prTimer = null;
+		}
 	}
 
 	startPRPolling(): void {
@@ -222,8 +242,7 @@ export class BoardPoller {
 
 		// Track in-flight count locally so the check stays accurate as we dispatch
 		// within the same poll cycle (the board snapshot is stale after each startTask).
-		let inFlightCount =
-			(board.columns.find((c) => c.id === "in_progress")?.taskIds.length ?? 0);
+		let inFlightCount = board.columns.find((c) => c.id === "in_progress")?.taskIds.length ?? 0;
 
 		for (const card of pendingCards) {
 			if (!scheduler.canAcceptTask(inFlightCount)) break;
@@ -233,7 +252,9 @@ export class BoardPoller {
 				return !dep || (dep.columnId !== "ready_for_review" && dep.columnId !== "done");
 			});
 			if (unmetDep) continue;
-			logger.info(`[poller] Dispatching card "${card.title}" from ${card.columnId} (in-flight: ${inFlightCount}/${scheduler.maxParallelTasks})`);
+			logger.info(
+				`[poller] Dispatching card "${card.title}" from ${card.columnId} (in-flight: ${inFlightCount}/${scheduler.maxParallelTasks})`,
+			);
 			inFlightCount++;
 			await scheduler.startTask(card);
 		}
@@ -297,18 +318,18 @@ export class BoardPoller {
 			if (readyEntries.length > 0 || hadBotComments || newBotIds.length > 0) {
 				const newComments = [
 					...cleanedComments,
-					...await Promise.all(readyEntries.map(async (e) => {
-						const prUrl = card.githubPrUrl;
-						const fetchHtml = (prUrl && githubToken)
-							? () => fetchCommentBodyHtml(prUrl, e.id, githubToken)
-							: undefined;
-						return {
-							type: "human" as const,
-							actor: { type: "external" as const, id: e.author, source: "github" },
-							createdAt: new Date(e.createdAt).getTime(),
-							summary: await downloadGithubImages(e.body, taskId, workspaceId, fetchHtml),
-						};
-					})),
+					...(await Promise.all(
+						readyEntries.map(async (e) => {
+							const prUrl = card.githubPrUrl;
+							const fetchHtml = prUrl && githubToken ? () => fetchCommentBodyHtml(prUrl, e.id, githubToken) : undefined;
+							return {
+								type: "human" as const,
+								actor: { type: "external" as const, id: e.author, source: "github" },
+								createdAt: new Date(e.createdAt).getTime(),
+								summary: await downloadGithubImages(e.body, taskId, workspaceId, fetchHtml),
+							};
+						}),
+					)),
 				];
 				const newIds = [...seenIds, ...readyEntries.map((e) => e.id)];
 				await updateCard(workspaceId, taskId, { reviewComments: newComments, githubCommentIds: newIds });
@@ -338,7 +359,7 @@ export class BoardPoller {
 					cleanupWorktree(taskId, repoPath, card.branchName);
 					// Also check whether any of this card's own deps can now be cleaned up
 					// (covers the case where a dep was waiting for all its dependents to finish).
-					for (const depId of (card.dependsOn ?? [])) {
+					for (const depId of card.dependsOn ?? []) {
 						const dep = boardAfterDone.cards[depId as string];
 						if (dep?.columnId === "done") {
 							const depStillNeeded = Object.values(boardAfterDone.cards).some(

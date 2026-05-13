@@ -48,7 +48,16 @@ function parseDiff(raw: string): DiffFile[] {
 	for (const line of raw.split("\n")) {
 		if (line.startsWith("diff --git ")) {
 			if (file) files.push(file);
-			file = { oldPath: "", newPath: "", additions: 0, deletions: 0, hunks: [], isBinary: false, isNew: false, isDeleted: false };
+			file = {
+				oldPath: "",
+				newPath: "",
+				additions: 0,
+				deletions: 0,
+				hunks: [],
+				isBinary: false,
+				isNew: false,
+				isDeleted: false,
+			};
 			hunk = null;
 		} else if (file && (line.startsWith("new file mode") || line === "new file")) {
 			file.isNew = true;
@@ -64,7 +73,10 @@ function parseDiff(raw: string): DiffFile[] {
 			file.newPath = p === "/dev/null" ? "/dev/null" : p.startsWith("b/") ? p.slice(2) : p;
 		} else if (file && line.startsWith("@@ ")) {
 			const m = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
-			if (m) { oldLine = parseInt(m[1]!) - 1; newLine = parseInt(m[2]!) - 1; }
+			if (m) {
+				oldLine = parseInt(m[1]!) - 1;
+				newLine = parseInt(m[2]!) - 1;
+			}
 			hunk = { header: line, lines: [] };
 			file.hunks.push(hunk);
 		} else if (hunk && file) {
@@ -136,10 +148,16 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 		}
 	};
 
-	useEffect(() => { void load(); }, [workspaceId, cardId]);
+	useEffect(() => {
+		void load();
+	}, [workspaceId, cardId]);
 
 	const toggleCollapse = (path: string) =>
-		setCollapsed((prev) => { const n = new Set(prev); n.has(path) ? n.delete(path) : n.add(path); return n; });
+		setCollapsed((prev) => {
+			const n = new Set(prev);
+			n.has(path) ? n.delete(path) : n.add(path);
+			return n;
+		});
 
 	const openComment = (key: string) => {
 		setOpenCommentKey(key);
@@ -160,14 +178,20 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 	const saveCommentNow = async (id: string) => {
 		const c = pendingComments.find((c) => c.id === id);
 		if (!c) return;
-		const summary = c.lineNum !== null
-			? `**${c.file}** (line ${c.lineNum}):\n${c.text}`
-			: `**${c.file}**:\n${c.text}`;
+		const summary = c.lineNum !== null ? `**${c.file}** (line ${c.lineNum}):\n${c.text}` : `**${c.file}**:\n${c.text}`;
 		try {
-			await trpc.cards.addReviewComment.mutate({ workspaceId, cardId, type: "human", actor: { type: "human", id: "human" }, summary });
+			await trpc.cards.addReviewComment.mutate({
+				workspaceId,
+				cardId,
+				type: "human",
+				actor: { type: "human", id: "human" },
+				summary,
+			});
 			removePending(id);
 			onRefresh();
-		} catch { /* keep staged on error */ }
+		} catch {
+			/* keep staged on error */
+		}
 	};
 
 	const handleRequestChanges = async () => {
@@ -176,13 +200,22 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 		try {
 			// Save each inline comment as its own review comment
 			for (const c of pendingComments) {
-				const summary = c.lineNum !== null
-					? `**${c.file}** (line ${c.lineNum}):\n${c.text}`
-					: `**${c.file}**:\n${c.text}`;
-				await trpc.cards.addReviewComment.mutate({ workspaceId, cardId, type: "human", actor: { type: "human", id: "human" }, summary });
+				const summary =
+					c.lineNum !== null ? `**${c.file}** (line ${c.lineNum}):\n${c.text}` : `**${c.file}**:\n${c.text}`;
+				await trpc.cards.addReviewComment.mutate({
+					workspaceId,
+					cardId,
+					type: "human",
+					actor: { type: "human", id: "human" },
+					summary,
+				});
 			}
 			// Main message reopens the card (no comment if only inline comments were added)
-			await trpc.cards.submitHumanFeedback.mutate({ workspaceId, cardId, comment: overallFeedback.trim() || undefined });
+			await trpc.cards.submitHumanFeedback.mutate({
+				workspaceId,
+				cardId,
+				comment: overallFeedback.trim() || undefined,
+			});
 			setPendingComments([]);
 			setOverallFeedback("");
 			onRefresh();
@@ -194,11 +227,7 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 	// ── Loading / error states ────────────────────────────────────────────────
 
 	if (loading) {
-		return (
-			<div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
-				Loading diff…
-			</div>
-		);
+		return <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">Loading diff…</div>;
 	}
 
 	if (loadError) {
@@ -234,10 +263,14 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 			<div className="shrink-0 flex items-center justify-between px-3 py-2 border-b border-gray-800 bg-gray-900/60 font-sans">
 				<span className="text-gray-400 text-xs">
 					{files.length} file{files.length !== 1 ? "s" : ""} changed
-					{" · "}<span className="text-green-400">+{totalAdditions}</span>
-					{" "}<span className="text-red-400">-{totalDeletions}</span>
+					{" · "}
+					<span className="text-green-400">+{totalAdditions}</span>{" "}
+					<span className="text-red-400">-{totalDeletions}</span>
 				</span>
-				<button onClick={load} className="text-gray-500 hover:text-gray-300 transition-colors p-1 rounded hover:bg-gray-800">
+				<button
+					onClick={load}
+					className="text-gray-500 hover:text-gray-300 transition-colors p-1 rounded hover:bg-gray-800"
+				>
 					<RefreshCw size={13} />
 				</button>
 			</div>
@@ -247,7 +280,8 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 				<div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-amber-950/40 border-b border-amber-800/40 font-sans">
 					<AlertTriangle size={12} className="text-amber-400 shrink-0" />
 					<span className="text-amber-300/90 text-xs">
-						Base branch has {baseBehindCount} new commit{baseBehindCount !== 1 ? "s" : ""} not yet in this branch — they will be included when merged and are not shown here.
+						Base branch has {baseBehindCount} new commit{baseBehindCount !== 1 ? "s" : ""} not yet in this branch — they
+						will be included when merged and are not shown here.
 					</span>
 				</div>
 			)}
@@ -269,18 +303,25 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 								</button>
 								<span className="flex-1 text-gray-200 text-xs truncate">
 									{path}
-									{file.isNew && <span className="ml-2 text-[10px] text-green-400 bg-green-400/10 px-1.5 py-0.5 rounded">new file</span>}
-									{file.isDeleted && <span className="ml-2 text-[10px] text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded">deleted</span>}
+									{file.isNew && (
+										<span className="ml-2 text-[10px] text-green-400 bg-green-400/10 px-1.5 py-0.5 rounded">
+											new file
+										</span>
+									)}
+									{file.isDeleted && (
+										<span className="ml-2 text-[10px] text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded">deleted</span>
+									)}
 								</span>
 								{!file.isBinary && (
 									<span className="shrink-0 text-[11px]">
-										<span className="text-green-400">+{file.additions}</span>
-										{" "}
+										<span className="text-green-400">+{file.additions}</span>{" "}
 										<span className="text-red-400">-{file.deletions}</span>
 									</span>
 								)}
 								<button
-									onClick={() => openCommentKey === fileCommentKey ? setOpenCommentKey(null) : openComment(fileCommentKey)}
+									onClick={() =>
+										openCommentKey === fileCommentKey ? setOpenCommentKey(null) : openComment(fileCommentKey)
+									}
 									className="shrink-0 text-gray-600 hover:text-blue-400 transition-colors p-0.5 rounded"
 									title="Comment on file"
 								>
@@ -300,75 +341,102 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 							)}
 
 							{/* File-level pending comments */}
-							{filePendingComments.filter((c) => c.lineKey === fileCommentKey).map((c) => (
-								<PendingCommentBubble key={c.id} comment={c} onSave={saveCommentNow} onRemove={removePending} />
-							))}
+							{filePendingComments
+								.filter((c) => c.lineKey === fileCommentKey)
+								.map((c) => (
+									<PendingCommentBubble key={c.id} comment={c} onSave={saveCommentNow} onRemove={removePending} />
+								))}
 
 							{/* Hunks */}
-							{!isCollapsed && !file.isBinary && file.hunks.map((hunk, hi) => (
-								<div key={hi}>
-									{/* Hunk header */}
-									<div className="px-2 py-0.5 bg-blue-950/30 text-blue-400/70 border-y border-blue-900/30 whitespace-pre">
-										{hunk.header}
-									</div>
+							{!isCollapsed &&
+								!file.isBinary &&
+								file.hunks.map((hunk, hi) => (
+									<div key={hi}>
+										{/* Hunk header */}
+										<div className="px-2 py-0.5 bg-blue-950/30 text-blue-400/70 border-y border-blue-900/30 whitespace-pre">
+											{hunk.header}
+										</div>
 
-									{/* Lines */}
-									{hunk.lines.map((line, li) => {
-										const lineNum = line.newNum ?? line.oldNum;
-										const lineKey = `${path}:${lineNum}`;
-										const linePending = pendingComments.filter((c) => c.lineKey === lineKey);
+										{/* Lines */}
+										{hunk.lines.map((line, li) => {
+											const lineNum = line.newNum ?? line.oldNum;
+											const lineKey = `${path}:${lineNum}`;
+											const linePending = pendingComments.filter((c) => c.lineKey === lineKey);
 
-										const rowBg = line.type === "added" ? "bg-[#0d2a0d]" : line.type === "removed" ? "bg-[#2a0d0d]" : "";
-										const numBg = line.type === "added" ? "bg-[#163d16]" : line.type === "removed" ? "bg-[#3d1616]" : "bg-transparent";
-										const numColor = line.type === "added" ? "text-green-700" : line.type === "removed" ? "text-red-700" : "text-gray-700";
-										const sign = line.type === "added" ? "+" : line.type === "removed" ? "-" : " ";
-										const signColor = line.type === "added" ? "text-green-500" : line.type === "removed" ? "text-red-500" : "text-transparent";
-										const textColor = line.type === "context" ? "text-gray-500" : "text-gray-200";
+											const rowBg =
+												line.type === "added" ? "bg-[#0d2a0d]" : line.type === "removed" ? "bg-[#2a0d0d]" : "";
+											const numBg =
+												line.type === "added"
+													? "bg-[#163d16]"
+													: line.type === "removed"
+														? "bg-[#3d1616]"
+														: "bg-transparent";
+											const numColor =
+												line.type === "added"
+													? "text-green-700"
+													: line.type === "removed"
+														? "text-red-700"
+														: "text-gray-700";
+											const sign = line.type === "added" ? "+" : line.type === "removed" ? "-" : " ";
+											const signColor =
+												line.type === "added"
+													? "text-green-500"
+													: line.type === "removed"
+														? "text-red-500"
+														: "text-transparent";
+											const textColor = line.type === "context" ? "text-gray-500" : "text-gray-200";
 
-										return (
-											<div key={li}>
-												{/* Line row */}
-												<div className={`group relative flex ${rowBg} hover:brightness-110`}>
-													{/* Single line number column */}
-													<div className={`w-8 shrink-0 text-right pr-1.5 py-0.5 select-none ${numBg} ${numColor} border-r border-gray-800`}>
-														{line.newNum ?? line.oldNum ?? ""}
+											return (
+												<div key={li}>
+													{/* Line row */}
+													<div className={`group relative flex ${rowBg} hover:brightness-110`}>
+														{/* Single line number column */}
+														<div
+															className={`w-8 shrink-0 text-right pr-1.5 py-0.5 select-none ${numBg} ${numColor} border-r border-gray-800`}
+														>
+															{line.newNum ?? line.oldNum ?? ""}
+														</div>
+														{/* Sign */}
+														<div className="w-4 shrink-0 text-center py-0.5 select-none">
+															<span className={signColor}>{sign}</span>
+														</div>
+														<div className={`flex-1 py-0.5 pr-7 whitespace-pre ${textColor}`}>{line.content}</div>
+														{/* Hover comment button */}
+														<button
+															onClick={() =>
+																openCommentKey === lineKey ? setOpenCommentKey(null) : openComment(lineKey)
+															}
+															className="absolute right-1 top-0.5 opacity-0 group-hover:opacity-100 transition-opacity text-blue-500 hover:text-blue-400 p-0.5 rounded"
+														>
+															<Plus size={11} />
+														</button>
 													</div>
-													{/* Sign */}
-													<div className="w-4 shrink-0 text-center py-0.5 select-none">
-														<span className={signColor}>{sign}</span>
-													</div>
-													<div className={`flex-1 py-0.5 pr-7 whitespace-pre ${textColor}`}>
-														{line.content}
-													</div>
-													{/* Hover comment button */}
-													<button
-														onClick={() => openCommentKey === lineKey ? setOpenCommentKey(null) : openComment(lineKey)}
-														className="absolute right-1 top-0.5 opacity-0 group-hover:opacity-100 transition-opacity text-blue-500 hover:text-blue-400 p-0.5 rounded"
-													>
-														<Plus size={11} />
-													</button>
+
+													{/* Inline comment box */}
+													{openCommentKey === lineKey && (
+														<InlineCommentBox
+															draftRef={draftRef}
+															value={commentDraft}
+															onChange={setCommentDraft}
+															onAdd={() => commitPending(path, lineKey, lineNum)}
+															onCancel={() => setOpenCommentKey(null)}
+														/>
+													)}
+
+													{/* Pending comments on this line */}
+													{linePending.map((c) => (
+														<PendingCommentBubble
+															key={c.id}
+															comment={c}
+															onSave={saveCommentNow}
+															onRemove={removePending}
+														/>
+													))}
 												</div>
-
-												{/* Inline comment box */}
-												{openCommentKey === lineKey && (
-													<InlineCommentBox
-														draftRef={draftRef}
-														value={commentDraft}
-														onChange={setCommentDraft}
-														onAdd={() => commitPending(path, lineKey, lineNum)}
-														onCancel={() => setOpenCommentKey(null)}
-													/>
-												)}
-
-												{/* Pending comments on this line */}
-												{linePending.map((c) => (
-													<PendingCommentBubble key={c.id} comment={c} onSave={saveCommentNow} onRemove={removePending} />
-												))}
-											</div>
-										);
-									})}
-								</div>
-							))}
+											);
+										})}
+									</div>
+								))}
 
 							{!isCollapsed && file.isBinary && (
 								<div className="px-4 py-3 text-gray-500 italic">Binary file changed</div>
@@ -386,7 +454,10 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 						{pendingComments.map((c) => (
 							<div key={c.id} className="flex items-start gap-1.5 text-xs">
 								<span className="text-gray-600 shrink-0">•</span>
-								<span className="text-gray-500 shrink-0 font-mono">{c.file}{c.lineNum !== null ? `:${c.lineNum}` : ""}</span>
+								<span className="text-gray-500 shrink-0 font-mono">
+									{c.file}
+									{c.lineNum !== null ? `:${c.lineNum}` : ""}
+								</span>
 								<span className="text-gray-300 truncate">— {c.text}</span>
 							</div>
 						))}
@@ -398,15 +469,26 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 						value={overallFeedback}
 						onChange={(e) => setOverallFeedback(e.target.value)}
 						onKeyDown={(e) => {
-							if (e.key === "Enter" && !e.shiftKey && !pendingComments.length) { e.preventDefault(); void (async () => {
-								if (!overallFeedback.trim()) return;
-								setSubmitting(true);
-								try {
-									await trpc.cards.addReviewComment.mutate({ workspaceId, cardId, type: "human", actor: { type: "human", id: "human" }, summary: overallFeedback.trim() });
-									setOverallFeedback("");
-									onRefresh();
-								} finally { setSubmitting(false); }
-							})(); }
+							if (e.key === "Enter" && !e.shiftKey && !pendingComments.length) {
+								e.preventDefault();
+								void (async () => {
+									if (!overallFeedback.trim()) return;
+									setSubmitting(true);
+									try {
+										await trpc.cards.addReviewComment.mutate({
+											workspaceId,
+											cardId,
+											type: "human",
+											actor: { type: "human", id: "human" },
+											summary: overallFeedback.trim(),
+										});
+										setOverallFeedback("");
+										onRefresh();
+									} finally {
+										setSubmitting(false);
+									}
+								})();
+							}
 						}}
 						placeholder="Leave a review comment…"
 						rows={2}
@@ -436,10 +518,18 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 									if (!overallFeedback.trim()) return;
 									setSubmitting(true);
 									try {
-										await trpc.cards.addReviewComment.mutate({ workspaceId, cardId, type: "human", actor: { type: "human", id: "human" }, summary: overallFeedback.trim() });
+										await trpc.cards.addReviewComment.mutate({
+											workspaceId,
+											cardId,
+											type: "human",
+											actor: { type: "human", id: "human" },
+											summary: overallFeedback.trim(),
+										});
 										setOverallFeedback("");
 										onRefresh();
-									} finally { setSubmitting(false); }
+									} finally {
+										setSubmitting(false);
+									}
 								}}
 							>
 								<Send size={11} className="mr-1" />
@@ -476,7 +566,10 @@ function InlineCommentBox({
 					value={value}
 					onChange={(e) => onChange(e.target.value)}
 					onKeyDown={(e) => {
-						if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onAdd(); }
+						if (e.key === "Enter" && !e.shiftKey) {
+							e.preventDefault();
+							onAdd();
+						}
 						if (e.key === "Escape") onCancel();
 					}}
 					placeholder="Add a comment…"
@@ -485,7 +578,9 @@ function InlineCommentBox({
 				/>
 				<div className="flex items-center justify-between px-3 pb-2">
 					<span className="text-[10px] text-gray-700">↵ Add · ⇧↵ Newline · Esc Cancel</span>
-					<Button size="sm" onClick={onAdd} disabled={!value.trim()}>Add</Button>
+					<Button size="sm" onClick={onAdd} disabled={!value.trim()}>
+						Add
+					</Button>
 				</div>
 			</div>
 		</div>

@@ -18,7 +18,9 @@ export function DashboardPage({ workspaceId }: Props) {
 		return <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">Loading...</div>;
 	}
 
-	const activeSessions = Object.entries(state.board.cards).filter(([, card]) => card.terminalSessions?.some((ts) => !ts.endedAt));
+	const activeSessions = Object.entries(state.board.cards).filter(([, card]) =>
+		card.terminalSessions?.some((ts) => !ts.endedAt),
+	);
 
 	const handleToggleAutonomous = async () => {
 		setTogglingMode(true);
@@ -100,7 +102,10 @@ export function DashboardPage({ workspaceId }: Props) {
 												<Square size={10} className="mr-1" /> Stop
 											</Button>
 											<button
-												onClick={(e) => { e.stopPropagation(); setExpandedTaskId(isExpanded ? null : taskId); }}
+												onClick={(e) => {
+													e.stopPropagation();
+													setExpandedTaskId(isExpanded ? null : taskId);
+												}}
 												className={`transition-colors ${isExpanded ? "text-blue-400" : "text-gray-500 hover:text-gray-300"}`}
 												title="Toggle output"
 											>
@@ -111,11 +116,7 @@ export function DashboardPage({ workspaceId }: Props) {
 
 									{isExpanded && (
 										<div className="border-t border-gray-800">
-											<TaskTerminal
-												taskId={taskId}
-												workspaceId={workspaceId}
-												className="h-72 px-1"
-											/>
+											<TaskTerminal taskId={taskId} workspaceId={workspaceId} className="h-72 px-1" />
 										</div>
 									)}
 								</div>

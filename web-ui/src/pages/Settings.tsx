@@ -1,13 +1,49 @@
 import { Button, Checkbox, Input, Select, SelectOption, Switch, Textarea, toast } from "@geckoui/geckoui";
-import type { Workflow, WorkflowSlot, RuntimeGlobalConfig, RuntimeJiraTicket, RuntimeProjectConfig, RuntimeWorktreeSetup, RuntimeProjectSecret } from "@runtime-contract";
-import { AGENT_BINARY_OPTIONS, BUILTIN_SECRET_KEYS, EFFORT_OPTIONS, MODEL_OPTIONS, type EffortLevel, type RuntimeAgentId, workflowSchema } from "@runtime-contract";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
-import { ArrowLeft, Bot, Download, Eye, EyeOff, GitBranch, GripVertical, Key, Layers, MessageSquare, Plus, RefreshCw, Settings2, Terminal, Ticket, Trash2, Upload, X, Zap } from "lucide-react";
+import type {
+	RuntimeGlobalConfig,
+	RuntimeJiraTicket,
+	RuntimeProjectConfig,
+	RuntimeProjectSecret,
+	RuntimeWorktreeSetup,
+	Workflow,
+	WorkflowSlot,
+} from "@runtime-contract";
+import {
+	AGENT_BINARY_OPTIONS,
+	BUILTIN_SECRET_KEYS,
+	EFFORT_OPTIONS,
+	type EffortLevel,
+	MODEL_OPTIONS,
+	type RuntimeAgentId,
+	workflowSchema,
+} from "@runtime-contract";
+import {
+	ArrowLeft,
+	Bot,
+	Download,
+	Eye,
+	EyeOff,
+	GitBranch,
+	GripVertical,
+	Key,
+	Layers,
+	MessageSquare,
+	Plus,
+	RefreshCw,
+	Settings2,
+	Terminal,
+	Ticket,
+	Trash2,
+	Upload,
+	X,
+	Zap,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { BranchSelect } from "@/components/BranchSelect";
 import { trpc } from "@/runtime/trpc-client";
 import { useWorkspaceState } from "@/stores/board-store";
-import { BranchSelect } from "@/components/BranchSelect";
 
 type ProjectSection = "autonomous" | "workflows" | "assistant" | "environment" | "secrets" | "jira" | "git";
 type GlobalSection = "general";
@@ -27,7 +63,15 @@ const GLOBAL_NAV: Array<{ id: GlobalSection; label: string; icon: React.ReactNod
 	{ id: "general", label: "General", icon: <Settings2 size={14} /> },
 ];
 
-const PROJECT_SECTIONS = new Set<SettingsSection>(["autonomous", "workflows", "assistant", "environment", "secrets", "jira", "git"]);
+const PROJECT_SECTIONS = new Set<SettingsSection>([
+	"autonomous",
+	"workflows",
+	"assistant",
+	"environment",
+	"secrets",
+	"jira",
+	"git",
+]);
 
 export function SettingsPage() {
 	const navigate = useNavigate();
@@ -231,229 +275,224 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 	return (
 		<div className="h-full overflow-y-auto">
 			<div className="p-6 max-w-xl space-y-6">
-			{section === "autonomous" && (
-				<>
-					<SectionHeader
-						title="Automation"
-						description="Configure automatic behaviors for this project."
-					/>
-					<div className="space-y-3">
-						<div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl p-4">
-							<div>
-								<p className="text-sm font-medium text-gray-100">Autonomous mode</p>
-								<p className="text-xs text-gray-500 mt-0.5">
-									Picks up <span className="text-emerald-400">Ready</span> and{" "}
-									<span className="text-orange-400">Reopened</span> tasks automatically
-								</p>
-							</div>
-							<Switch
-								checked={config.autonomousModeEnabled}
-								onChange={handleToggleAutonomous}
-								disabled={togglingAutonomous}
-							/>
-						</div>
-
-						<div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl p-4">
-							<div>
-								<p className="text-sm font-medium text-gray-100">Auto PR</p>
-								<p className="text-xs text-gray-500 mt-0.5">
-									Automatically push branch and open a <span className="text-green-400">Pull Request</span> when all reviews pass
-								</p>
-							</div>
-							<Switch
-								checked={config.autoPR ?? false}
-								onChange={(v) => updateConfig({ ...config, autoPR: v })}
-							/>
-						</div>
-
-						<div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl p-4">
-							<div>
-								<p className="text-sm font-medium text-gray-100">Max parallel tasks</p>
-								<p className="text-xs text-gray-500 mt-0.5">
-									Max tasks in <span className="text-blue-400">In Progress</span> at once. Overrides the global default.
-								</p>
-							</div>
-							<Input
-								type="number"
-								inputClassName="w-16 text-center"
-								value={config.maxParallelTasks != null ? String(config.maxParallelTasks) : ""}
-								onChange={(e) => {
-									const v = e.target.value;
-									updateConfig({ ...config, maxParallelTasks: v ? Math.max(1, Number(v)) : undefined });
-								}}
-								placeholder="Global"
-							/>
-						</div>
-					</div>
-					<SaveRow saving={saving} onSave={handleSave} />
-				</>
-			)}
-
-			{section === "assistant" && (
-				<>
-					<SectionHeader
-						title="Assistant"
-						description="Shared context appended to every agent — dev, code review, QA, and the Assistant chat. Use it for tech stack details, project goals, website URLs, or any information all agents should know."
-					/>
-					<Field label="Shared system prompt">
-						<Textarea
-							value={config.systemPrompt ?? ""}
-							onChange={(e) => updateConfig({ ...config, systemPrompt: e.target.value || undefined })}
-							placeholder={"Tech stack: Next.js, TypeScript, Postgres\nWebsite: https://example.com\nGoals: keep bundle size under 200kb, follow REST conventions"}
-							maxRows={20}
-							autoResize
-						/>
-					</Field>
-					<SaveRow saving={saving} onSave={handleSave} />
-				</>
-			)}
-
-			{section === "environment" && (
-				<EnvironmentSection
-					workspaceId={workspaceId}
-					setup={config.worktreeSetup ?? { filesToCopy: [], installCommand: "" }}
-					onChange={(worktreeSetup) => updateConfig({ ...config, worktreeSetup })}
-					startCommand={config.startCommand ?? ""}
-					onStartCommandChange={(startCommand) => updateConfig({ ...config, startCommand })}
-					onSave={handleSave}
-					saving={saving}
-				/>
-			)}
-
-			{section === "secrets" && (
-				<SecretsSection
-					secrets={config.secrets ?? []}
-					onChange={(secrets) => updateConfig({ ...config, secrets })}
-					onSave={handleSave}
-					saving={saving}
-				/>
-			)}
-
-			{section === "git" && (
-				<>
-					<SectionHeader
-						title="Git"
-						description="Repository defaults used when creating new tickets."
-					/>
-					<Field label="Default base branch">
-						<BranchSelect
-							branches={branches}
-							value={config.defaultBaseBranch ?? ""}
-							onChange={(v) => updateConfig({ ...config, defaultBaseBranch: v || undefined })}
-							placeholder="Use repo default"
-						/>
-						<p className="text-xs text-gray-500 mt-1.5">
-							New tasks and stories will default to this branch. Leave empty to use the repo's default branch.
-						</p>
-					</Field>
-					<SaveRow saving={saving} onSave={handleSave} />
-				</>
-			)}
-
-			{section === "jira" && (
-				<>
-					<SectionHeader
-						title="Jira"
-						description="Connect your Jira project to import tickets directly onto the board."
-					/>
-					<div className="space-y-4">
-						<Field label="Host">
-							<Input
-								value={config.jira?.host ?? ""}
-								onChange={(e) => updateConfig({ ...config, jira: { ...config.jira!, host: e.target.value } })}
-								placeholder="company.atlassian.net"
-							/>
-						</Field>
-						<div className="grid grid-cols-2 gap-3">
-							<Field label="Email">
-								<Input
-									value={config.jira?.email ?? ""}
-									onChange={(e) => updateConfig({ ...config, jira: { ...config.jira!, email: e.target.value } })}
-									placeholder="you@company.com"
-								/>
-							</Field>
-							<Field label="API Token">
-								<Input
-									type="password"
-									value={config.jira?.token ?? ""}
-									onChange={(e) => updateConfig({ ...config, jira: { ...config.jira!, token: e.target.value } })}
-									placeholder="••••••••"
-								/>
-							</Field>
-						</div>
-						<Field label="Project Key">
-							<Input
-								value={config.jira?.projectKey ?? ""}
-								onChange={(e) => updateConfig({ ...config, jira: { ...config.jira!, projectKey: e.target.value } })}
-								placeholder="ENG"
-							/>
-						</Field>
-					</div>
-					<SaveRow saving={saving} onSave={handleSave} />
-
-					{/* Import tickets */}
-					<div className="pt-2">
-						<div className="border-t border-gray-800 pt-5">
-							<div className="flex items-center justify-between mb-3">
+				{section === "autonomous" && (
+					<>
+						<SectionHeader title="Automation" description="Configure automatic behaviors for this project." />
+						<div className="space-y-3">
+							<div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl p-4">
 								<div>
-									<p className="text-sm font-medium text-gray-200">Import Tickets</p>
-									<p className="text-xs text-gray-500 mt-0.5">Fetch and import open tickets from your project</p>
+									<p className="text-sm font-medium text-gray-100">Autonomous mode</p>
+									<p className="text-xs text-gray-500 mt-0.5">
+										Picks up <span className="text-emerald-400">Ready</span> and{" "}
+										<span className="text-orange-400">Reopened</span> tasks automatically
+									</p>
 								</div>
-								<Button
-									variant="outlined"
-									size="sm"
-									onClick={handleFetchJira}
-									disabled={fetchingJira || !config.jira?.host}
-								>
-									<RefreshCw size={12} className={`mr-1.5 ${fetchingJira ? "animate-spin" : ""}`} />
-									Fetch tickets
-								</Button>
+								<Switch
+									checked={config.autonomousModeEnabled}
+									onChange={handleToggleAutonomous}
+									disabled={togglingAutonomous}
+								/>
 							</div>
 
-							{jiraTickets && (
-								<div className="space-y-2">
-									<div className="max-h-64 overflow-y-auto space-y-1.5 rounded-xl border border-gray-800 p-2">
-										{jiraTickets.map((ticket) => (
-											<label
-												key={ticket.key}
-												className="flex items-start gap-2.5 bg-gray-800 hover:bg-gray-700 rounded-lg p-2.5 cursor-pointer transition-colors"
-											>
-												<Checkbox
-													checked={selectedTickets.has(ticket.key)}
-													onChange={(e) => {
-														const next = new Set(selectedTickets);
-														if (e.target.checked) next.add(ticket.key);
-														else next.delete(ticket.key);
-														setSelectedTickets(next);
-													}}
-													className="mt-0.5"
-												/>
-												<div className="min-w-0">
-													<p className="text-xs text-gray-200 font-medium">
-														<span className="text-blue-400">{ticket.key}</span> · {ticket.summary}
-													</p>
-													<p className="text-xs text-gray-500 mt-0.5">{ticket.status}</p>
-												</div>
-											</label>
-										))}
-									</div>
-
-									{jiraTickets.length > 0 && (
-										<div className="flex justify-between items-center pt-1">
-											<p className="text-xs text-gray-500">{selectedTickets.size} selected</p>
-											<Button size="sm" onClick={handleImport} disabled={selectedTickets.size === 0 || importing}>
-												<Download size={12} className="mr-1.5" />
-												{importing ? "Importing..." : `Import ${selectedTickets.size}`}
-											</Button>
-										</div>
-									)}
+							<div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl p-4">
+								<div>
+									<p className="text-sm font-medium text-gray-100">Auto PR</p>
+									<p className="text-xs text-gray-500 mt-0.5">
+										Automatically push branch and open a <span className="text-green-400">Pull Request</span> when all
+										reviews pass
+									</p>
 								</div>
-							)}
+								<Switch checked={config.autoPR ?? false} onChange={(v) => updateConfig({ ...config, autoPR: v })} />
+							</div>
+
+							<div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl p-4">
+								<div>
+									<p className="text-sm font-medium text-gray-100">Max parallel tasks</p>
+									<p className="text-xs text-gray-500 mt-0.5">
+										Max tasks in <span className="text-blue-400">In Progress</span> at once. Overrides the global
+										default.
+									</p>
+								</div>
+								<Input
+									type="number"
+									inputClassName="w-16 text-center"
+									value={config.maxParallelTasks != null ? String(config.maxParallelTasks) : ""}
+									onChange={(e) => {
+										const v = e.target.value;
+										updateConfig({ ...config, maxParallelTasks: v ? Math.max(1, Number(v)) : undefined });
+									}}
+									placeholder="Global"
+								/>
+							</div>
 						</div>
-					</div>
-				</>
-			)}
-		</div>
+						<SaveRow saving={saving} onSave={handleSave} />
+					</>
+				)}
+
+				{section === "assistant" && (
+					<>
+						<SectionHeader
+							title="Assistant"
+							description="Shared context appended to every agent — dev, code review, QA, and the Assistant chat. Use it for tech stack details, project goals, website URLs, or any information all agents should know."
+						/>
+						<Field label="Shared system prompt">
+							<Textarea
+								value={config.systemPrompt ?? ""}
+								onChange={(e) => updateConfig({ ...config, systemPrompt: e.target.value || undefined })}
+								placeholder={
+									"Tech stack: Next.js, TypeScript, Postgres\nWebsite: https://example.com\nGoals: keep bundle size under 200kb, follow REST conventions"
+								}
+								maxRows={20}
+								autoResize
+							/>
+						</Field>
+						<SaveRow saving={saving} onSave={handleSave} />
+					</>
+				)}
+
+				{section === "environment" && (
+					<EnvironmentSection
+						workspaceId={workspaceId}
+						setup={config.worktreeSetup ?? { filesToCopy: [], installCommand: "" }}
+						onChange={(worktreeSetup) => updateConfig({ ...config, worktreeSetup })}
+						startCommand={config.startCommand ?? ""}
+						onStartCommandChange={(startCommand) => updateConfig({ ...config, startCommand })}
+						onSave={handleSave}
+						saving={saving}
+					/>
+				)}
+
+				{section === "secrets" && (
+					<SecretsSection
+						secrets={config.secrets ?? []}
+						onChange={(secrets) => updateConfig({ ...config, secrets })}
+						onSave={handleSave}
+						saving={saving}
+					/>
+				)}
+
+				{section === "git" && (
+					<>
+						<SectionHeader title="Git" description="Repository defaults used when creating new tickets." />
+						<Field label="Default base branch">
+							<BranchSelect
+								branches={branches}
+								value={config.defaultBaseBranch ?? ""}
+								onChange={(v) => updateConfig({ ...config, defaultBaseBranch: v || undefined })}
+								placeholder="Use repo default"
+							/>
+							<p className="text-xs text-gray-500 mt-1.5">
+								New tasks and stories will default to this branch. Leave empty to use the repo's default branch.
+							</p>
+						</Field>
+						<SaveRow saving={saving} onSave={handleSave} />
+					</>
+				)}
+
+				{section === "jira" && (
+					<>
+						<SectionHeader
+							title="Jira"
+							description="Connect your Jira project to import tickets directly onto the board."
+						/>
+						<div className="space-y-4">
+							<Field label="Host">
+								<Input
+									value={config.jira?.host ?? ""}
+									onChange={(e) => updateConfig({ ...config, jira: { ...config.jira!, host: e.target.value } })}
+									placeholder="company.atlassian.net"
+								/>
+							</Field>
+							<div className="grid grid-cols-2 gap-3">
+								<Field label="Email">
+									<Input
+										value={config.jira?.email ?? ""}
+										onChange={(e) => updateConfig({ ...config, jira: { ...config.jira!, email: e.target.value } })}
+										placeholder="you@company.com"
+									/>
+								</Field>
+								<Field label="API Token">
+									<Input
+										type="password"
+										value={config.jira?.token ?? ""}
+										onChange={(e) => updateConfig({ ...config, jira: { ...config.jira!, token: e.target.value } })}
+										placeholder="••••••••"
+									/>
+								</Field>
+							</div>
+							<Field label="Project Key">
+								<Input
+									value={config.jira?.projectKey ?? ""}
+									onChange={(e) => updateConfig({ ...config, jira: { ...config.jira!, projectKey: e.target.value } })}
+									placeholder="ENG"
+								/>
+							</Field>
+						</div>
+						<SaveRow saving={saving} onSave={handleSave} />
+
+						{/* Import tickets */}
+						<div className="pt-2">
+							<div className="border-t border-gray-800 pt-5">
+								<div className="flex items-center justify-between mb-3">
+									<div>
+										<p className="text-sm font-medium text-gray-200">Import Tickets</p>
+										<p className="text-xs text-gray-500 mt-0.5">Fetch and import open tickets from your project</p>
+									</div>
+									<Button
+										variant="outlined"
+										size="sm"
+										onClick={handleFetchJira}
+										disabled={fetchingJira || !config.jira?.host}
+									>
+										<RefreshCw size={12} className={`mr-1.5 ${fetchingJira ? "animate-spin" : ""}`} />
+										Fetch tickets
+									</Button>
+								</div>
+
+								{jiraTickets && (
+									<div className="space-y-2">
+										<div className="max-h-64 overflow-y-auto space-y-1.5 rounded-xl border border-gray-800 p-2">
+											{jiraTickets.map((ticket) => (
+												<label
+													key={ticket.key}
+													className="flex items-start gap-2.5 bg-gray-800 hover:bg-gray-700 rounded-lg p-2.5 cursor-pointer transition-colors"
+												>
+													<Checkbox
+														checked={selectedTickets.has(ticket.key)}
+														onChange={(e) => {
+															const next = new Set(selectedTickets);
+															if (e.target.checked) next.add(ticket.key);
+															else next.delete(ticket.key);
+															setSelectedTickets(next);
+														}}
+														className="mt-0.5"
+													/>
+													<div className="min-w-0">
+														<p className="text-xs text-gray-200 font-medium">
+															<span className="text-blue-400">{ticket.key}</span> · {ticket.summary}
+														</p>
+														<p className="text-xs text-gray-500 mt-0.5">{ticket.status}</p>
+													</div>
+												</label>
+											))}
+										</div>
+
+										{jiraTickets.length > 0 && (
+											<div className="flex justify-between items-center pt-1">
+												<p className="text-xs text-gray-500">{selectedTickets.size} selected</p>
+												<Button size="sm" onClick={handleImport} disabled={selectedTickets.size === 0 || importing}>
+													<Download size={12} className="mr-1.5" />
+													{importing ? "Importing..." : `Import ${selectedTickets.size}`}
+												</Button>
+											</div>
+										)}
+									</div>
+								)}
+							</div>
+						</div>
+					</>
+				)}
+			</div>
 		</div>
 	);
 }
@@ -473,28 +512,28 @@ function WorkflowsSection({
 	onSave: () => void;
 	saving: boolean;
 }) {
-	const taskWorkflows = workflows.filter(w => !w.forStory);
-	const storyWorkflows = workflows.filter(w => w.forStory);
+	const taskWorkflows = workflows.filter((w) => !w.forStory);
+	const storyWorkflows = workflows.filter((w) => w.forStory);
 
 	const [activeTab, setActiveTab] = useState<"task" | "story">("task");
 	const [selectedId, setSelectedId] = useState<string>(
-		taskWorkflows.find(w => w.isDefault)?.id ?? taskWorkflows[0]?.id ?? ""
+		taskWorkflows.find((w) => w.isDefault)?.id ?? taskWorkflows[0]?.id ?? "",
 	);
 	const [editingSlot, setEditingSlot] = useState<{ wfId: string; slot: WorkflowSlot } | null>(null);
 	const [addingCustomTo, setAddingCustomTo] = useState<string | null>(null);
 	const [addingOrchTo, setAddingOrchTo] = useState<string | null>(null);
 
 	const visibleWorkflows = activeTab === "task" ? taskWorkflows : storyWorkflows;
-	const selectedWorkflow = workflows.find(w => w.id === selectedId);
+	const selectedWorkflow = workflows.find((w) => w.id === selectedId);
 
 	const handleTabSwitch = (tab: "task" | "story") => {
 		setActiveTab(tab);
 		const list = tab === "task" ? taskWorkflows : storyWorkflows;
-		setSelectedId(list.find(w => w.isDefault)?.id ?? list[0]?.id ?? "");
+		setSelectedId(list.find((w) => w.isDefault)?.id ?? list[0]?.id ?? "");
 	};
 
 	const updateWorkflow = (updated: Workflow) => {
-		onChange(workflows.map(w => w.id === updated.id ? updated : w));
+		onChange(workflows.map((w) => (w.id === updated.id ? updated : w)));
 	};
 
 	const handleAddWorkflow = () => {
@@ -518,7 +557,17 @@ function WorkflowsSection({
 			name: "New Story Workflow",
 			isDefault: false,
 			forStory: true,
-			slots: [{ id: "orch", type: "orch", name: "Orchestrator", agentBinary: defaultBinary, order: 0, enabled: true, prompt: "" }],
+			slots: [
+				{
+					id: "orch",
+					type: "orch",
+					name: "Orchestrator",
+					agentBinary: defaultBinary,
+					order: 0,
+					enabled: true,
+					prompt: "",
+				},
+			],
 		};
 		onChange([...workflows, newWf]);
 		setActiveTab("story");
@@ -526,11 +575,11 @@ function WorkflowsSection({
 	};
 
 	const handleDeleteWorkflow = (workflowId: string) => {
-		const updated = workflows.filter(w => w.id !== workflowId);
+		const updated = workflows.filter((w) => w.id !== workflowId);
 		onChange(updated);
 		if (selectedId === workflowId) {
-			const remaining = updated.filter(w => activeTab === "task" ? !w.forStory : w.forStory);
-			setSelectedId(remaining.find(w => w.isDefault)?.id ?? remaining[0]?.id ?? "");
+			const remaining = updated.filter((w) => (activeTab === "task" ? !w.forStory : w.forStory));
+			setSelectedId(remaining.find((w) => w.isDefault)?.id ?? remaining[0]?.id ?? "");
 		}
 	};
 
@@ -577,9 +626,9 @@ function WorkflowsSection({
 
 	const handleSaveSlot = (updatedSlot: WorkflowSlot) => {
 		if (!editingSlot) return;
-		const wf = workflows.find(w => w.id === editingSlot.wfId);
+		const wf = workflows.find((w) => w.id === editingSlot.wfId);
 		if (!wf) return;
-		updateWorkflow({ ...wf, slots: wf.slots.map(s => s.id === updatedSlot.id ? updatedSlot : s) });
+		updateWorkflow({ ...wf, slots: wf.slots.map((s) => (s.id === updatedSlot.id ? updatedSlot : s)) });
 		setEditingSlot(null);
 	};
 
@@ -590,159 +639,159 @@ function WorkflowsSection({
 				<button
 					onClick={() => handleTabSwitch("task")}
 					className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors
-						${activeTab === "task"
-							? "border-blue-500 text-white"
-							: "border-transparent text-gray-500 hover:text-gray-300"}`}
+						${
+							activeTab === "task"
+								? "border-blue-500 text-white"
+								: "border-transparent text-gray-500 hover:text-gray-300"
+						}`}
 				>
 					<Bot size={13} />
 					Task Workflows
-					<span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === "task" ? "bg-blue-500/20 text-blue-400" : "bg-gray-800 text-gray-500"}`}>
+					<span
+						className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === "task" ? "bg-blue-500/20 text-blue-400" : "bg-gray-800 text-gray-500"}`}
+					>
 						{taskWorkflows.length}
 					</span>
 				</button>
 				<button
 					onClick={() => handleTabSwitch("story")}
 					className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors
-						${activeTab === "story"
-							? "border-purple-500 text-purple-200"
-							: "border-transparent text-gray-500 hover:text-gray-300"}`}
+						${
+							activeTab === "story"
+								? "border-purple-500 text-purple-200"
+								: "border-transparent text-gray-500 hover:text-gray-300"
+						}`}
 				>
 					<Layers size={13} />
 					Story Workflows
-					<span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === "story" ? "bg-purple-500/20 text-purple-400" : "bg-gray-800 text-gray-500"}`}>
+					<span
+						className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${activeTab === "story" ? "bg-purple-500/20 text-purple-400" : "bg-gray-800 text-gray-500"}`}
+					>
 						{storyWorkflows.length}
 					</span>
 				</button>
 			</div>
 
-		<div className="flex flex-1 overflow-hidden">
-			{/* Left: workflow list */}
-			<div className="w-52 shrink-0 border-r border-gray-800 flex flex-col">
-				<div className="flex-1 overflow-y-auto py-1">
-					{visibleWorkflows.map(w => (
-						<button
-							key={w.id}
-							onClick={() => setSelectedId(w.id)}
-							className={`w-full text-left flex items-center gap-2 px-4 py-2 text-sm transition-colors
-								${selectedId === w.id
-									? activeTab === "story" ? "bg-purple-900/40 text-purple-200" : "bg-gray-800 text-white"
-									: "text-gray-400 hover:text-gray-200 hover:bg-gray-900/50"}`}
-						>
-							{activeTab === "story" && <Layers size={12} className="shrink-0 text-purple-500" />}
-							<span className="flex-1 truncate">{w.name}</span>
-							{w.isDefault && <span className="text-[10px] text-gray-600 shrink-0">default</span>}
-						</button>
-					))}
-					{visibleWorkflows.length === 0 && (
-						<p className="px-4 py-4 text-xs text-gray-600">No workflows yet</p>
-					)}
-				</div>
-				<div className="border-t border-gray-800 p-3 flex flex-col gap-0.5">
-					<input
-						ref={importFileRef}
-						type="file"
-						accept=".json"
-						className="hidden"
-						onChange={handleImportFile}
-					/>
-					{activeTab === "task" ? (
-						<button
-							onClick={handleAddWorkflow}
-							className="w-full text-left flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-200 transition-colors px-1 py-1.5 rounded"
-						>
-							<Plus size={11} /> New Workflow
-						</button>
-					) : (
-						<button
-							onClick={handleAddStoryWorkflow}
-							className="w-full text-left flex items-center gap-1.5 text-xs text-gray-500 hover:text-purple-400 transition-colors px-1 py-1.5 rounded"
-						>
-							<Plus size={11} /> New Workflow
-						</button>
-					)}
-					<button
-						onClick={() => importFileRef.current?.click()}
-						className="w-full text-left flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-400 transition-colors px-1 py-1.5 rounded"
-					>
-						<Upload size={11} /> Import Workflow
-					</button>
-				</div>
-			</div>
-
-			{/* Right: editor */}
-			<div className="flex-1 overflow-hidden flex flex-col">
-				{selectedWorkflow ? (
-					<>
-						{/* Header */}
-						<div className="shrink-0 flex items-center gap-3 px-6 py-3 border-b border-gray-800">
-							<Input
-								value={selectedWorkflow.name}
-								onChange={(e) => updateWorkflow({ ...selectedWorkflow, name: e.target.value })}
-								disabled={selectedWorkflow.isDefault}
-								inputClassName="font-semibold text-sm"
-								className="max-w-xs"
-							/>
-							{selectedWorkflow.forStory && (
-								<span className="flex items-center gap-1 text-[10px] text-purple-400 bg-purple-400/10 px-2 py-1 rounded font-medium shrink-0">
-									<Layers size={10} /> story
-								</span>
-							)}
-							{selectedWorkflow.isDefault && (
-								<span className="text-[10px] text-gray-500 bg-gray-800 px-2 py-1 rounded shrink-0">default</span>
-							)}
-							<div className="ml-auto flex items-center gap-1">
-								<button
-									onClick={() => handleExport(selectedWorkflow)}
-									className="p-1.5 rounded text-gray-500 hover:text-blue-400 hover:bg-gray-800 transition-colors"
-									title="Export workflow as JSON"
-								>
-									<Download size={14} />
-								</button>
-								{!selectedWorkflow.isDefault && (
-									<button
-										onClick={() => handleDeleteWorkflow(selectedWorkflow.id)}
-										className="p-1.5 rounded text-gray-600 hover:text-red-400 hover:bg-gray-800 transition-colors"
-										title="Delete workflow"
-									>
-										<Trash2 size={14} />
-									</button>
-								)}
-							</div>
-						</div>
-
-						{/* Slot editor */}
-						<div className="flex-1 overflow-y-auto p-6">
-							<WorkflowEditor
-								workflow={selectedWorkflow}
-								defaultBinary={defaultBinary}
-								onUpdate={updateWorkflow}
-								onEditSlot={(slot) => setEditingSlot({ wfId: selectedWorkflow.id, slot })}
-								onAddCustom={() => setAddingCustomTo(selectedWorkflow.id)}
-								onAddOrch={() => setAddingOrchTo(selectedWorkflow.id)}
-							/>
-						</div>
-
-						{/* Footer */}
-						<div className="shrink-0 border-t border-gray-800 px-6 py-3 flex justify-end">
-							<Button size="sm" onClick={onSave} disabled={saving}>
-								{saving ? "Saving..." : "Save"}
-							</Button>
-						</div>
-					</>
-				) : (
-					<div className="flex-1 flex items-center justify-center text-sm text-gray-600">
-						Select a workflow to edit
+			<div className="flex flex-1 overflow-hidden">
+				{/* Left: workflow list */}
+				<div className="w-52 shrink-0 border-r border-gray-800 flex flex-col">
+					<div className="flex-1 overflow-y-auto py-1">
+						{visibleWorkflows.map((w) => (
+							<button
+								key={w.id}
+								onClick={() => setSelectedId(w.id)}
+								className={`w-full text-left flex items-center gap-2 px-4 py-2 text-sm transition-colors
+								${
+									selectedId === w.id
+										? activeTab === "story"
+											? "bg-purple-900/40 text-purple-200"
+											: "bg-gray-800 text-white"
+										: "text-gray-400 hover:text-gray-200 hover:bg-gray-900/50"
+								}`}
+							>
+								{activeTab === "story" && <Layers size={12} className="shrink-0 text-purple-500" />}
+								<span className="flex-1 truncate">{w.name}</span>
+								{w.isDefault && <span className="text-[10px] text-gray-600 shrink-0">default</span>}
+							</button>
+						))}
+						{visibleWorkflows.length === 0 && <p className="px-4 py-4 text-xs text-gray-600">No workflows yet</p>}
 					</div>
-				)}
+					<div className="border-t border-gray-800 p-3 flex flex-col gap-0.5">
+						<input ref={importFileRef} type="file" accept=".json" className="hidden" onChange={handleImportFile} />
+						{activeTab === "task" ? (
+							<button
+								onClick={handleAddWorkflow}
+								className="w-full text-left flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-200 transition-colors px-1 py-1.5 rounded"
+							>
+								<Plus size={11} /> New Workflow
+							</button>
+						) : (
+							<button
+								onClick={handleAddStoryWorkflow}
+								className="w-full text-left flex items-center gap-1.5 text-xs text-gray-500 hover:text-purple-400 transition-colors px-1 py-1.5 rounded"
+							>
+								<Plus size={11} /> New Workflow
+							</button>
+						)}
+						<button
+							onClick={() => importFileRef.current?.click()}
+							className="w-full text-left flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-400 transition-colors px-1 py-1.5 rounded"
+						>
+							<Upload size={11} /> Import Workflow
+						</button>
+					</div>
+				</div>
+
+				{/* Right: editor */}
+				<div className="flex-1 overflow-hidden flex flex-col">
+					{selectedWorkflow ? (
+						<>
+							{/* Header */}
+							<div className="shrink-0 flex items-center gap-3 px-6 py-3 border-b border-gray-800">
+								<Input
+									value={selectedWorkflow.name}
+									onChange={(e) => updateWorkflow({ ...selectedWorkflow, name: e.target.value })}
+									disabled={selectedWorkflow.isDefault}
+									inputClassName="font-semibold text-sm"
+									className="max-w-xs"
+								/>
+								{selectedWorkflow.forStory && (
+									<span className="flex items-center gap-1 text-[10px] text-purple-400 bg-purple-400/10 px-2 py-1 rounded font-medium shrink-0">
+										<Layers size={10} /> story
+									</span>
+								)}
+								{selectedWorkflow.isDefault && (
+									<span className="text-[10px] text-gray-500 bg-gray-800 px-2 py-1 rounded shrink-0">default</span>
+								)}
+								<div className="ml-auto flex items-center gap-1">
+									<button
+										onClick={() => handleExport(selectedWorkflow)}
+										className="p-1.5 rounded text-gray-500 hover:text-blue-400 hover:bg-gray-800 transition-colors"
+										title="Export workflow as JSON"
+									>
+										<Download size={14} />
+									</button>
+									{!selectedWorkflow.isDefault && (
+										<button
+											onClick={() => handleDeleteWorkflow(selectedWorkflow.id)}
+											className="p-1.5 rounded text-gray-600 hover:text-red-400 hover:bg-gray-800 transition-colors"
+											title="Delete workflow"
+										>
+											<Trash2 size={14} />
+										</button>
+									)}
+								</div>
+							</div>
+
+							{/* Slot editor */}
+							<div className="flex-1 overflow-y-auto p-6">
+								<WorkflowEditor
+									workflow={selectedWorkflow}
+									defaultBinary={defaultBinary}
+									onUpdate={updateWorkflow}
+									onEditSlot={(slot) => setEditingSlot({ wfId: selectedWorkflow.id, slot })}
+									onAddCustom={() => setAddingCustomTo(selectedWorkflow.id)}
+									onAddOrch={() => setAddingOrchTo(selectedWorkflow.id)}
+								/>
+							</div>
+
+							{/* Footer */}
+							<div className="shrink-0 border-t border-gray-800 px-6 py-3 flex justify-end">
+								<Button size="sm" onClick={onSave} disabled={saving}>
+									{saving ? "Saving..." : "Save"}
+								</Button>
+							</div>
+						</>
+					) : (
+						<div className="flex-1 flex items-center justify-center text-sm text-gray-600">
+							Select a workflow to edit
+						</div>
+					)}
+				</div>
 			</div>
-		</div>
 
 			{editingSlot && (
-				<AgentSlotDialog
-					slot={editingSlot.slot}
-					onSave={handleSaveSlot}
-					onClose={() => setEditingSlot(null)}
-				/>
+				<AgentSlotDialog slot={editingSlot.slot} onSave={handleSaveSlot} onClose={() => setEditingSlot(null)} />
 			)}
 
 			{addingCustomTo !== null && (
@@ -750,10 +799,20 @@ function WorkflowsSection({
 					defaultBinary={defaultBinary}
 					onAdd={(name, binary, model, effort, prompt) => {
 						const id = `slot_custom_${Date.now()}`;
-						const wf = workflows.find(w => w.id === addingCustomTo);
+						const wf = workflows.find((w) => w.id === addingCustomTo);
 						if (!wf) return;
 						const maxOrder = wf.slots.reduce((m, s) => Math.max(m, s.order), 0);
-						const newSlot: WorkflowSlot = { id, type: "custom", name, agentBinary: binary, model, effort, order: maxOrder + 1, enabled: true, prompt };
+						const newSlot: WorkflowSlot = {
+							id,
+							type: "custom",
+							name,
+							agentBinary: binary,
+							model,
+							effort,
+							order: maxOrder + 1,
+							enabled: true,
+							prompt,
+						};
 						updateWorkflow({ ...wf, slots: [...wf.slots, newSlot] });
 						setAddingCustomTo(null);
 					}}
@@ -767,10 +826,20 @@ function WorkflowsSection({
 					title="Add Orch Agent"
 					onAdd={(name, binary, model, effort, prompt) => {
 						const id = `slot_orch_${Date.now()}`;
-						const wf = workflows.find(w => w.id === addingOrchTo);
+						const wf = workflows.find((w) => w.id === addingOrchTo);
 						if (!wf) return;
 						const maxOrder = wf.slots.reduce((m, s) => Math.max(m, s.order), 0);
-						const newSlot: WorkflowSlot = { id, type: "orch", name, agentBinary: binary, model, effort, order: maxOrder + 1, enabled: true, prompt };
+						const newSlot: WorkflowSlot = {
+							id,
+							type: "orch",
+							name,
+							agentBinary: binary,
+							model,
+							effort,
+							order: maxOrder + 1,
+							enabled: true,
+							prompt,
+						};
 						updateWorkflow({ ...wf, slots: [...wf.slots, newSlot] });
 						setAddingOrchTo(null);
 					}}
@@ -796,10 +865,10 @@ function WorkflowEditor({
 	onAddCustom: () => void;
 	onAddOrch: () => void;
 }) {
-	const devSlot = workflow.slots.find(s => s.type === "dev");
-	const nonDevSlots = workflow.slots.filter(s => s.type !== "dev").sort((a, b) => a.order - b.order);
-	const hasCR = workflow.slots.some(s => s.type === "code_review");
-	const hasQA = workflow.slots.some(s => s.type === "qa");
+	const devSlot = workflow.slots.find((s) => s.type === "dev");
+	const nonDevSlots = workflow.slots.filter((s) => s.type !== "dev").sort((a, b) => a.order - b.order);
+	const hasCR = workflow.slots.some((s) => s.type === "code_review");
+	const hasQA = workflow.slots.some((s) => s.type === "qa");
 
 	const handleDragEnd = (result: DropResult) => {
 		if (!result.destination || result.destination.index === result.source.index) return;
@@ -807,18 +876,18 @@ function WorkflowEditor({
 		const [moved] = reordered.splice(result.source.index, 1);
 		if (!moved) return;
 		reordered.splice(result.destination.index, 0, moved);
-		const devSlots = workflow.slots.filter(s => s.type === "dev");
+		const devSlots = workflow.slots.filter((s) => s.type === "dev");
 		onUpdate({ ...workflow, slots: [...devSlots, ...reordered.map((s, i) => ({ ...s, order: i + 1 }))] });
 	};
 
 	const handleToggle = (slotId: string, enabled: boolean) => {
-		onUpdate({ ...workflow, slots: workflow.slots.map(s => s.id === slotId ? { ...s, enabled } : s) });
+		onUpdate({ ...workflow, slots: workflow.slots.map((s) => (s.id === slotId ? { ...s, enabled } : s)) });
 	};
 
 	const handleRemove = (slotId: string) => {
-		const remaining = workflow.slots.filter(s => s.id !== slotId);
-		const devs = remaining.filter(s => s.type === "dev");
-		const others = remaining.filter(s => s.type !== "dev").map((s, i) => ({ ...s, order: i + 1 }));
+		const remaining = workflow.slots.filter((s) => s.id !== slotId);
+		const devs = remaining.filter((s) => s.type === "dev");
+		const others = remaining.filter((s) => s.type !== "dev").map((s, i) => ({ ...s, order: i + 1 }));
 		onUpdate({ ...workflow, slots: [...devs, ...others] });
 	};
 
@@ -835,7 +904,7 @@ function WorkflowEditor({
 
 	// Story workflows: orch-only editor
 	if (workflow.forStory) {
-		const orchSlots = workflow.slots.filter(s => s.type === "orch").sort((a, b) => a.order - b.order);
+		const orchSlots = workflow.slots.filter((s) => s.type === "orch").sort((a, b) => a.order - b.order);
 		const handleOrchDragEnd = (result: DropResult) => {
 			if (!result.destination || result.destination.index === result.source.index) return;
 			const reordered = [...orchSlots];
@@ -889,13 +958,7 @@ function WorkflowEditor({
 	return (
 		<div className="border border-gray-800 rounded-xl p-4 space-y-3">
 			{/* Dev slot — always first, fixed position */}
-			{devSlot && (
-				<SlotCard
-					slot={devSlot}
-					isFixed
-					onEdit={() => onEditSlot(devSlot)}
-				/>
-			)}
+			{devSlot && <SlotCard slot={devSlot} isFixed onEdit={() => onEditSlot(devSlot)} />}
 
 			{/* Non-dev slots — draggable */}
 			<DragDropContext onDragEnd={handleDragEnd}>
@@ -975,7 +1038,10 @@ function SlotCard({
 		<div className="bg-gray-900 rounded-xl px-3 py-2.5 flex gap-2">
 			<div className="flex items-start pt-0.5 shrink-0">
 				{dragHandleProps ? (
-					<span {...dragHandleProps as React.HTMLAttributes<HTMLSpanElement>} className="text-gray-600 hover:text-gray-400 cursor-grab active:cursor-grabbing">
+					<span
+						{...(dragHandleProps as React.HTMLAttributes<HTMLSpanElement>)}
+						className="text-gray-600 hover:text-gray-400 cursor-grab active:cursor-grabbing"
+					>
 						<GripVertical size={13} />
 					</span>
 				) : (
@@ -992,9 +1058,7 @@ function SlotCard({
 						)}
 					</div>
 					<div className="flex items-center gap-2 shrink-0">
-						{!isFixed && onToggle && (
-							<Switch checked={slot.enabled} onChange={onToggle} size="sm" />
-						)}
+						{!isFixed && onToggle && <Switch checked={slot.enabled} onChange={onToggle} size="sm" />}
 						<button onClick={onEdit} className="text-gray-500 hover:text-gray-200 transition-colors">
 							<Settings2 size={13} />
 						</button>
@@ -1002,12 +1066,18 @@ function SlotCard({
 				</div>
 				{/* Row 2: badges + delete */}
 				<div className="flex items-center gap-1.5">
-					<span className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded font-mono">{slot.agentBinary}</span>
+					<span className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded font-mono">
+						{slot.agentBinary}
+					</span>
 					{slot.model && (
-						<span className="text-[10px] text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded font-mono">{slot.model}</span>
+						<span className="text-[10px] text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded font-mono">
+							{slot.model}
+						</span>
 					)}
 					{slot.effort && (
-						<span className="text-[10px] text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded font-mono">{slot.effort}</span>
+						<span className="text-[10px] text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded font-mono">
+							{slot.effort}
+						</span>
 					)}
 					{slot.prompt && (
 						<span className="text-[10px] text-blue-500 bg-blue-500/10 px-1.5 py-0.5 rounded">custom prompt</span>
@@ -1052,7 +1122,9 @@ function ModelSelect({
 				}}
 			>
 				<SelectOption value="" label="Default" />
-				{options.map((o) => <SelectOption key={o.value} value={o.value} label={o.label} />)}
+				{options.map((o) => (
+					<SelectOption key={o.value} value={o.value} label={o.label} />
+				))}
 				<SelectOption value="__custom__" label="Custom..." />
 			</Select>
 			{customMode && (
@@ -1107,14 +1179,24 @@ function AgentSlotDialog({
 
 				<div className="grid grid-cols-2 gap-3">
 					<Field label="Agent">
-						<Select value={binary} onChange={(v) => { setBinary(v as "claude" | "codex"); setModel(""); }}>
-							{AGENT_BINARY_OPTIONS.map(o => <SelectOption key={o.value} value={o.value} label={o.label} />)}
+						<Select
+							value={binary}
+							onChange={(v) => {
+								setBinary(v as "claude" | "codex");
+								setModel("");
+							}}
+						>
+							{AGENT_BINARY_OPTIONS.map((o) => (
+								<SelectOption key={o.value} value={o.value} label={o.label} />
+							))}
 						</Select>
 					</Field>
 					<Field label="Effort (optional)">
 						<Select value={effort} onChange={(v) => setEffort(v as EffortLevel | "")}>
 							<SelectOption value="" label="Default" />
-							{EFFORT_OPTIONS.map(o => <SelectOption key={o.value} value={o.value} label={o.label} />)}
+							{EFFORT_OPTIONS.map((o) => (
+								<SelectOption key={o.value} value={o.value} label={o.label} />
+							))}
 						</Select>
 					</Field>
 				</div>
@@ -1123,10 +1205,15 @@ function AgentSlotDialog({
 					<ModelSelect key={binary} agentId={binary} value={model} onChange={setModel} />
 				</Field>
 
-				<Field label={`Instructions${slot.type === "custom" || slot.type === "orch" ? " (min 50 chars)" : " (optional)"}`}>
+				<Field
+					label={`Instructions${slot.type === "custom" || slot.type === "orch" ? " (min 50 chars)" : " (optional)"}`}
+				>
 					<Textarea
 						value={prompt}
-						onChange={(e) => { setPrompt(e.target.value); if (promptError) setPromptError(""); }}
+						onChange={(e) => {
+							setPrompt(e.target.value);
+							if (promptError) setPromptError("");
+						}}
 						placeholder={placeholder[slot.type] ?? "Describe what this agent should check or do..."}
 						rows={6}
 						className="max-h-64 overflow-y-auto resize-y"
@@ -1135,7 +1222,9 @@ function AgentSlotDialog({
 				</Field>
 
 				<div className="flex gap-2 justify-end">
-					<Button variant="ghost" onClick={onClose}>Cancel</Button>
+					<Button variant="ghost" onClick={onClose}>
+						Cancel
+					</Button>
 					<Button onClick={handleSave}>Save</Button>
 				</div>
 			</div>
@@ -1151,7 +1240,13 @@ function AddCustomAgentDialog({
 }: {
 	defaultBinary: "claude" | "codex";
 	title?: string;
-	onAdd: (name: string, binary: "claude" | "codex", model: string | null, effort: EffortLevel | null, prompt: string) => void;
+	onAdd: (
+		name: string,
+		binary: "claude" | "codex",
+		model: string | null,
+		effort: EffortLevel | null,
+		prompt: string,
+	) => void;
 	onClose: () => void;
 }) {
 	const [name, setName] = useState("");
@@ -1187,8 +1282,16 @@ function AddCustomAgentDialog({
 						/>
 					</Field>
 					<Field label="Agent">
-						<Select value={binary} onChange={(v) => { setBinary(v as "claude" | "codex"); setModel(""); }}>
-							{AGENT_BINARY_OPTIONS.map(o => <SelectOption key={o.value} value={o.value} label={o.label} />)}
+						<Select
+							value={binary}
+							onChange={(v) => {
+								setBinary(v as "claude" | "codex");
+								setModel("");
+							}}
+						>
+							{AGENT_BINARY_OPTIONS.map((o) => (
+								<SelectOption key={o.value} value={o.value} label={o.label} />
+							))}
 						</Select>
 					</Field>
 				</div>
@@ -1199,23 +1302,32 @@ function AddCustomAgentDialog({
 					<Field label="Effort (optional)">
 						<Select value={effort} onChange={(v) => setEffort(v as EffortLevel | "")}>
 							<SelectOption value="" label="Default" />
-							{EFFORT_OPTIONS.map(o => <SelectOption key={o.value} value={o.value} label={o.label} />)}
+							{EFFORT_OPTIONS.map((o) => (
+								<SelectOption key={o.value} value={o.value} label={o.label} />
+							))}
 						</Select>
 					</Field>
 				</div>
 				<Field label="Instructions (min 50 chars)">
 					<Textarea
 						value={prompt}
-						onChange={(e) => { setPrompt(e.target.value); if (promptError) setPromptError(""); }}
+						onChange={(e) => {
+							setPrompt(e.target.value);
+							if (promptError) setPromptError("");
+						}}
 						placeholder="Describe what this agent should check or do..."
-            maxRows={20}
+						maxRows={20}
 						autoResize
 					/>
 					{promptError && <p className="text-xs text-red-400 mt-1">{promptError}</p>}
 				</Field>
 				<div className="flex gap-2 justify-end">
-					<Button variant="ghost" onClick={onClose}>Cancel</Button>
-					<Button onClick={handleAdd} disabled={!name.trim()}>Add</Button>
+					<Button variant="ghost" onClick={onClose}>
+						Cancel
+					</Button>
+					<Button onClick={handleAdd} disabled={!name.trim()}>
+						Add
+					</Button>
 				</div>
 			</div>
 		</div>
@@ -1262,9 +1374,7 @@ function EnvironmentSection({
 	}, [workspaceId]);
 
 	const toggleFile = (file: string, checked: boolean) => {
-		const next = checked
-			? [...new Set([...setup.filesToCopy, file])]
-			: setup.filesToCopy.filter((f) => f !== file);
+		const next = checked ? [...new Set([...setup.filesToCopy, file])] : setup.filesToCopy.filter((f) => f !== file);
 		onChange({ ...setup, filesToCopy: next });
 	};
 
@@ -1305,47 +1415,45 @@ function EnvironmentSection({
 					</button>
 				</div>
 				<p className="text-xs text-gray-500">
-					Gitignored files found in the repo root. Selected files are copied into each new worktree before the agent runs.
+					Gitignored files found in the repo root. Selected files are copied into each new worktree before the agent
+					runs.
 				</p>
 
 				<div className="border border-gray-800 rounded-xl overflow-hidden">
-					{loadingFiles && (
-						<div className="px-4 py-6 text-center text-xs text-gray-500">Scanning repo...</div>
-					)}
+					{loadingFiles && <div className="px-4 py-6 text-center text-xs text-gray-500">Scanning repo...</div>}
 
 					{!loadingFiles && allFiles.length === 0 && (
-						<div className="px-4 py-6 text-center text-xs text-gray-500">
-							No gitignored files found in repo root
-						</div>
+						<div className="px-4 py-6 text-center text-xs text-gray-500">No gitignored files found in repo root</div>
 					)}
 
-					{!loadingFiles && allFiles.map((file) => {
-						const isChecked = setup.filesToCopy.includes(file);
-						const isManual = manualOnly.includes(file);
-						return (
-							<label
-								key={file}
-								className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-800/50 cursor-pointer border-b border-gray-800 last:border-0 transition-colors"
-							>
-								<Checkbox
-									checked={isChecked}
-									onChange={(e) => toggleFile(file, e.target.checked)}
-								/>
-								<span className="flex-1 text-xs font-mono text-gray-200">{file}</span>
-								{isManual && (
-									<span className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">manual</span>
-								)}
-								{isManual && (
-									<button
-										onClick={(e) => { e.preventDefault(); removeFile(file); }}
-										className="text-gray-600 hover:text-red-400 transition-colors"
-									>
-										<X size={11} />
-									</button>
-								)}
-							</label>
-						);
-					})}
+					{!loadingFiles &&
+						allFiles.map((file) => {
+							const isChecked = setup.filesToCopy.includes(file);
+							const isManual = manualOnly.includes(file);
+							return (
+								<label
+									key={file}
+									className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-800/50 cursor-pointer border-b border-gray-800 last:border-0 transition-colors"
+								>
+									<Checkbox checked={isChecked} onChange={(e) => toggleFile(file, e.target.checked)} />
+									<span className="flex-1 text-xs font-mono text-gray-200">{file}</span>
+									{isManual && (
+										<span className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">manual</span>
+									)}
+									{isManual && (
+										<button
+											onClick={(e) => {
+												e.preventDefault();
+												removeFile(file);
+											}}
+											className="text-gray-600 hover:text-red-400 transition-colors"
+										>
+											<X size={11} />
+										</button>
+									)}
+								</label>
+							);
+						})}
 				</div>
 
 				{/* Manual path input */}
@@ -1373,7 +1481,8 @@ function EnvironmentSection({
 					inputClassName="font-mono text-xs"
 				/>
 				<p className="text-xs text-gray-500 mt-1">
-					Runs in the worktree directory. Use <code className="text-gray-400 bg-gray-800 px-1 py-0.5 rounded">$REPO_PATH</code> to reference the main repo.
+					Runs in the worktree directory. Use{" "}
+					<code className="text-gray-400 bg-gray-800 px-1 py-0.5 rounded">$REPO_PATH</code> to reference the main repo.
 				</p>
 			</Field>
 
@@ -1386,7 +1495,8 @@ function EnvironmentSection({
 					inputClassName="font-mono text-xs"
 				/>
 				<p className="text-xs text-gray-500 mt-1">
-					Command to run when you press ▶ on a ticket. Runs in the ticket's worktree (or repo root if no worktree exists yet).
+					Command to run when you press ▶ on a ticket. Runs in the ticket's worktree (or repo root if no worktree exists
+					yet).
 				</p>
 			</Field>
 
@@ -1408,10 +1518,7 @@ function parseEnvText(text: string): RuntimeProjectSecret[] {
 			if (eq === -1) return [];
 			const key = noExport.slice(0, eq).trim();
 			let value = noExport.slice(eq + 1).trim();
-			if (
-				(value.startsWith('"') && value.endsWith('"')) ||
-				(value.startsWith("'") && value.endsWith("'"))
-			) {
+			if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
 				value = value.slice(1, -1);
 			}
 			return key ? [{ key, value }] : [];
@@ -1438,7 +1545,7 @@ function SecretsSection({
 	];
 
 	const updateSecret = (key: string, value: string) => {
-		onChange(allSecrets.map((s) => s.key === key ? { ...s, value } : s));
+		onChange(allSecrets.map((s) => (s.key === key ? { ...s, value } : s)));
 	};
 
 	const removeSecret = (key: string) => {
@@ -1526,21 +1633,18 @@ function SecretsSection({
 
 			{/* Paste .env */}
 			<div className="border-t border-gray-800 pt-4 space-y-2">
-				<p className="text-xs text-gray-400">Paste <code className="text-gray-500">.env</code> — add or overwrite multiple secrets at once</p>
+				<p className="text-xs text-gray-400">
+					Paste <code className="text-gray-500">.env</code> — add or overwrite multiple secrets at once
+				</p>
 				<Textarea
 					value={envText}
 					onChange={(e) => setEnvText(e.target.value)}
-					placeholder={"GITHUB_TOKEN=ghp_xxx\nFIGMA_TOKEN=\"abc123\"\n# comments ignored"}
+					placeholder={'GITHUB_TOKEN=ghp_xxx\nFIGMA_TOKEN="abc123"\n# comments ignored'}
 					rows={4}
 					className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2.5 text-xs font-mono text-gray-300 placeholder-gray-700 focus:outline-none focus:border-gray-600 resize-none"
 				/>
 				<div className="flex justify-end">
-					<Button
-						variant="outlined"
-						size="sm"
-						onClick={applyEnvText}
-						disabled={!envText.trim()}
-					>
+					<Button variant="outlined" size="sm" onClick={applyEnvText} disabled={!envText.trim()}>
 						<Plus size={12} className="mr-1" />
 						Apply
 					</Button>
@@ -1590,10 +1694,7 @@ function GlobalSettings({ section }: { section: GlobalSection }) {
 		<div className="p-6 max-w-xl space-y-6">
 			{section === "general" && (
 				<>
-					<SectionHeader
-						title="General"
-						description="Runtime behavior settings that apply to all projects."
-					/>
+					<SectionHeader title="General" description="Runtime behavior settings that apply to all projects." />
 					<div className="space-y-4">
 						<Field label="Default Agent">
 							<Select
@@ -1601,7 +1702,9 @@ function GlobalSettings({ section }: { section: GlobalSection }) {
 								onChange={(v) => setConfig({ ...config, defaultAgent: v as "claude" | "codex" })}
 								placeholder="Select agent"
 							>
-								{AGENT_BINARY_OPTIONS.map(o => <SelectOption key={o.value} value={o.value} label={o.label} />)}
+								{AGENT_BINARY_OPTIONS.map((o) => (
+									<SelectOption key={o.value} value={o.value} label={o.label} />
+								))}
 							</Select>
 						</Field>
 						<div className="grid grid-cols-2 gap-3">

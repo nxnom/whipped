@@ -1,19 +1,45 @@
 import { spawn } from "node:child_process";
 import { cpSync, existsSync, mkdirSync } from "node:fs";
 import { unlink } from "node:fs/promises";
-import { commitIfDirty, pushBranch } from "../git/merge-operations.js";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+	buildKanbomMcpServerSpec,
+	buildTaskHookEnv,
+	CLAUDE_HOME_MCP_CONFIG_PATH,
+	CLAUDE_TASK_SETTINGS_PATH,
+	getMcpConfigPath,
+	getServerPort,
+	writeClaudeHomeSettings,
+	writeClaudeMcpConfig,
+} from "../agents/agent-hooks.js";
+import { getAvailableAgents } from "../agents/agent-registry.js";
 import type { AgentProcess } from "../agents/agent-runner.js";
 import { spawnAgent } from "../agents/agent-runner.js";
-import { getAvailableAgents } from "../agents/agent-registry.js";
-import { CLAUDE_HOME_MCP_CONFIG_PATH, CLAUDE_TASK_SETTINGS_PATH, buildKanbomMcpServerSpec, buildTaskHookEnv, getMcpConfigPath, getServerPort, writeClaudeMcpConfig, writeClaudeHomeSettings } from "../agents/agent-hooks.js";
-import type { WorkflowSlot, RuntimeAgentId, RuntimeBoardCard } from "../core/api-contract.js";
-import { buildDevAgentSystemPrompt, buildSecretsEnv, buildSecretsSection, runParentReopenCascade, tryParseAgentJson } from "./review-pipeline.js";
+import type { RuntimeAgentId, RuntimeBoardCard, WorkflowSlot } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
+import { commitIfDirty, pushBranch } from "../git/merge-operations.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
-import { appendActivityLog, appendTerminalSession, clearCardSession, endTerminalSession, linkCommentToSession, loadBoard, loadProjectConfig, moveCard, saveTerminalBuffer, updateCard } from "../state/workspace-state.js";
+import {
+	appendActivityLog,
+	appendTerminalSession,
+	clearCardSession,
+	endTerminalSession,
+	linkCommentToSession,
+	loadBoard,
+	loadProjectConfig,
+	moveCard,
+	saveTerminalBuffer,
+	updateCard,
+} from "../state/workspace-state.js";
 import { createMergedWorktree, createWorktree, getCardBranch, getWorktreePath } from "../worktree/worktree-manager.js";
+import {
+	buildDevAgentSystemPrompt,
+	buildSecretsEnv,
+	buildSecretsSection,
+	runParentReopenCascade,
+	tryParseAgentJson,
+} from "./review-pipeline.js";
 
 export interface SchedulerOptions {
 	workspaceId: string;
@@ -125,7 +151,8 @@ export class TaskScheduler {
 				cwd: repoPath,
 				env: secretsEnv,
 				mcpConfigPath: agentId === "claude" ? CLAUDE_HOME_MCP_CONFIG_PATH : undefined,
-				mcpServer: agentId === "codex" ? buildKanbomMcpServerSpec(getMcpServerPath(), serverUrl, workspaceId) : undefined,
+				mcpServer:
+					agentId === "codex" ? buildKanbomMcpServerSpec(getMcpServerPath(), serverUrl, workspaceId) : undefined,
 				appendSystemPrompt,
 				onOutput: (data) => {
 					homeTask.outputBuffer += data;
@@ -177,12 +204,20 @@ export class TaskScheduler {
 		// Reload project config early so we can resolve the dev slot + agent binary
 		const projectConfig = await loadProjectConfig(workspaceId);
 		const isStoryCard = card.type === "story";
-		const cardWorkflow = projectConfig.workflows.find(w => w.id === card.workflowId)
-			?? projectConfig.workflows.find(w => w.isDefault && w.forStory === isStoryCard)
-			?? projectConfig.workflows.find(w => w.forStory === isStoryCard)
-			?? projectConfig.workflows[0];
-		const devSlotEarly: WorkflowSlot = cardWorkflow?.slots.find(s => s.type === "dev")
-			?? { id: "dev", type: "dev" as const, name: "Dev", agentBinary: "claude" as const, order: 0, enabled: true, prompt: "" };
+		const cardWorkflow =
+			projectConfig.workflows.find((w) => w.id === card.workflowId) ??
+			projectConfig.workflows.find((w) => w.isDefault && w.forStory === isStoryCard) ??
+			projectConfig.workflows.find((w) => w.forStory === isStoryCard) ??
+			projectConfig.workflows[0];
+		const devSlotEarly: WorkflowSlot = cardWorkflow?.slots.find((s) => s.type === "dev") ?? {
+			id: "dev",
+			type: "dev" as const,
+			name: "Dev",
+			agentBinary: "claude" as const,
+			order: 0,
+			enabled: true,
+			prompt: "",
+		};
 		const agentId = card.agentId ?? devSlotEarly.agentBinary;
 
 		// Guard: check agent binary is available before spawning
@@ -210,7 +245,11 @@ export class TaskScheduler {
 			if (unmetDep) {
 				await moveCard(workspaceId, taskId, "blocked");
 				const depCard = board.cards[unmetDep];
-				await appendActivityLog(workspaceId, taskId, `Blocked: dependency "${depCard?.title ?? unmetDep}" is not yet complete`);
+				await appendActivityLog(
+					workspaceId,
+					taskId,
+					`Blocked: dependency "${depCard?.title ?? unmetDep}" is not yet complete`,
+				);
 				stateHub.broadcastWorkspaceUpdate(workspaceId);
 				return;
 			}
@@ -230,7 +269,7 @@ export class TaskScheduler {
 					effectiveBaseRef = resolvedDepBranches[resolvedDepBranches.length - 1]!;
 					extraDepBranches = resolvedDepBranches.slice(0, -1);
 				}
-				parentCards = card.dependsOn.map(id => board.cards[id]).filter((c): c is RuntimeBoardCard => !!c);
+				parentCards = card.dependsOn.map((id) => board.cards[id]).filter((c): c is RuntimeBoardCard => !!c);
 			}
 		}
 
@@ -248,12 +287,16 @@ export class TaskScheduler {
 		// Guard: dev:pass must have been created during this session (createdAt >= last dev
 		// terminal session's startedAt) so we don't reuse a dev:pass from a prior run.
 		const lastDevComment = [...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev");
-		const lastDevTs = card.terminalSessions?.slice().reverse().find((ts) => ts.type === "dev");
-		const devPassedInThisSession = lastDevComment?.status === "pass"
-			&& lastDevTs !== undefined
-			&& lastDevComment.createdAt >= lastDevTs.startedAt;
+		const lastDevTs = card.terminalSessions
+			?.slice()
+			.reverse()
+			.find((ts) => ts.type === "dev");
+		const devPassedInThisSession =
+			lastDevComment?.status === "pass" && lastDevTs !== undefined && lastDevComment.createdAt >= lastDevTs.startedAt;
 		const lastTs = card.terminalSessions?.at(-1);
-		logger.info(`[scheduler] Resume check for "${card.title}": lastTsState=${lastTs?.state} devPassedInThisSession=${devPassedInThisSession} lastDevComment=${lastDevComment?.status} lastDevTsStart=${lastDevTs?.startedAt} devCreatedAt=${lastDevComment?.createdAt}`);
+		logger.info(
+			`[scheduler] Resume check for "${card.title}": lastTsState=${lastTs?.state} devPassedInThisSession=${devPassedInThisSession} lastDevComment=${lastDevComment?.status} lastDevTsStart=${lastDevTs?.startedAt} devCreatedAt=${lastDevComment?.createdAt}`,
+		);
 		if (lastTs?.state === "killed" && devPassedInThisSession) {
 			extraDepBranches.length > 0
 				? createMergedWorktree(taskId, repoPath, effectiveBaseRef, extraDepBranches, card.branchName)
@@ -268,12 +311,19 @@ export class TaskScheduler {
 		// Write MCP config so the dev agent can call kanban_add_comment when done.
 		// Use a per-task path to avoid concurrent agents overwriting each other's config.
 		const mcpConfigPath = getMcpConfigPath(taskId);
-		await writeClaudeMcpConfig(getMcpServerPath(), this.options.serverUrl, workspaceId, agentId as string, mcpConfigPath).catch(() => {});
+		await writeClaudeMcpConfig(
+			getMcpServerPath(),
+			this.options.serverUrl,
+			workspaceId,
+			agentId as string,
+			mcpConfigPath,
+		).catch(() => {});
 
 		// Create isolated worktree; merge extra dep branches when card has multiple independent deps
-		const worktree = extraDepBranches.length > 0
-			? createMergedWorktree(taskId, repoPath, effectiveBaseRef, extraDepBranches, card.branchName)
-			: createWorktree(taskId, repoPath, effectiveBaseRef, card.branchName);
+		const worktree =
+			extraDepBranches.length > 0
+				? createMergedWorktree(taskId, repoPath, effectiveBaseRef, extraDepBranches, card.branchName)
+				: createWorktree(taskId, repoPath, effectiveBaseRef, card.branchName);
 
 		// Move card + set worktree path immediately so the UI reflects it before setup runs
 		await updateCard(workspaceId, taskId, { worktreePath: worktree.path });
@@ -293,7 +343,12 @@ export class TaskScheduler {
 						if (!existsSync(src)) continue;
 						const dst = join(worktree.path, relPath);
 						mkdirSync(dirname(dst), { recursive: true });
-						try { cpSync(src, dst, { recursive: true }); copied.push(relPath); } catch { /* best-effort */ }
+						try {
+							cpSync(src, dst, { recursive: true });
+							copied.push(relPath);
+						} catch {
+							/* best-effort */
+						}
 					}
 					if (copied.length > 0) {
 						await appendActivityLog(workspaceId, taskId, `Copied to worktree: ${copied.join(", ")}`);
@@ -313,7 +368,11 @@ export class TaskScheduler {
 						proc.on("close", (code) => {
 							if (code !== 0) {
 								logger.error(`[scheduler] Install command failed (code ${code}) for task ${taskId}`);
-								void appendActivityLog(workspaceId, taskId, `Install command failed (code ${code}) — proceeding anyway`);
+								void appendActivityLog(
+									workspaceId,
+									taskId,
+									`Install command failed (code ${code}) — proceeding anyway`,
+								);
 							}
 							resolve();
 						});
@@ -325,7 +384,15 @@ export class TaskScheduler {
 
 			const prompt = buildTaskPrompt();
 			const secrets = projectConfig.secrets ?? [];
-			const devSystemPromptResult = buildDevAgentSystemPrompt(devSlotEarly, card, devSlotEarly.prompt ?? "", worktree.path, secrets, parentCards, projectConfig.systemPrompt);
+			const devSystemPromptResult = buildDevAgentSystemPrompt(
+				devSlotEarly,
+				card,
+				devSlotEarly.prompt ?? "",
+				worktree.path,
+				secrets,
+				parentCards,
+				projectConfig.systemPrompt,
+			);
 			const secretsEnv = buildSecretsEnv(secrets);
 
 			await appendActivityLog(workspaceId, taskId, `Agent ${agentId} started`);
@@ -333,7 +400,13 @@ export class TaskScheduler {
 			const spawnedAt = Date.now();
 			const devStreamId = `${taskId}-dev-${spawnedAt}`;
 
-			await appendTerminalSession(workspaceId, taskId, { streamId: devStreamId, type: "dev", startedAt: spawnedAt, agentId, state: "running" });
+			await appendTerminalSession(workspaceId, taskId, {
+				streamId: devStreamId,
+				type: "dev",
+				startedAt: spawnedAt,
+				agentId,
+				state: "running",
+			});
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 			const runningTask: RunningTask = {
@@ -348,7 +421,10 @@ export class TaskScheduler {
 					hookSettingsPath: agentId === "claude" ? CLAUDE_TASK_SETTINGS_PATH : undefined,
 					hookServerPort: agentId === "codex" ? getServerPort(this.options.serverUrl) : undefined,
 					mcpConfigPath: agentId === "claude" ? mcpConfigPath : undefined,
-					mcpServer: agentId === "codex" ? buildKanbomMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId, agentId) : undefined,
+					mcpServer:
+						agentId === "codex"
+							? buildKanbomMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId, agentId)
+							: undefined,
 					appendSystemPrompt: devSystemPromptResult.text,
 					files: agentId === "claude" ? devSystemPromptResult.files : undefined,
 					effort: devSlotEarly.effort ?? undefined,
@@ -402,7 +478,10 @@ export class TaskScheduler {
 							// Set endedAt on any dev comment stored via MCP
 							const hookBoard = await loadBoard(workspaceId);
 							const hookCard = hookBoard.cards[taskId];
-							const hookDevComment = hookCard?.reviewComments?.slice().reverse().find((c) => c.type === "dev" && c.createdAt >= spawnedAt);
+							const hookDevComment = hookCard?.reviewComments
+								?.slice()
+								.reverse()
+								.find((c) => c.type === "dev" && c.createdAt >= spawnedAt);
 							if (hookDevComment) {
 								await linkCommentToSession(workspaceId, taskId, hookDevComment.createdAt, devStreamId);
 							}
@@ -420,7 +499,10 @@ export class TaskScheduler {
 						// Check if agent stored a dev comment via MCP; if not, create a fallback
 						const exitBoard = await loadBoard(workspaceId);
 						const exitCard = exitBoard.cards[taskId];
-						const existingDevComment = exitCard?.reviewComments?.slice().reverse().find((c) => c.type === "dev" && c.createdAt >= spawnedAt);
+						const existingDevComment = exitCard?.reviewComments
+							?.slice()
+							.reverse()
+							.find((c) => c.type === "dev" && c.createdAt >= spawnedAt);
 						const devState = exitCode === 0 ? "completed" : "failed";
 						if (existingDevComment) {
 							await linkCommentToSession(workspaceId, taskId, existingDevComment.createdAt, devStreamId);
@@ -444,7 +526,7 @@ export class TaskScheduler {
 						}
 
 						if (exitCode === 0) {
-							const hasReviewSlots = (cardWorkflow?.slots ?? []).some(s => s.type !== "dev" && s.enabled);
+							const hasReviewSlots = (cardWorkflow?.slots ?? []).some((s) => s.type !== "dev" && s.enabled);
 							if (!hasReviewSlots) {
 								await moveCard(workspaceId, taskId, "ready_for_review");
 								await appendActivityLog(workspaceId, taskId, "Agent finished → moved to Ready for Review");
@@ -459,7 +541,9 @@ export class TaskScheduler {
 							const destination = newAttempts >= this.options.maxAutoFixAttempts ? "blocked" : "reopened";
 
 							if (isFastExit) {
-								logger.error(`[scheduler] Task ${taskId} failed within ${Math.round(elapsed / 1000)}s — possible launch error`);
+								logger.error(
+									`[scheduler] Task ${taskId} failed within ${Math.round(elapsed / 1000)}s — possible launch error`,
+								);
 								await appendActivityLog(
 									workspaceId,
 									taskId,
@@ -488,11 +572,19 @@ export class TaskScheduler {
 		};
 
 		if (worktree.conflictedFiles.length > 0) {
-			await appendActivityLog(workspaceId, taskId, `Merging dependency branches → conflicts in: ${worktree.conflictedFiles.join(", ")} — resolving...`);
+			await appendActivityLog(
+				workspaceId,
+				taskId,
+				`Merging dependency branches → conflicts in: ${worktree.conflictedFiles.join(", ")} — resolving...`,
+			);
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
 			await this.startConflictResolution(card, worktree.path, worktree.conflictedFiles, async (success) => {
 				if (success) {
-					await appendActivityLog(workspaceId, taskId, `Dep branch conflicts resolved (${worktree.conflictedFiles.join(", ")}) — starting dev agent`);
+					await appendActivityLog(
+						workspaceId,
+						taskId,
+						`Dep branch conflicts resolved (${worktree.conflictedFiles.join(", ")}) — starting dev agent`,
+					);
 					stateHub.broadcastWorkspaceUpdate(workspaceId);
 					await launchDevAgent();
 				} else {
@@ -531,7 +623,10 @@ export class TaskScheduler {
 		}
 	}
 
-	async triggerParentReopenCascade(parentCard: RuntimeBoardCard, boardCards: Record<string, RuntimeBoardCard>): Promise<void> {
+	async triggerParentReopenCascade(
+		parentCard: RuntimeBoardCard,
+		boardCards: Record<string, RuntimeBoardCard>,
+	): Promise<void> {
 		if (parentCard.type !== "task") return;
 
 		const { workspaceId, repoPath, serverUrl, stateHub } = this.options;
@@ -544,7 +639,9 @@ export class TaskScheduler {
 
 		if (childCards.length === 0) return;
 
-		logger.info(`[scheduler] triggerParentReopenCascade: ${childCards.length} children for parent "${parentCard.title}"`);
+		logger.info(
+			`[scheduler] triggerParentReopenCascade: ${childCards.length} children for parent "${parentCard.title}"`,
+		);
 
 		const projectConfig = await loadProjectConfig(workspaceId);
 		void runParentReopenCascade(parentCard, childCards, {
@@ -651,10 +748,11 @@ export class TaskScheduler {
 				);
 			}
 			const hookConfig = await loadProjectConfig(workspaceId);
-			const hookWorkflow = hookConfig.workflows.find(w => w.id === card.workflowId)
-				?? hookConfig.workflows.find(w => w.isDefault)
-				?? hookConfig.workflows[0];
-			const hookHasReview = (hookWorkflow?.slots ?? []).some(s => s.type !== "dev" && s.enabled);
+			const hookWorkflow =
+				hookConfig.workflows.find((w) => w.id === card.workflowId) ??
+				hookConfig.workflows.find((w) => w.isDefault) ??
+				hookConfig.workflows[0];
+			const hookHasReview = (hookWorkflow?.slots ?? []).some((s) => s.type !== "dev" && s.enabled);
 			if (!hookHasReview) {
 				await moveCard(workspaceId, taskId, "ready_for_review");
 				await appendActivityLog(workspaceId, taskId, "Agent finished → moved to Ready for Review");
@@ -662,7 +760,9 @@ export class TaskScheduler {
 				await appendActivityLog(workspaceId, taskId, "Agent finished → AI review starting");
 			}
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
-			logger.info(`[scheduler] Hook Stop: task ${taskId} → ${hookHasReview ? "in_progress (review pending)" : "ready_for_review"}`);
+			logger.info(
+				`[scheduler] Hook Stop: task ${taskId} → ${hookHasReview ? "in_progress (review pending)" : "ready_for_review"}`,
+			);
 			this.options.onTaskCompleted(taskId);
 		} else if (event === "user_prompt") {
 			const board = await loadBoard(workspaceId);
@@ -685,7 +785,12 @@ export class TaskScheduler {
 		const { workspaceId, stateHub, defaultAgent } = this.options;
 		const streamId = `${card.id}-conflict-${Date.now()}`;
 
-		await appendTerminalSession(workspaceId, card.id, { streamId, type: "conflict", startedAt: Date.now(), state: "running" });
+		await appendTerminalSession(workspaceId, card.id, {
+			streamId,
+			type: "conflict",
+			startedAt: Date.now(),
+			state: "running",
+		});
 		stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 		let outputBuffer = "";
@@ -760,7 +865,11 @@ export function getMcpServerPath(): { command: string; args: string[] } {
 	};
 }
 
-function buildHomeAgentSystemPrompt(repoPath: string, secrets: import("../core/api-contract.js").RuntimeProjectSecret[] = [], systemPrompt?: string): string {
+function buildHomeAgentSystemPrompt(
+	repoPath: string,
+	secrets: import("../core/api-contract.js").RuntimeProjectSecret[] = [],
+	systemPrompt?: string,
+): string {
 	const secretsSection = buildSecretsSection(secrets);
 
 	return `You are the Assistant for the project at \`${repoPath}\`.
@@ -816,7 +925,6 @@ When asked to suggest or create a workflow:
 Slot prompts should be specific to the project's domain and the slot's role.${secretsSection ? `\n\n${secretsSection}` : ""}${systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : ""}`;
 }
 
-
 const CONFLICT_RESOLUTION_SYSTEM_PROMPT = `You are a merge conflict resolution agent. Your only job is to resolve git merge conflicts.
 
 Rules:
@@ -826,9 +934,7 @@ Rules:
 - Exit when done`;
 
 function buildConflictResolutionPrompt(card: RuntimeBoardCard, conflictedFiles: string[]): string {
-	const descriptionSection = card.description?.trim()
-		? `\nTask description:\n${card.description.trim()}\n`
-		: "";
+	const descriptionSection = card.description?.trim() ? `\nTask description:\n${card.description.trim()}\n` : "";
 	return `Resolve the git merge conflicts in this repository.
 
 Task being merged: "${card.title}"

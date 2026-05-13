@@ -110,7 +110,12 @@ export class RuntimeStateHub {
 		this.broadcastToWorkspace(workspaceId, { type: "autonomous_mode_changed", enabled });
 	}
 
-	broadcastRunSessionChange(workspaceId: WorkspaceId, cardId: string | null, status: RunSessionStatus, errorMessage?: string): void {
+	broadcastRunSessionChange(
+		workspaceId: WorkspaceId,
+		cardId: string | null,
+		status: RunSessionStatus,
+		errorMessage?: string,
+	): void {
 		this.broadcastToWorkspace(workspaceId, { type: "run_session_changed", cardId, status, errorMessage });
 	}
 

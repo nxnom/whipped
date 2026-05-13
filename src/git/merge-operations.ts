@@ -32,7 +32,10 @@ function getGithubRemote(cwd: string): { owner: string; repo: string } | null {
 }
 
 export async function commitIfDirty(worktreePath: string, message: string): Promise<boolean> {
-	const statusResult = await execFileAsync("git", ["status", "--porcelain"], { cwd: worktreePath, encoding: "utf-8" }).catch(() => null);
+	const statusResult = await execFileAsync("git", ["status", "--porcelain"], {
+		cwd: worktreePath,
+		encoding: "utf-8",
+	}).catch(() => null);
 	if (!statusResult?.stdout?.trim()) return false;
 	await execFileAsync("git", ["add", "-A"], { cwd: worktreePath }).catch(() => {});
 	await execFileAsync("git", ["commit", "-m", message], { cwd: worktreePath }).catch(() => {});
@@ -60,10 +63,7 @@ export function attemptMerge(repoPath: string, taskId: string, taskBranch: strin
 		return { ok: false, conflictedFiles: [], dirtyBase: true };
 	}
 
-	const mergeResult = git(
-		["merge", taskBranch, "--no-edit", "--no-ff", "-m", `Merge task: ${taskBranch}`],
-		repoPath,
-	);
+	const mergeResult = git(["merge", taskBranch, "--no-edit", "--no-ff", "-m", `Merge task: ${taskBranch}`], repoPath);
 
 	if (mergeResult.ok) {
 		git(["branch", "-D", taskBranch], repoPath);
@@ -86,14 +86,22 @@ export function abortMerge(repoPath: string): void {
 // Plain git push — works for any remote (GitHub, GitLab, Bitbucket, SSH, etc.)
 // Auth is handled by the user's git credential store or SSH key.
 export async function pushBranch(worktreePath: string, branch: string): Promise<void> {
-	await execFileAsync("git", ["push", "-u", "origin", branch], { cwd: worktreePath, encoding: "utf-8" }).catch((err: { stderr?: string }) => {
-		throw new Error(`Failed to push: ${(err.stderr ?? String(err)).trim()}`);
-	});
+	await execFileAsync("git", ["push", "-u", "origin", branch], { cwd: worktreePath, encoding: "utf-8" }).catch(
+		(err: { stderr?: string }) => {
+			throw new Error(`Failed to push: ${(err.stderr ?? String(err)).trim()}`);
+		},
+	);
 }
 
 // Creates a GitHub PR via the REST API. Requires GITHUB_TOKEN and a GitHub remote.
 // Returns the PR HTML URL.
-export async function createGithubPR(worktreePath: string, title: string, body: string, baseRef: string, token: string): Promise<string> {
+export async function createGithubPR(
+	worktreePath: string,
+	title: string,
+	body: string,
+	baseRef: string,
+	token: string,
+): Promise<string> {
 	const remote = getGithubRemote(worktreePath);
 	if (!remote) throw new Error("Not a GitHub repository — cannot create PR");
 
@@ -179,8 +187,7 @@ export async function fetchPRInfo(prUrl: string, token?: string): Promise<PRInfo
 		const state: PRInfo["state"] = pr.merged_at ? "MERGED" : pr.state === "closed" ? "CLOSED" : "OPEN";
 
 		const mergeable: PRInfo["mergeable"] =
-			pr.mergeable === true ? "MERGEABLE" :
-			pr.mergeable === false ? "CONFLICTING" : "UNKNOWN";
+			pr.mergeable === true ? "MERGEABLE" : pr.mergeable === false ? "CONFLICTING" : "UNKNOWN";
 
 		// Derive review decision from the latest review per user (ignoring comments/dismissed)
 		const latestReviewByUser = new Map<string, string>();
@@ -190,9 +197,11 @@ export async function fetchPRInfo(prUrl: string, token?: string): Promise<PRInfo
 			}
 		}
 		const reviewStates = Array.from(latestReviewByUser.values());
-		const reviewDecision: PRInfo["reviewDecision"] =
-			reviewStates.includes("CHANGES_REQUESTED") ? "CHANGES_REQUESTED" :
-			reviewStates.includes("APPROVED") ? "APPROVED" : null;
+		const reviewDecision: PRInfo["reviewDecision"] = reviewStates.includes("CHANGES_REQUESTED")
+			? "CHANGES_REQUESTED"
+			: reviewStates.includes("APPROVED")
+				? "APPROVED"
+				: null;
 
 		const comments: GithubComment[] = commentsResp.data
 			.filter((c) => c.body?.trim())
@@ -250,7 +259,11 @@ export function listLocalBranches(repoPath: string): string[] {
 
 // Fetches body_html for a single issue comment, which contains pre-signed CDN URLs
 // for private GitHub attachment images. Only call this for new, unseen comments.
-export async function fetchCommentBodyHtml(prUrl: string, commentId: string, token: string): Promise<string | undefined> {
+export async function fetchCommentBodyHtml(
+	prUrl: string,
+	commentId: string,
+	token: string,
+): Promise<string | undefined> {
 	const parsed = parsePRUrl(prUrl);
 	if (!parsed) return undefined;
 	const octokit = new Octokit({ auth: token });

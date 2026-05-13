@@ -49,7 +49,9 @@ function buildCodexHookTrustEntry(config: CodexHookConfig): { key: string; trust
 	const handler = { async: false, command: config.command, timeout: CODEX_HOOK_TIMEOUT_SECONDS, type: "command" };
 	const eventKey = codexEventKeyLabel(config.eventName);
 	const identity = { event_name: eventKey, hooks: [handler] };
-	const hash = createHash("sha256").update(JSON.stringify(canonicalizeJson(identity as JsonValue))).digest("hex");
+	const hash = createHash("sha256")
+		.update(JSON.stringify(canonicalizeJson(identity as JsonValue)))
+		.digest("hex");
 	return {
 		// `<session-flags>` is codex's internal sentinel for configs injected via `-c`.
 		key: `/<session-flags>/config.toml:${eventKey}:0:0`,
@@ -73,20 +75,21 @@ export function buildCodexHookOverrides(serverPort: number): string[] {
 	};
 	const trustState = buildCodexHookTrustState([userPromptHook, stopHook].map(buildCodexHookTrustEntry));
 	return [
-		"-c", "features.hooks=true",
-		"-c", `hooks.state=${trustState}`,
-		"-c", `hooks.UserPromptSubmit=${buildCodexHookConfigValue(userPromptHook.command)}`,
-		"-c", `hooks.Stop=${buildCodexHookConfigValue(stopHook.command)}`,
+		"-c",
+		"features.hooks=true",
+		"-c",
+		`hooks.state=${trustState}`,
+		"-c",
+		`hooks.UserPromptSubmit=${buildCodexHookConfigValue(userPromptHook.command)}`,
+		"-c",
+		`hooks.Stop=${buildCodexHookConfigValue(stopHook.command)}`,
 	];
 }
 
 export function buildCodexMcpOverrides(mcp: { command: string; args: string[] }): string[] {
 	const cmd = JSON.stringify(mcp.command);
 	const argsToml = `[${mcp.args.map((a) => JSON.stringify(a)).join(",")}]`;
-	return [
-		"-c", `mcp_servers.kanbom.command=${cmd}`,
-		"-c", `mcp_servers.kanbom.args=${argsToml}`,
-	];
+	return ["-c", `mcp_servers.kanbom.command=${cmd}`, "-c", `mcp_servers.kanbom.args=${argsToml}`];
 }
 
 export function buildCodexDeveloperInstructions(text: string): string[] {

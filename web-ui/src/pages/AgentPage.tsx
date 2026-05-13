@@ -14,11 +14,14 @@ export function AgentPage({ workspaceId }: Props) {
 
 	useEffect(() => {
 		// Check if a session is already running when we mount
-		trpc.agent.sessionStatus.query({ workspaceId }).then((status) => {
-			if (status.running && status.taskId) {
-				setTaskId(status.taskId);
-			}
-		}).catch((err) => console.warn("[AgentPage] Failed to load session status:", err));
+		trpc.agent.sessionStatus
+			.query({ workspaceId })
+			.then((status) => {
+				if (status.running && status.taskId) {
+					setTaskId(status.taskId);
+				}
+			})
+			.catch((err) => console.warn("[AgentPage] Failed to load session status:", err));
 	}, [workspaceId]);
 
 	const startSession = async () => {
@@ -58,11 +61,7 @@ export function AgentPage({ workspaceId }: Props) {
 			</div>
 
 			{taskId ? (
-				<TaskTerminal
-					taskId={taskId}
-					workspaceId={workspaceId}
-					className="flex-1 min-h-0"
-				/>
+				<TaskTerminal taskId={taskId} workspaceId={workspaceId} className="flex-1 min-h-0" />
 			) : (
 				<div className="flex-1 flex flex-col items-center justify-center gap-4 text-gray-500">
 					<Bot size={40} />

@@ -90,7 +90,13 @@ export async function createRuntimeServer(options: ServerOptions) {
 			cardId,
 			status: "running",
 			outputBuffer: "",
-			kill: () => { try { pty.kill(); } catch { /* already dead */ } },
+			kill: () => {
+				try {
+					pty.kill();
+				} catch {
+					/* already dead */
+				}
+			},
 		};
 		runSessions.set(workspaceId, session);
 		stateHub.broadcastRunSessionChange(workspaceId, cardId, "running");
@@ -147,7 +153,9 @@ export async function createRuntimeServer(options: ServerOptions) {
 		const resolveGithubToken = (cfg: typeof projectConfig): string | undefined =>
 			cfg.secrets?.find((s) => s.key === "GITHUB_TOKEN")?.value ?? cfg.github?.token;
 
-		const githubClient = resolveGithubToken(projectConfig) ? createGithubClient(resolveGithubToken(projectConfig)!) : undefined;
+		const githubClient = resolveGithubToken(projectConfig)
+			? createGithubClient(resolveGithubToken(projectConfig)!)
+			: undefined;
 
 		stateHub.registerWorkspace(workspaceId, wsRepoPath);
 
@@ -165,17 +173,18 @@ export async function createRuntimeServer(options: ServerOptions) {
 			logger.info(`[server] Starting review pipeline for "${card.title}"`);
 
 			(async () => {
-				const latestConfig = await loadGlobalConfig();  // reload fresh each review
+				const latestConfig = await loadGlobalConfig(); // reload fresh each review
 				const latestProjectConfig = await loadProjectConfig(workspaceId);
 				const latestGithubToken = resolveGithubToken(latestProjectConfig);
 				const latestGithubClient = latestGithubToken ? createGithubClient(latestGithubToken) : undefined;
 				const isStoryCard = card.type === "story";
-				const cardWorkflow = latestProjectConfig.workflows.find(w => w.id === card.workflowId)
-					?? latestProjectConfig.workflows.find(w => w.isDefault && w.forStory === isStoryCard)
-					?? latestProjectConfig.workflows.find(w => w.forStory === isStoryCard)
-					?? latestProjectConfig.workflows[0];
+				const cardWorkflow =
+					latestProjectConfig.workflows.find((w) => w.id === card.workflowId) ??
+					latestProjectConfig.workflows.find((w) => w.isDefault && w.forStory === isStoryCard) ??
+					latestProjectConfig.workflows.find((w) => w.forStory === isStoryCard) ??
+					latestProjectConfig.workflows[0];
 				const reviewSlots = (cardWorkflow?.slots ?? [])
-					.filter(s => s.type !== "dev" && s.enabled)
+					.filter((s) => s.type !== "dev" && s.enabled)
 					.sort((a, b) => a.order - b.order);
 				if (reviewSlots.length === 0) return;
 				await runReviewPipeline(card, {
@@ -293,14 +302,29 @@ export async function createRuntimeServer(options: ServerOptions) {
 			const [, cardId, filename] = attachMatch;
 			// Sanitise: no dots-dot, no slashes inside segments
 			if (!cardId || !filename || cardId.includes("..") || filename.includes("..") || filename.includes("/")) {
-				res.writeHead(400); res.end("Bad request"); return;
+				res.writeHead(400);
+				res.end("Bad request");
+				return;
 			}
 			const filePath = join(ATTACHMENTS_DIR, cardId, filename);
 			const { readFile } = await import("node:fs/promises");
 			try {
 				const data = await readFile(filePath);
 				const ext = filename.split(".").pop()?.toLowerCase() ?? "";
-				const MIME: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", pdf: "application/pdf", txt: "text/plain", json: "application/json", zip: "application/zip", mp4: "video/mp4", mp3: "audio/mpeg" };
+				const MIME: Record<string, string> = {
+					png: "image/png",
+					jpg: "image/jpeg",
+					jpeg: "image/jpeg",
+					gif: "image/gif",
+					webp: "image/webp",
+					svg: "image/svg+xml",
+					pdf: "application/pdf",
+					txt: "text/plain",
+					json: "application/json",
+					zip: "application/zip",
+					mp4: "video/mp4",
+					mp3: "audio/mpeg",
+				};
 				res.writeHead(200, {
 					"Content-Type": MIME[ext] ?? "application/octet-stream",
 					"Cache-Control": "public, max-age=31536000, immutable",
@@ -308,7 +332,8 @@ export async function createRuntimeServer(options: ServerOptions) {
 				});
 				res.end(data);
 			} catch {
-				res.writeHead(404); res.end("Not found");
+				res.writeHead(404);
+				res.end("Not found");
 			}
 			return;
 		}
@@ -317,14 +342,24 @@ export async function createRuntimeServer(options: ServerOptions) {
 			const [, cardId] = attachUploadMatch;
 			const workspaceId = url.searchParams.get("workspaceId");
 			const filename = url.searchParams.get("filename") ?? "file";
-			const mimeType = url.searchParams.get("mimeType") ?? (req.headers["content-type"] ?? "application/octet-stream");
+			const mimeType = url.searchParams.get("mimeType") ?? req.headers["content-type"] ?? "application/octet-stream";
 			if (!cardId || !workspaceId || cardId.includes("..")) {
-				res.writeHead(400); res.end("Bad request"); return;
+				res.writeHead(400);
+				res.end("Bad request");
+				return;
 			}
 			const ext = (filename.split(".").pop()?.toLowerCase() ?? "bin").replace(/[^a-z0-9]/g, "");
-			if (!ext) { res.writeHead(400); res.end("Bad filename"); return; }
+			if (!ext) {
+				res.writeHead(400);
+				res.end("Bad filename");
+				return;
+			}
 			const board = await loadBoard(workspaceId);
-			if (!board.cards[cardId]) { res.writeHead(404); res.end("Card not found"); return; }
+			if (!board.cards[cardId]) {
+				res.writeHead(404);
+				res.end("Card not found");
+				return;
+			}
 			const body = await readBody(req);
 			const filePath = await saveAttachment(body, ext, cardId);
 			const attachType = mimeType.startsWith("image/") ? "image" : "file";
@@ -408,13 +443,20 @@ export async function createRuntimeServer(options: ServerOptions) {
 			const url = new URL(req.url ?? "/", `http://${host}`);
 			const workspaceId = url.searchParams.get("workspaceId") ?? "";
 			const taskId = url.searchParams.get("taskId") ?? "";
-			if (!workspaceId || !taskId) { ws.close(1008, "Missing params"); return; }
+			if (!workspaceId || !taskId) {
+				ws.close(1008, "Missing params");
+				return;
+			}
 
 			// Register listener first (same sync tick) so no live output is missed.
 			const unsubscribe = stateHub.addTerminalListener(workspaceId, (streamId, data) => {
 				if (streamId !== taskId) return;
 				if (ws.readyState === 1) {
-					try { ws.send(data); } catch { /* */ }
+					try {
+						ws.send(data);
+					} catch {
+						/* */
+					}
 				}
 			});
 
@@ -446,25 +488,40 @@ export async function createRuntimeServer(options: ServerOptions) {
 						schedulers.get(workspaceId)?.resizeTerminal(taskId, msg.cols, msg.rows);
 						return;
 					}
-				} catch { /* not JSON — fall through to PTY write */ }
+				} catch {
+					/* not JSON — fall through to PTY write */
+				}
 				schedulers.get(workspaceId)?.writeToTerminal(taskId, text);
 			});
 
 			ws.on("error", () => {});
-			ws.on("close", () => { unsubscribe(); });
-		} catch { ws.close(1011, "Internal error"); }
+			ws.on("close", () => {
+				unsubscribe();
+			});
+		} catch {
+			ws.close(1011, "Internal error");
+		}
 	});
 
 	runTerminalWss.on("connection", (ws, req) => {
 		try {
 			const url = new URL(req.url ?? "/", `http://${host}`);
 			const workspaceId = url.searchParams.get("workspaceId") ?? "";
-			if (!workspaceId) { ws.close(1008, "Missing params"); return; }
+			if (!workspaceId) {
+				ws.close(1008, "Missing params");
+				return;
+			}
 
 			// Register live output listener
 			if (!runTerminalListeners.has(workspaceId)) runTerminalListeners.set(workspaceId, new Set());
 			const listener: RunTerminalListener = (data) => {
-				if (ws.readyState === 1) { try { ws.send(data); } catch { /* */ } }
+				if (ws.readyState === 1) {
+					try {
+						ws.send(data);
+					} catch {
+						/* */
+					}
+				}
 			};
 			runTerminalListeners.get(workspaceId)!.add(listener);
 
@@ -473,8 +530,12 @@ export async function createRuntimeServer(options: ServerOptions) {
 			if (session?.outputBuffer && ws.readyState === 1) ws.send(session.outputBuffer);
 
 			ws.on("error", () => {});
-			ws.on("close", () => { runTerminalListeners.get(workspaceId)?.delete(listener); });
-		} catch { ws.close(1011, "Internal error"); }
+			ws.on("close", () => {
+				runTerminalListeners.get(workspaceId)?.delete(listener);
+			});
+		} catch {
+			ws.close(1011, "Internal error");
+		}
 	});
 
 	stateWss.on("connection", (ws) => {

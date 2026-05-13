@@ -19,7 +19,9 @@ let configLock: Promise<void> = Promise.resolve();
 
 async function withConfigLock<T>(fn: () => Promise<T>): Promise<T> {
 	let release!: () => void;
-	const next = new Promise<void>((resolve) => { release = resolve; });
+	const next = new Promise<void>((resolve) => {
+		release = resolve;
+	});
 	const prev = configLock;
 	configLock = next;
 	await prev;

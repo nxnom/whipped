@@ -4,7 +4,16 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getAvailableAgents } from "../agents/agent-registry.js";
 import { loadGlobalConfig, saveGlobalConfig, updateGlobalConfig } from "../config/runtime-config.js";
-import { abortMerge, attemptMerge, closePR, commitIfDirty, createGithubPR, finalizeMerge, listLocalBranches, pushBranch } from "../git/merge-operations.js";
+import {
+	abortMerge,
+	attemptMerge,
+	closePR,
+	commitIfDirty,
+	createGithubPR,
+	finalizeMerge,
+	listLocalBranches,
+	pushBranch,
+} from "../git/merge-operations.js";
 import {
 	type RuntimeGlobalConfig,
 	type RuntimeProjectConfig,
@@ -118,16 +127,22 @@ export const appRouter = router({
 			} catch {
 				return { valid: false, isGitRepo: false, error: "Path does not exist" };
 			}
-			const r = spawnSync("git", ["rev-parse", "--git-dir"], { cwd: input.repoPath, encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] });
+			const r = spawnSync("git", ["rev-parse", "--git-dir"], {
+				cwd: input.repoPath,
+				encoding: "utf-8",
+				stdio: ["ignore", "pipe", "pipe"],
+			});
 			const isGitRepo = r.status === 0;
 			return { valid: isGitRepo, isGitRepo, error: isGitRepo ? null : "Not a git repository" };
 		}),
 
 		add: publicProcedure
-			.input(z.object({
-				repoPath: z.string().min(1),
-				initialConfig: runtimeProjectConfigSchema.partial().optional(),
-			}))
+			.input(
+				z.object({
+					repoPath: z.string().min(1),
+					initialConfig: runtimeProjectConfigSchema.partial().optional(),
+				}),
+			)
 			.mutation(async ({ ctx, input }) => {
 				const { statSync } = await import("node:fs");
 				try {
@@ -136,13 +151,20 @@ export const appRouter = router({
 				} catch {
 					throw new TRPCError({ code: "BAD_REQUEST", message: `Path does not exist: ${input.repoPath}` });
 				}
-				const r = spawnSync("git", ["rev-parse", "--git-dir"], { cwd: input.repoPath, encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] });
+				const r = spawnSync("git", ["rev-parse", "--git-dir"], {
+					cwd: input.repoPath,
+					encoding: "utf-8",
+					stdio: ["ignore", "pipe", "pipe"],
+				});
 				if (r.status !== 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Not a git repository" });
 				const context = await loadWorkspaceContext(input.repoPath);
 				await ctx.ensureWorkspace(context.workspaceId);
 				if (input.initialConfig) {
 					const current = await loadProjectConfig(context.workspaceId);
-					await saveProjectConfig(context.workspaceId, runtimeProjectConfigSchema.parse({ ...current, ...input.initialConfig }));
+					await saveProjectConfig(
+						context.workspaceId,
+						runtimeProjectConfigSchema.parse({ ...current, ...input.initialConfig }),
+					);
 				}
 				return context;
 			}),
@@ -154,9 +176,10 @@ export const appRouter = router({
 
 		getLayout: publicProcedure.query(() => loadProjectsLayout()),
 
-		saveLayout: publicProcedure
-			.input(projectsLayoutSchema)
-			.mutation(({ input }) => { saveProjectsLayout(input); return { ok: true }; }),
+		saveLayout: publicProcedure.input(projectsLayoutSchema).mutation(({ input }) => {
+			saveProjectsLayout(input);
+			return { ok: true };
+		}),
 	}),
 
 	// ─── Workspace ─────────────────────────────────────────────────────────────
@@ -193,26 +216,22 @@ export const appRouter = router({
 				return { ok: true };
 			}),
 
-		listRootFiles: publicProcedure
-			.input(z.object({ workspaceId: z.string() }))
-			.query(async ({ ctx, input }) => {
-				const ws = await ctx.ensureWorkspace(input.workspaceId);
-				const ignored = spawnSync(
-					"git", ["ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "--no-empty-directory"],
-					{ cwd: ws.repoPath, encoding: "utf-8" },
-				);
-				const untracked = spawnSync(
-					"git", ["ls-files", "--others", "--exclude-standard"],
-					{ cwd: ws.repoPath, encoding: "utf-8" },
-				);
-				const all = [
-					...(ignored.stdout ?? "").split("\n"),
-					...(untracked.stdout ?? "").split("\n"),
-				]
-					.map((f) => f.trim().replace(/\/$/, ""))
-					.filter((f) => f && !f.includes("/"));
-				return { files: [...new Set(all)].sort() };
-			}),
+		listRootFiles: publicProcedure.input(z.object({ workspaceId: z.string() })).query(async ({ ctx, input }) => {
+			const ws = await ctx.ensureWorkspace(input.workspaceId);
+			const ignored = spawnSync(
+				"git",
+				["ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "--no-empty-directory"],
+				{ cwd: ws.repoPath, encoding: "utf-8" },
+			);
+			const untracked = spawnSync("git", ["ls-files", "--others", "--exclude-standard"], {
+				cwd: ws.repoPath,
+				encoding: "utf-8",
+			});
+			const all = [...(ignored.stdout ?? "").split("\n"), ...(untracked.stdout ?? "").split("\n")]
+				.map((f) => f.trim().replace(/\/$/, ""))
+				.filter((f) => f && !f.includes("/"));
+			return { files: [...new Set(all)].sort() };
+		}),
 	}),
 
 	// ─── Per-project config ────────────────────────────────────────────────────
@@ -232,12 +251,10 @@ export const appRouter = router({
 
 	// ─── Workflows ────────────────────────────────────────────────────────────
 	workflows: router({
-		list: publicProcedure
-			.input(z.object({ workspaceId: z.string() }))
-			.query(async ({ input }) => {
-				const config = await loadProjectConfig(input.workspaceId);
-				return config.workflows;
-			}),
+		list: publicProcedure.input(z.object({ workspaceId: z.string() })).query(async ({ input }) => {
+			const config = await loadProjectConfig(input.workspaceId);
+			return config.workflows;
+		}),
 
 		upsert: publicProcedure
 			.input(z.object({ workspaceId: z.string(), workflow: workflowSchema }))
@@ -281,17 +298,15 @@ export const appRouter = router({
 				return card;
 			}),
 
-		listBranches: publicProcedure
-			.input(z.object({ workspaceId: z.string() }))
-			.query(async ({ input }) => {
-				const workspaces = await listWorkspaces();
-				const ws = workspaces.find((w) => w.workspaceId === input.workspaceId);
-				if (!ws) return { branches: [], defaultBranch: "main" };
-				const branches = listLocalBranches(ws.repoPath);
-				const config = await loadProjectConfig(input.workspaceId);
-				const defaultBranch = config.defaultBaseBranch ?? getDefaultBranch(ws.repoPath);
-				return { branches, defaultBranch };
-			}),
+		listBranches: publicProcedure.input(z.object({ workspaceId: z.string() })).query(async ({ input }) => {
+			const workspaces = await listWorkspaces();
+			const ws = workspaces.find((w) => w.workspaceId === input.workspaceId);
+			if (!ws) return { branches: [], defaultBranch: "main" };
+			const branches = listLocalBranches(ws.repoPath);
+			const config = await loadProjectConfig(input.workspaceId);
+			const defaultBranch = config.defaultBaseBranch ?? getDefaultBranch(ws.repoPath);
+			return { branches, defaultBranch };
+		}),
 
 		commitAndMerge: publicProcedure
 			.input(z.object({ workspaceId: z.string(), cardId: z.string() }))
@@ -343,7 +358,11 @@ export const appRouter = router({
 				}
 
 				// Conflicts in the main repo — spawn conflict resolution agent
-				await appendActivityLog(workspaceId, cardId, `Merge conflicts in: ${mergeResult.conflictedFiles.join(", ")} — resolving...`);
+				await appendActivityLog(
+					workspaceId,
+					cardId,
+					`Merge conflicts in: ${mergeResult.conflictedFiles.join(", ")} — resolving...`,
+				);
 				ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 				const scheduler = ctx.getScheduler(workspaceId);
@@ -407,8 +426,8 @@ export const appRouter = router({
 					throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Push failed: ${err}` });
 				}
 
-				const devSummary = [...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev")?.summary
-					?? card.description;
+				const devSummary =
+					[...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev")?.summary ?? card.description;
 
 				let prUrl: string;
 				try {
@@ -465,10 +484,7 @@ export const appRouter = router({
 				const board = await loadBoard(workspaceId);
 				const card = board.cards[cardId];
 
-				await Promise.all([
-					deleteCard(workspaceId, cardId),
-					clearCardSession(workspaceId, cardId),
-				]);
+				await Promise.all([deleteCard(workspaceId, cardId), clearCardSession(workspaceId, cardId)]);
 				ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 				// Queue cleanup so it never blocks the event loop
@@ -545,12 +561,14 @@ export const appRouter = router({
 			}),
 
 		submitHumanFeedback: publicProcedure
-			.input(z.object({
-				workspaceId: z.string(),
-				cardId: z.string(),
-				comment: z.string().optional(),
-				attachments: z.array(reviewAttachmentSchema).optional(),
-			}))
+			.input(
+				z.object({
+					workspaceId: z.string(),
+					cardId: z.string(),
+					comment: z.string().optional(),
+					attachments: z.array(reviewAttachmentSchema).optional(),
+				}),
+			)
 			.mutation(async ({ ctx, input }) => {
 				const board = await loadBoard(input.workspaceId);
 				const card = board.cards[input.cardId];
@@ -560,15 +578,15 @@ export const appRouter = router({
 				const hasContent = trimmed || (input.attachments?.length ?? 0) > 0;
 				const updatedComments = hasContent
 					? [
-						...(card.reviewComments ?? []),
-						{
-							type: "human" as const,
-							actor: { type: "human" as const, id: "human" },
-							createdAt: Date.now(),
-							summary: trimmed ?? "Feedback with attachments",
-							attachments: input.attachments?.length ? input.attachments : undefined,
-						},
-					]
+							...(card.reviewComments ?? []),
+							{
+								type: "human" as const,
+								actor: { type: "human" as const, id: "human" },
+								createdAt: Date.now(),
+								summary: trimmed ?? "Feedback with attachments",
+								attachments: input.attachments?.length ? input.attachments : undefined,
+							},
+						]
 					: (card.reviewComments ?? []);
 				await updateCard(input.workspaceId, input.cardId, { reviewComments: updatedComments, autoFixAttempts: 0 });
 				await moveCard(input.workspaceId, input.cardId, "reopened");
@@ -621,7 +639,7 @@ export const appRouter = router({
 			.query(async ({ input }) => {
 				const { workspaceId, cardId } = input;
 				const workspaces = await listWorkspaces();
-				const ws = workspaces.find(w => w.workspaceId === workspaceId);
+				const ws = workspaces.find((w) => w.workspaceId === workspaceId);
 				if (!ws) throw new TRPCError({ code: "NOT_FOUND", message: "Workspace not found" });
 
 				const board = await loadBoard(workspaceId);
@@ -634,34 +652,32 @@ export const appRouter = router({
 					return { diff: null, error: "No worktree — agent has not started yet" };
 				}
 
-				const result = spawnSync(
-					"git", ["diff", `${card.baseRef}...HEAD`, "--no-color", "-U3"],
-					{ cwd: worktreePath, encoding: "utf-8", maxBuffer: 4 * 1024 * 1024 }
-				);
+				const result = spawnSync("git", ["diff", `${card.baseRef}...HEAD`, "--no-color", "-U3"], {
+					cwd: worktreePath,
+					encoding: "utf-8",
+					maxBuffer: 4 * 1024 * 1024,
+				});
 
 				if (result.status !== 0 && result.stderr) {
 					return { diff: null, error: result.stderr.trim() };
 				}
 
-				const behindResult = spawnSync(
-					"git", ["rev-list", "--count", `HEAD..${card.baseRef}`],
-					{ cwd: worktreePath, encoding: "utf-8" }
-				);
+				const behindResult = spawnSync("git", ["rev-list", "--count", `HEAD..${card.baseRef}`], {
+					cwd: worktreePath,
+					encoding: "utf-8",
+				});
 				const baseBehindCount = parseInt(behindResult.stdout?.trim() ?? "0") || 0;
 
 				return { diff: result.stdout ?? "", error: null, baseBehindCount };
 			}),
-
 	}),
 
 	// ─── Terminal ──────────────────────────────────────────────────────────────
 	terminal: router({
-		buffer: publicProcedure
-			.input(z.object({ workspaceId: z.string(), taskId: z.string() }))
-			.query(({ ctx, input }) => {
-				const buf = ctx.getScheduler(input.workspaceId)?.getOutputBuffer(input.taskId) ?? "";
-				return { data: buf };
-			}),
+		buffer: publicProcedure.input(z.object({ workspaceId: z.string(), taskId: z.string() })).query(({ ctx, input }) => {
+			const buf = ctx.getScheduler(input.workspaceId)?.getOutputBuffer(input.taskId) ?? "";
+			return { data: buf };
+		}),
 
 		resize: publicProcedure
 			.input(z.object({ workspaceId: z.string(), taskId: z.string(), cols: z.number(), rows: z.number() }))
@@ -737,46 +753,38 @@ export const appRouter = router({
 
 	// ─── Assistant terminal session ───────────────────────────────────────
 	agent: router({
-		startSession: publicProcedure
-			.input(z.object({ workspaceId: z.string() }))
-			.mutation(async ({ ctx, input }) => {
-				const scheduler = ctx.getScheduler(input.workspaceId);
-				if (!scheduler) {
-					await ctx.ensureWorkspace(input.workspaceId);
-					const retried = ctx.getScheduler(input.workspaceId);
-					if (!retried) throw new TRPCError({ code: "NOT_FOUND", message: "Workspace not found" });
-					return { taskId: await retried.startHomeAgent() };
-				}
-				return { taskId: await scheduler.startHomeAgent() };
-			}),
+		startSession: publicProcedure.input(z.object({ workspaceId: z.string() })).mutation(async ({ ctx, input }) => {
+			const scheduler = ctx.getScheduler(input.workspaceId);
+			if (!scheduler) {
+				await ctx.ensureWorkspace(input.workspaceId);
+				const retried = ctx.getScheduler(input.workspaceId);
+				if (!retried) throw new TRPCError({ code: "NOT_FOUND", message: "Workspace not found" });
+				return { taskId: await retried.startHomeAgent() };
+			}
+			return { taskId: await scheduler.startHomeAgent() };
+		}),
 
-		stopSession: publicProcedure
-			.input(z.object({ workspaceId: z.string() }))
-			.mutation(({ ctx, input }) => {
-				ctx.getScheduler(input.workspaceId)?.stopHomeAgent();
-			}),
+		stopSession: publicProcedure.input(z.object({ workspaceId: z.string() })).mutation(({ ctx, input }) => {
+			ctx.getScheduler(input.workspaceId)?.stopHomeAgent();
+		}),
 
-		sessionStatus: publicProcedure
-			.input(z.object({ workspaceId: z.string() }))
-			.query(({ ctx, input }) => {
-				const scheduler = ctx.getScheduler(input.workspaceId);
-				if (!scheduler) return { running: false, taskId: null };
-				return {
-					running: scheduler.isHomeAgentRunning(),
-					taskId: scheduler.homeAgentTaskId,
-				};
-			}),
+		sessionStatus: publicProcedure.input(z.object({ workspaceId: z.string() })).query(({ ctx, input }) => {
+			const scheduler = ctx.getScheduler(input.workspaceId);
+			if (!scheduler) return { running: false, taskId: null };
+			return {
+				running: scheduler.isHomeAgentRunning(),
+				taskId: scheduler.homeAgentTaskId,
+			};
+		}),
 	}),
 
 	// ─── Run session (per-project) ────────────────────────────────────────────
 	run: router({
-		status: publicProcedure
-			.input(z.object({ workspaceId: z.string() }))
-			.query(({ ctx, input }) => {
-				const session = ctx.getRunSession(input.workspaceId);
-				if (!session) return { cardId: null, status: "stopped" as const, errorMessage: undefined };
-				return { cardId: session.cardId, status: session.status, errorMessage: session.errorMessage };
-			}),
+		status: publicProcedure.input(z.object({ workspaceId: z.string() })).query(({ ctx, input }) => {
+			const session = ctx.getRunSession(input.workspaceId);
+			if (!session) return { cardId: null, status: "stopped" as const, errorMessage: undefined };
+			return { cardId: session.cardId, status: session.status, errorMessage: session.errorMessage };
+		}),
 
 		start: publicProcedure
 			.input(z.object({ workspaceId: z.string(), cardId: z.string() }))
@@ -785,7 +793,10 @@ export const appRouter = router({
 				const projectConfig = await loadProjectConfig(input.workspaceId);
 				const command = projectConfig.startCommand?.trim();
 				if (!command) {
-					throw new TRPCError({ code: "PRECONDITION_FAILED", message: "No start command configured. Add one in Settings → Environment." });
+					throw new TRPCError({
+						code: "PRECONDITION_FAILED",
+						message: "No start command configured. Add one in Settings → Environment.",
+					});
 				}
 				const board = await loadBoard(input.workspaceId);
 				const card = board.cards[input.cardId];
@@ -795,12 +806,10 @@ export const appRouter = router({
 				return { ok: true };
 			}),
 
-		stop: publicProcedure
-			.input(z.object({ workspaceId: z.string() }))
-			.mutation(({ ctx, input }) => {
-				ctx.stopRun(input.workspaceId);
-				return { ok: true };
-			}),
+		stop: publicProcedure.input(z.object({ workspaceId: z.string() })).mutation(({ ctx, input }) => {
+			ctx.stopRun(input.workspaceId);
+			return { ok: true };
+		}),
 	}),
 
 	// ─── Jira (per-project) ───────────────────────────────────────────────────

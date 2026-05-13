@@ -1,6 +1,20 @@
 import { Button, ConfirmDialog, Input, Tooltip, toast } from "@geckoui/geckoui";
 import type { WorkflowSlot, RuntimeBoardCard } from "@runtime-contract";
-import { ArrowLeft, Check, ExternalLink, GitBranch, GitMerge, GitPullRequest, Paperclip, Pencil, Play, Square, TerminalSquare, Trash2, X } from "lucide-react";
+import {
+	ArrowLeft,
+	Check,
+	ExternalLink,
+	GitBranch,
+	GitMerge,
+	GitPullRequest,
+	Paperclip,
+	Pencil,
+	Play,
+	Square,
+	TerminalSquare,
+	Trash2,
+	X,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { attachmentUrl, uploadAttachmentFile } from "@/runtime/attachments";
@@ -55,7 +69,7 @@ const BUILTIN_SESSION_LABELS: Record<string, string> = {
 
 function getSessionLabel(type: string, workflowSlots?: WorkflowSlot[]): string {
 	if (BUILTIN_SESSION_LABELS[type]) return BUILTIN_SESSION_LABELS[type];
-	const slot = workflowSlots?.find(s => s.id === type);
+	const slot = workflowSlots?.find((s) => s.id === type);
 	if (slot) return slot.name;
 	return type;
 }
@@ -91,12 +105,21 @@ function DescAttachment({ path, name, mimeType }: { path: string; name: string; 
 			title={name}
 			className="flex items-center gap-1.5 px-2 py-1 rounded border border-gray-700 bg-gray-800 text-xs text-gray-300 hover:text-gray-100 hover:border-gray-600 transition-colors max-w-[160px] truncate"
 		>
-			<Paperclip size={11} className="shrink-0" />{name}
+			<Paperclip size={11} className="shrink-0" />
+			{name}
 		</a>
 	);
 }
 
-export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, onClose, onRefresh, onDeleteCard }: Props) {
+export function CardDetailPanel({
+	card,
+	workspaceId,
+	allCards,
+	workflowSlots,
+	onClose,
+	onRefresh,
+	onDeleteCard,
+}: Props) {
 	const [activeStreamId, setActiveStreamId] = useState<string>(
 		() => card.terminalSessions?.at(-1)?.streamId ?? card.id,
 	);
@@ -122,18 +145,21 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 		? (card.terminalSessions ?? []).filter((ts) => ts.type !== "dev")
 		: (card.terminalSessions ?? []);
 	const commentCount = isStory
-		? (card.reviewComments ?? []).filter((c) => c.type !== "dev").length
-			+ (card.dependsOn ?? []).reduce((sum, depId) => sum + (allCards?.[depId]?.reviewComments?.length ?? 0), 0)
+		? (card.reviewComments ?? []).filter((c) => c.type !== "dev").length +
+			(card.dependsOn ?? []).reduce((sum, depId) => sum + (allCards?.[depId]?.reviewComments?.length ?? 0), 0)
 		: (card.reviewComments?.length ?? 0);
-
 
 	// ── Resize drag handle ─────────────────────────────────────────────────
 	useEffect(() => {
 		const onMouseMove = (e: MouseEvent) => {
 			if (!dragRef.current) return;
-			setSidebarWidth(Math.min(MAX_SIDEBAR, Math.max(MIN_SIDEBAR, dragRef.current.startWidth + e.clientX - dragRef.current.startX)));
+			setSidebarWidth(
+				Math.min(MAX_SIDEBAR, Math.max(MIN_SIDEBAR, dragRef.current.startWidth + e.clientX - dragRef.current.startX)),
+			);
 		};
-		const onMouseUp = () => { dragRef.current = null; };
+		const onMouseUp = () => {
+			dragRef.current = null;
+		};
 		window.addEventListener("mousemove", onMouseMove);
 		window.addEventListener("mouseup", onMouseUp);
 		return () => {
@@ -364,14 +390,10 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 		});
 	};
 
-
 	return (
 		<div className="absolute inset-0 z-10 bg-gray-950 flex overflow-hidden">
 			{/* ── Sidebar ──────────────────────────────────────────────── */}
-			<div
-				className="shrink-0 border-r border-gray-800 flex flex-col"
-				style={{ width: sidebarWidth }}
-			>
+			<div className="shrink-0 border-r border-gray-800 flex flex-col" style={{ width: sidebarWidth }}>
 				{/* Header */}
 				<div className="flex items-center gap-2 px-3 py-3 border-b border-gray-800 shrink-0">
 					<button
@@ -382,9 +404,7 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 						<ArrowLeft size={16} />
 					</button>
 					<span className="text-xs text-gray-400 truncate flex-1 font-medium">{card.title}</span>
-					{isRunning && (
-						<span className="size-1.5 rounded-full shrink-0 bg-blue-400 animate-pulse" />
-					)}
+					{isRunning && <span className="size-1.5 rounded-full shrink-0 bg-blue-400 animate-pulse" />}
 					{!isThisCardRunning && (
 						<button
 							onClick={handleRunTicket}
@@ -414,9 +434,7 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 							}`}
 						>
 							{tab.charAt(0).toUpperCase() + tab.slice(1)}
-							{activeTab === tab && (
-								<span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-t" />
-							)}
+							{activeTab === tab && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-t" />}
 						</button>
 					))}
 				</div>
@@ -428,11 +446,7 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 						<div className="flex-1 overflow-y-auto p-4 space-y-4">
 							<div>
 								<h2 className="text-sm font-semibold text-gray-100 leading-snug">{card.title}</h2>
-								{isRunning && (
-									<p className="text-xs text-gray-500 mt-1">
-										{activeTerminalSession?.agentId} · Running
-									</p>
-								)}
+								{isRunning && <p className="text-xs text-gray-500 mt-1">{activeTerminalSession?.agentId} · Running</p>}
 								{card.worktreePath && (
 									<button
 										onClick={() => trpc.fs.openTerminal.mutate({ path: card.worktreePath! })}
@@ -440,7 +454,9 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 										title="Open terminal at worktree"
 									>
 										<TerminalSquare size={12} />
-										<span className="font-mono truncate max-w-[220px]">{card.worktreePath.split("/").slice(-2).join("/")}</span>
+										<span className="font-mono truncate max-w-[220px]">
+											{card.worktreePath.split("/").slice(-2).join("/")}
+										</span>
 									</button>
 								)}
 								{card.baseRef && (
@@ -478,7 +494,9 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 											</div>
 										) : (
 											<>
-												<span className="font-mono text-gray-400 truncate max-w-[140px]" title={currentBranch}>{currentBranch}</span>
+												<span className="font-mono text-gray-400 truncate max-w-[140px]" title={currentBranch}>
+													{currentBranch}
+												</span>
 												{canEditBranch && (
 													<button
 														onClick={startEditBranch}
@@ -498,7 +516,9 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 
 							{card.description && (
 								<div>
-									<p className={`text-xs text-gray-400 whitespace-pre-wrap leading-relaxed ${descExpanded ? "" : "line-clamp-4"}`}>
+									<p
+										className={`text-xs text-gray-400 whitespace-pre-wrap leading-relaxed ${descExpanded ? "" : "line-clamp-4"}`}
+									>
 										{card.description}
 									</p>
 									{card.description.split("\n").length > 4 || card.description.length > 240 ? (
@@ -520,47 +540,51 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 									accept="*/*"
 									multiple
 									className="hidden"
-									onChange={(e) => { if (e.target.files) void handleDescriptionAttach(e.target.files); e.target.value = ""; }}
+									onChange={(e) => {
+										if (e.target.files) void handleDescriptionAttach(e.target.files);
+										e.target.value = "";
+									}}
 								/>
-								{(card.descriptionAttachments?.length ?? 0) > 0 && (() => {
-									const isImg = (att: { mimeType?: string; name: string }) =>
-										(att.mimeType ?? "").startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(att.name);
-									const indexed = (card.descriptionAttachments ?? []).map((att, idx) => ({ att, idx }));
-									const imgs = indexed.filter(({ att }) => isImg(att));
-									const files = indexed.filter(({ att }) => !isImg(att));
-									const RemoveBtn = ({ idx }: { idx: number }) => (
-										<button
-											onClick={() => void handleRemoveDescAttachment(idx)}
-											className="absolute -top-1 -right-1 size-4 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-										>
-											<X size={10} className="text-gray-300" />
-										</button>
-									);
-									return (
-										<div className="flex flex-col gap-1.5 mb-2">
-											{imgs.length > 0 && (
-												<div className="flex flex-wrap gap-2">
-													{imgs.map(({ att, idx }) => (
-														<div key={idx} className="relative group">
-															<DescAttachment path={att.path} name={att.name} mimeType={att.mimeType} />
-															<RemoveBtn idx={idx} />
-														</div>
-													))}
-												</div>
-											)}
-											{files.length > 0 && (
-												<div className="flex flex-wrap gap-1.5">
-													{files.map(({ att, idx }) => (
-														<div key={idx} className="relative group inline-flex">
-															<DescAttachment path={att.path} name={att.name} mimeType={att.mimeType} />
-															<RemoveBtn idx={idx} />
-														</div>
-													))}
-												</div>
-											)}
-										</div>
-									);
-								})()}
+								{(card.descriptionAttachments?.length ?? 0) > 0 &&
+									(() => {
+										const isImg = (att: { mimeType?: string; name: string }) =>
+											(att.mimeType ?? "").startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(att.name);
+										const indexed = (card.descriptionAttachments ?? []).map((att, idx) => ({ att, idx }));
+										const imgs = indexed.filter(({ att }) => isImg(att));
+										const files = indexed.filter(({ att }) => !isImg(att));
+										const RemoveBtn = ({ idx }: { idx: number }) => (
+											<button
+												onClick={() => void handleRemoveDescAttachment(idx)}
+												className="absolute -top-1 -right-1 size-4 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+											>
+												<X size={10} className="text-gray-300" />
+											</button>
+										);
+										return (
+											<div className="flex flex-col gap-1.5 mb-2">
+												{imgs.length > 0 && (
+													<div className="flex flex-wrap gap-2">
+														{imgs.map(({ att, idx }) => (
+															<div key={idx} className="relative group">
+																<DescAttachment path={att.path} name={att.name} mimeType={att.mimeType} />
+																<RemoveBtn idx={idx} />
+															</div>
+														))}
+													</div>
+												)}
+												{files.length > 0 && (
+													<div className="flex flex-wrap gap-1.5">
+														{files.map(({ att, idx }) => (
+															<div key={idx} className="relative group inline-flex">
+																<DescAttachment path={att.path} name={att.name} mimeType={att.mimeType} />
+																<RemoveBtn idx={idx} />
+															</div>
+														))}
+													</div>
+												)}
+											</div>
+										);
+									})()}
 								<button
 									onClick={() => descFileInputRef.current?.click()}
 									disabled={uploadingDesc}
@@ -575,7 +599,9 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 							{card.priority && (
 								<div>
 									<h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Priority</h4>
-									<span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${PRIORITY_STYLES[card.priority] ?? "text-gray-400 bg-gray-700/30 border-gray-700"}`}>
+									<span
+										className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${PRIORITY_STYLES[card.priority] ?? "text-gray-400 bg-gray-700/30 border-gray-700"}`}
+									>
 										{card.priority.charAt(0).toUpperCase() + card.priority.slice(1)}
 									</span>
 								</div>
@@ -590,9 +616,14 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 											const dep = allCards?.[depId];
 											if (!dep) return null;
 											return (
-												<div key={depId} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-gray-800/50 border border-gray-800">
+												<div
+													key={depId}
+													className="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-gray-800/50 border border-gray-800"
+												>
 													<span className="text-xs text-gray-300 truncate">{dep.title}</span>
-													<span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${DEP_COL_BADGE[dep.columnId] ?? "text-gray-400 bg-gray-700"}`}>
+													<span
+														className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${DEP_COL_BADGE[dep.columnId] ?? "text-gray-400 bg-gray-700"}`}
+													>
 														{COLUMN_LABELS[dep.columnId] ?? dep.columnId}
 													</span>
 												</div>
@@ -605,20 +636,32 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 							{(card.githubIssueUrl || card.githubPrUrl || card.jiraUrl) && (
 								<div className="space-y-1.5">
 									{card.githubIssueUrl && (
-										<a href={card.githubIssueUrl} target="_blank" rel="noreferrer"
-											className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300">
+										<a
+											href={card.githubIssueUrl}
+											target="_blank"
+											rel="noreferrer"
+											className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300"
+										>
 											<ExternalLink size={11} /> GitHub Issue
 										</a>
 									)}
 									{card.githubPrUrl && (
-										<a href={card.githubPrUrl} target="_blank" rel="noreferrer"
-											className="flex items-center gap-1.5 text-xs text-green-400 hover:text-green-300">
+										<a
+											href={card.githubPrUrl}
+											target="_blank"
+											rel="noreferrer"
+											className="flex items-center gap-1.5 text-xs text-green-400 hover:text-green-300"
+										>
 											<ExternalLink size={11} /> Pull Request
 										</a>
 									)}
 									{card.jiraUrl && (
-										<a href={card.jiraUrl} target="_blank" rel="noreferrer"
-											className="flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300">
+										<a
+											href={card.jiraUrl}
+											target="_blank"
+											rel="noreferrer"
+											className="flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300"
+										>
 											<ExternalLink size={11} /> {card.jiraKey}
 										</a>
 									)}
@@ -634,15 +677,23 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 											const isSelected = activeStreamId === ts.streamId;
 											const tsState = isActive ? "running" : ts.state;
 											const stateColor =
-												tsState === "running" ? "bg-blue-400 animate-pulse" :
-												tsState === "failed" ? "bg-red-400" :
-												tsState === "stopped" ? "bg-yellow-400" :
-												tsState === "completed" ? "bg-green-400" : "bg-gray-400";
+												tsState === "running"
+													? "bg-blue-400 animate-pulse"
+													: tsState === "failed"
+														? "bg-red-400"
+														: tsState === "stopped"
+															? "bg-yellow-400"
+															: tsState === "completed"
+																? "bg-green-400"
+																: "bg-gray-400";
 
 											return (
 												<button
 													key={ts.streamId}
-													onClick={() => { setActiveStreamId(ts.streamId); setRightTab("terminal"); }}
+													onClick={() => {
+														setActiveStreamId(ts.streamId);
+														setRightTab("terminal");
+													}}
 													className={`w-full text-left rounded text-xs flex items-center gap-2 transition-colors ${
 														isActive
 															? `px-2 py-1.5 ${isSelected ? "bg-gray-800 text-gray-100" : "text-gray-300 hover:text-gray-100 hover:bg-gray-800/50"}`
@@ -794,26 +845,19 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 					>
 						Comments{commentCount > 0 ? ` (${commentCount})` : ""}
 					</button>
-
-					</div>
+				</div>
 
 				{/* Terminal view */}
-				{rightTab === "terminal" && (
-					hasTerminalOutput ? (
-						<TaskTerminal
-							key={activeStreamId}
-							taskId={activeStreamId}
-							workspaceId={workspaceId}
-							className="flex-1"
-						/>
+				{rightTab === "terminal" &&
+					(hasTerminalOutput ? (
+						<TaskTerminal key={activeStreamId} taskId={activeStreamId} workspaceId={workspaceId} className="flex-1" />
 					) : (
 						<div className="flex-1 flex items-center justify-center flex-col gap-3 text-gray-600">
 							<span className="text-4xl">⌨</span>
 							<p className="text-sm">No agent output yet</p>
 							<p className="text-xs">Start the agent to see terminal output here</p>
 						</div>
-					)
-				)}
+					))}
 
 				{/* Diff view */}
 				{rightTab === "diff" && (

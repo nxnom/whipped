@@ -35,7 +35,20 @@ interface KanbanColumnProps {
 	onCardStop: () => void;
 }
 
-export function KanbanColumn({ column, cards, allCards, workflows, workspaceId, runningCardId, onCardClick, onCardEdit, onCardDelete, onCardToggleReady, onCardRun, onCardStop }: KanbanColumnProps) {
+export function KanbanColumn({
+	column,
+	cards,
+	allCards,
+	workflows,
+	workspaceId,
+	runningCardId,
+	onCardClick,
+	onCardEdit,
+	onCardDelete,
+	onCardToggleReady,
+	onCardRun,
+	onCardStop,
+}: KanbanColumnProps) {
 	const borderColor = COLUMN_COLORS[column.id] ?? "border-gray-600";
 	const headerColor = COLUMN_HEADER_COLORS[column.id] ?? "text-gray-400";
 
@@ -64,7 +77,7 @@ export function KanbanColumn({ column, cards, allCards, workflows, workspaceId, 
 								card={card}
 								index={index}
 								allCards={allCards}
-								workflowName={workflows.find(w => w.id === card.workflowId)?.name}
+								workflowName={workflows.find((w) => w.id === card.workflowId)?.name}
 								workspaceId={workspaceId}
 								isRunning={runningCardId === card.id}
 								onClick={() => onCardClick(card)}

@@ -188,7 +188,9 @@ function makeMdComponents(): React.ComponentProps<typeof ReactMarkdown>["compone
 			<blockquote className="border-l-2 border-gray-600 pl-3 my-1 text-gray-400 italic">{children}</blockquote>
 		),
 		a: ({ href, children }) => (
-			<a href={href} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">{children}</a>
+			<a href={href} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">
+				{children}
+			</a>
 		),
 		h1: ({ children }) => <h1 className="text-base font-semibold text-gray-100 mt-2 mb-1">{children}</h1>,
 		h2: ({ children }) => <h2 className="text-sm font-semibold text-gray-100 mt-2 mb-1">{children}</h2>,
@@ -327,10 +329,14 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 										</div>
 									)}
 
-									<div className={`group flex items-start gap-3 px-4 hover:bg-gray-900/40 ${showHeader ? "mt-3 pb-0.5" : "py-0.5"}`}>
+									<div
+										className={`group flex items-start gap-3 px-4 hover:bg-gray-900/40 ${showHeader ? "mt-3 pb-0.5" : "py-0.5"}`}
+									>
 										{/* Avatar column — always reserve space */}
 										<div className="w-8 shrink-0 mt-0.5">
-											{showHeader ? <Avatar comment={comment} /> : (
+											{showHeader ? (
+												<Avatar comment={comment} />
+											) : (
 												<span className="block w-8 text-center text-[8px] text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity tabular-nums whitespace-nowrap pt-1">
 													{new Date(comment.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
 												</span>
@@ -346,14 +352,21 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 														{new Date(comment.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
 													</span>
 													{sourceCardTitle && (
-														<span className="text-[10px] px-1.5 py-0.5 rounded font-medium text-gray-500 bg-gray-800 truncate max-w-[160px]" title={sourceCardTitle}>
+														<span
+															className="text-[10px] px-1.5 py-0.5 rounded font-medium text-gray-500 bg-gray-800 truncate max-w-[160px]"
+															title={sourceCardTitle}
+														>
 															{sourceCardTitle}
 														</span>
 													)}
 												</div>
 											)}
 											<div className="prose-chat text-sm text-gray-300 leading-relaxed [overflow-wrap:anywhere]">
-												<ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={makeMdComponents()}>
+												<ReactMarkdown
+													remarkPlugins={[remarkGfm]}
+													rehypePlugins={[rehypeRaw]}
+													components={makeMdComponents()}
+												>
 													{comment.summary.trimEnd()}
 												</ReactMarkdown>
 											</div>
@@ -367,9 +380,13 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 													<ul className="mt-1 space-y-0.5">
 														{comment.issues.map((issue, idx) => (
 															<li key={idx} className="text-[11px] font-mono text-gray-400">
-																<span className={SEVERITY_COLOR[issue.severity] ?? "text-gray-400"}>[{issue.severity}]</span>
-																{" "}
-																{issue.file}{issue.line != null ? `:${issue.line}` : ""}{issue.file ? " — " : ""}{issue.message}
+																<span className={SEVERITY_COLOR[issue.severity] ?? "text-gray-400"}>
+																	[{issue.severity}]
+																</span>{" "}
+																{issue.file}
+																{issue.line != null ? `:${issue.line}` : ""}
+																{issue.file ? " — " : ""}
+																{issue.message}
 															</li>
 														))}
 													</ul>
@@ -377,26 +394,32 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 											)}
 
 											{/* Attachments */}
-											{comment.attachments && comment.attachments.length > 0 && (() => {
-												const isImg = (att: { mimeType?: string; name: string }) =>
-													(att.mimeType ?? "").startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(att.name);
-												const images = comment.attachments.filter(isImg);
-												const files = comment.attachments.filter((a) => !isImg(a));
-												return (
-													<div className="mt-1 space-y-1.5">
-														{images.length > 0 && (
-															<div className="flex flex-wrap gap-2">
-																{images.map((att, idx) => <AttachmentItem key={idx} path={att.path} name={att.name} mimeType={att.mimeType} />)}
-															</div>
-														)}
-														{files.length > 0 && (
-															<div className="flex flex-wrap gap-1.5">
-																{files.map((att, idx) => <AttachmentItem key={idx} path={att.path} name={att.name} mimeType={att.mimeType} />)}
-															</div>
-														)}
-													</div>
-												);
-											})()}
+											{comment.attachments &&
+												comment.attachments.length > 0 &&
+												(() => {
+													const isImg = (att: { mimeType?: string; name: string }) =>
+														(att.mimeType ?? "").startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(att.name);
+													const images = comment.attachments.filter(isImg);
+													const files = comment.attachments.filter((a) => !isImg(a));
+													return (
+														<div className="mt-1 space-y-1.5">
+															{images.length > 0 && (
+																<div className="flex flex-wrap gap-2">
+																	{images.map((att, idx) => (
+																		<AttachmentItem key={idx} path={att.path} name={att.name} mimeType={att.mimeType} />
+																	))}
+																</div>
+															)}
+															{files.length > 0 && (
+																<div className="flex flex-wrap gap-1.5">
+																	{files.map((att, idx) => (
+																		<AttachmentItem key={idx} path={att.path} name={att.name} mimeType={att.mimeType} />
+																	))}
+																</div>
+															)}
+														</div>
+													);
+												})()}
 										</div>
 									</div>
 								</div>
@@ -415,7 +438,10 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 					accept="*/*"
 					multiple
 					className="hidden"
-					onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }}
+					onChange={(e) => {
+						if (e.target.files) addFiles(e.target.files);
+						e.target.value = "";
+					}}
 				/>
 				<div className="rounded-lg border border-gray-700 bg-gray-900 focus-within:border-gray-600 transition-colors">
 					{/* Pending attachment previews */}
@@ -424,9 +450,17 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 							{pendingAttachments.map((att, idx) => (
 								<div key={idx} className="relative group">
 									{att.dataUrl ? (
-										<img src={att.dataUrl} alt={att.name} className="h-16 w-16 object-cover rounded border border-gray-700" title={att.name} />
+										<img
+											src={att.dataUrl}
+											alt={att.name}
+											className="h-16 w-16 object-cover rounded border border-gray-700"
+											title={att.name}
+										/>
 									) : (
-										<div className="h-16 w-16 flex flex-col items-center justify-center gap-1 rounded border border-gray-700 bg-gray-800 px-1" title={att.name}>
+										<div
+											className="h-16 w-16 flex flex-col items-center justify-center gap-1 rounded border border-gray-700 bg-gray-800 px-1"
+											title={att.name}
+										>
 											<Paperclip size={16} className="shrink-0 text-gray-500" />
 											<span className="text-[10px] text-gray-400 w-full text-center truncate">{att.name}</span>
 										</div>
@@ -446,7 +480,10 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 						value={message}
 						onChange={(e) => setMessage(e.target.value)}
 						onKeyDown={(e) => {
-							if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); }
+							if (e.key === "Enter" && !e.shiftKey) {
+								e.preventDefault();
+								void send();
+							}
 						}}
 						onPaste={(e) => {
 							if (e.clipboardData.files.length > 0) {
@@ -484,7 +521,11 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 									{message.trim() || pendingAttachments.length > 0 ? "Request Changes" : "Reopen"}
 								</Button>
 							)}
-							<Button size="sm" disabled={sending || (!message.trim() && pendingAttachments.length === 0)} onClick={() => void send()}>
+							<Button
+								size="sm"
+								disabled={sending || (!message.trim() && pendingAttachments.length === 0)}
+								onClick={() => void send()}
+							>
 								<Send size={11} className="mr-1" />
 								Send
 							</Button>

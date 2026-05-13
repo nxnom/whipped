@@ -70,22 +70,22 @@ export function openTerminalAt(path: string, preferredId?: string): void {
 	}
 
 	if (process.platform === "win32") {
-		const id = preferredId && WINDOWS_TERMINALS.some((t) => t.id === preferredId && binaryExists(t.check))
-			? preferredId
-			: "cmd";
+		const id =
+			preferredId && WINDOWS_TERMINALS.some((t) => t.id === preferredId && binaryExists(t.check)) ? preferredId : "cmd";
 		if (id === "wt") {
 			spawnSync("wt", ["-d", path], { stdio: "ignore" });
 		} else if (id === "powershell") {
-			spawnSync("cmd", ["/c", "start", "powershell", "-NoExit", "-Command", `Set-Location -Path '${path}'`], { stdio: "ignore" });
+			spawnSync("cmd", ["/c", "start", "powershell", "-NoExit", "-Command", `Set-Location -Path '${path}'`], {
+				stdio: "ignore",
+			});
 		} else {
 			spawnSync("cmd", ["/c", "start", "cmd", "/K", `cd /D "${path}"`], { stdio: "ignore" });
 		}
 		return;
 	}
 
-	const bin = preferredId && binaryExists(preferredId)
-		? preferredId
-		: LINUX_TERMINALS.find((t) => binaryExists(t.bin))?.bin;
+	const bin =
+		preferredId && binaryExists(preferredId) ? preferredId : LINUX_TERMINALS.find((t) => binaryExists(t.bin))?.bin;
 	if (!bin) return;
 
 	const args = linuxLaunchArgs(bin, path);

@@ -72,14 +72,8 @@ export default function App() {
 
 					{/* Projects list — scrollable */}
 					<div className="flex-1 overflow-y-auto py-2">
-						<ProjectsSidebar
-							projects={projects}
-							activeWorkspaceId={activeWorkspaceId}
-							onSwitch={switchProject}
-						/>
-						{projects.length === 0 && (
-							<p className="px-4 py-2 text-xs text-gray-600">No projects yet</p>
-						)}
+						<ProjectsSidebar projects={projects} activeWorkspaceId={activeWorkspaceId} onSwitch={switchProject} />
+						{projects.length === 0 && <p className="px-4 py-2 text-xs text-gray-600">No projects yet</p>}
 					</div>
 
 					{/* Add project */}
@@ -96,9 +90,11 @@ export default function App() {
 					{/* Status */}
 					{(connected || autonomousOn) && (
 						<div className="border-t border-gray-800 shrink-0 px-4 py-2 flex items-center gap-2">
-							{connected
-								? <Wifi size={11} className="text-emerald-400" />
-								: <WifiOff size={11} className="text-gray-600" />}
+							{connected ? (
+								<Wifi size={11} className="text-emerald-400" />
+							) : (
+								<WifiOff size={11} className="text-gray-600" />
+							)}
 							{autonomousOn && (
 								<>
 									<span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -137,10 +133,7 @@ export default function App() {
 											/>
 										}
 									/>
-									<Route
-										path="/:workspaceId/settings"
-										element={<SettingsPage />}
-									/>
+									<Route path="/:workspaceId/settings" element={<SettingsPage />} />
 									<Route path="*" element={noProjectState} />
 								</Routes>
 							</ErrorBoundary>
@@ -149,11 +142,7 @@ export default function App() {
 					</main>
 
 					{activeWorkspaceId && (
-						<AssistantPanel
-							workspaceId={activeWorkspaceId}
-							open={agentOpen}
-							onClose={() => setAgentOpen(false)}
-						/>
+						<AssistantPanel workspaceId={activeWorkspaceId} open={agentOpen} onClose={() => setAgentOpen(false)} />
 					)}
 				</div>
 

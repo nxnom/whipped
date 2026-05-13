@@ -34,9 +34,13 @@ export function RunTerminal({ workspaceId, className }: RunTerminalProps) {
 		requestAnimationFrame(() => requestAnimationFrame(() => fit.fit()));
 
 		const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-		const ws = new WebSocket(`${proto}//${window.location.host}/api/run-terminal?workspaceId=${encodeURIComponent(workspaceId)}`);
+		const ws = new WebSocket(
+			`${proto}//${window.location.host}/api/run-terminal?workspaceId=${encodeURIComponent(workspaceId)}`,
+		);
 
-		ws.addEventListener("open", () => { fit.fit(); });
+		ws.addEventListener("open", () => {
+			fit.fit();
+		});
 
 		ws.addEventListener("message", (event) => {
 			if (typeof event.data === "string") term.write(event.data);
@@ -50,7 +54,10 @@ export function RunTerminal({ workspaceId, className }: RunTerminalProps) {
 		let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 		const resizeObserver = new ResizeObserver(() => {
 			if (resizeTimer !== null) clearTimeout(resizeTimer);
-			resizeTimer = setTimeout(() => { resizeTimer = null; fit.fit(); }, 50);
+			resizeTimer = setTimeout(() => {
+				resizeTimer = null;
+				fit.fit();
+			}, 50);
 		});
 		resizeObserver.observe(container);
 
@@ -62,7 +69,5 @@ export function RunTerminal({ workspaceId, className }: RunTerminalProps) {
 		};
 	}, [workspaceId]);
 
-	return (
-		<div ref={containerRef} className={className ?? "h-40"} style={{ overflow: "hidden" }} />
-	);
+	return <div ref={containerRef} className={className ?? "h-40"} style={{ overflow: "hidden" }} />;
 }

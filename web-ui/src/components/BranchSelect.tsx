@@ -69,7 +69,10 @@ export function BranchSelect({ branches, value, onChange, placeholder = "Select 
 								<button
 									key={b}
 									type="button"
-									onClick={() => { onChange(b); setOpen(false); }}
+									onClick={() => {
+										onChange(b);
+										setOpen(false);
+									}}
 									className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 hover:bg-gray-800 transition-colors cursor-pointer ${b === value ? "text-blue-400 bg-blue-400/5" : "text-gray-200"}`}
 								>
 									<GitBranch size={11} className="shrink-0 text-gray-600" />

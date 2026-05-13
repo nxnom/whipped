@@ -94,11 +94,5 @@ export function TaskTerminal({ taskId, workspaceId, className }: TaskTerminalPro
 		};
 	}, [taskId, workspaceId]);
 
-	return (
-		<div
-			ref={containerRef}
-			className={className ?? "h-64"}
-			style={{ overflow: "hidden" }}
-		/>
-	);
+	return <div ref={containerRef} className={className ?? "h-64"} style={{ overflow: "hidden" }} />;
 }

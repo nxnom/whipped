@@ -28,7 +28,11 @@ export function AddProjectDialog({ onClose, onAdded }: Props) {
 	const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	useEffect(() => {
-		if (!repoPath.trim()) { setPathStatus("idle"); setPathError(null); return; }
+		if (!repoPath.trim()) {
+			setPathStatus("idle");
+			setPathError(null);
+			return;
+		}
 		setPathStatus("checking");
 		if (debounceRef.current) clearTimeout(debounceRef.current);
 		debounceRef.current = setTimeout(async () => {
@@ -99,7 +103,10 @@ export function AddProjectDialog({ onClose, onAdded }: Props) {
 			{showPicker && (
 				<FolderPickerDialog
 					initialPath={repoPath || undefined}
-					onSelect={(path) => { setRepoPath(path); setShowPicker(false); }}
+					onSelect={(path) => {
+						setRepoPath(path);
+						setShowPicker(false);
+					}}
 					onClose={() => setShowPicker(false)}
 				/>
 			)}
@@ -108,7 +115,13 @@ export function AddProjectDialog({ onClose, onAdded }: Props) {
 }
 
 function SelectStep({
-	repoPath, pathStatus, pathError, onPathChange, onBrowse, onNext, onClose,
+	repoPath,
+	pathStatus,
+	pathError,
+	onPathChange,
+	onBrowse,
+	onNext,
+	onClose,
 }: {
 	repoPath: string;
 	pathStatus: PathStatus;
@@ -140,22 +153,49 @@ function SelectStep({
 			</div>
 
 			<div className="h-5 flex items-center gap-1.5 mb-4">
-				{pathStatus === "checking" && <><Loader2 size={12} className="text-gray-500 animate-spin" /><span className="text-xs text-gray-500">Checking...</span></>}
-				{pathStatus === "valid" && <><CheckCircle2 size={12} className="text-green-400" /><span className="text-xs text-green-400">Valid git repository</span></>}
-				{pathStatus === "invalid" && <><AlertCircle size={12} className="text-red-400" /><span className="text-xs text-red-400">{pathError ?? "Invalid path"}</span></>}
+				{pathStatus === "checking" && (
+					<>
+						<Loader2 size={12} className="text-gray-500 animate-spin" />
+						<span className="text-xs text-gray-500">Checking...</span>
+					</>
+				)}
+				{pathStatus === "valid" && (
+					<>
+						<CheckCircle2 size={12} className="text-green-400" />
+						<span className="text-xs text-green-400">Valid git repository</span>
+					</>
+				)}
+				{pathStatus === "invalid" && (
+					<>
+						<AlertCircle size={12} className="text-red-400" />
+						<span className="text-xs text-red-400">{pathError ?? "Invalid path"}</span>
+					</>
+				)}
 			</div>
 
 			<div className="flex gap-2 justify-end">
-				<Button variant="ghost" onClick={onClose}>Cancel</Button>
-				<Button onClick={onNext} disabled={pathStatus !== "valid"}>Next</Button>
+				<Button variant="ghost" onClick={onClose}>
+					Cancel
+				</Button>
+				<Button onClick={onNext} disabled={pathStatus !== "valid"}>
+					Next
+				</Button>
 			</div>
 		</div>
 	);
 }
 
 function ConfigureStep({
-	repoPath, autoMode, autoPR, installCommand, adding,
-	onAutoMode, onAutoPR, onInstallCommand, onBack, onAdd,
+	repoPath,
+	autoMode,
+	autoPR,
+	installCommand,
+	adding,
+	onAutoMode,
+	onAutoPR,
+	onInstallCommand,
+	onBack,
+	onAdd,
 }: {
 	repoPath: string;
 	autoMode: boolean;
@@ -173,7 +213,9 @@ function ConfigureStep({
 	return (
 		<div className="p-5 space-y-5">
 			<div>
-				<h3 className="text-base font-semibold text-gray-100">Configure <span className="text-blue-400">{folderName}</span></h3>
+				<h3 className="text-base font-semibold text-gray-100">
+					Configure <span className="text-blue-400">{folderName}</span>
+				</h3>
 				<p className="text-xs text-gray-500 mt-0.5">{repoPath}</p>
 			</div>
 
@@ -198,14 +240,12 @@ function ConfigureStep({
 
 			{/* Setup */}
 			<div className="space-y-2">
-				<p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Worktree setup <span className="text-gray-600 normal-case font-normal">(optional)</span></p>
+				<p className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+					Worktree setup <span className="text-gray-600 normal-case font-normal">(optional)</span>
+				</p>
 				<div>
 					<label className="text-xs text-gray-500 block mb-1">Install command</label>
-					<Input
-						value={installCommand}
-						onChange={(e) => onInstallCommand(e.target.value)}
-						placeholder="pnpm install"
-					/>
+					<Input value={installCommand} onChange={(e) => onInstallCommand(e.target.value)} placeholder="pnpm install" />
 					<p className="text-xs text-gray-600 mt-1">Runs once when a new worktree is created for a task.</p>
 				</div>
 			</div>

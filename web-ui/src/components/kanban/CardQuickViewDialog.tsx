@@ -95,20 +95,32 @@ export function CardQuickViewDialog({ card, workspaceId, onClose, onOpenDetail, 
 					{(card.githubIssueUrl || card.githubPrUrl || card.jiraUrl) && (
 						<div className="flex flex-wrap gap-2">
 							{card.githubIssueUrl && (
-								<a href={card.githubIssueUrl} target="_blank" rel="noreferrer"
-									className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300">
+								<a
+									href={card.githubIssueUrl}
+									target="_blank"
+									rel="noreferrer"
+									className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
+								>
 									<ExternalLink size={11} /> Issue
 								</a>
 							)}
 							{card.githubPrUrl && (
-								<a href={card.githubPrUrl} target="_blank" rel="noreferrer"
-									className="flex items-center gap-1 text-xs text-green-400 hover:text-green-300">
+								<a
+									href={card.githubPrUrl}
+									target="_blank"
+									rel="noreferrer"
+									className="flex items-center gap-1 text-xs text-green-400 hover:text-green-300"
+								>
 									<ExternalLink size={11} /> PR
 								</a>
 							)}
 							{card.jiraUrl && (
-								<a href={card.jiraUrl} target="_blank" rel="noreferrer"
-									className="flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300">
+								<a
+									href={card.jiraUrl}
+									target="_blank"
+									rel="noreferrer"
+									className="flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300"
+								>
 									<ExternalLink size={11} /> {card.jiraKey}
 								</a>
 							)}
@@ -121,7 +133,10 @@ export function CardQuickViewDialog({ card, workspaceId, onClose, onOpenDetail, 
 							<h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Comments</h4>
 							<div className="space-y-2">
 								{card.reviewComments.map((c, i) => (
-									<div key={i} className={`border rounded-lg p-3 text-xs ${COMMENT_TYPE_COLOR[c.type] ?? "border-gray-700 bg-gray-800"}`}>
+									<div
+										key={i}
+										className={`border rounded-lg p-3 text-xs ${COMMENT_TYPE_COLOR[c.type] ?? "border-gray-700 bg-gray-800"}`}
+									>
 										<p className="font-medium mb-1.5 opacity-70">
 											{COMMENT_TYPE_LABEL[c.type] ?? c.type} · {c.actor.id}
 										</p>
@@ -137,14 +152,17 @@ export function CardQuickViewDialog({ card, workspaceId, onClose, onOpenDetail, 
 						<div>
 							<h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Recent Activity</h4>
 							<div className="space-y-1">
-								{[...card.activityLog].reverse().slice(0, 5).map((entry, i) => (
-									<div key={i} className="flex items-baseline gap-2 text-xs">
-										<span className="text-gray-600 shrink-0 tabular-nums">
-											{new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-										</span>
-										<span className="text-gray-400">{entry.message}</span>
-									</div>
-								))}
+								{[...card.activityLog]
+									.reverse()
+									.slice(0, 5)
+									.map((entry, i) => (
+										<div key={i} className="flex items-baseline gap-2 text-xs">
+											<span className="text-gray-600 shrink-0 tabular-nums">
+												{new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+											</span>
+											<span className="text-gray-400">{entry.message}</span>
+										</div>
+									))}
 							</div>
 						</div>
 					)}
@@ -174,7 +192,9 @@ export function CardQuickViewDialog({ card, workspaceId, onClose, onOpenDetail, 
 							{submitting ? "Submitting…" : "Submit & Reopen"}
 						</Button>
 					) : (
-						<Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
+						<Button variant="ghost" size="sm" onClick={onClose}>
+							Close
+						</Button>
 					)}
 				</div>
 			</div>

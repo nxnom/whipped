@@ -15,9 +15,17 @@ export function useRunSession(workspaceId: string) {
 
 	// Load initial state via tRPC
 	useEffect(() => {
-		trpc.run.status.query({ workspaceId }).then((s) => {
-			if (mountedRef.current) setSession({ cardId: s.cardId, status: s.status, errorMessage: "errorMessage" in s ? s.errorMessage : undefined });
-		}).catch(() => {});
+		trpc.run.status
+			.query({ workspaceId })
+			.then((s) => {
+				if (mountedRef.current)
+					setSession({
+						cardId: s.cardId,
+						status: s.status,
+						errorMessage: "errorMessage" in s ? s.errorMessage : undefined,
+					});
+			})
+			.catch(() => {});
 	}, [workspaceId]);
 
 	// Subscribe to workspace WebSocket for live updates
@@ -28,12 +36,23 @@ export function useRunSession(workspaceId: string) {
 		wsRef.current = ws;
 
 		ws.onopen = () => {
-			if (ws !== wsRef.current || !mountedRef.current) { ws.close(); return; }
+			if (ws !== wsRef.current || !mountedRef.current) {
+				ws.close();
+				return;
+			}
 			ws.send(JSON.stringify({ type: "subscribe", workspaceId }));
 			// Re-sync run status on every (re)connect in case server restarted
-			trpc.run.status.query({ workspaceId }).then((s) => {
-				if (mountedRef.current) setSession({ cardId: s.cardId, status: s.status, errorMessage: "errorMessage" in s ? s.errorMessage : undefined });
-			}).catch(() => {});
+			trpc.run.status
+				.query({ workspaceId })
+				.then((s) => {
+					if (mountedRef.current)
+						setSession({
+							cardId: s.cardId,
+							status: s.status,
+							errorMessage: "errorMessage" in s ? s.errorMessage : undefined,
+						});
+				})
+				.catch(() => {});
 		};
 
 		ws.onmessage = (event) => {
@@ -43,12 +62,16 @@ export function useRunSession(workspaceId: string) {
 				if (msg.type === "run_session_changed") {
 					setSession({ cardId: msg.cardId, status: msg.status, errorMessage: msg.errorMessage });
 				}
-			} catch { /* ignore */ }
+			} catch {
+				/* ignore */
+			}
 		};
 
 		ws.onclose = () => {
 			if (ws !== wsRef.current || !mountedRef.current) return;
-			setTimeout(() => { if (mountedRef.current) connect(); }, 2000);
+			setTimeout(() => {
+				if (mountedRef.current) connect();
+			}, 2000);
 		};
 	}, [workspaceId]);
 
@@ -62,9 +85,12 @@ export function useRunSession(workspaceId: string) {
 		};
 	}, [workspaceId, connect]);
 
-	const start = useCallback(async (cardId: string) => {
-		await trpc.run.start.mutate({ workspaceId, cardId });
-	}, [workspaceId]);
+	const start = useCallback(
+		async (cardId: string) => {
+			await trpc.run.start.mutate({ workspaceId, cardId });
+		},
+		[workspaceId],
+	);
 
 	const stop = useCallback(async () => {
 		await trpc.run.stop.mutate({ workspaceId });

@@ -1,17 +1,39 @@
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { unlink } from "node:fs/promises";
 import { join } from "node:path";
-import { spawnSync } from "node:child_process";
-import { commitIfDirty, createGithubPR, pushBranch } from "../git/merge-operations.js";
-import { CLAUDE_TASK_SETTINGS_PATH, buildKanbomMcpServerSpec, buildTaskHookEnv, getMcpConfigPath, getServerPort, writeClaudeMcpConfig } from "../agents/agent-hooks.js";
-import { spawnAgent } from "../agents/agent-runner.js";
+import {
+	buildKanbomMcpServerSpec,
+	buildTaskHookEnv,
+	CLAUDE_TASK_SETTINGS_PATH,
+	getMcpConfigPath,
+	getServerPort,
+	writeClaudeMcpConfig,
+} from "../agents/agent-hooks.js";
 import type { AgentProcess } from "../agents/agent-runner.js";
-import type { WorkflowSlot, RuntimeBoardCard, RuntimeReviewComment, RuntimeProjectSecret } from "../core/api-contract.js";
+import { spawnAgent } from "../agents/agent-runner.js";
+import type {
+	RuntimeBoardCard,
+	RuntimeProjectSecret,
+	RuntimeReviewComment,
+	WorkflowSlot,
+} from "../core/api-contract.js";
+import { logger } from "../core/logger.js";
+import { commitIfDirty, createGithubPR, pushBranch } from "../git/merge-operations.js";
 import type { GithubClient } from "../github/github-client.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
-import { appendActivityLog, appendTerminalSession, endTerminalSession, linkCommentToSession, loadBoard, moveCard, saveAttachment, saveTerminalBuffer, updateCard } from "../state/workspace-state.js";
+import {
+	appendActivityLog,
+	appendTerminalSession,
+	endTerminalSession,
+	linkCommentToSession,
+	loadBoard,
+	moveCard,
+	saveAttachment,
+	saveTerminalBuffer,
+	updateCard,
+} from "../state/workspace-state.js";
 import { getCardBranch, getWorktreePath } from "../worktree/worktree-manager.js";
-import { logger } from "../core/logger.js";
 
 interface ReviewPipelineOptions {
 	workspaceId: string;
@@ -25,8 +47,8 @@ interface ReviewPipelineOptions {
 	autoPR: boolean;
 	secrets: RuntimeProjectSecret[];
 	systemPrompt?: string;
-	registerStopCallback: (streamId: string, callback: () => void) => (() => void);
-	registerLiveProcess: (streamId: string, process: AgentProcess) => (() => void);
+	registerStopCallback: (streamId: string, callback: () => void) => () => void;
+	registerLiveProcess: (streamId: string, process: AgentProcess) => () => void;
 }
 
 interface ReviewSlotResult {
@@ -68,7 +90,10 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 	const lastTs = card.terminalSessions?.at(-1);
 	// Story cards have no dev session, so resume logic doesn't apply — always run orch fresh.
 	const isResume = card.type !== "story" && lastTs?.state === "killed";
-	const lastDevTs = card.terminalSessions?.slice().reverse().find((ts) => ts.type === "dev");
+	const lastDevTs = card.terminalSessions
+		?.slice()
+		.reverse()
+		.find((ts) => ts.type === "dev");
 	const sessionStartedAt = lastDevTs?.startedAt ?? 0;
 
 	logger.info(`[review] Starting review pipeline for "${card.title}" (${card.id})${isResume ? " — resuming" : ""}`);
@@ -87,9 +112,9 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 			const lastSlotComment = [...(card.reviewComments ?? [])].reverse().find((c) => c.type === commentType);
 			// Only skip if the passing comment belongs to THIS session (not a previous run).
 			const alreadyPassed = lastSlotComment
-				? lastSlotComment.createdAt >= sessionStartedAt
-					&& lastSlotComment.status !== "fail"
-					&& !(lastSlotComment.issues?.some((i) => i.severity === "blocking") ?? false)
+				? lastSlotComment.createdAt >= sessionStartedAt &&
+					lastSlotComment.status !== "fail" &&
+					!(lastSlotComment.issues?.some((i) => i.severity === "blocking") ?? false)
 				: false;
 			if (alreadyPassed) {
 				logger.info(`[review] ${slot.name} already passed for "${card.title}" — skipping`);
@@ -101,14 +126,22 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 		}
 
 		await appendActivityLog(workspaceId, card.id, `${slot.name} running (${slot.agentBinary})`);
-		await appendTerminalSession(workspaceId, card.id, { streamId, type: slot.id, startedAt: runId, agentId: slot.agentBinary, state: "running" });
+		await appendTerminalSession(workspaceId, card.id, {
+			streamId,
+			type: slot.id,
+			startedAt: runId,
+			agentId: slot.agentBinary,
+			state: "running",
+		});
 		stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 		// QA-type slots are serialized globally to avoid port/simulator conflicts
 		let result: ReviewSlotResult;
 		if (slot.type === "qa") {
 			result = await new Promise<ReviewSlotResult>((resolve) => {
-				enqueueQA(async () => { resolve(await runReviewSlot(slot, card, streamId, options, customPrompt)); });
+				enqueueQA(async () => {
+					resolve(await runReviewSlot(slot, card, streamId, options, customPrompt));
+				});
 			});
 		} else {
 			result = await runReviewSlot(slot, card, streamId, options, customPrompt);
@@ -145,19 +178,48 @@ async function runReviewSlot(
 	const stat = getGitStat(worktreePath, card.baseRef);
 	const fullDiff = getGitFullDiff(worktreePath, card.baseRef);
 	const context = formatPriorComments(card);
-	const systemPrompt = buildReviewSlotSystemPrompt(slot, card, stat, fullDiff, customPrompt, context.text, options.secrets, options.systemPrompt);
+	const systemPrompt = buildReviewSlotSystemPrompt(
+		slot,
+		card,
+		stat,
+		fullDiff,
+		customPrompt,
+		context.text,
+		options.secrets,
+		options.systemPrompt,
+	);
 	const triggerWord = getSlotTriggerWord(slot.type);
 
 	const mcpConfigPath = getMcpConfigPath(streamId);
-	await writeClaudeMcpConfig(options.mcpBinary, options.serverUrl, workspaceId, slot.agentBinary, mcpConfigPath).catch(() => {});
+	await writeClaudeMcpConfig(options.mcpBinary, options.serverUrl, workspaceId, slot.agentBinary, mcpConfigPath).catch(
+		() => {},
+	);
 	const startTime = Date.now();
 	logger.info(`[review:${streamId}] Spawning ${slot.name} agent (${slot.agentBinary}) for "${card.title}"`);
 	const secretsEnv = buildSecretsEnv(options.secrets);
 	const hookServerPort = slot.agentBinary === "codex" ? getServerPort(options.serverUrl) : undefined;
-	const mcpServer = slot.agentBinary === "codex"
-		? buildKanbomMcpServerSpec(options.mcpBinary, options.serverUrl, workspaceId, slot.agentBinary)
-		: undefined;
-	const output = await runAgentOnce(slot.agentBinary, triggerWord, worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, mcpConfigPath, systemPrompt, context.files, secretsEnv, slot.effort, hookServerPort, mcpServer, slot.model);
+	const mcpServer =
+		slot.agentBinary === "codex"
+			? buildKanbomMcpServerSpec(options.mcpBinary, options.serverUrl, workspaceId, slot.agentBinary)
+			: undefined;
+	const output = await runAgentOnce(
+		slot.agentBinary,
+		triggerWord,
+		worktreePath,
+		workspaceId,
+		streamId,
+		stateHub,
+		options.registerStopCallback,
+		options.registerLiveProcess,
+		mcpConfigPath,
+		systemPrompt,
+		context.files,
+		secretsEnv,
+		slot.effort,
+		hookServerPort,
+		mcpServer,
+		slot.model,
+	);
 	logger.info(`[review:${streamId}] ${slot.name} agent done (${Date.now() - startTime}ms)`);
 
 	// Comment type: use slot.type for built-ins, slot.id for custom
@@ -174,7 +236,8 @@ async function runReviewSlot(
 
 	// Non-MCP fallback: try to parse JSON from output
 	const parsed = tryParseAgentJson(output);
-	const status = parsed?.status ?? (/(FAIL|REJECT|CRITICAL|BLOCKING|ERROR|CRASH|BROKEN)/i.test(output) ? "fail" : "pass");
+	const status =
+		parsed?.status ?? (/(FAIL|REJECT|CRITICAL|BLOCKING|ERROR|CRASH|BROKEN)/i.test(output) ? "fail" : "pass");
 	const hasMustFixIssue = parsed?.issues?.some((i: { severity: string }) => i.severity === "blocking") ?? false;
 	const passed = status !== "fail" && !hasMustFixIssue;
 	const nowFallback = Date.now();
@@ -211,10 +274,7 @@ async function persistComment(
 	await updateCard(workspaceId, card.id, { reviewComments: updatedComments });
 }
 
-async function handleReviewFailure(
-	card: RuntimeBoardCard,
-	options: ReviewPipelineOptions,
-): Promise<void> {
+async function handleReviewFailure(card: RuntimeBoardCard, options: ReviewPipelineOptions): Promise<void> {
 	const { workspaceId, maxAutoFixAttempts, stateHub } = options;
 
 	if (card.type === "story") {
@@ -229,7 +289,9 @@ async function handleReviewFailure(
 	const newAttempts = card.autoFixAttempts + 1;
 	const destination = newAttempts >= maxAutoFixAttempts ? "blocked" : "reopened";
 
-	logger.info(`[review] Review failed for "${card.title}" (attempt ${newAttempts}/${maxAutoFixAttempts}) → ${destination}`);
+	logger.info(
+		`[review] Review failed for "${card.title}" (attempt ${newAttempts}/${maxAutoFixAttempts}) → ${destination}`,
+	);
 	await updateCard(workspaceId, card.id, { autoFixAttempts: newAttempts });
 	await moveCard(workspaceId, card.id, destination);
 	await appendActivityLog(
@@ -282,7 +344,11 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 		const githubToken = options.secrets.find((s) => s.key === "GITHUB_TOKEN")?.value;
 		if (!githubToken) {
 			logger.warn(`[review] Auto PR skipped for "${card.title}" — GITHUB_TOKEN not set in project secrets`);
-			await appendActivityLog(workspaceId, card.id, "Auto PR skipped — GITHUB_TOKEN not set in project Settings > Secrets.");
+			await appendActivityLog(
+				workspaceId,
+				card.id,
+				"Auto PR skipped — GITHUB_TOKEN not set in project Settings > Secrets.",
+			);
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
 			return;
 		}
@@ -290,8 +356,8 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 			logger.info(`[review] Auto PR: commit → push → create for "${card.title}" (branch: ${taskBranch})`);
 			await commitIfDirty(worktreePath, card.title);
 			await pushBranch(worktreePath, taskBranch);
-			const devSummary = [...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev")?.summary
-				?? card.description;
+			const devSummary =
+				[...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev")?.summary ?? card.description;
 			const prUrl = await createGithubPR(worktreePath, card.title, devSummary, card.baseRef, githubToken);
 			logger.info(`[review] Auto PR created: ${prUrl}`);
 			await updateCard(workspaceId, card.id, { githubPrUrl: prUrl });
@@ -389,7 +455,9 @@ function getGitStat(worktreePath: string, baseRef: string): string {
 	].filter(Boolean);
 
 	const newUntracked = git(["ls-files", "--others", "--exclude-standard"], worktreePath)
-		.split("\n").map((f) => f.trim()).filter(Boolean);
+		.split("\n")
+		.map((f) => f.trim())
+		.filter(Boolean);
 	if (newUntracked.length > 0) {
 		parts.push(`New files:\n${newUntracked.map((f) => `  ${f}`).join("\n")}`);
 	}
@@ -412,17 +480,15 @@ function getGitFullDiff(worktreePath: string, baseRef: string): string {
 	}
 
 	const newUntracked = git(["ls-files", "--others", "--exclude-standard"], worktreePath)
-		.split("\n").map((f) => f.trim()).filter(Boolean);
+		.split("\n")
+		.map((f) => f.trim())
+		.filter(Boolean);
 	if (newUntracked.length > 0) {
 		const newFileContents: string[] = [];
 		for (const file of newUntracked) {
 			const content = readFileSafe(join(worktreePath, file));
 			const ext = file.split(".").pop() ?? "";
-			newFileContents.push(
-				content
-					? `### ${file}\n\`\`\`${ext}\n${content}\n\`\`\``
-					: `### ${file} (unreadable)`,
-			);
+			newFileContents.push(content ? `### ${file}\n\`\`\`${ext}\n${content}\n\`\`\`` : `### ${file} (unreadable)`);
 		}
 		sections.push("New files (full content):\n\n" + newFileContents.join("\n\n"));
 	}
@@ -436,15 +502,16 @@ function formatPriorComments(card: RuntimeBoardCard): { text: string; files: str
 
 	const allFiles: string[] = [];
 	const lines = comments.map((c) => {
-		const typeLabel = c.type === "human"
-			? "Human Feedback"
-			: c.type.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+		const typeLabel =
+			c.type === "human" ? "Human Feedback" : c.type.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 		const actorId = c.actor.id;
 		const statusLabel = c.status?.toUpperCase() ?? "";
 		const hasMustFix = c.issues?.some((i) => i.severity === "blocking" || i.severity === "warning") ?? false;
 		const failedRound = c.status === "fail" || hasMustFix;
 
-		const parts: string[] = [`### ${typeLabel} · ${actorId}${statusLabel ? ` · ${statusLabel}` : ""}${failedRound ? " ⚠ MUST FIX BEFORE PROCEEDING" : ""}`];
+		const parts: string[] = [
+			`### ${typeLabel} · ${actorId}${statusLabel ? ` · ${statusLabel}` : ""}${failedRound ? " ⚠ MUST FIX BEFORE PROCEEDING" : ""}`,
+		];
 		parts.push(c.summary);
 
 		if (c.issues?.length) {
@@ -477,17 +544,28 @@ function formatPriorComments(card: RuntimeBoardCard): { text: string; files: str
 const INLINE_DIFF_LIMIT = 8000;
 
 // Exported — used by scheduler.ts for dev agent
-export function buildDevAgentSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, customPrompt: string, worktreePath?: string, secrets: RuntimeProjectSecret[] = [], parentCards: RuntimeBoardCard[] = [], systemPrompt?: string): { text: string; files: string[] } {
+export function buildDevAgentSystemPrompt(
+	slot: WorkflowSlot,
+	card: RuntimeBoardCard,
+	customPrompt: string,
+	worktreePath?: string,
+	secrets: RuntimeProjectSecret[] = [],
+	parentCards: RuntimeBoardCard[] = [],
+	systemPrompt?: string,
+): { text: string; files: string[] } {
 	const context = formatPriorComments(card);
 	const parts: string[] = [];
 
 	const stat = worktreePath ? getGitStat(worktreePath, card.baseRef) : null;
 	const statSection = stat ? `\n\n## Current worktree state (vs ${card.baseRef})\n${stat}` : "";
 
-	const descAttachNote = (card.descriptionAttachments?.length ?? 0) > 0
-		? `\n\n**Attached files** (use the Read tool to view each one):\n${card.descriptionAttachments!.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
-		: "";
-	parts.push(`## Task: ${card.title}${card.description ? `\n\n${card.description}` : ""}${descAttachNote}${statSection}${context.text}`);
+	const descAttachNote =
+		(card.descriptionAttachments?.length ?? 0) > 0
+			? `\n\n**Attached files** (use the Read tool to view each one):\n${card.descriptionAttachments!.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
+			: "";
+	parts.push(
+		`## Task: ${card.title}${card.description ? `\n\n${card.description}` : ""}${descAttachNote}${statSection}${context.text}`,
+	);
 
 	if (parentCards.length > 0) {
 		const parentSummaries = parentCards
@@ -498,7 +576,9 @@ export function buildDevAgentSystemPrompt(slot: WorkflowSlot, card: RuntimeBoard
 			})
 			.filter((s): s is string => s !== null);
 		if (parentSummaries.length > 0) {
-			parts.push(`## Context from parent tasks\n\nThis task builds on top of the following completed work:\n\n${parentSummaries.join("\n\n")}`);
+			parts.push(
+				`## Context from parent tasks\n\nThis task builds on top of the following completed work:\n\n${parentSummaries.join("\n\n")}`,
+			);
 		}
 	}
 
@@ -526,26 +606,50 @@ When you finish your work:
 	return { text: parts.join("\n\n"), files: context.files };
 }
 
-function buildReviewSlotSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt: string, priorContext: string, secrets: RuntimeProjectSecret[] = [], systemPrompt?: string): string {
+function buildReviewSlotSystemPrompt(
+	slot: WorkflowSlot,
+	card: RuntimeBoardCard,
+	stat: string,
+	fullDiff: string,
+	customPrompt: string,
+	priorContext: string,
+	secrets: RuntimeProjectSecret[] = [],
+	systemPrompt?: string,
+): string {
 	switch (slot.type) {
-		case "code_review": return buildCodeReviewSystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets, systemPrompt);
-		case "qa": return buildQASystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets, systemPrompt);
-		case "orch": return buildOrchSystemPrompt(slot, card, customPrompt, priorContext, secrets, systemPrompt);
-		default: return buildCustomSystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets, systemPrompt);
+		case "code_review":
+			return buildCodeReviewSystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets, systemPrompt);
+		case "qa":
+			return buildQASystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets, systemPrompt);
+		case "orch":
+			return buildOrchSystemPrompt(slot, card, customPrompt, priorContext, secrets, systemPrompt);
+		default:
+			return buildCustomSystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets, systemPrompt);
 	}
 }
 
-function buildCodeReviewSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt: string, priorContext: string, secrets: RuntimeProjectSecret[], systemPrompt?: string): string {
-	const diffSection = fullDiff.length <= INLINE_DIFF_LIMIT
-		? `Git diff:\n${fullDiff}`
-		: `Large changeset (${fullDiff.length.toLocaleString()} chars). Use \`git diff ${card.baseRef}...HEAD\` and read individual files to explore — start with the stat above to decide where to focus.`;
+function buildCodeReviewSystemPrompt(
+	slot: WorkflowSlot,
+	card: RuntimeBoardCard,
+	stat: string,
+	fullDiff: string,
+	customPrompt: string,
+	priorContext: string,
+	secrets: RuntimeProjectSecret[],
+	systemPrompt?: string,
+): string {
+	const diffSection =
+		fullDiff.length <= INLINE_DIFF_LIMIT
+			? `Git diff:\n${fullDiff}`
+			: `Large changeset (${fullDiff.length.toLocaleString()} chars). Use \`git diff ${card.baseRef}...HEAD\` and read individual files to explore — start with the stat above to decide where to focus.`;
 	const custom = customPrompt.trim() ? `\n\n## Project-specific instructions\n\n${customPrompt.trim()}` : "";
 	const secretsSection = buildSecretsSection(secrets);
 	const projectContext = systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : "";
 
-	const descAttachSection = (card.descriptionAttachments?.length ?? 0) > 0
-		? `\n\n**Attached files** (use Read tool to view):\n${card.descriptionAttachments!.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
-		: "";
+	const descAttachSection =
+		(card.descriptionAttachments?.length ?? 0) > 0
+			? `\n\n**Attached files** (use Read tool to view):\n${card.descriptionAttachments!.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
+			: "";
 
 	return `You are a senior code reviewer performing an automated review.
 
@@ -575,17 +679,28 @@ Write your findings to the terminal as plain text. Do NOT include pass/fail verd
 Then call \`kanban_add_comment\` with cardId: "${card.id}", type: "code_review", status: "pass"/"fail"/"warning", summary: your findings (specific, concise), and optionally issues: [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional note, pipeline still passes), message}].${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}`;
 }
 
-function buildQASystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt: string, priorContext: string, secrets: RuntimeProjectSecret[], systemPrompt?: string): string {
-	const diffSection = fullDiff.length <= INLINE_DIFF_LIMIT
-		? `Git diff:\n${fullDiff}`
-		: `Large changeset (${fullDiff.length.toLocaleString()} chars). Use \`git diff ${card.baseRef}...HEAD\` to explore.`;
+function buildQASystemPrompt(
+	slot: WorkflowSlot,
+	card: RuntimeBoardCard,
+	stat: string,
+	fullDiff: string,
+	customPrompt: string,
+	priorContext: string,
+	secrets: RuntimeProjectSecret[],
+	systemPrompt?: string,
+): string {
+	const diffSection =
+		fullDiff.length <= INLINE_DIFF_LIMIT
+			? `Git diff:\n${fullDiff}`
+			: `Large changeset (${fullDiff.length.toLocaleString()} chars). Use \`git diff ${card.baseRef}...HEAD\` to explore.`;
 	const custom = customPrompt.trim() ? `\n\n## Project-specific instructions\n\n${customPrompt.trim()}` : "";
 	const secretsSection = buildSecretsSection(secrets);
 	const projectContext = systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : "";
 
-	const qaDescAttachSection = (card.descriptionAttachments?.length ?? 0) > 0
-		? `\n\n**Attached files** (use Read tool to view):\n${card.descriptionAttachments!.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
-		: "";
+	const qaDescAttachSection =
+		(card.descriptionAttachments?.length ?? 0) > 0
+			? `\n\n**Attached files** (use Read tool to view):\n${card.descriptionAttachments!.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
+			: "";
 
 	return `You are a QA engineer performing automated testing.
 
@@ -610,7 +725,14 @@ Write your findings to the terminal as plain text. Do NOT include pass/fail verd
 Then call \`kanban_add_comment\` with cardId: "${card.id}", type: "qa", status: "pass"/"fail"/"warning"/"skipped", summary: what you ran and the outcome, and optionally issues: [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional, pipeline still passes), message}] and attachments: [{type: "image"|"file", name, mimeType, path}].${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}`;
 }
 
-function buildOrchSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, customPrompt: string, priorContext: string, secrets: RuntimeProjectSecret[], systemPrompt?: string): string {
+function buildOrchSystemPrompt(
+	slot: WorkflowSlot,
+	card: RuntimeBoardCard,
+	customPrompt: string,
+	priorContext: string,
+	secrets: RuntimeProjectSecret[],
+	systemPrompt?: string,
+): string {
 	const subtaskIds = card.dependsOn ?? [];
 	const commentType = slot.type === "custom" ? slot.id : slot.type;
 	const custom = customPrompt.trim() ? `\n\n## Additional instructions\n\n${customPrompt.trim()}` : "";
@@ -623,7 +745,7 @@ function buildOrchSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, custo
 **[${card.id}] ${card.title}**
 ${card.description ? `\n${card.description}\n` : ""}
 ## Subtasks
-${subtaskIds.length > 0 ? subtaskIds.map(id => `- ${id}`).join("\n") : "(none)"}
+${subtaskIds.length > 0 ? subtaskIds.map((id) => `- ${id}`).join("\n") : "(none)"}
 ${priorContext}
 ## Step 1 — Read the board
 Call \`kanban_get_board\` to get the current state of all cards. For each subtask ID listed above, examine:
@@ -678,10 +800,20 @@ summary: Which subtasks were sent back and the overall reason (1–2 sentences).
 - Your pass/fail summary must describe only what was built and whether it meets the story goal — nothing else.${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}`;
 }
 
-function buildCustomSystemPrompt(slot: WorkflowSlot, card: RuntimeBoardCard, stat: string, fullDiff: string, customPrompt: string, priorContext: string, secrets: RuntimeProjectSecret[], systemPrompt?: string): string {
-	const diffSection = fullDiff.length <= INLINE_DIFF_LIMIT
-		? `Git diff:\n${fullDiff}`
-		: `Large changeset (${fullDiff.length.toLocaleString()} chars). Use \`git diff ${card.baseRef}...HEAD\` to explore.`;
+function buildCustomSystemPrompt(
+	slot: WorkflowSlot,
+	card: RuntimeBoardCard,
+	stat: string,
+	fullDiff: string,
+	customPrompt: string,
+	priorContext: string,
+	secrets: RuntimeProjectSecret[],
+	systemPrompt?: string,
+): string {
+	const diffSection =
+		fullDiff.length <= INLINE_DIFF_LIMIT
+			? `Git diff:\n${fullDiff}`
+			: `Large changeset (${fullDiff.length.toLocaleString()} chars). Use \`git diff ${card.baseRef}...HEAD\` to explore.`;
 	const secretsSection = buildSecretsSection(secrets);
 	const projectContext = systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : "";
 
@@ -746,7 +878,8 @@ export function tryParseAgentJson(output: string): ParsedAgentJson | null {
 		}
 		if (typeof obj.summary === "string") result.summary = obj.summary;
 		if (Array.isArray(obj.issues)) result.issues = obj.issues as RuntimeReviewComment["issues"];
-		if (typeof obj.metadata === "object" && obj.metadata !== null) result.metadata = obj.metadata as Record<string, unknown>;
+		if (typeof obj.metadata === "object" && obj.metadata !== null)
+			result.metadata = obj.metadata as Record<string, unknown>;
 		return Object.keys(result).length > 0 ? result : null;
 	} catch {
 		return null;
@@ -775,7 +908,8 @@ export async function runParentReopenCascade(
 	childCards: RuntimeBoardCard[],
 	options: CascadeOptions,
 ): Promise<void> {
-	const { workspaceId, repoPath, mcpBinary, serverUrl, stateHub, secrets, registerStopCallback, registerLiveProcess } = options;
+	const { workspaceId, repoPath, mcpBinary, serverUrl, stateHub, secrets, registerStopCallback, registerLiveProcess } =
+		options;
 	const streamId = `${parentCard.id}-cascade-${Date.now()}`;
 
 	const mcpConfigPath = getMcpConfigPath(streamId);
@@ -786,7 +920,12 @@ export async function runParentReopenCascade(
 
 	logger.info(`[cascade] Spawning cascade agent for parent "${parentCard.title}" (${childCards.length} children)`);
 
-	await appendTerminalSession(workspaceId, parentCard.id, { streamId, type: "cascade", startedAt: Date.now(), state: "running" });
+	await appendTerminalSession(workspaceId, parentCard.id, {
+		streamId,
+		type: "cascade",
+		startedAt: Date.now(),
+		state: "running",
+	});
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 	await runAgentOnce(
@@ -820,7 +959,11 @@ export async function runParentReopenCascade(
 	}
 }
 
-function buildCascadeSystemPrompt(parentCard: RuntimeBoardCard, parentBranch: string, childCards: RuntimeBoardCard[]): string {
+function buildCascadeSystemPrompt(
+	parentCard: RuntimeBoardCard,
+	parentBranch: string,
+	childCards: RuntimeBoardCard[],
+): string {
 	const comments = parentCard.reviewComments ?? [];
 
 	const lastDevIdx = (() => {
@@ -841,17 +984,17 @@ function buildCascadeSystemPrompt(parentCard: RuntimeBoardCard, parentBranch: st
 		.map((c) => c.summary)
 		.filter(Boolean);
 
-	const reopenReason = humanFeedback.length > 0
-		? humanFeedback.join("\n")
-		: "Parent task was reopened.";
+	const reopenReason = humanFeedback.length > 0 ? humanFeedback.join("\n") : "Parent task was reopened.";
 
-	const childLines = childCards.map((child) => {
-		const devComment = [...(child.reviewComments ?? [])].reverse().find((c) => c.type === "dev");
-		return [
-			`### [${child.id}] ${child.title} (${child.columnId})`,
-			devComment ? `Dev summary: ${devComment.summary}` : "No dev work completed yet.",
-		].join("\n");
-	}).join("\n\n");
+	const childLines = childCards
+		.map((child) => {
+			const devComment = [...(child.reviewComments ?? [])].reverse().find((c) => c.type === "dev");
+			return [
+				`### [${child.id}] ${child.title} (${child.columnId})`,
+				devComment ? `Dev summary: ${devComment.summary}` : "No dev work completed yet.",
+			].join("\n");
+		})
+		.join("\n\n");
 
 	return `You are a Kanban board manager. A parent task was reopened and you must decide what to do with its dependent child tasks.
 

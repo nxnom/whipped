@@ -15,13 +15,20 @@ export function RunBar({ workspaceId }: RunBarProps) {
 	const [cardTitle, setCardTitle] = useState<string | null>(null);
 
 	useEffect(() => {
-		if (!session.cardId) { setCardTitle(null); return; }
-		trpc.workspace.state.query({ workspaceId })
+		if (!session.cardId) {
+			setCardTitle(null);
+			return;
+		}
+		trpc.workspace.state
+			.query({ workspaceId })
 			.then((s) => setCardTitle(s.board.cards[session.cardId!]?.title ?? session.cardId!))
 			.catch(() => setCardTitle(session.cardId));
 	}, [session.cardId, workspaceId]);
 
-	const isVisible = session.status === "running" || session.status === "error" || (session.status === "stopped" && session.cardId !== null);
+	const isVisible =
+		session.status === "running" ||
+		session.status === "error" ||
+		(session.status === "stopped" && session.cardId !== null);
 	if (!isVisible) return null;
 
 	const title = cardTitle ?? session.cardId ?? "Unknown ticket";
@@ -43,10 +50,7 @@ export function RunBar({ workspaceId }: RunBarProps) {
 			<span className="size-2 rounded-full bg-gray-500 shrink-0" />
 		);
 
-	const statusLabel =
-		session.status === "running" ? "Running" :
-		session.status === "error" ? "Crashed" :
-		"Stopped";
+	const statusLabel = session.status === "running" ? "Running" : session.status === "error" ? "Crashed" : "Stopped";
 
 	return (
 		<div className="shrink-0 border-t border-gray-800 bg-gray-950 flex flex-col">
@@ -78,13 +82,7 @@ export function RunBar({ workspaceId }: RunBarProps) {
 			</div>
 
 			{/* Terminal output */}
-			{expanded && (
-				<RunTerminal
-					key={workspaceId}
-					workspaceId={workspaceId}
-					className="h-48"
-				/>
-			)}
+			{expanded && <RunTerminal key={workspaceId} workspaceId={workspaceId} className="h-48" />}
 		</div>
 	);
 }

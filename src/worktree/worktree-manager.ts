@@ -42,7 +42,12 @@ export interface WorktreeCreateResult extends WorktreeInfo {
 	conflictedFiles: string[];
 }
 
-export function createWorktree(taskId: string, repoPath: string, baseRef: string, branchName?: string): WorktreeCreateResult {
+export function createWorktree(
+	taskId: string,
+	repoPath: string,
+	baseRef: string,
+	branchName?: string,
+): WorktreeCreateResult {
 	mkdirSync(WORKTREES_DIR, { recursive: true });
 
 	const branch = branchName ?? `kanbom/task-${taskId}`;

@@ -76,7 +76,15 @@ export const DEFAULT_WORKFLOW: Workflow = {
 	forStory: false,
 	slots: [
 		{ id: "dev", type: "dev", name: "Dev", agentBinary: "claude", order: 0, enabled: true, prompt: "" },
-		{ id: "code_review", type: "code_review", name: "Code Review", agentBinary: "claude", order: 1, enabled: true, prompt: "" },
+		{
+			id: "code_review",
+			type: "code_review",
+			name: "Code Review",
+			agentBinary: "claude",
+			order: 1,
+			enabled: true,
+			prompt: "",
+		},
 		{ id: "qa", type: "qa", name: "QA", agentBinary: "claude", order: 2, enabled: false, prompt: "" },
 	],
 };
@@ -164,13 +172,7 @@ export type RuntimeActivityEntry = z.infer<typeof runtimeActivityEntrySchema>;
 
 // ─── Session state ────────────────────────────────────────────────────────────
 
-export const runtimeTaskSessionStateSchema = z.enum([
-	"running",
-	"stopped",
-	"completed",
-	"failed",
-	"killed",
-]);
+export const runtimeTaskSessionStateSchema = z.enum(["running", "stopped", "completed", "failed", "killed"]);
 export type RuntimeTaskSessionState = z.infer<typeof runtimeTaskSessionStateSchema>;
 
 // ─── Terminal sessions ────────────────────────────────────────────────────────

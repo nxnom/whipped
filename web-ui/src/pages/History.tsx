@@ -38,7 +38,10 @@ export function HistoryPage({ workspaceId }: Props) {
 				) : (
 					<div className="space-y-2">
 						{doneCards.map((card) => {
-							const lastDevTs = card.terminalSessions?.slice().reverse().find((ts) => ts.type === "dev");
+							const lastDevTs = card.terminalSessions
+								?.slice()
+								.reverse()
+								.find((ts) => ts.type === "dev");
 							const lastTs = card.terminalSessions?.at(-1);
 							const duration =
 								lastDevTs?.startedAt && lastTs?.endedAt
@@ -97,7 +100,9 @@ export function HistoryPage({ workspaceId }: Props) {
 												{card.jiraKey}
 											</a>
 										)}
-										<span className="text-xs text-gray-600 ml-auto">{new Date(card.updatedAt).toLocaleDateString()}</span>
+										<span className="text-xs text-gray-600 ml-auto">
+											{new Date(card.updatedAt).toLocaleDateString()}
+										</span>
 									</div>
 								</div>
 							);
@@ -110,7 +115,7 @@ export function HistoryPage({ workspaceId }: Props) {
 				<CardDetailPanel
 					card={detailCard}
 					workspaceId={workspaceId}
-						onClose={() => setDetailCardId(null)}
+					onClose={() => setDetailCardId(null)}
 					onRefresh={refetch}
 					onDeleteCard={optimisticDeleteCard}
 				/>

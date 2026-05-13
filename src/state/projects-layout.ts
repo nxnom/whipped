@@ -11,9 +11,7 @@ export interface ProjectFolder {
 	projectIds: string[];
 }
 
-export type TopLevelItem =
-	| { type: "folder"; id: string }
-	| { type: "project"; workspaceId: string };
+export type TopLevelItem = { type: "folder"; id: string } | { type: "project"; workspaceId: string };
 
 export interface ProjectsLayout {
 	version: 1;

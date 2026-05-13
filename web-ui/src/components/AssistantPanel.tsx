@@ -75,7 +75,9 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 		};
 
 		void init();
-		return () => { cancelled = true; };
+		return () => {
+			cancelled = true;
+		};
 	}, [open, workspaceId]);
 
 	const startSession = async () => {
@@ -107,36 +109,36 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 				className="w-1 shrink-0 cursor-col-resize hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors bg-gray-800"
 			/>
 			<div className="flex-1 border-l border-gray-800 flex flex-col overflow-hidden">
-			<div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 shrink-0">
-				<div className="flex items-center gap-2">
-					<Bot size={16} className="text-blue-400" />
-					<h2 className="text-sm font-medium text-gray-300">Assistant</h2>
-				</div>
-				<div className="flex items-center gap-2">
-					{taskId && (
-						<Button variant="ghost" size="sm" onClick={() => void stopSession()}>
-							<Square size={13} className="mr-1" /> Stop
-						</Button>
-					)}
-					<Button variant="ghost" size="sm" onClick={handleClose}>
-						<X size={14} />
-					</Button>
-				</div>
-			</div>
-
-			<div className="flex-1 min-h-0 flex flex-col">
-				{taskId ? (
-					<TaskTerminal taskId={taskId} workspaceId={workspaceId} className="flex-1 min-h-0" />
-				) : (
-					<div className="flex-1 flex flex-col items-center justify-center gap-4 text-gray-500">
-						<Bot size={40} />
-						<p className="text-sm">Interactive Claude session for managing your board</p>
-						<Button size="sm" onClick={() => void startSession()} disabled={starting}>
-							{starting ? "Starting..." : "Start Session"}
+				<div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 shrink-0">
+					<div className="flex items-center gap-2">
+						<Bot size={16} className="text-blue-400" />
+						<h2 className="text-sm font-medium text-gray-300">Assistant</h2>
+					</div>
+					<div className="flex items-center gap-2">
+						{taskId && (
+							<Button variant="ghost" size="sm" onClick={() => void stopSession()}>
+								<Square size={13} className="mr-1" /> Stop
+							</Button>
+						)}
+						<Button variant="ghost" size="sm" onClick={handleClose}>
+							<X size={14} />
 						</Button>
 					</div>
-				)}
-			</div>
+				</div>
+
+				<div className="flex-1 min-h-0 flex flex-col">
+					{taskId ? (
+						<TaskTerminal taskId={taskId} workspaceId={workspaceId} className="flex-1 min-h-0" />
+					) : (
+						<div className="flex-1 flex flex-col items-center justify-center gap-4 text-gray-500">
+							<Bot size={40} />
+							<p className="text-sm">Interactive Claude session for managing your board</p>
+							<Button size="sm" onClick={() => void startSession()} disabled={starting}>
+								{starting ? "Starting..." : "Start Session"}
+							</Button>
+						</div>
+					)}
+				</div>
 			</div>
 		</div>
 	);

@@ -100,20 +100,26 @@ export function CardDialog({ card, workspaceId, onClose, onRefresh }: Props) {
 				</div>
 
 				{/* Session */}
-				{card.terminalSessions && card.terminalSessions.length > 0 && (() => {
-					const activeTs = card.terminalSessions.find((ts) => !ts.endedAt);
-					const displayTs = activeTs ?? card.terminalSessions.at(-1);
-					if (!displayTs) return null;
-					const state = activeTs ? "running" : displayTs.state;
-					return (
-						<div className="bg-gray-800 rounded-lg p-3 mb-4 text-xs space-y-1">
-							<div className="flex justify-between text-gray-400">
-								<span>Status: <span className="text-gray-200">{state?.replace(/_/g, " ") ?? "unknown"}</span></span>
-								<span>Agent: <span className="text-gray-200">{displayTs.agentId}</span></span>
+				{card.terminalSessions &&
+					card.terminalSessions.length > 0 &&
+					(() => {
+						const activeTs = card.terminalSessions.find((ts) => !ts.endedAt);
+						const displayTs = activeTs ?? card.terminalSessions.at(-1);
+						if (!displayTs) return null;
+						const state = activeTs ? "running" : displayTs.state;
+						return (
+							<div className="bg-gray-800 rounded-lg p-3 mb-4 text-xs space-y-1">
+								<div className="flex justify-between text-gray-400">
+									<span>
+										Status: <span className="text-gray-200">{state?.replace(/_/g, " ") ?? "unknown"}</span>
+									</span>
+									<span>
+										Agent: <span className="text-gray-200">{displayTs.agentId}</span>
+									</span>
+								</div>
 							</div>
-						</div>
-					);
-				})()}
+						);
+					})()}
 
 				{/* Activity log */}
 				{card.activityLog && card.activityLog.length > 0 && (
@@ -123,7 +129,11 @@ export function CardDialog({ card, workspaceId, onClose, onRefresh }: Props) {
 							{card.activityLog.map((entry, i) => (
 								<div key={i} className="flex items-baseline gap-2 text-xs">
 									<span className="text-gray-600 shrink-0 tabular-nums">
-										{new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+										{new Date(entry.timestamp).toLocaleTimeString([], {
+											hour: "2-digit",
+											minute: "2-digit",
+											second: "2-digit",
+										})}
 									</span>
 									<span className="text-gray-300">{entry.message}</span>
 								</div>

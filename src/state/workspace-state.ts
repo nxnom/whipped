@@ -37,7 +37,9 @@ const writeLocks = new Map<string, Promise<void>>();
 async function withLock<T>(workspaceId: string, fn: () => Promise<T>): Promise<T> {
 	const prev = writeLocks.get(workspaceId) ?? Promise.resolve();
 	let release!: () => void;
-	const next = new Promise<void>((resolve) => { release = resolve; });
+	const next = new Promise<void>((resolve) => {
+		release = resolve;
+	});
 	writeLocks.set(workspaceId, next);
 	await prev;
 	try {
@@ -234,7 +236,10 @@ export async function saveWorkspaceState(
 			throw new Error(`Revision conflict: expected ${meta.revision}, got ${request.revision}`);
 		}
 		const newRevision = meta.revision + 1;
-		await Promise.all([saveBoard(workspaceId, request.board), saveMeta(workspaceId, { ...meta, revision: newRevision })]);
+		await Promise.all([
+			saveBoard(workspaceId, request.board),
+			saveMeta(workspaceId, { ...meta, revision: newRevision }),
+		]);
 		return { revision: newRevision };
 	});
 }
@@ -303,7 +308,23 @@ export async function moveCard(
 export async function createCard(
 	workspaceId: string,
 	data: Pick<RuntimeBoardCard, "title" | "description"> &
-		Partial<Pick<RuntimeBoardCard, "type" | "agentId" | "priority" | "readyForDev" | "dependsOn" | "columnId" | "githubIssueUrl" | "jiraKey" | "jiraUrl" | "workflowId" | "descriptionAttachments" | "branchName">>,
+		Partial<
+			Pick<
+				RuntimeBoardCard,
+				| "type"
+				| "agentId"
+				| "priority"
+				| "readyForDev"
+				| "dependsOn"
+				| "columnId"
+				| "githubIssueUrl"
+				| "jiraKey"
+				| "jiraUrl"
+				| "workflowId"
+				| "descriptionAttachments"
+				| "branchName"
+			>
+		>,
 	baseRef: string,
 ): Promise<RuntimeBoardCard> {
 	return withLock(workspaceId, async () => {
@@ -393,7 +414,11 @@ export async function appendTerminalSession(
 	});
 }
 
-export async function closeAllOpenTerminalSessions(workspaceId: string, cardId: string, endedAt: number): Promise<void> {
+export async function closeAllOpenTerminalSessions(
+	workspaceId: string,
+	cardId: string,
+	endedAt: number,
+): Promise<void> {
 	return withLock(workspaceId, async () => {
 		const board = await loadBoard(workspaceId);
 		const card = board.cards[cardId];
@@ -408,7 +433,13 @@ export async function closeAllOpenTerminalSessions(workspaceId: string, cardId: 
 	});
 }
 
-export async function endTerminalSession(workspaceId: string, cardId: string, streamId: string, endedAt: number, state?: RuntimeTaskSessionState): Promise<void> {
+export async function endTerminalSession(
+	workspaceId: string,
+	cardId: string,
+	streamId: string,
+	endedAt: number,
+	state?: RuntimeTaskSessionState,
+): Promise<void> {
 	return withLock(workspaceId, async () => {
 		const board = await loadBoard(workspaceId);
 		const card = board.cards[cardId];
@@ -423,14 +454,17 @@ export async function endTerminalSession(workspaceId: string, cardId: string, st
 	});
 }
 
-export async function linkCommentToSession(workspaceId: string, cardId: string, commentCreatedAt: number, streamId: string): Promise<void> {
+export async function linkCommentToSession(
+	workspaceId: string,
+	cardId: string,
+	commentCreatedAt: number,
+	streamId: string,
+): Promise<void> {
 	return withLock(workspaceId, async () => {
 		const board = await loadBoard(workspaceId);
 		const card = board.cards[cardId];
 		if (!card) return;
-		const updated = (card.reviewComments ?? []).map((c) =>
-			c.createdAt === commentCreatedAt ? { ...c, streamId } : c,
-		);
+		const updated = (card.reviewComments ?? []).map((c) => (c.createdAt === commentCreatedAt ? { ...c, streamId } : c));
 		board.cards[cardId] = { ...card, reviewComments: updated };
 		const meta = await loadMeta(workspaceId);
 		await Promise.all([saveBoard(workspaceId, board), saveMeta(workspaceId, { ...meta, revision: meta.revision + 1 })]);
@@ -489,7 +523,12 @@ export async function downloadGithubImages(
 
 			if (!res) continue;
 			const contentType = res.headers.get("content-type") ?? "image/png";
-			const extMap: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp" };
+			const extMap: Record<string, string> = {
+				"image/png": "png",
+				"image/jpeg": "jpg",
+				"image/gif": "gif",
+				"image/webp": "webp",
+			};
 			const ext = extMap[contentType.split(";")[0]!.trim()] ?? "png";
 			const buffer = Buffer.from(await res.arrayBuffer());
 			const localPath = await saveAttachment(buffer, ext, cardId);
@@ -497,7 +536,9 @@ export async function downloadGithubImages(
 			const filename = parts[parts.length - 1]!;
 			const localUrl = `/api/attachments/${encodeURIComponent(cardId)}/${encodeURIComponent(filename)}`;
 			result = result.replaceAll(assetUrl, localUrl);
-		} catch { /* leave original URL on error */ }
+		} catch {
+			/* leave original URL on error */
+		}
 	}
 	return result;
 }
@@ -517,7 +558,24 @@ export async function updateCard(
 	workspaceId: string,
 	cardId: string,
 	update: Partial<
-		Pick<RuntimeBoardCard, "type" | "title" | "description" | "descriptionAttachments" | "agentId" | "priority" | "readyForDev" | "dependsOn" | "workflowId" | "githubPrUrl" | "reviewComments" | "autoFixAttempts" | "githubCommentIds" | "worktreePath" | "branchName">
+		Pick<
+			RuntimeBoardCard,
+			| "type"
+			| "title"
+			| "description"
+			| "descriptionAttachments"
+			| "agentId"
+			| "priority"
+			| "readyForDev"
+			| "dependsOn"
+			| "workflowId"
+			| "githubPrUrl"
+			| "reviewComments"
+			| "autoFixAttempts"
+			| "githubCommentIds"
+			| "worktreePath"
+			| "branchName"
+		>
 	>,
 ): Promise<RuntimeBoardCard> {
 	return withLock(workspaceId, async () => {
