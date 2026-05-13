@@ -392,7 +392,7 @@ server.registerTool(
 	async () => {
 		const workflows = await trpcQuery<Array<{
 			id: string; name: string; isDefault: boolean; forStory?: boolean;
-			slots: Array<{ id: string; type: string; name: string; agentBinary: string; order: number; enabled: boolean; prompt: string; effort?: string | null }>;
+			slots: Array<{ id: string; type: string; name: string; agentBinary: string; order: number; enabled: boolean; prompt: string; effort?: string | null; model?: string | null }>;
 		}>>("workflows.list", { workspaceId });
 
 		const lines: string[] = [];
@@ -402,9 +402,10 @@ server.registerTool(
 			const sorted = [...wf.slots].sort((a, b) => a.order - b.order);
 			for (const slot of sorted) {
 				const status = slot.enabled ? "enabled" : "disabled";
+				const modelTag = slot.model ? `, model: ${slot.model}` : "";
 				const effortTag = slot.effort ? `, effort: ${slot.effort}` : "";
 				const prompt = slot.prompt ? `\n    prompt: ${slot.prompt}` : "";
-				lines.push(`  - [${slot.id}] ${slot.name} (${slot.type}, ${slot.agentBinary}, ${status}${effortTag})${prompt}`);
+				lines.push(`  - [${slot.id}] ${slot.name} (${slot.type}, ${slot.agentBinary}${modelTag}, ${status}${effortTag})${prompt}`);
 			}
 		}
 		return { content: [{ type: "text", text: lines.join("\n") || "No workflows configured." }] };
@@ -424,11 +425,12 @@ server.registerTool(
 				id: z.string().describe("Unique slot ID within this workflow"),
 				type: z.enum(["dev", "code_review", "qa", "custom", "orch"]).describe("Slot type. Use 'orch' for story orchestrator slots. Task workflows use dev/code_review/qa/custom."),
 				name: z.string().describe("Display name for this slot"),
-				agentBinary: z.enum(["claude", "codex"]).describe("Agent binary to use"),
+				agentBinary: z.enum(["claude", "codex"]).describe("Agent binary to use. 'claude' = Claude Code CLI, 'codex' = OpenAI Codex CLI."),
 				order: z.number().int().nonnegative().describe("Execution order (0 = first)"),
 				enabled: z.boolean().describe("Whether this slot is active in the pipeline"),
 				prompt: z.string().describe("System prompt / instructions for this agent slot. Empty string for default behavior."),
-				effort: z.enum(["low", "medium", "high"]).nullable().optional().describe("Effort level override for this slot — 'low', 'medium', or 'high'. Omit or pass null to use the agent's default."),
+				effort: z.enum(["low", "medium", "high", "xhigh", "max"]).nullable().optional().describe("Reasoning effort override. Claude accepts all five; codex collapses 'max' to 'xhigh' (codex's highest). Omit or pass null to use the agent's default."),
+				model: z.string().nullable().optional().describe("Model override. Omit or pass null to use the agent's default. Claude: 'claude-opus-4-7' | 'claude-opus-4-6' | 'claude-sonnet-4-6' | 'claude-sonnet-4-5' | 'claude-haiku-4-5' (or aliases 'opus' / 'sonnet' / 'haiku'). Codex (ChatGPT-account-supported): 'gpt-5.5' | 'gpt-5.4' | 'gpt-5.4-mini' | 'gpt-5.3-codex' | 'gpt-5.2'. Other model strings are accepted but may be rejected by the agent at runtime."),
 			})).describe("For task workflows: always include a dev slot (type: 'dev', order: 0). For story workflows: use only orch slots."),
 		},
 	},
