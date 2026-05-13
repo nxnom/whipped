@@ -8,8 +8,14 @@ export interface AgentRunOptions {
 	prompt: string;
 	cwd: string;
 	env?: Record<string, string>;
+	// Hooks (Stop/UserPromptSubmit) for task lifecycle signaling.
+	// Claude reads a pre-written settings.json; codex builds the same config inline from the port.
 	hookSettingsPath?: string;
+	hookServerPort?: number;
+	// MCP server registration so the agent can call kanbom_* tools.
+	// Claude reads a pre-written JSON; codex inlines the spec.
 	mcpConfigPath?: string;
+	mcpServer?: { command: string; args: string[] };
 	appendSystemPrompt?: string;
 	files?: string[];
 	mode?: "interactive" | "print";
@@ -25,27 +31,19 @@ export interface AgentProcess {
 }
 
 export function spawnAgent(options: AgentRunOptions): AgentProcess {
-	const { agentId, prompt, cwd, env, hookSettingsPath, mcpConfigPath, appendSystemPrompt, files, mode = "interactive", effort, onOutput, onExit } = options;
+	const { agentId, prompt, cwd, env, mode = "interactive", onOutput, onExit } = options;
 
 	const command = getAgentCommand(agentId);
-	const args = buildAgentArgs(agentId, prompt, mode);
-	if (hookSettingsPath && agentId === "claude") {
-		args.push("--settings", hookSettingsPath);
-	}
-	if (mcpConfigPath && agentId === "claude") {
-		args.push("--mcp-config", mcpConfigPath);
-	}
-	if (appendSystemPrompt && agentId === "claude") {
-		args.push("--append-system-prompt", appendSystemPrompt);
-	}
-	if (files?.length && agentId === "claude") {
-		for (const f of files) {
-			args.push("--file", f);
-		}
-	}
-	if (effort && agentId === "claude") {
-		args.push("--effort", effort);
-	}
+	const args = buildAgentArgs(agentId, prompt, {
+		mode,
+		hookSettingsPath: options.hookSettingsPath,
+		hookServerPort: options.hookServerPort,
+		mcpConfigPath: options.mcpConfigPath,
+		mcpServer: options.mcpServer,
+		appendSystemPrompt: options.appendSystemPrompt,
+		files: options.files,
+		effort: options.effort,
+	});
 
 	const pty = nodePty.spawn(command, args, {
 		name: "xterm-256color",

@@ -3,7 +3,7 @@ import { unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { commitIfDirty, createGithubPR, pushBranch } from "../git/merge-operations.js";
-import { CLAUDE_TASK_SETTINGS_PATH, buildTaskHookEnv, getMcpConfigPath, writeClaudeMcpConfig } from "../agents/agent-hooks.js";
+import { CLAUDE_TASK_SETTINGS_PATH, buildKanbomMcpServerSpec, buildTaskHookEnv, getMcpConfigPath, getServerPort, writeClaudeMcpConfig } from "../agents/agent-hooks.js";
 import { spawnAgent } from "../agents/agent-runner.js";
 import type { AgentProcess } from "../agents/agent-runner.js";
 import type { WorkflowSlot, RuntimeBoardCard, RuntimeReviewComment, RuntimeProjectSecret } from "../core/api-contract.js";
@@ -153,7 +153,11 @@ async function runReviewSlot(
 	const startTime = Date.now();
 	logger.info(`[review:${streamId}] Spawning ${slot.name} agent (${slot.agentBinary}) for "${card.title}"`);
 	const secretsEnv = buildSecretsEnv(options.secrets);
-	const output = await runAgentOnce(slot.agentBinary, triggerWord, worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, mcpConfigPath, systemPrompt, context.files, secretsEnv, slot.effort);
+	const hookServerPort = slot.agentBinary === "codex" ? getServerPort(options.serverUrl) : undefined;
+	const mcpServer = slot.agentBinary === "codex"
+		? buildKanbomMcpServerSpec(options.mcpBinary, options.serverUrl, workspaceId, slot.agentBinary)
+		: undefined;
+	const output = await runAgentOnce(slot.agentBinary, triggerWord, worktreePath, workspaceId, streamId, stateHub, options.registerStopCallback, options.registerLiveProcess, mcpConfigPath, systemPrompt, context.files, secretsEnv, slot.effort, hookServerPort, mcpServer);
 	logger.info(`[review:${streamId}] ${slot.name} agent done (${Date.now() - startTime}ms)`);
 
 	// Comment type: use slot.type for built-ins, slot.id for custom
@@ -314,6 +318,8 @@ function runAgentOnce(
 	files?: string[],
 	secretsEnv?: Record<string, string>,
 	effort?: import("../core/api-contract.js").EffortLevel | null,
+	hookServerPort?: number,
+	mcpServer?: { command: string; args: string[] },
 ): Promise<string> {
 	return new Promise((resolve) => {
 		let output = "";
@@ -336,10 +342,12 @@ function runAgentOnce(
 			env: { ...buildTaskHookEnv(streamId, workspaceId), ...secretsEnv },
 			// Stop hook signals completion back to runAgentOnce via registerStopCallback
 			hookSettingsPath: agentId === "claude" ? CLAUDE_TASK_SETTINGS_PATH : undefined,
+			hookServerPort: agentId === "codex" ? hookServerPort : undefined,
 			mcpConfigPath: agentId === "claude" ? mcpConfigPath : undefined,
-			appendSystemPrompt: agentId === "claude" ? appendSystemPrompt : undefined,
+			mcpServer: agentId === "codex" ? mcpServer : undefined,
+			appendSystemPrompt,
 			files: agentId === "claude" ? files : undefined,
-			effort: agentId === "claude" ? effort : undefined,
+			effort,
 			onOutput: (data) => {
 				output += data;
 				stateHub.broadcastTerminalOutput(workspaceId, streamId, data);

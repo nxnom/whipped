@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import type { AgentProcess } from "../agents/agent-runner.js";
 import { spawnAgent } from "../agents/agent-runner.js";
 import { getAvailableAgents } from "../agents/agent-registry.js";
-import { CLAUDE_HOME_MCP_CONFIG_PATH, CLAUDE_TASK_SETTINGS_PATH, buildTaskHookEnv, getMcpConfigPath, writeClaudeMcpConfig, writeClaudeHomeSettings } from "../agents/agent-hooks.js";
+import { CLAUDE_HOME_MCP_CONFIG_PATH, CLAUDE_TASK_SETTINGS_PATH, buildKanbomMcpServerSpec, buildTaskHookEnv, getMcpConfigPath, getServerPort, writeClaudeMcpConfig, writeClaudeHomeSettings } from "../agents/agent-hooks.js";
 import type { WorkflowSlot, RuntimeAgentId, RuntimeBoardCard } from "../core/api-contract.js";
 import { buildDevAgentSystemPrompt, buildSecretsEnv, buildSecretsSection, runParentReopenCascade, tryParseAgentJson } from "./review-pipeline.js";
 import { logger } from "../core/logger.js";
@@ -125,7 +125,8 @@ export class TaskScheduler {
 				cwd: repoPath,
 				env: secretsEnv,
 				mcpConfigPath: agentId === "claude" ? CLAUDE_HOME_MCP_CONFIG_PATH : undefined,
-				appendSystemPrompt: agentId === "claude" ? appendSystemPrompt : undefined,
+				mcpServer: agentId === "codex" ? buildKanbomMcpServerSpec(getMcpServerPath(), serverUrl, workspaceId) : undefined,
+				appendSystemPrompt,
 				onOutput: (data) => {
 					homeTask.outputBuffer += data;
 					stateHub.broadcastTerminalOutput(workspaceId, taskId, data);
@@ -345,10 +346,12 @@ export class TaskScheduler {
 					cwd: worktree.path,
 					env: { ...buildTaskHookEnv(taskId, workspaceId), ...secretsEnv },
 					hookSettingsPath: agentId === "claude" ? CLAUDE_TASK_SETTINGS_PATH : undefined,
+					hookServerPort: agentId === "codex" ? getServerPort(this.options.serverUrl) : undefined,
 					mcpConfigPath: agentId === "claude" ? mcpConfigPath : undefined,
-					appendSystemPrompt: agentId === "claude" ? devSystemPromptResult.text : undefined,
+					mcpServer: agentId === "codex" ? buildKanbomMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId, agentId) : undefined,
+					appendSystemPrompt: devSystemPromptResult.text,
 					files: agentId === "claude" ? devSystemPromptResult.files : undefined,
-					effort: agentId === "claude" ? (devSlotEarly.effort ?? undefined) : undefined,
+					effort: devSlotEarly.effort ?? undefined,
 					onOutput: (data) => {
 						runningTask.outputBuffer += data;
 						stateHub.broadcastTerminalOutput(workspaceId, devStreamId, data);
@@ -692,6 +695,7 @@ export class TaskScheduler {
 			prompt: buildConflictResolutionPrompt(card, conflictedFiles),
 			cwd: mergeWorktreePath,
 			hookSettingsPath: defaultAgent === "claude" ? CLAUDE_TASK_SETTINGS_PATH : undefined,
+			hookServerPort: defaultAgent === "codex" ? getServerPort(this.options.serverUrl) : undefined,
 			env: buildTaskHookEnv(streamId, workspaceId),
 			appendSystemPrompt: CONFLICT_RESOLUTION_SYSTEM_PROMPT,
 			onOutput: (data) => {

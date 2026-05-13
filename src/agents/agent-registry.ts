@@ -1,5 +1,11 @@
 import { spawnSync } from "node:child_process";
-import type { RuntimeAgentId } from "../core/api-contract.js";
+import type { EffortLevel, RuntimeAgentId } from "../core/api-contract.js";
+import {
+	buildCodexDeveloperInstructions,
+	buildCodexEffortOverride,
+	buildCodexHookOverrides,
+	buildCodexMcpOverrides,
+} from "./codex-args.js";
 
 export interface AgentInfo {
 	id: RuntimeAgentId;
@@ -49,19 +55,61 @@ export function getAgentCommand(agentId: RuntimeAgentId): string {
 	return agent.command;
 }
 
+// Agent-agnostic launch context. Claude consumes file paths (settings/mcp);
+// codex consumes the same data inlined as `-c` TOML overrides. The caller
+// passes whichever of these the runtime has — buildAgentArgs picks the
+// right ones for the target agent and ignores the rest.
+export interface AgentArgsContext {
+	mode?: "interactive" | "print";
+	hookSettingsPath?: string;
+	hookServerPort?: number;
+	mcpConfigPath?: string;
+	mcpServer?: { command: string; args: string[] };
+	appendSystemPrompt?: string;
+	files?: string[];
+	effort?: EffortLevel | null;
+}
+
 // "interactive": stays alive after finishing (task agents — Stop hook handles completion).
-// "print": exits when done (review agents — onExit resolves the promise).
-export function buildAgentArgs(agentId: RuntimeAgentId, prompt: string, mode: "interactive" | "print" = "interactive"): string[] {
+// "print": exits when done (one-shot runs).
+export function buildAgentArgs(agentId: RuntimeAgentId, prompt: string, ctx: AgentArgsContext = {}): string[] {
+	const mode = ctx.mode ?? "interactive";
 	switch (agentId) {
 		case "claude": {
-			if (mode === "print") return ["-p", prompt, "--dangerously-skip-permissions"];
-			const args = ["--dangerously-skip-permissions"];
-			if (prompt.trim()) args.push(prompt);
+			const args: string[] = [];
+			if (mode === "print") {
+				args.push("-p", prompt, "--dangerously-skip-permissions");
+			} else {
+				args.push("--dangerously-skip-permissions");
+			}
+			if (ctx.hookSettingsPath) args.push("--settings", ctx.hookSettingsPath);
+			if (ctx.mcpConfigPath) args.push("--mcp-config", ctx.mcpConfigPath);
+			if (ctx.appendSystemPrompt) args.push("--append-system-prompt", ctx.appendSystemPrompt);
+			if (ctx.files?.length) {
+				for (const f of ctx.files) args.push("--file", f);
+			}
+			if (ctx.effort) args.push("--effort", ctx.effort);
+			if (mode === "interactive" && prompt.trim()) args.push(prompt);
 			return args;
 		}
-		case "codex":
-			return ["-q", "--approval-mode", "full-auto", "-m", "o4-mini", prompt];
+		case "codex": {
+			// `-c` overrides must precede any subcommand (e.g. `exec`).
+			const overrides: string[] = [];
+			if (ctx.hookServerPort != null) overrides.push(...buildCodexHookOverrides(ctx.hookServerPort));
+			if (ctx.mcpServer) overrides.push(...buildCodexMcpOverrides(ctx.mcpServer));
+			if (ctx.appendSystemPrompt) overrides.push(...buildCodexDeveloperInstructions(ctx.appendSystemPrompt));
+			if (ctx.effort) overrides.push(...buildCodexEffortOverride(ctx.effort));
+
+			const args: string[] = [...overrides];
+			if (mode === "print") {
+				args.push("exec", "--dangerously-bypass-approvals-and-sandbox", prompt);
+			} else {
+				args.push("--dangerously-bypass-approvals-and-sandbox");
+				if (prompt.trim()) args.push(prompt);
+			}
+			return args;
+		}
 		default:
-			throw new Error(`Unknown agent: ${agentId}`);
+			throw new Error(`Unknown agent: ${agentId satisfies never}`);
 	}
 }

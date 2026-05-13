@@ -10,6 +10,16 @@ export const CLAUDE_REVIEW_MCP_CONFIG_PATH = join(HOOKS_DIR, "claude-review-mcp-
 export const HOOK_TASK_ID_ENV = "KANBOM_HOOK_TASK_ID";
 export const HOOK_WORKSPACE_ID_ENV = "KANBOM_HOOK_WORKSPACE_ID";
 
+// Extract the port the runtime server is listening on from a server URL string.
+// Used by the codex adapter to build inline hook commands.
+export function getServerPort(serverUrl: string): number {
+	try {
+		return Number(new URL(serverUrl).port) || 0;
+	} catch {
+		return 0;
+	}
+}
+
 export function getMcpConfigPath(id: string): string {
 	const safe = id.replace(/[^a-zA-Z0-9_-]/g, "_");
 	return join(HOOKS_DIR, `claude-mcp-config-${safe}.json`);
@@ -34,6 +44,20 @@ export async function writeClaudeTaskHookSettings(serverPort: number): Promise<v
 	await writeFile(CLAUDE_TASK_SETTINGS_PATH, JSON.stringify(settings, null, 2));
 }
 
+// The raw {command, args} pair for the kanbom MCP server. Claude consumes the
+// JSON shape via buildMcpConfig; codex inlines this spec via `-c` overrides.
+export function buildKanbomMcpServerSpec(
+	mcp: { command: string; args: string[] },
+	serverUrl: string,
+	workspaceId: string,
+	agentId?: string,
+): { command: string; args: string[] } {
+	return {
+		command: mcp.command,
+		args: [...mcp.args, serverUrl, workspaceId, ...(agentId ? [agentId] : [])],
+	};
+}
+
 function buildMcpConfig(
 	mcp: { command: string; args: string[] },
 	serverUrl: string,
@@ -42,10 +66,7 @@ function buildMcpConfig(
 ): object {
 	return {
 		mcpServers: {
-			kanbom: {
-				command: mcp.command,
-				args: [...mcp.args, serverUrl, workspaceId, ...(agentId ? [agentId] : [])],
-			},
+			kanbom: buildKanbomMcpServerSpec(mcp, serverUrl, workspaceId, agentId),
 		},
 	};
 }
