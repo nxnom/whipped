@@ -1,6 +1,6 @@
 import { Button, ConfirmDialog, Input, Tooltip, toast } from "@geckoui/geckoui";
 import type { WorkflowSlot, RuntimeBoardCard } from "@runtime-contract";
-import { ArrowLeft, Check, ExternalLink, FolderOpen, GitBranch, GitMerge, GitPullRequest, Paperclip, Pencil, Play, Square, TerminalSquare, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, ExternalLink, GitBranch, GitMerge, GitPullRequest, Paperclip, Pencil, Play, Square, TerminalSquare, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { attachmentUrl, uploadAttachmentFile } from "@/runtime/attachments";
@@ -435,10 +435,11 @@ export function CardDetailPanel({ card, workspaceId, allCards, workflowSlots, on
 								)}
 								{card.worktreePath && (
 									<button
-										onClick={() => trpc.fs.openPath.mutate({ path: card.worktreePath! })}
-										className="mt-2 flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-400 transition-colors"
+										onClick={() => trpc.fs.openTerminal.mutate({ path: card.worktreePath! })}
+										className="mt-2 flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-400 cursor-pointer transition-colors"
+										title="Open terminal at worktree"
 									>
-										<FolderOpen size={12} />
+										<TerminalSquare size={12} />
 										<span className="font-mono truncate max-w-[220px]">{card.worktreePath.split("/").slice(-2).join("/")}</span>
 									</button>
 								)}

@@ -686,6 +686,18 @@ export const appRouter = router({
 			return { ok: true };
 		}),
 
+		listTerminals: publicProcedure.query(async () => {
+			const { listTerminalApps } = await import("../core/terminal-apps.js");
+			return listTerminalApps();
+		}),
+
+		openTerminal: publicProcedure.input(z.object({ path: z.string() })).mutation(async ({ input }) => {
+			const { openTerminalAt } = await import("../core/terminal-apps.js");
+			const config = await loadGlobalConfig();
+			openTerminalAt(input.path, config.terminalApp);
+			return { ok: true };
+		}),
+
 		listDir: publicProcedure.input(z.object({ path: z.string() })).query(async ({ input }) => {
 			const { readdirSync, statSync } = await import("node:fs");
 			const { join: pathJoin, dirname, resolve } = await import("node:path");

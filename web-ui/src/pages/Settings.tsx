@@ -1498,11 +1498,16 @@ function SecretsSection({
 function GlobalSettings({ section }: { section: GlobalSection }) {
 	const [config, setConfig] = useState<RuntimeGlobalConfig | null>(null);
 	const [saving, setSaving] = useState(false);
+	const [terminals, setTerminals] = useState<Array<{ id: string; label: string }>>([]);
 
 	useEffect(() => {
 		trpc.config.get
 			.query()
 			.then(setConfig)
+			.catch(() => {});
+		trpc.fs.listTerminals
+			.query()
+			.then(setTerminals)
 			.catch(() => {});
 	}, []);
 
@@ -1581,6 +1586,18 @@ function GlobalSettings({ section }: { section: GlobalSection }) {
 									value={String(config.prPollingIntervalSeconds)}
 									onChange={(e) => setConfig({ ...config, prPollingIntervalSeconds: Number(e.target.value) })}
 								/>
+							</Field>
+							<Field label="Terminal App">
+								<Select
+									value={config.terminalApp ?? ""}
+									onChange={(v) => setConfig({ ...config, terminalApp: (v as string) || undefined })}
+									placeholder="System default"
+									clearable
+								>
+									{terminals.map((t) => (
+										<SelectOption key={t.id} value={t.id} label={t.label} />
+									))}
+								</Select>
 							</Field>
 						</div>
 					</div>
