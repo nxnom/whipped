@@ -20,16 +20,16 @@ export default defineConfig({
 	},
 	server: {
 		host: "127.0.0.1",
-		port: 4174,
+		port: 50007,
 		strictPort: true,
 		proxy: {
 			"/api": {
-				target: `http://127.0.0.1:3485`,
+				target: `http://127.0.0.1:50008`,
 				changeOrigin: true,
 				ws: true,
 			},
 			"/ws": {
-				target: `ws://127.0.0.1:3485`,
+				target: `ws://127.0.0.1:50008`,
 				ws: true,
 			},
 		},

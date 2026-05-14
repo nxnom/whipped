@@ -7,8 +7,8 @@ export const OVEREMPLOYED_HOME_DIR = join(homedir(), ".overemployed");
 export const CONFIG_FILE = join(OVEREMPLOYED_HOME_DIR, "config.json");
 export const WORKSPACES_DIR = join(OVEREMPLOYED_HOME_DIR, "workspaces");
 export const ATTACHMENTS_DIR = join(OVEREMPLOYED_HOME_DIR, "attachments");
-export const DEFAULT_PORT = 3485;
-export const DEFAULT_WEB_UI_PORT = 4174;
+export const DEFAULT_PORT = 50008;
+export const DEFAULT_WEB_UI_PORT = 50007;
 
 let configLock: Promise<void> = Promise.resolve();
 
