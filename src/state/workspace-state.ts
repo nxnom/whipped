@@ -528,7 +528,7 @@ export async function downloadGithubImages(
 				"image/gif": "gif",
 				"image/webp": "webp",
 			};
-			const ext = extMap[contentType.split(";")[0]?.trim()] ?? "png";
+			const ext = extMap[contentType.split(";")[0]?.trim() ?? ""] ?? "png";
 			const buffer = Buffer.from(await res.arrayBuffer());
 			const localPath = await saveAttachment(buffer, ext, cardId);
 			const parts = localPath.replace(/\\/g, "/").split("/");

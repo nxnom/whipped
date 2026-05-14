@@ -43,15 +43,7 @@ export async function startDaemon(options: StartOptions): Promise<void> {
 		if (idx > 0 && (arr[idx - 1] === "--eval" || arr[idx - 1] === "-e")) return false;
 		return true;
 	});
-	const args = [
-		...passThroughExecArgv,
-		process.argv[1],
-		"__daemon-run",
-		"--port",
-		String(port),
-		"--host",
-		host,
-	];
+	const args = [...passThroughExecArgv, process.argv[1], "__daemon-run", "--port", String(port), "--host", host];
 	const child = spawn(process.execPath, args, {
 		detached: true,
 		stdio: ["ignore", out, err],

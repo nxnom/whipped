@@ -1,5 +1,11 @@
 import { Button, Checkbox, Input, Select, SelectOption, Switch, Textarea, toast } from "@geckoui/geckoui";
-import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
+import {
+	DragDropContext,
+	Draggable,
+	type DraggableProvidedDragHandleProps,
+	Droppable,
+	type DropResult,
+} from "@hello-pangea/dnd";
 import type {
 	RuntimeGlobalConfig,
 	RuntimeJiraTicket,
@@ -929,7 +935,7 @@ function WorkflowEditor({
 											>
 												<SlotCard
 													slot={slot}
-													dragHandleProps={drag.dragHandleProps}
+													dragHandleProps={drag.dragHandleProps ?? undefined}
 													onToggle={(v) => handleToggle(slot.id, v)}
 													onRemove={() => handleRemove(slot.id)}
 													onEdit={() => onEditSlot(slot)}
@@ -975,7 +981,7 @@ function WorkflowEditor({
 										>
 											<SlotCard
 												slot={slot}
-												dragHandleProps={drag.dragHandleProps}
+												dragHandleProps={drag.dragHandleProps ?? undefined}
 												onToggle={(v) => handleToggle(slot.id, v)}
 												onRemove={slot.type === "custom" ? () => handleRemove(slot.id) : undefined}
 												onEdit={() => onEditSlot(slot)}
@@ -1029,7 +1035,7 @@ function SlotCard({
 }: {
 	slot: WorkflowSlot;
 	isFixed?: boolean;
-	dragHandleProps?: Record<string, unknown>;
+	dragHandleProps?: DraggableProvidedDragHandleProps;
 	onToggle?: (v: boolean) => void;
 	onRemove?: () => void;
 	onEdit: () => void;

@@ -80,7 +80,7 @@ export function KanbanCard({
 	});
 	const allDepsMet = deps.length > 0 && metDeps.length === deps.length;
 
-	const borderClass = (snapshot_isDragging) => {
+	const borderClass = (snapshot_isDragging: boolean) => {
 		if (snapshot_isDragging) return "border-blue-500 shadow-lg shadow-blue-500/20 rotate-1";
 		if (isStory) return "border-purple-800";
 		if (card.columnId === "todo" && card.readyForDev) return "border-emerald-500/50";
