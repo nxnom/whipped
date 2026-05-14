@@ -134,7 +134,7 @@ function SelectStep({
 	return (
 		<div className="p-5">
 			<h3 className="text-base font-semibold text-gray-100 mb-1">Add Project</h3>
-			<p className="text-xs text-gray-500 mb-4">Select a git repository to manage with Kanbom.</p>
+			<p className="text-xs text-gray-500 mb-4">Select a git repository to manage with Overemployed.</p>
 
 			<div className="mb-1">
 				<label className="text-xs text-gray-400 block mb-1">Repository path</label>

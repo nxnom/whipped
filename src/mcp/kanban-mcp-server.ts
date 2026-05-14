@@ -6,14 +6,14 @@
  * Args: <serverUrl> <workspaceId>
  *   e.g. node mcp-server.js http://127.0.0.1:3000 abc123
  *
- * Falls back to env vars KANBOM_SERVER_URL / KANBOM_WORKSPACE_ID.
+ * Falls back to env vars OVEREMPLOYED_SERVER_URL / OVEREMPLOYED_WORKSPACE_ID.
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
-const serverUrl = process.argv[2] ?? process.env.KANBOM_SERVER_URL ?? "http://127.0.0.1:3000";
-const workspaceId = process.argv[3] ?? process.env.KANBOM_WORKSPACE_ID ?? "";
+const serverUrl = process.argv[2] ?? process.env.OVEREMPLOYED_SERVER_URL ?? "http://127.0.0.1:3000";
+const workspaceId = process.argv[3] ?? process.env.OVEREMPLOYED_WORKSPACE_ID ?? "";
 const agentId = process.argv[4] ?? "claude";
 
 async function trpc<T>(procedure: string, input: unknown): Promise<T> {
@@ -40,7 +40,7 @@ async function trpcQuery<T>(procedure: string, input: unknown): Promise<T> {
 	return data;
 }
 
-const server = new McpServer({ name: "kanbom", version: "1.0.0" });
+const server = new McpServer({ name: "overemployed", version: "1.0.0" });
 
 const attachmentInputSchema = z.object({
 	type: z.string().describe("Attachment type — 'image' for images, 'file' for other files"),

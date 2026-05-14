@@ -492,7 +492,7 @@ export const appRouter = router({
 						const deleteProjectConfig = await loadProjectConfig(workspaceId).catch(() => null);
 						const deleteGithubToken = deleteProjectConfig?.secrets?.find((s) => s.key === "GITHUB_TOKEN")?.value;
 						if (deleteGithubToken) {
-							await closePR(card.githubPrUrl, "Task deleted from kanbom", deleteGithubToken).catch((err) => {
+							await closePR(card.githubPrUrl, "Task deleted from overemployed", deleteGithubToken).catch((err) => {
 								logger.warn(`[cleanup:${cardId}] closePR failed: ${String(err)}`);
 							});
 						}

@@ -89,7 +89,7 @@ export function buildCodexHookOverrides(serverPort: number): string[] {
 export function buildCodexMcpOverrides(mcp: { command: string; args: string[] }): string[] {
 	const cmd = JSON.stringify(mcp.command);
 	const argsToml = `[${mcp.args.map((a) => JSON.stringify(a)).join(",")}]`;
-	return ["-c", `mcp_servers.kanbom.command=${cmd}`, "-c", `mcp_servers.kanbom.args=${argsToml}`];
+	return ["-c", `mcp_servers.overemployed.command=${cmd}`, "-c", `mcp_servers.overemployed.args=${argsToml}`];
 }
 
 export function buildCodexDeveloperInstructions(text: string): string[] {

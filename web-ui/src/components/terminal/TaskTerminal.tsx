@@ -57,7 +57,7 @@ export function TaskTerminal({ taskId, workspaceId, className }: TaskTerminalPro
 		});
 
 		ws.addEventListener("error", () => {
-			term.write("\r\n\x1b[31m[terminal: connection failed — is the kanbom server running?]\x1b[0m\r\n");
+			term.write("\r\n\x1b[31m[terminal: connection failed — is the overemployed server running?]\x1b[0m\r\n");
 		});
 
 		ws.addEventListener("close", (e) => {

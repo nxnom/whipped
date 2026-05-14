@@ -8,7 +8,7 @@ import { logger } from "../core/logger.js";
 
 const execFileAsync = promisify(execFile);
 
-const WORKTREES_DIR = join(homedir(), ".kanbom", "worktrees");
+const WORKTREES_DIR = join(homedir(), ".overemployed", "worktrees");
 
 function git(args: string[], cwd: string): { stdout: string; stderr: string; ok: boolean } {
 	const r = spawnSync("git", args, { cwd, encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] });
@@ -254,7 +254,7 @@ export function listLocalBranches(repoPath: string): string[] {
 	return r.stdout
 		.trim()
 		.split("\n")
-		.filter((b) => b && !b.startsWith("kanbom/"));
+		.filter((b) => b && !b.startsWith("overemployed/") && !b.startsWith("kanbom/"));
 }
 
 // Fetches body_html for a single issue comment, which contains pre-signed CDN URLs

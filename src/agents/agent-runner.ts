@@ -12,7 +12,7 @@ export interface AgentRunOptions {
 	// Claude reads a pre-written settings.json; codex builds the same config inline from the port.
 	hookSettingsPath?: string;
 	hookServerPort?: number;
-	// MCP server registration so the agent can call kanbom_* tools.
+	// MCP server registration so the agent can call kanban_* tools.
 	// Claude reads a pre-written JSON; codex inlines the spec.
 	mcpConfigPath?: string;
 	mcpServer?: { command: string; args: string[] };

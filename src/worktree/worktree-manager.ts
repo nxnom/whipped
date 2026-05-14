@@ -8,7 +8,7 @@ import { logger } from "../core/logger.js";
 
 const execFileAsync = promisify(execFile);
 
-const WORKTREES_DIR = join(homedir(), ".kanbom", "worktrees");
+const WORKTREES_DIR = join(homedir(), ".overemployed", "worktrees");
 
 function git(args: string[], cwd: string): { stdout: string; ok: boolean } {
 	const result = spawnSync("git", args, {
@@ -50,7 +50,7 @@ export function createWorktree(
 ): WorktreeCreateResult {
 	mkdirSync(WORKTREES_DIR, { recursive: true });
 
-	const branch = branchName ?? `kanbom/task-${taskId}`;
+	const branch = branchName ?? `overemployed/task-${taskId}`;
 	const worktreePath = join(WORKTREES_DIR, taskId);
 
 	// Reuse existing worktree so retries (reopened cards) build on prior work
@@ -86,7 +86,7 @@ export function createMergedWorktree(
 ): WorktreeCreateResult {
 	mkdirSync(WORKTREES_DIR, { recursive: true });
 
-	const branch = branchName ?? `kanbom/task-${taskId}`;
+	const branch = branchName ?? `overemployed/task-${taskId}`;
 	const worktreePath = join(WORKTREES_DIR, taskId);
 
 	if (existsSync(worktreePath)) {
@@ -127,7 +127,7 @@ export function createMergedWorktree(
 
 export function removeWorktree(taskId: string, repoPath: string, branchName?: string): void {
 	const worktreePath = join(WORKTREES_DIR, taskId);
-	const branch = branchName ?? `kanbom/task-${taskId}`;
+	const branch = branchName ?? `overemployed/task-${taskId}`;
 
 	const removeResult = git(["worktree", "remove", "--force", worktreePath], repoPath);
 	if (!removeResult.ok && existsSync(worktreePath)) {
@@ -139,7 +139,7 @@ export function removeWorktree(taskId: string, repoPath: string, branchName?: st
 
 export async function removeWorktreeAsync(taskId: string, repoPath: string, branchName?: string): Promise<void> {
 	const worktreePath = join(WORKTREES_DIR, taskId);
-	const branch = branchName ?? `kanbom/task-${taskId}`;
+	const branch = branchName ?? `overemployed/task-${taskId}`;
 
 	const t0 = Date.now();
 	logger.info(`[cleanup:${taskId}] starting worktree removal`);
@@ -173,7 +173,7 @@ export function getWorktreePath(taskId: string): string {
 }
 
 export function getWorktreeBranch(taskId: string): string {
-	return `kanbom/task-${taskId}`;
+	return `overemployed/task-${taskId}`;
 }
 
 export function getDefaultBranch(repoPath: string): string {

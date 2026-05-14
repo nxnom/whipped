@@ -143,7 +143,7 @@ export const reviewAttachmentSchema = z.object({
 	type: z.string(), // "image" | "file" | any mime category
 	name: z.string(),
 	mimeType: z.string(),
-	path: z.string(), // absolute path in ~/.kanbom/attachments/
+	path: z.string(), // absolute path in ~/.overemployed/attachments/
 });
 export type RuntimeReviewAttachment = z.infer<typeof reviewAttachmentSchema>;
 

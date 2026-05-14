@@ -67,7 +67,7 @@ export default function App() {
 				<nav className="w-52 shrink-0 border-r border-gray-800 flex flex-col">
 					{/* App branding */}
 					<div className="px-4 py-3.5 border-b border-gray-800 shrink-0">
-						<span className="text-sm font-bold text-white tracking-tight">Kanbom</span>
+						<span className="text-sm font-bold text-white tracking-tight">Overemployed</span>
 					</div>
 
 					{/* Projects list — scrollable */}

@@ -46,7 +46,7 @@ async function runServer(options: RunOptions): Promise<void> {
 	const repoPath = process.cwd();
 
 	if (!hasGitRepository(repoPath)) {
-		logger.error("Error: kanbom must be run inside a git repository.");
+		logger.error("Error: overemployed must be run inside a git repository.");
 		process.exit(1);
 	}
 
@@ -56,12 +56,12 @@ async function runServer(options: RunOptions): Promise<void> {
 		process.exit(1);
 	}
 
-	const spinner = ora("Starting kanbom...").start();
+	const spinner = ora("Starting overemployed...").start();
 
 	let server: Awaited<ReturnType<typeof createRuntimeServer>>;
 	try {
 		server = await createRuntimeServer({ port, host, repoPath });
-		spinner.succeed(`kanbom running at ${server.url}`);
+		spinner.succeed(`overemployed running at ${server.url}`);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		spinner.fail(`Failed to start: ${message}`);
@@ -106,7 +106,7 @@ async function runServer(options: RunOptions): Promise<void> {
 const program = new Command();
 
 program
-	.name("kanbom")
+	.name("overemployed")
 	.description("Autonomous AI agent kanban board for Claude and Codex")
 	.version(VERSION, "-v, --version")
 	.option("--port <number>", "Port to listen on", String(DEFAULT_PORT))

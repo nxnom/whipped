@@ -9,7 +9,7 @@ const backend = spawn("pnpm", ["exec", "tsx", "src/cli.ts", "--no-open"], {
 });
 
 const frontend = spawn("pnpm", ["web:dev"], {
-	env: { ...env, KANBOM_WEB_UI_PORT: "4174" },
+	env: { ...env, OVEREMPLOYED_WEB_UI_PORT: "4174" },
 	stdio: "inherit",
 	shell: true,
 });

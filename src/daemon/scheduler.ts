@@ -4,7 +4,7 @@ import { unlink } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-	buildKanbomMcpServerSpec,
+	buildOveremployedMcpServerSpec,
 	buildTaskHookEnv,
 	CLAUDE_HOME_MCP_CONFIG_PATH,
 	CLAUDE_TASK_SETTINGS_PATH,
@@ -152,7 +152,7 @@ export class TaskScheduler {
 				env: secretsEnv,
 				mcpConfigPath: agentId === "claude" ? CLAUDE_HOME_MCP_CONFIG_PATH : undefined,
 				mcpServer:
-					agentId === "codex" ? buildKanbomMcpServerSpec(getMcpServerPath(), serverUrl, workspaceId) : undefined,
+					agentId === "codex" ? buildOveremployedMcpServerSpec(getMcpServerPath(), serverUrl, workspaceId) : undefined,
 				appendSystemPrompt,
 				onOutput: (data) => {
 					homeTask.outputBuffer += data;
@@ -423,7 +423,7 @@ export class TaskScheduler {
 					mcpConfigPath: agentId === "claude" ? mcpConfigPath : undefined,
 					mcpServer:
 						agentId === "codex"
-							? buildKanbomMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId, agentId)
+							? buildOveremployedMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId, agentId)
 							: undefined,
 					appendSystemPrompt: devSystemPromptResult.text,
 					files: agentId === "claude" ? devSystemPromptResult.files : undefined,

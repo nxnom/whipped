@@ -2,13 +2,13 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const HOOKS_DIR = join(homedir(), ".kanbom", "hooks");
+const HOOKS_DIR = join(homedir(), ".overemployed", "hooks");
 export const CLAUDE_TASK_SETTINGS_PATH = join(HOOKS_DIR, "claude-task-settings.json");
 export const CLAUDE_HOME_MCP_CONFIG_PATH = join(HOOKS_DIR, "claude-home-mcp-config.json");
 export const CLAUDE_REVIEW_MCP_CONFIG_PATH = join(HOOKS_DIR, "claude-review-mcp-config.json");
 
-export const HOOK_TASK_ID_ENV = "KANBOM_HOOK_TASK_ID";
-export const HOOK_WORKSPACE_ID_ENV = "KANBOM_HOOK_WORKSPACE_ID";
+export const HOOK_TASK_ID_ENV = "OVEREMPLOYED_HOOK_TASK_ID";
+export const HOOK_WORKSPACE_ID_ENV = "OVEREMPLOYED_HOOK_WORKSPACE_ID";
 
 // Extract the port the runtime server is listening on from a server URL string.
 // Used by the codex adapter to build inline hook commands.
@@ -44,9 +44,9 @@ export async function writeClaudeTaskHookSettings(serverPort: number): Promise<v
 	await writeFile(CLAUDE_TASK_SETTINGS_PATH, JSON.stringify(settings, null, 2));
 }
 
-// The raw {command, args} pair for the kanbom MCP server. Claude consumes the
+// The raw {command, args} pair for the overemployed MCP server. Claude consumes the
 // JSON shape via buildMcpConfig; codex inlines this spec via `-c` overrides.
-export function buildKanbomMcpServerSpec(
+export function buildOveremployedMcpServerSpec(
 	mcp: { command: string; args: string[] },
 	serverUrl: string,
 	workspaceId: string,
@@ -66,13 +66,13 @@ function buildMcpConfig(
 ): object {
 	return {
 		mcpServers: {
-			kanbom: buildKanbomMcpServerSpec(mcp, serverUrl, workspaceId, agentId),
+			overemployed: buildOveremployedMcpServerSpec(mcp, serverUrl, workspaceId, agentId),
 		},
 	};
 }
 
 // Writes a settings.json for the home agent (Kanban Agent) that registers the
-// kanbom MCP server so Claude has typed tools to manage the board.
+// overemployed MCP server so Claude has typed tools to manage the board.
 export async function writeClaudeHomeSettings(
 	mcp: { command: string; args: string[] },
 	serverUrl: string,

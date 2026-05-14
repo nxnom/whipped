@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { unlink } from "node:fs/promises";
 import { join } from "node:path";
 import {
-	buildKanbomMcpServerSpec,
+	buildOveremployedMcpServerSpec,
 	buildTaskHookEnv,
 	CLAUDE_TASK_SETTINGS_PATH,
 	getMcpConfigPath,
@@ -200,7 +200,7 @@ async function runReviewSlot(
 	const hookServerPort = slot.agentBinary === "codex" ? getServerPort(options.serverUrl) : undefined;
 	const mcpServer =
 		slot.agentBinary === "codex"
-			? buildKanbomMcpServerSpec(options.mcpBinary, options.serverUrl, workspaceId, slot.agentBinary)
+			? buildOveremployedMcpServerSpec(options.mcpBinary, options.serverUrl, workspaceId, slot.agentBinary)
 			: undefined;
 	const output = await runAgentOnce(
 		slot.agentBinary,
