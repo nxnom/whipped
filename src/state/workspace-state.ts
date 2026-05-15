@@ -163,6 +163,22 @@ export async function saveProjectConfig(workspaceId: string, config: RuntimeProj
 	await writeFile(projectConfigFilePath(workspaceId), JSON.stringify(config, null, 2), "utf-8");
 }
 
+// Atomic read-modify-write on the project config. Use this for partial
+// updates (single-field setters) so two concurrent callers cannot race
+// load → mutate → save into a last-write-wins overwrite.
+export async function updateProjectConfig(
+	workspaceId: string,
+	mutator: (config: RuntimeProjectConfig) => RuntimeProjectConfig,
+): Promise<RuntimeProjectConfig> {
+	return withLock(workspaceId, async () => {
+		const current = await loadProjectConfig(workspaceId);
+		const next = mutator(current);
+		await mkdir(workspaceDirPath(workspaceId), { recursive: true });
+		await writeFile(projectConfigFilePath(workspaceId), JSON.stringify(next, null, 2), "utf-8");
+		return next;
+	});
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export interface WorkspaceContext {
@@ -568,7 +584,7 @@ export async function updateCard(
 			| "readyForDev"
 			| "dependsOn"
 			| "workflowId"
-			| "githubPrUrl"
+			| "pr"
 			| "reviewComments"
 			| "autoFixAttempts"
 			| "githubCommentIds"

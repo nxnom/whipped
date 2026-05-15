@@ -69,9 +69,9 @@ export function HistoryPage({ workspaceId }: Props) {
 													{duration}m
 												</span>
 											)}
-											{card.githubPrUrl && (
+											{card.pr?.url && (
 												<a
-													href={card.githubPrUrl}
+													href={card.pr?.url}
 													target="_blank"
 													rel="noreferrer"
 													onClick={(e) => e.stopPropagation()}

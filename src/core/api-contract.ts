@@ -99,6 +99,53 @@ export const DEFAULT_STORY_WORKFLOW: Workflow = {
 	],
 };
 
+// ─── Default git instructions ────────────────────────────────────────────────
+// Used when a project doesn't override `gitInstructions` in its config.
+// Also pre-filled as starter text in the UI when the field is empty.
+export const DEFAULT_GIT_INSTRUCTIONS = `# Git conventions
+
+These rules govern how to write commit messages, PR titles, and PR
+descriptions.
+
+## PR title
+- Imperative, present tense: "Add board view", "Fix race in poller".
+  Not past tense, not gerund.
+- ≤70 characters; aim for 50.
+- Describe what shipped, not the task. "Add board view" beats
+  "Implement board view feature".
+- No prefixes like \`feat:\` / \`[FEAT]\` / \`fix:\`.
+- No ticket IDs in the title (put them in the description if needed).
+- No trailing period.
+
+## PR description
+Keep it focused. Two sections, nothing more unless genuinely useful:
+
+    ## Summary
+    - What changed and why. Use as many bullets as the scope warrants —
+      a one-line fix is one bullet; a refactor touching 20 files may
+      need ten. Don't pad, don't truncate.
+
+    ## Test plan
+    - What you actually ran or clicked, and the outcome.
+    - Type-check and lint passing are not a test plan on their own.
+    - If something couldn't be verified, say so in one line.
+
+Do NOT include:
+- Iteration narration ("Round N", "addressed feedback", "after review").
+- Commit SHAs or branch names — GitHub already shows both.
+- Paths to internal planning docs, scratch files, or task tracker URLs.
+- "Verification:" sections that only list a passing type-check or lint.
+- Self-congratulation ("clean", "all checks pass", "ready to merge").
+- Restating the task description verbatim.
+
+## Commit messages
+- Short imperative subject line, ≤72 chars. That's usually enough.
+- Skip the body unless a reviewer reading the diff alone would be
+  confused about *why* the change exists.
+- Reference an issue only if a concrete one exists to close
+  (\`Closes #123\`). Never invent issue numbers.
+`;
+
 // ─── Columns ─────────────────────────────────────────────────────────────────
 
 export const runtimeBoardColumnIdSchema = z.enum([
@@ -197,6 +244,17 @@ export type RuntimeCardPriority = z.infer<typeof runtimeCardPrioritySchema>;
 export const cardTypeSchema = z.enum(["task", "story", "subtask"]);
 export type CardType = z.infer<typeof cardTypeSchema>;
 
+// ─── PR metadata (provider-agnostic) ─────────────────────────────────────────
+
+export const runtimePrMetaSchema = z.object({
+	url: z.string().optional(),
+	title: z.string().optional(),
+	description: z.string().optional(),
+	updatedAt: z.number().optional(),
+	updatedBy: z.string().optional(),
+});
+export type RuntimePrMeta = z.infer<typeof runtimePrMetaSchema>;
+
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
 export const runtimeBoardCardSchema = z.object({
@@ -215,7 +273,7 @@ export const runtimeBoardCardSchema = z.object({
 	createdAt: z.number(),
 	updatedAt: z.number(),
 	githubIssueUrl: z.string().optional(),
-	githubPrUrl: z.string().optional(),
+	pr: runtimePrMetaSchema.optional(),
 	jiraKey: z.string().optional(),
 	jiraUrl: z.string().optional(),
 	workflowId: z.string().optional(),
@@ -303,6 +361,10 @@ export const runtimeProjectConfigSchema = z.object({
 	workflows: z.array(workflowSchema).default([DEFAULT_WORKFLOW, DEFAULT_STORY_WORKFLOW]),
 	secrets: z.array(runtimeProjectSecretSchema).default([]),
 	systemPrompt: z.string().optional(),
+	// Freeform instructions injected into the dev agent's prompt to shape PR
+	// titles, descriptions, and commit messages. Empty/absent → daemon falls
+	// back to DEFAULT_GIT_INSTRUCTIONS.
+	gitInstructions: z.string().optional(),
 });
 export type RuntimeProjectConfig = z.infer<typeof runtimeProjectConfigSchema>;
 

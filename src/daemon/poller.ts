@@ -280,7 +280,7 @@ export class BoardPoller {
 		const rfr = state.board.columns.find((c) => c.id === "ready_for_review");
 		if (!rfr) return;
 
-		const cardsWithPR = rfr.taskIds.filter((id) => state.board.cards[id]?.githubPrUrl);
+		const cardsWithPR = rfr.taskIds.filter((id) => state.board.cards[id]?.pr?.url);
 		if (cardsWithPR.length === 0) return;
 
 		// Reload token fresh each poll cycle so config changes take effect immediately
@@ -288,10 +288,11 @@ export class BoardPoller {
 
 		for (const taskId of cardsWithPR) {
 			const card = state.board.cards[taskId]!;
+			const prUrlForPoll = card.pr!.url!;
 
-			const info = await fetchPRInfo(card.githubPrUrl!, githubToken);
+			const info = await fetchPRInfo(prUrlForPoll, githubToken);
 			if (!info) {
-				logger.warn(`[poller] Could not fetch PR info for "${card.title}" (${card.githubPrUrl})`);
+				logger.warn(`[poller] Could not fetch PR info for "${card.title}" (${prUrlForPoll})`);
 				continue;
 			}
 
@@ -322,8 +323,8 @@ export class BoardPoller {
 					...cleanedComments,
 					...(await Promise.all(
 						readyEntries.map(async (e) => {
-							const prUrl = card.githubPrUrl;
-							const fetchHtml = prUrl && githubToken ? () => fetchCommentBodyHtml(prUrl, e.id, githubToken) : undefined;
+							const fetchHtml =
+								githubToken ? () => fetchCommentBodyHtml(prUrlForPoll, e.id, githubToken) : undefined;
 							return {
 								type: "human" as const,
 								actor: { type: "external" as const, id: e.author, source: "github" },

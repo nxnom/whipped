@@ -11,6 +11,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { DEFAULT_GIT_INSTRUCTIONS } from "../core/api-contract.js";
 
 const serverUrl = process.argv[2] ?? process.env.OVEREMPLOYED_SERVER_URL ?? "http://127.0.0.1:3000";
 const workspaceId = process.argv[3] ?? process.env.OVEREMPLOYED_WORKSPACE_ID ?? "";
@@ -594,6 +595,134 @@ server.registerTool(
 );
 
 server.registerTool(
+	"kanban_get_pr_meta",
+	{
+		description:
+			"Get the current PR metadata stored on a card — url (set by the daemon when the PR is created), title, description, and the updatedAt/updatedBy stamps from the last write. Use this when the dev prompt shows a truncated previous description and you need the full text to revise.",
+		inputSchema: {
+			cardId: z.string().describe("The card ID to read PR metadata from"),
+		},
+	},
+	async ({ cardId }) => {
+		const state = await trpcQuery<{
+			board: {
+				cards: Record<
+					string,
+					{
+						pr?: {
+							url?: string;
+							title?: string;
+							description?: string;
+							updatedAt?: number;
+							updatedBy?: string;
+						};
+					}
+				>;
+			};
+		}>("workspace.state", { workspaceId });
+		const card = state.board.cards[cardId];
+		if (!card) {
+			return { content: [{ type: "text", text: `Card ${cardId} not found on the board. Use kanban_get_board to list valid card IDs.` }] };
+		}
+		const pr = card.pr;
+		if (!pr || (!pr.url && !pr.title && !pr.description)) {
+			return { content: [{ type: "text", text: `No PR metadata on card ${cardId} yet.` }] };
+		}
+		const lines = [
+			`url: ${pr.url ?? "(not yet created)"}`,
+			`title: ${pr.title ?? "(unset)"}`,
+			"",
+			"description:",
+			pr.description ?? "(unset)",
+		];
+		if (pr.updatedAt) lines.push("", `last updated: ${new Date(pr.updatedAt).toISOString()} by ${pr.updatedBy ?? "?"}`);
+		return { content: [{ type: "text", text: lines.join("\n") }] };
+	},
+);
+
+server.registerTool(
+	"kanban_set_pr_meta",
+	{
+		description:
+			"Set the PR title and/or description for a card. Call this at the end of your work so the daemon uses your text when it creates the PR. The PR url is set by the daemon and never overwritten by this call. Subsequent calls overwrite previous values — revise rather than rewrite when prior values already reflect the change.",
+		inputSchema: {
+			cardId: z.string().describe("The card ID this PR is for"),
+			title: z.string().optional().describe("PR title. Follow the project's git instructions."),
+			description: z.string().optional().describe("PR description body. Follow the project's git instructions."),
+			streamId: z.string().optional().describe("Terminal session stream ID for this agent run, if available"),
+		},
+	},
+	async ({ cardId, title, description, streamId }) => {
+		const result = await trpc<{ ok: boolean; pr: { title?: string; description?: string } }>("cards.setPrMeta", {
+			workspaceId,
+			cardId,
+			title,
+			description,
+			updatedBy: streamId ?? agentId,
+		});
+		const parts: string[] = [];
+		if (result.pr.title) parts.push(`title="${result.pr.title}"`);
+		if (result.pr.description) parts.push(`description (${result.pr.description.length} chars)`);
+		return {
+			content: [{ type: "text", text: `PR meta updated on card ${cardId}: ${parts.join(", ") || "(empty)"}.` }],
+		};
+	},
+);
+
+server.registerTool(
+	"kanban_get_git_instructions",
+	{
+		description:
+			"Get the project's git conventions for PR titles, PR descriptions, and commit messages. Returns the user's custom override (if any), the built-in default, and the effective text that the dev prompt actually injects. Read this before writing PR meta so you follow project conventions.",
+		inputSchema: {},
+	},
+	async () => {
+		const config = await trpcQuery<{ gitInstructions?: string }>("projectConfig.get", { workspaceId });
+		const custom = config.gitInstructions?.trim() ? config.gitInstructions : null;
+		const effective = custom ?? DEFAULT_GIT_INSTRUCTIONS;
+		const lines: string[] = [];
+		lines.push(custom ? "## Custom git instructions (project override)" : "## Custom git instructions: (none — using default)");
+		if (custom) lines.push(custom);
+		lines.push("");
+		lines.push("## Default git instructions");
+		lines.push(DEFAULT_GIT_INSTRUCTIONS);
+		lines.push("");
+		lines.push("## Effective (what dev agents actually see)");
+		lines.push(effective);
+		return { content: [{ type: "text", text: lines.join("\n") }] };
+	},
+);
+
+server.registerTool(
+	"kanban_set_git_instructions",
+	{
+		description:
+			"Replace the project's custom git conventions (PR title/description/commit rules). This is project-wide and affects all future PRs in this workspace — only call when explicitly asked to change conventions, not as part of regular task work. Pass an empty string to clear the override and revert to the built-in default.",
+		inputSchema: {
+			instructions: z
+				.string()
+				.describe(
+					"Full replacement text in markdown or freeform prose. Pass an empty string to clear the override and use the default.",
+				),
+		},
+	},
+	async ({ instructions }) => {
+		const result = await trpc<{ ok: boolean; cleared: boolean }>("projectConfig.setGitInstructions", {
+			workspaceId,
+			instructions,
+		});
+		return {
+			content: [
+				{
+					type: "text",
+					text: result.cleared ? "Custom git instructions cleared — using default." : "Custom git instructions updated.",
+				},
+			],
+		};
+	},
+);
+
+server.registerTool(
 	"kanban_get_system_prompt",
 	{
 		description:
@@ -617,14 +746,13 @@ server.registerTool(
 		},
 	},
 	async ({ prompt }) => {
-		const config = await trpcQuery<Record<string, unknown>>("projectConfig.get", { workspaceId });
-		await trpc("projectConfig.save", {
+		const result = await trpc<{ ok: boolean; cleared: boolean }>("projectConfig.setSystemPrompt", {
 			workspaceId,
-			config: { ...config, systemPrompt: prompt.trim() || undefined },
+			prompt,
 		});
 		return {
 			content: [
-				{ type: "text", text: prompt.trim() ? `Shared system prompt updated.` : `Shared system prompt cleared.` },
+				{ type: "text", text: result.cleared ? `Shared system prompt cleared.` : `Shared system prompt updated.` },
 			],
 		};
 	},

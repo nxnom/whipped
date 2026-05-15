@@ -18,6 +18,7 @@ import type {
 import {
 	AGENT_BINARY_OPTIONS,
 	BUILTIN_SECRET_KEYS,
+	DEFAULT_GIT_INSTRUCTIONS,
 	EFFORT_OPTIONS,
 	type EffortLevel,
 	MODEL_OPTIONS,
@@ -390,6 +391,30 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 							<p className="text-xs text-gray-500 mt-1.5">
 								New tasks and stories will default to this branch. Leave empty to use the repo's default branch.
 							</p>
+						</Field>
+						<Field label="Git conventions">
+							<Textarea
+								value={config.gitInstructions ?? ""}
+								onChange={(e) => updateConfig({ ...config, gitInstructions: e.target.value || undefined })}
+								placeholder={DEFAULT_GIT_INSTRUCTIONS}
+								maxRows={30}
+								autoResize
+							/>
+							<div className="flex items-center gap-3 mt-1.5">
+								<p className="text-xs text-gray-500 flex-1">
+									Freeform rules the dev agent reads when writing commit messages, PR titles, and PR descriptions.
+									Leave empty to use the built-in default shown as placeholder.
+								</p>
+								{!config.gitInstructions && (
+									<Button
+										variant="outlined"
+										size="sm"
+										onClick={() => updateConfig({ ...config, gitInstructions: DEFAULT_GIT_INSTRUCTIONS })}
+									>
+										Load default
+									</Button>
+								)}
+							</div>
 						</Field>
 						<SaveRow saving={saving} onSave={handleSave} />
 					</>

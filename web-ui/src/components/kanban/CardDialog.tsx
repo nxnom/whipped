@@ -77,9 +77,9 @@ export function CardDialog({ card, workspaceId, onClose, onRefresh }: Props) {
 							<ExternalLink size={11} /> GitHub Issue
 						</a>
 					)}
-					{card.githubPrUrl && (
+					{card.pr?.url && (
 						<a
-							href={card.githubPrUrl}
+							href={card.pr?.url}
 							target="_blank"
 							rel="noreferrer"
 							className="flex items-center gap-1 text-xs text-green-400 hover:underline"

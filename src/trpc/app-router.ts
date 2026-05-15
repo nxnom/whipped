@@ -44,7 +44,7 @@ import {
 	moveCard,
 	removeWorkspace,
 	saveAttachment,
-	saveProjectConfig,
+	updateProjectConfig,
 	saveWorkspaceState,
 	setAutonomousMode,
 	updateCard,
@@ -158,9 +158,7 @@ export const appRouter = router({
 				const context = await loadWorkspaceContext(input.repoPath);
 				await ctx.ensureWorkspace(context.workspaceId);
 				if (input.initialConfig) {
-					const current = await loadProjectConfig(context.workspaceId);
-					await saveProjectConfig(
-						context.workspaceId,
+					await updateProjectConfig(context.workspaceId, (current) =>
 						runtimeProjectConfigSchema.parse({ ...current, ...input.initialConfig }),
 					);
 				}
@@ -241,9 +239,35 @@ export const appRouter = router({
 		save: publicProcedure
 			.input(z.object({ workspaceId: z.string(), config: runtimeProjectConfigSchema }))
 			.mutation(async ({ ctx, input }) => {
-				await saveProjectConfig(input.workspaceId, input.config);
+				// Full-replace, but acquired through the lock so it serializes against
+				// any concurrent partial setters (workflows, gitInstructions, etc.).
+				await updateProjectConfig(input.workspaceId, () => input.config);
 				ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
 				return { ok: true };
+			}),
+
+		setGitInstructions: publicProcedure
+			.input(z.object({ workspaceId: z.string(), instructions: z.string() }))
+			.mutation(async ({ ctx, input }) => {
+				const trimmed = input.instructions.trim();
+				await updateProjectConfig(input.workspaceId, (c) => ({
+					...c,
+					gitInstructions: trimmed || undefined,
+				}));
+				ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
+				return { ok: true, cleared: !trimmed };
+			}),
+
+		setSystemPrompt: publicProcedure
+			.input(z.object({ workspaceId: z.string(), prompt: z.string() }))
+			.mutation(async ({ ctx, input }) => {
+				const trimmed = input.prompt.trim();
+				await updateProjectConfig(input.workspaceId, (c) => ({
+					...c,
+					systemPrompt: trimmed || undefined,
+				}));
+				ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
+				return { ok: true, cleared: !trimmed };
 			}),
 	}),
 
@@ -257,14 +281,16 @@ export const appRouter = router({
 		upsert: publicProcedure
 			.input(z.object({ workspaceId: z.string(), workflow: workflowSchema }))
 			.mutation(async ({ ctx, input }) => {
-				const config = await loadProjectConfig(input.workspaceId);
-				const idx = config.workflows.findIndex((w) => w.id === input.workflow.id);
-				if (idx >= 0) {
-					config.workflows[idx] = input.workflow;
-				} else {
-					config.workflows.push(input.workflow);
-				}
-				await saveProjectConfig(input.workspaceId, config);
+				await updateProjectConfig(input.workspaceId, (config) => {
+					const idx = config.workflows.findIndex((w) => w.id === input.workflow.id);
+					const workflows = [...config.workflows];
+					if (idx >= 0) {
+						workflows[idx] = input.workflow;
+					} else {
+						workflows.push(input.workflow);
+					}
+					return { ...config, workflows };
+				});
 				ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
 				return input.workflow;
 			}),
@@ -272,9 +298,10 @@ export const appRouter = router({
 		delete: publicProcedure
 			.input(z.object({ workspaceId: z.string(), workflowId: z.string() }))
 			.mutation(async ({ ctx, input }) => {
-				const config = await loadProjectConfig(input.workspaceId);
-				config.workflows = config.workflows.filter((w) => w.id !== input.workflowId);
-				await saveProjectConfig(input.workspaceId, config);
+				await updateProjectConfig(input.workspaceId, (config) => ({
+					...config,
+					workflows: config.workflows.filter((w) => w.id !== input.workflowId),
+				}));
 				ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
 				return { ok: true };
 			}),
@@ -324,7 +351,9 @@ export const appRouter = router({
 				const worktreePath = getWorktreePath(cardId);
 				const taskBranch = getCardBranch(card);
 
-				await commitIfDirty(worktreePath, card.title);
+				// Safety-net commit only fires when the agent left the worktree dirty.
+				// Prefer the agent-written PR title (follows project git conventions).
+				await commitIfDirty(worktreePath, card.pr?.title ?? card.title);
 
 				let mergeResult: ReturnType<typeof attemptMerge>;
 				try {
@@ -337,9 +366,10 @@ export const appRouter = router({
 				const mergeGithubToken = mergeProjectConfig.secrets?.find((s) => s.key === "GITHUB_TOKEN")?.value;
 
 				if (mergeResult.ok) {
-					if (card.githubPrUrl && mergeGithubToken) {
-						closePR(card.githubPrUrl, "Merged locally", mergeGithubToken).catch((err) => {
-							logger.warn(`[merge] Failed to close PR ${card.githubPrUrl}: ${String(err)}`);
+					if (card.pr?.url && mergeGithubToken) {
+						const mergedPrUrl = card.pr.url;
+						closePR(mergedPrUrl, "Merged locally", mergeGithubToken).catch((err) => {
+							logger.warn(`[merge] Failed to close PR ${mergedPrUrl}: ${String(err)}`);
 						});
 					}
 					await moveCard(workspaceId, cardId, "done");
@@ -372,9 +402,10 @@ export const appRouter = router({
 				await scheduler.startConflictResolution(card, ws.repoPath, mergeResult.conflictedFiles, async (success) => {
 					if (success) {
 						finalizeMerge(ws.repoPath, taskBranch);
-						if (card.githubPrUrl && mergeGithubToken) {
-							closePR(card.githubPrUrl, "Merged locally", mergeGithubToken).catch((err) => {
-								logger.warn(`[merge] Failed to close PR ${card.githubPrUrl}: ${String(err)}`);
+						if (card.pr?.url && mergeGithubToken) {
+							const conflictedPrUrl = card.pr.url;
+							closePR(conflictedPrUrl, "Merged locally", mergeGithubToken).catch((err) => {
+								logger.warn(`[merge] Failed to close PR ${conflictedPrUrl}: ${String(err)}`);
 							});
 						}
 						await moveCard(workspaceId, cardId, "done");
@@ -416,7 +447,9 @@ export const appRouter = router({
 				const worktreePath = getWorktreePath(cardId);
 				const taskBranch = getCardBranch(card);
 
-				await commitIfDirty(worktreePath, card.title);
+				// Safety-net commit only fires when the agent left the worktree dirty.
+				// Prefer the agent-written PR title (follows project git conventions).
+				await commitIfDirty(worktreePath, card.pr?.title ?? card.title);
 
 				try {
 					await pushBranch(worktreePath, taskBranch);
@@ -426,16 +459,18 @@ export const appRouter = router({
 
 				const devSummary =
 					[...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev")?.summary ?? card.description;
+				const prTitle = card.pr?.title ?? card.title;
+				const prDescription = card.pr?.description ?? devSummary;
 
 				let prUrl: string;
 				try {
-					prUrl = await createGithubPR(worktreePath, card.title, devSummary, card.baseRef, prGithubToken);
+					prUrl = await createGithubPR(worktreePath, prTitle, prDescription, card.baseRef, prGithubToken);
 				} catch (err) {
 					spawnSync("git", ["push", "origin", "--delete", taskBranch], { cwd: worktreePath, stdio: "ignore" });
 					throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `PR creation failed: ${err}` });
 				}
 
-				await updateCard(workspaceId, cardId, { githubPrUrl: prUrl });
+				await updateCard(workspaceId, cardId, { pr: { ...card.pr, url: prUrl } });
 				await appendActivityLog(workspaceId, cardId, `PR created → ${prUrl}`);
 				ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 				return { status: "pr_created" as const, prUrl };
@@ -488,11 +523,12 @@ export const appRouter = router({
 				// Queue cleanup so it never blocks the event loop
 				enqueueCleanup(async () => {
 					logger.info(`[cleanup:${cardId}] dequeued (${cleanupQueue.length} remaining)`);
-					if (card?.githubPrUrl) {
+					if (card?.pr?.url) {
+						const deletePrUrl = card.pr.url;
 						const deleteProjectConfig = await loadProjectConfig(workspaceId).catch(() => null);
 						const deleteGithubToken = deleteProjectConfig?.secrets?.find((s) => s.key === "GITHUB_TOKEN")?.value;
 						if (deleteGithubToken) {
-							await closePR(card.githubPrUrl, "Task deleted from overemployed", deleteGithubToken).catch((err) => {
+							await closePR(deletePrUrl, "Task deleted from overemployed", deleteGithubToken).catch((err) => {
 								logger.warn(`[cleanup:${cardId}] closePR failed: ${String(err)}`);
 							});
 						}
@@ -630,6 +666,34 @@ export const appRouter = router({
 				ctx.getScheduler(input.workspaceId)?.interruptForParentReopen(input.cardId);
 				ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
 				return { ok: true };
+			}),
+
+		setPrMeta: publicProcedure
+			.input(
+				z.object({
+					workspaceId: z.string(),
+					cardId: z.string(),
+					title: z.string().optional(),
+					description: z.string().optional(),
+					updatedBy: z.string().optional(),
+				}),
+			)
+			.mutation(async ({ ctx, input }) => {
+				const board = await loadBoard(input.workspaceId);
+				const card = board.cards[input.cardId];
+				if (!card) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
+
+				// Merge title/description into card.pr — preserves url (daemon owns it).
+				const nextPr = {
+					...card.pr,
+					...(input.title !== undefined ? { title: input.title } : {}),
+					...(input.description !== undefined ? { description: input.description } : {}),
+					updatedAt: Date.now(),
+					...(input.updatedBy ? { updatedBy: input.updatedBy } : {}),
+				};
+				await updateCard(input.workspaceId, input.cardId, { pr: nextPr });
+				ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
+				return { ok: true, pr: nextPr };
 			}),
 
 		getDiff: publicProcedure

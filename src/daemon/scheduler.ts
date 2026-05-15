@@ -16,7 +16,7 @@ import {
 import { getAvailableAgents } from "../agents/agent-registry.js";
 import type { AgentProcess } from "../agents/agent-runner.js";
 import { spawnAgent } from "../agents/agent-runner.js";
-import type { RuntimeAgentId, RuntimeBoardCard, WorkflowSlot } from "../core/api-contract.js";
+import { DEFAULT_GIT_INSTRUCTIONS, type RuntimeAgentId, type RuntimeBoardCard, type WorkflowSlot } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 import { commitIfDirty, pushBranch } from "../git/merge-operations.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
@@ -392,6 +392,7 @@ export class TaskScheduler {
 				secrets,
 				parentCards,
 				projectConfig.systemPrompt,
+				projectConfig.gitInstructions,
 			);
 			const secretsEnv = buildSecretsEnv(secrets);
 
@@ -738,10 +739,11 @@ export class TaskScheduler {
 				this.running.delete(taskId);
 			}
 
-			if (card.githubPrUrl) {
+			if (card.pr?.url) {
 				const worktreePath = getWorktreePath(taskId);
 				const taskBranch = getCardBranch(card);
-				await commitIfDirty(worktreePath, card.title);
+				// Safety-net commit; prefer agent-written PR title over raw card title.
+				await commitIfDirty(worktreePath, card.pr?.title ?? card.title);
 				await pushBranch(worktreePath, taskBranch).then(
 					() => appendActivityLog(workspaceId, taskId, `Pushed to PR`),
 					(err: Error) => appendActivityLog(workspaceId, taskId, `Push failed: ${err.message}`),
@@ -793,12 +795,15 @@ export class TaskScheduler {
 		});
 		stateHub.broadcastWorkspaceUpdate(workspaceId);
 
+		const conflictProjectConfig = await loadProjectConfig(workspaceId);
+		const conflictGitInstructions = conflictProjectConfig.gitInstructions?.trim() || DEFAULT_GIT_INSTRUCTIONS;
+
 		let outputBuffer = "";
 		let hookHandled = false;
 
 		const proc = spawnAgent({
 			agentId: defaultAgent,
-			prompt: buildConflictResolutionPrompt(card, conflictedFiles),
+			prompt: buildConflictResolutionPrompt(card, conflictedFiles, conflictGitInstructions),
 			cwd: mergeWorktreePath,
 			hookSettingsPath: defaultAgent === "claude" ? CLAUDE_TASK_SETTINGS_PATH : undefined,
 			hookServerPort: defaultAgent === "codex" ? getServerPort(this.options.serverUrl) : undefined,
@@ -933,7 +938,11 @@ Rules:
 - Never refactor, rename, or change logic beyond resolving the conflict markers
 - Exit when done`;
 
-function buildConflictResolutionPrompt(card: RuntimeBoardCard, conflictedFiles: string[]): string {
+function buildConflictResolutionPrompt(
+	card: RuntimeBoardCard,
+	conflictedFiles: string[],
+	gitInstructions: string,
+): string {
 	const descriptionSection = card.description?.trim() ? `\nTask description:\n${card.description.trim()}\n` : "";
 	return `Resolve the git merge conflicts in this repository.
 
@@ -942,8 +951,12 @@ ${descriptionSection}
 Conflicted files:
 ${conflictedFiles.map((f) => `- ${f}`).join("\n")}
 
-Resolve each conflict, preserving the task's intent. Then run:
-git add -A && git commit -m "Resolve merge conflicts for: ${card.title}"`;
+Resolve each conflict, preserving the task's intent. Then stage and commit
+the resolution. Write the commit message following the project's git
+conventions below — do not use a hard-coded template.
+
+## Git conventions
+${gitInstructions}`;
 }
 
 function buildTaskPrompt(): string {

@@ -92,7 +92,7 @@ export function CardQuickViewDialog({ card, workspaceId, onClose, onOpenDetail, 
 					)}
 
 					{/* Links */}
-					{(card.githubIssueUrl || card.githubPrUrl || card.jiraUrl) && (
+					{(card.githubIssueUrl || card.pr?.url || card.jiraUrl) && (
 						<div className="flex flex-wrap gap-2">
 							{card.githubIssueUrl && (
 								<a
@@ -104,9 +104,9 @@ export function CardQuickViewDialog({ card, workspaceId, onClose, onOpenDetail, 
 									<ExternalLink size={11} /> Issue
 								</a>
 							)}
-							{card.githubPrUrl && (
+							{card.pr?.url && (
 								<a
-									href={card.githubPrUrl}
+									href={card.pr?.url}
 									target="_blank"
 									rel="noreferrer"
 									className="flex items-center gap-1 text-xs text-green-400 hover:text-green-300"

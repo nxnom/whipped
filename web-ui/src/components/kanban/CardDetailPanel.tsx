@@ -633,7 +633,7 @@ export function CardDetailPanel({
 								</div>
 							)}
 
-							{(card.githubIssueUrl || card.githubPrUrl || card.jiraUrl) && (
+							{(card.githubIssueUrl || card.pr?.url || card.jiraUrl) && (
 								<div className="space-y-1.5">
 									{card.githubIssueUrl && (
 										<a
@@ -645,9 +645,9 @@ export function CardDetailPanel({
 											<ExternalLink size={11} /> GitHub Issue
 										</a>
 									)}
-									{card.githubPrUrl && (
+									{card.pr?.url && (
 										<a
-											href={card.githubPrUrl}
+											href={card.pr?.url}
 											target="_blank"
 											rel="noreferrer"
 											className="flex items-center gap-1.5 text-xs text-green-400 hover:text-green-300"
@@ -765,10 +765,10 @@ export function CardDetailPanel({
 									{merging ? "Merging..." : `→ ${card.baseRef}`}
 								</Button>
 							</Tooltip>
-							{card.githubPrUrl ? (
+							{card.pr?.url ? (
 								<Tooltip content="Open Pull Request" side="top" triggerAsChild>
 									<a
-										href={card.githubPrUrl}
+										href={card.pr?.url}
 										target="_blank"
 										rel="noreferrer"
 										className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md bg-green-500/15 text-green-400 border border-green-500/30 hover:bg-green-500/25 hover:border-green-500/50 transition-colors"

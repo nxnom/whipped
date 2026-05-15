@@ -12,6 +12,7 @@ import {
 } from "../agents/agent-hooks.js";
 import type { AgentProcess } from "../agents/agent-runner.js";
 import { spawnAgent } from "../agents/agent-runner.js";
+import { DEFAULT_GIT_INSTRUCTIONS } from "../core/api-contract.js";
 import type {
 	RuntimeBoardCard,
 	RuntimeProjectSecret,
@@ -338,7 +339,7 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 	await appendActivityLog(workspaceId, card.id, "All reviews passed → moved to Ready for Review");
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 
-	if (autoPR && !card.githubPrUrl && card.type !== "story") {
+	if (autoPR && !card.pr?.url && card.type !== "story") {
 		const worktreePath = getWorktreePath(card.id);
 		const taskBranch = getCardBranch(card);
 		const githubToken = options.secrets.find((s) => s.key === "GITHUB_TOKEN")?.value;
@@ -354,13 +355,18 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 		}
 		try {
 			logger.info(`[review] Auto PR: commit → push → create for "${card.title}" (branch: ${taskBranch})`);
-			await commitIfDirty(worktreePath, card.title);
+			// Safety-net commit only fires when the agent left the worktree dirty.
+			// Prefer the agent-written PR title (already follows project git
+			// conventions) over the raw card title.
+			await commitIfDirty(worktreePath, card.pr?.title ?? card.title);
 			await pushBranch(worktreePath, taskBranch);
 			const devSummary =
 				[...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev")?.summary ?? card.description;
-			const prUrl = await createGithubPR(worktreePath, card.title, devSummary, card.baseRef, githubToken);
+			const prTitle = card.pr?.title ?? card.title;
+			const prDescription = card.pr?.description ?? devSummary;
+			const prUrl = await createGithubPR(worktreePath, prTitle, prDescription, card.baseRef, githubToken);
 			logger.info(`[review] Auto PR created: ${prUrl}`);
-			await updateCard(workspaceId, card.id, { githubPrUrl: prUrl });
+			await updateCard(workspaceId, card.id, { pr: { ...card.pr, url: prUrl } });
 			await appendActivityLog(workspaceId, card.id, `Auto PR created → ${prUrl}`);
 		} catch (err) {
 			logger.error({ err }, `[review] Auto PR failed for "${card.title}":`);
@@ -552,7 +558,20 @@ export function buildDevAgentSystemPrompt(
 	secrets: RuntimeProjectSecret[] = [],
 	parentCards: RuntimeBoardCard[] = [],
 	systemPrompt?: string,
+	gitInstructions?: string,
 ): { text: string; files: string[] } {
+	const effectiveGitInstructions = gitInstructions?.trim() || DEFAULT_GIT_INSTRUCTIONS;
+	const priorPr = card.pr;
+	const PRIOR_DESC_INLINE_LIMIT = 4000;
+	let priorPrSection = "";
+	if (priorPr?.title || priorPr?.description) {
+		const descRaw = priorPr.description ?? "";
+		const descTruncated = descRaw.length > PRIOR_DESC_INLINE_LIMIT;
+		const descInline = descTruncated
+			? `${descRaw.slice(0, PRIOR_DESC_INLINE_LIMIT)}\n\n[…truncated at ${PRIOR_DESC_INLINE_LIMIT} of ${descRaw.length} chars — call \`kanban_get_pr_meta\` to read the full text]`
+			: descRaw || "(unset)";
+		priorPrSection = `\n\nA previous run already wrote PR metadata for this card:\n\n**title:** ${priorPr.title ?? "(unset)"}\n\n**description:**\n${descInline}\n\nRevise these values rather than rewriting from scratch, unless they no longer reflect what shipped.`;
+	}
 	const context = formatPriorComments(card);
 	const parts: string[] = [];
 
@@ -589,12 +608,18 @@ Work autonomously without asking for permission or confirmation. You have full a
 If there are prior review comments above with issues listed, you MUST address ALL of them before finishing — including info-level ones. Do not skip any issue regardless of severity.
 
 When you finish your work:
-1. Commit all changes with a message that describes what this specific commit changes (not just the task title): \`git add -A && git commit -m "<what changed>"\`
-2. Call the \`kanban_add_comment\` MCP tool with:
+1. Commit all changes. Write the commit message following the project's git conventions (see "## Git conventions" below) — do not use a hard-coded template like the task title.
+2. Call the \`kanban_set_pr_meta\` MCP tool with:
+   - cardId: "${card.id}"
+   - title: PR title following the git conventions below
+   - description: PR description body following the git conventions below
+   This is what the daemon will use when it creates the PR. Skip this call only if you genuinely have no code changes to ship.${priorPrSection}
+
+3. Call the \`kanban_add_comment\` MCP tool with:
    - cardId: "${card.id}"
    - type: "dev"
    - status: "pass" if successful, "fail" if you were unable to complete the task
-   - summary: what changed, key decisions made, and any known limitations or caveats — as brief or detailed as the scope warrants`);
+   - summary: 2–5 sentences for the next reviewer agent in this pipeline (NOT the PR description — that already went to set_pr_meta). Mention key decisions and any known limitations.`);
 
 	if (customPrompt.trim()) parts.push(`## Project-specific instructions\n\n${customPrompt.trim()}`);
 
@@ -602,6 +627,8 @@ When you finish your work:
 	if (secretsSection) parts.push(secretsSection);
 
 	if (systemPrompt?.trim()) parts.push(`## Project context\n\n${systemPrompt.trim()}`);
+
+	parts.push(`## Git conventions\n\n${effectiveGitInstructions}`);
 
 	return { text: parts.join("\n\n"), files: context.files };
 }
