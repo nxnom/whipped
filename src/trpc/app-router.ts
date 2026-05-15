@@ -156,12 +156,12 @@ export const appRouter = router({
 				});
 				if (r.status !== 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Not a git repository" });
 				const context = await loadWorkspaceContext(input.repoPath);
-				await ctx.ensureWorkspace(context.workspaceId);
 				if (input.initialConfig) {
 					await updateProjectConfig(context.workspaceId, (current) =>
 						runtimeProjectConfigSchema.parse({ ...current, ...input.initialConfig }),
 					);
 				}
+				await ctx.ensureWorkspace(context.workspaceId);
 				return context;
 			}),
 
