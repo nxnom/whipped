@@ -23,8 +23,8 @@ export function deriveBranchName(title: string): string {
 	}
 
 	const slug = rest
-		.replace(/[^a-z0-9]+/g, "_")
-		.replace(/^_+|_+$/g, "")
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "")
 		.slice(0, 60);
 	return slug ? `${prefix}/${slug}` : "";
 }

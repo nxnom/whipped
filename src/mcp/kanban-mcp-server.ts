@@ -169,7 +169,7 @@ Creates all subtasks first, then the story card that depends on them. The story 
 							.string()
 							.optional()
 							.describe(
-								"Custom git branch name for this subtask (e.g. 'fix/user_auth_bug', 'feat/dark_mode'). Omit to auto-generate from title.",
+								"Custom git branch name for this subtask (e.g. 'fix/user-auth-bug', 'feat/dark-mode'). Use dashes, not underscores. Omit to auto-generate from title.",
 							),
 						dependsOn: z
 							.array(z.string())
@@ -301,7 +301,7 @@ server.registerTool(
 				.string()
 				.optional()
 				.describe(
-					"Custom git branch name for this card (e.g. 'fix/user_auth_bug', 'feat/dark_mode'). Omit to auto-generate from title.",
+					"Custom git branch name for this card (e.g. 'fix/user-auth-bug', 'feat/dark-mode'). Use dashes, not underscores. Omit to auto-generate from title.",
 				),
 		},
 	},

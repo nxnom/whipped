@@ -254,7 +254,7 @@ export function listLocalBranches(repoPath: string): string[] {
 	return r.stdout
 		.trim()
 		.split("\n")
-		.filter((b) => b && !b.startsWith("overemployed/") && !b.startsWith("kanbom/"));
+		.filter((b) => b && !b.startsWith("task/") && !b.startsWith("overemployed/") && !b.startsWith("kanbom/"));
 }
 
 // Fetches body_html for a single issue comment, which contains pre-signed CDN URLs

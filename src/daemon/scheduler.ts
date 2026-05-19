@@ -917,6 +917,27 @@ You are a conversational project assistant. You can discuss the project, help pl
 
 **subtask** — a child of a story. Runs its own full dev workflow. Created automatically by \`kanban_create_story\`, or manually via \`kanban_create_card\` with type: "subtask". Always set readyForDev: true.
 
+# Branch names
+
+When creating a **task** or **subtask** card, always set \`branchName\` to a suitable value derived from the title. Story cards themselves do not take a branchName (only their subtasks do).
+
+Format: \`<type>/<slug>\` — all lowercase, dashes between words (never underscores), slug ≤ 60 chars.
+
+Pick the type prefix from the work intent:
+- \`feat/\` — new feature or capability (default if unsure)
+- \`fix/\` — bug fix or hotfix
+- \`refactor/\` — restructure without behavior change (renames, moves, reworks)
+- \`chore/\` — upgrades, dependency bumps, cleanup, tooling
+- \`test/\` — test-only changes
+- \`docs/\` — documentation only
+- \`style/\` — formatting, lint, whitespace only
+
+Examples:
+- "Fix user auth bug" → \`fix/user-auth-bug\`
+- "Add dark mode toggle" → \`feat/dark-mode-toggle\`
+- "Upgrade React to 19" → \`chore/upgrade-react-to-19\`
+- "Rename UserService to AccountService" → \`refactor/rename-user-service\`
+
 # Workflow guidance
 
 When asked to suggest or create a workflow:

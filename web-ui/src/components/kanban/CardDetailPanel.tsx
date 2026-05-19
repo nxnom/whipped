@@ -331,7 +331,7 @@ export function CardDetailPanel({
 		onRefresh();
 	};
 
-	const currentBranch = card.branchName ?? `overemployed/task-${card.id}`;
+	const currentBranch = card.branchName ?? `task/${card.id}`;
 	const canEditBranch = !card.worktreePath;
 
 	const startEditBranch = () => {
@@ -472,7 +472,7 @@ export function CardDetailPanel({
 														if (e.key === "Enter") void saveBranchName();
 														if (e.key === "Escape") cancelEditBranch();
 													}}
-													placeholder={`overemployed/task-${card.id}`}
+													placeholder={`task/${card.id}`}
 													disabled={savingBranch}
 												/>
 												<button
