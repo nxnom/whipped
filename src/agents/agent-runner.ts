@@ -47,16 +47,19 @@ export function spawnAgent(options: AgentRunOptions): AgentProcess {
 		model: options.model,
 	});
 
+	const spawnEnv: Record<string, string> = { ...process.env as Record<string, string>, ...env, TERM: "xterm-256color" };
+	// Strip tmux passthrough vars — if the daemon runs inside tmux, agents would detect it
+	// and wrap all escape sequences in DCS tmux; passthrough format, which xterm.js can't parse.
+	delete spawnEnv["TMUX"];
+	delete spawnEnv["TMUX_PANE"];
+	delete spawnEnv["TMUX_PLUGIN_MANAGER_PATH"];
+
 	const pty = nodePty.spawn(command, args, {
 		name: "xterm-256color",
-		cols: 120,
-		rows: 40,
+		cols: 220,
+		rows: 50,
 		cwd,
-		env: {
-			...process.env,
-			...env,
-			TERM: "xterm-color",
-		},
+		env: spawnEnv,
 	});
 
 	pty.onData((data) => {
