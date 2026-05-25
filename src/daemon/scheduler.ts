@@ -8,15 +8,24 @@ import {
 	buildTaskHookEnv,
 	CLAUDE_HOME_MCP_CONFIG_PATH,
 	CLAUDE_TASK_SETTINGS_PATH,
+	cleanupOpencodeFiles,
 	getMcpConfigPath,
+	getOpencodeConfigDir,
 	getServerPort,
+	OPENCODE_CONFIG_DIR_ENV,
 	writeClaudeHomeSettings,
 	writeClaudeMcpConfig,
+	writeOpencodeFiles,
 } from "../agents/agent-hooks.js";
 import { getAvailableAgents } from "../agents/agent-registry.js";
 import type { AgentProcess } from "../agents/agent-runner.js";
 import { spawnAgent } from "../agents/agent-runner.js";
-import { DEFAULT_GIT_INSTRUCTIONS, type RuntimeAgentId, type RuntimeBoardCard, type WorkflowSlot } from "../core/api-contract.js";
+import {
+	DEFAULT_GIT_INSTRUCTIONS,
+	type RuntimeAgentId,
+	type RuntimeBoardCard,
+	type WorkflowSlot,
+} from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 import { commitIfDirty, pushBranch } from "../git/merge-operations.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
@@ -132,14 +141,22 @@ export class TaskScheduler {
 		stateHub.clearTerminalBuffer(workspaceId, taskId);
 
 		const prompt = "";
-		await writeClaudeHomeSettings(getMcpServerPath(), serverUrl, workspaceId).catch((err) => {
-			logger.warn({ err }, "[scheduler] Failed to write home agent MCP settings");
-		});
 
 		const projectConfig = await loadProjectConfig(workspaceId);
 		const secrets = projectConfig.secrets ?? [];
 		const secretsEnv = buildSecretsEnv(secrets);
 		const appendSystemPrompt = buildHomeAgentSystemPrompt(repoPath, secrets, projectConfig.systemPrompt);
+
+		if (agentId === "claude") {
+			await writeClaudeHomeSettings(getMcpServerPath(), serverUrl, workspaceId).catch((err) => {
+				logger.warn({ err }, "[scheduler] Failed to write home agent MCP settings");
+			});
+		} else if (agentId === "opencode") {
+			const mcpSpec = buildOveremployedMcpServerSpec(getMcpServerPath(), serverUrl, workspaceId);
+			await writeOpencodeFiles(taskId, getServerPort(serverUrl), mcpSpec, { appendSystemPrompt }).catch((err) => {
+				logger.warn({ err }, "[scheduler] Failed to write opencode home agent files");
+			});
+		}
 
 		const homeTask: RunningTask = {
 			taskId,
@@ -149,11 +166,15 @@ export class TaskScheduler {
 				agentId,
 				prompt,
 				cwd: repoPath,
-				env: secretsEnv,
+				env: {
+					...secretsEnv,
+					...buildTaskHookEnv(taskId, workspaceId),
+					...(agentId === "opencode" ? { [OPENCODE_CONFIG_DIR_ENV]: getOpencodeConfigDir(taskId) } : {}),
+				},
 				mcpConfigPath: agentId === "claude" ? CLAUDE_HOME_MCP_CONFIG_PATH : undefined,
 				mcpServer:
 					agentId === "codex" ? buildOveremployedMcpServerSpec(getMcpServerPath(), serverUrl, workspaceId) : undefined,
-				appendSystemPrompt,
+				appendSystemPrompt: agentId !== "opencode" ? appendSystemPrompt : undefined,
 				onOutput: (data) => {
 					homeTask.outputBuffer += data;
 					stateHub.broadcastTerminalOutput(workspaceId, taskId, data);
@@ -308,16 +329,9 @@ export class TaskScheduler {
 			return;
 		}
 
-		// Write MCP config so the dev agent can call kanban_add_comment when done.
-		// Use a per-task path to avoid concurrent agents overwriting each other's config.
-		const mcpConfigPath = getMcpConfigPath(taskId);
-		await writeClaudeMcpConfig(
-			getMcpServerPath(),
-			this.options.serverUrl,
-			workspaceId,
-			agentId as string,
-			mcpConfigPath,
-		).catch(() => {});
+		// Write agent-specific config so the dev agent can call kanban_add_comment when done
+		// and fire the Stop hook when it finishes a turn.
+		const mcpConfigPath = agentId !== "opencode" ? getMcpConfigPath(taskId) : undefined;
 
 		// Create isolated worktree; merge extra dep branches when card has multiple independent deps
 		const worktree =
@@ -396,6 +410,26 @@ export class TaskScheduler {
 			);
 			const secretsEnv = buildSecretsEnv(secrets);
 
+			if (agentId === "claude") {
+				await writeClaudeMcpConfig(
+					getMcpServerPath(),
+					this.options.serverUrl,
+					workspaceId,
+					agentId,
+					mcpConfigPath!,
+				).catch(() => {});
+			} else if (agentId === "opencode") {
+				const mcpSpec = buildOveremployedMcpServerSpec(
+					getMcpServerPath(),
+					this.options.serverUrl,
+					workspaceId,
+					agentId,
+				);
+				await writeOpencodeFiles(taskId, getServerPort(this.options.serverUrl), mcpSpec, {
+					appendSystemPrompt: devSystemPromptResult.text,
+				}).catch(() => {});
+			}
+
 			await appendActivityLog(workspaceId, taskId, `Agent ${agentId} started`);
 
 			const spawnedAt = Date.now();
@@ -418,7 +452,11 @@ export class TaskScheduler {
 					agentId,
 					prompt,
 					cwd: worktree.path,
-					env: { ...buildTaskHookEnv(taskId, workspaceId), ...secretsEnv },
+					env: {
+						...buildTaskHookEnv(taskId, workspaceId),
+						...secretsEnv,
+						...(agentId === "opencode" ? { [OPENCODE_CONFIG_DIR_ENV]: getOpencodeConfigDir(taskId) } : {}),
+					},
 					hookSettingsPath: agentId === "claude" ? CLAUDE_TASK_SETTINGS_PATH : undefined,
 					hookServerPort: agentId === "codex" ? getServerPort(this.options.serverUrl) : undefined,
 					mcpConfigPath: agentId === "claude" ? mcpConfigPath : undefined,
@@ -426,7 +464,7 @@ export class TaskScheduler {
 						agentId === "codex"
 							? buildOveremployedMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId, agentId)
 							: undefined,
-					appendSystemPrompt: devSystemPromptResult.text,
+					appendSystemPrompt: agentId !== "opencode" ? devSystemPromptResult.text : undefined,
 					files: agentId === "claude" ? devSystemPromptResult.files : undefined,
 					effort: devSlotEarly.effort ?? undefined,
 					model: devSlotEarly.model ?? undefined,
@@ -435,10 +473,14 @@ export class TaskScheduler {
 						stateHub.broadcastTerminalOutput(workspaceId, devStreamId, data);
 					},
 					onExit: async (exitCode) => {
+						logger.info(
+							`[scheduler] onExit: task ${taskId} agent=${agentId} exitCode=${exitCode} hookHandled=${this.hookHandledTasks.has(taskId)} manuallyStopped=${this.manuallyStoppedTasks.has(taskId)}`,
+						);
 						this.setRecentBuffer(devStreamId, runningTask.outputBuffer);
 						void saveTerminalBuffer(workspaceId, devStreamId, runningTask.outputBuffer);
 						this.running.delete(taskId);
-						unlink(mcpConfigPath).catch(() => {});
+						if (mcpConfigPath) unlink(mcpConfigPath).catch(() => {});
+						if (agentId === "opencode") void cleanupOpencodeFiles(taskId);
 
 						// Graceful shutdown already persisted the failed/todo state — bail out.
 						if (this.isShuttingDown) return;
@@ -476,6 +518,7 @@ export class TaskScheduler {
 						if (this.hookHandledTasks.has(taskId)) {
 							this.hookHandledTasks.delete(taskId);
 							const exitedAt = Date.now();
+							logger.info(`[scheduler] onExit hookHandled path: ending session ${devStreamId} for task ${taskId}`);
 							// Set endedAt on any dev comment stored via MCP
 							const hookBoard = await loadBoard(workspaceId);
 							const hookCard = hookBoard.cards[taskId];
@@ -487,6 +530,7 @@ export class TaskScheduler {
 								await linkCommentToSession(workspaceId, taskId, hookDevComment.createdAt, devStreamId);
 							}
 							await endTerminalSession(workspaceId, taskId, devStreamId, exitedAt, "completed");
+							logger.info(`[scheduler] onExit hookHandled: endTerminalSession done for ${devStreamId}`);
 							stateHub.broadcastWorkspaceUpdate(workspaceId);
 							return;
 						}
@@ -707,7 +751,7 @@ export class TaskScheduler {
 		if (event === "stop") {
 			const board = await loadBoard(workspaceId);
 			const card = board.cards[taskId];
-			if (!card || card.columnId !== "in_progress") return;
+			if (!card) return;
 
 			// If the stop was triggered manually via stopTask(), move the card back to
 			// todo (readyForDev=false) instead of treating it as "agent finished".
@@ -720,52 +764,76 @@ export class TaskScheduler {
 					task.process.kill();
 					this.running.delete(taskId);
 				}
-				await moveCard(workspaceId, taskId, "todo");
-				await updateCard(workspaceId, taskId, { readyForDev: false });
-				await appendActivityLog(workspaceId, taskId, "Moved back to Todo");
+				if (card.columnId === "in_progress") {
+					await moveCard(workspaceId, taskId, "todo");
+					await updateCard(workspaceId, taskId, { readyForDev: false });
+					await appendActivityLog(workspaceId, taskId, "Moved back to Todo");
+				}
 				stateHub.broadcastWorkspaceUpdate(workspaceId);
 				logger.info(`[scheduler] Hook Stop (manual): task ${taskId} → todo`);
 				return;
 			}
 
-			// Mark before killing — onExit checks this synchronously to skip the
-			// duplicate onTaskCompleted call (kill fires onExit before moveCard runs).
+			// Always kill the process and end the terminal session immediately.
+			// Do NOT rely on onExit to call endTerminalSession — some agents (e.g. opencode TUI)
+			// don't exit after SIGTERM, so pty.onExit never fires.
 			this.hookHandledTasks.add(taskId);
 			const task = this.running.get(taskId);
+			logger.info(`[scheduler] Hook Stop: task ${taskId} — running task found=${!!task} cardColumn=${card.columnId}`);
 			if (task) {
 				this.setRecentBuffer(task.streamId, task.outputBuffer);
 				void saveTerminalBuffer(workspaceId, task.streamId, task.outputBuffer);
 				task.process.kill();
 				this.running.delete(taskId);
+				logger.info(`[scheduler] Hook Stop: task ${taskId} process killed (pid via treeKill)`);
+				// End the session now — don't wait for pty.onExit which may never fire.
+				const hookBoard = await loadBoard(workspaceId);
+				const hookCard = hookBoard.cards[taskId];
+				const hookDevComment = hookCard?.reviewComments
+					?.slice()
+					.reverse()
+					.find((c) => c.type === "dev");
+				if (hookDevComment) {
+					await linkCommentToSession(workspaceId, taskId, hookDevComment.createdAt, task.streamId);
+				}
+				await endTerminalSession(workspaceId, taskId, task.streamId, Date.now(), "completed");
+				logger.info(`[scheduler] Hook Stop: endTerminalSession done for ${task.streamId}`);
 			}
 
-			if (card.pr?.url) {
-				const worktreePath = getWorktreePath(taskId);
-				const taskBranch = getCardBranch(card);
-				// Safety-net commit; prefer agent-written PR title over raw card title.
-				await commitIfDirty(worktreePath, card.pr?.title ?? card.title);
-				await pushBranch(worktreePath, taskBranch).then(
-					() => appendActivityLog(workspaceId, taskId, `Pushed to PR`),
-					(err: Error) => appendActivityLog(workspaceId, taskId, `Push failed: ${err.message}`),
+			if (card.columnId === "in_progress") {
+				if (card.pr?.url) {
+					const worktreePath = getWorktreePath(taskId);
+					const taskBranch = getCardBranch(card);
+					// Safety-net commit; prefer agent-written PR title over raw card title.
+					await commitIfDirty(worktreePath, card.pr?.title ?? card.title);
+					await pushBranch(worktreePath, taskBranch).then(
+						() => appendActivityLog(workspaceId, taskId, `Pushed to PR`),
+						(err: Error) => appendActivityLog(workspaceId, taskId, `Push failed: ${err.message}`),
+					);
+				}
+				const hookConfig = await loadProjectConfig(workspaceId);
+				const hookWorkflow =
+					hookConfig.workflows.find((w) => w.id === card.workflowId) ??
+					hookConfig.workflows.find((w) => w.isDefault) ??
+					hookConfig.workflows[0];
+				const hookHasReview = (hookWorkflow?.slots ?? []).some((s) => s.type !== "dev" && s.enabled);
+				if (!hookHasReview) {
+					await moveCard(workspaceId, taskId, "ready_for_review");
+					await appendActivityLog(workspaceId, taskId, "Agent finished → moved to Ready for Review");
+				} else {
+					await appendActivityLog(workspaceId, taskId, "Agent finished → AI review starting");
+				}
+				logger.info(
+					`[scheduler] Hook Stop: task ${taskId} → ${hookHasReview ? "in_progress (review pending)" : "ready_for_review"}`,
 				);
-			}
-			const hookConfig = await loadProjectConfig(workspaceId);
-			const hookWorkflow =
-				hookConfig.workflows.find((w) => w.id === card.workflowId) ??
-				hookConfig.workflows.find((w) => w.isDefault) ??
-				hookConfig.workflows[0];
-			const hookHasReview = (hookWorkflow?.slots ?? []).some((s) => s.type !== "dev" && s.enabled);
-			if (!hookHasReview) {
-				await moveCard(workspaceId, taskId, "ready_for_review");
-				await appendActivityLog(workspaceId, taskId, "Agent finished → moved to Ready for Review");
+				this.options.onTaskCompleted(taskId);
 			} else {
-				await appendActivityLog(workspaceId, taskId, "Agent finished → AI review starting");
+				// Card was already moved by the agent (e.g. via kanban_move_card MCP).
+				// Still trigger review in case it hasn't started yet.
+				logger.info(`[scheduler] Hook Stop: task ${taskId} already in ${card.columnId} — skipping card transition`);
+				this.options.onTaskCompleted(taskId);
 			}
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
-			logger.info(
-				`[scheduler] Hook Stop: task ${taskId} → ${hookHasReview ? "in_progress (review pending)" : "ready_for_review"}`,
-			);
-			this.options.onTaskCompleted(taskId);
 		} else if (event === "user_prompt") {
 			const board = await loadBoard(workspaceId);
 			const card = board.cards[taskId];
@@ -801,14 +869,24 @@ export class TaskScheduler {
 		let outputBuffer = "";
 		let hookHandled = false;
 
+		if (defaultAgent === "opencode") {
+			const mcpSpec = buildOveremployedMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId);
+			await writeOpencodeFiles(streamId, getServerPort(this.options.serverUrl), mcpSpec, {
+				appendSystemPrompt: CONFLICT_RESOLUTION_SYSTEM_PROMPT,
+			}).catch(() => {});
+		}
+
 		const proc = spawnAgent({
 			agentId: defaultAgent,
 			prompt: buildConflictResolutionPrompt(card, conflictedFiles, conflictGitInstructions),
 			cwd: mergeWorktreePath,
 			hookSettingsPath: defaultAgent === "claude" ? CLAUDE_TASK_SETTINGS_PATH : undefined,
 			hookServerPort: defaultAgent === "codex" ? getServerPort(this.options.serverUrl) : undefined,
-			env: buildTaskHookEnv(streamId, workspaceId),
-			appendSystemPrompt: CONFLICT_RESOLUTION_SYSTEM_PROMPT,
+			env: {
+				...buildTaskHookEnv(streamId, workspaceId),
+				...(defaultAgent === "opencode" ? { [OPENCODE_CONFIG_DIR_ENV]: getOpencodeConfigDir(streamId) } : {}),
+			},
+			appendSystemPrompt: defaultAgent !== "opencode" ? CONFLICT_RESOLUTION_SYSTEM_PROMPT : undefined,
 			onOutput: (data) => {
 				outputBuffer += data;
 				stateHub.broadcastTerminalOutput(workspaceId, streamId, data);
@@ -830,6 +908,7 @@ export class TaskScheduler {
 			this.setRecentBuffer(streamId, outputBuffer);
 			void saveTerminalBuffer(workspaceId, streamId, outputBuffer);
 			void endTerminalSession(workspaceId, card.id, streamId, Date.now(), "completed");
+			if (defaultAgent === "opencode") void cleanupOpencodeFiles(streamId);
 			proc.kill();
 			onComplete(true).catch((err) => logger.error({ err }, `[scheduler] conflict onComplete failed for ${card.id}:`));
 		});

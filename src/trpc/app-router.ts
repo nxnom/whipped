@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { getAvailableAgents } from "../agents/agent-registry.js";
+import { getAvailableAgents, getOpencodeModels } from "../agents/agent-registry.js";
 import { loadGlobalConfig, updateGlobalConfig } from "../config/runtime-config.js";
 import {
 	projectsLayoutSchema,
@@ -810,6 +810,9 @@ export const appRouter = router({
 	agents: router({
 		available: publicProcedure.query(() => {
 			return getAvailableAgents();
+		}),
+		opencodeModels: publicProcedure.query(() => {
+			return getOpencodeModels();
 		}),
 	}),
 

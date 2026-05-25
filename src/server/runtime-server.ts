@@ -220,7 +220,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 				loadBoard(workspaceId)
 					.then((board) => {
 						const card = board.cards[taskId];
-						if (card?.columnId === "in_progress") {
+						if (card?.columnId === "in_progress" || card?.columnId === "ready_for_review") {
 							startReview(card);
 						}
 					})

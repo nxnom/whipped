@@ -6,19 +6,23 @@ import {
 	buildOveremployedMcpServerSpec,
 	buildTaskHookEnv,
 	CLAUDE_TASK_SETTINGS_PATH,
+	cleanupOpencodeFiles,
 	getMcpConfigPath,
+	getOpencodeConfigDir,
 	getServerPort,
+	OPENCODE_CONFIG_DIR_ENV,
 	writeClaudeMcpConfig,
+	writeOpencodeFiles,
 } from "../agents/agent-hooks.js";
 import type { AgentProcess } from "../agents/agent-runner.js";
 import { spawnAgent } from "../agents/agent-runner.js";
-import { DEFAULT_GIT_INSTRUCTIONS } from "../core/api-contract.js";
 import type {
 	RuntimeBoardCard,
 	RuntimeProjectSecret,
 	RuntimeReviewComment,
 	WorkflowSlot,
 } from "../core/api-contract.js";
+import { DEFAULT_GIT_INSTRUCTIONS } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 import { commitIfDirty, createGithubPR, pushBranch } from "../git/merge-operations.js";
 import type { GithubClient } from "../github/github-client.js";
@@ -191,18 +195,26 @@ async function runReviewSlot(
 	);
 	const triggerWord = getSlotTriggerWord(slot.type);
 
-	const mcpConfigPath = getMcpConfigPath(streamId);
-	await writeClaudeMcpConfig(options.mcpBinary, options.serverUrl, workspaceId, slot.agentBinary, mcpConfigPath).catch(
-		() => {},
-	);
+	const mcpConfigPath = slot.agentBinary !== "opencode" ? getMcpConfigPath(streamId) : undefined;
+	const hookServerPort =
+		slot.agentBinary === "codex" || slot.agentBinary === "opencode" ? getServerPort(options.serverUrl) : undefined;
+	const mcpServer =
+		slot.agentBinary === "codex" || slot.agentBinary === "opencode"
+			? buildOveremployedMcpServerSpec(options.mcpBinary, options.serverUrl, workspaceId, slot.agentBinary)
+			: undefined;
+
+	if (slot.agentBinary === "claude" && mcpConfigPath) {
+		await writeClaudeMcpConfig(
+			options.mcpBinary,
+			options.serverUrl,
+			workspaceId,
+			slot.agentBinary,
+			mcpConfigPath,
+		).catch(() => {});
+	}
 	const startTime = Date.now();
 	logger.info(`[review:${streamId}] Spawning ${slot.name} agent (${slot.agentBinary}) for "${card.title}"`);
 	const secretsEnv = buildSecretsEnv(options.secrets);
-	const hookServerPort = slot.agentBinary === "codex" ? getServerPort(options.serverUrl) : undefined;
-	const mcpServer =
-		slot.agentBinary === "codex"
-			? buildOveremployedMcpServerSpec(options.mcpBinary, options.serverUrl, workspaceId, slot.agentBinary)
-			: undefined;
 	const output = await runAgentOnce(
 		slot.agentBinary,
 		triggerWord,
@@ -394,6 +406,10 @@ function runAgentOnce(
 	mcpServer?: { command: string; args: string[] },
 	model?: string | null,
 ): Promise<string> {
+	if (agentId === "opencode" && hookServerPort != null && mcpServer) {
+		void writeOpencodeFiles(streamId, hookServerPort, mcpServer, { appendSystemPrompt }).catch(() => {});
+	}
+
 	return new Promise((resolve) => {
 		let output = "";
 		let unregisterProcess: (() => void) | undefined;
@@ -403,6 +419,7 @@ function runAgentOnce(
 			proc.kill();
 			void saveTerminalBuffer(workspaceId, streamId, output);
 			if (mcpConfigPath) unlink(mcpConfigPath).catch(() => {});
+			if (agentId === "opencode") void cleanupOpencodeFiles(streamId);
 			resolve(output);
 		});
 
@@ -412,13 +429,17 @@ function runAgentOnce(
 			prompt,
 			cwd,
 			mode: "interactive",
-			env: { ...buildTaskHookEnv(streamId, workspaceId), ...secretsEnv },
+			env: {
+				...buildTaskHookEnv(streamId, workspaceId),
+				...secretsEnv,
+				...(agentId === "opencode" ? { [OPENCODE_CONFIG_DIR_ENV]: getOpencodeConfigDir(streamId) } : {}),
+			},
 			// Stop hook signals completion back to runAgentOnce via registerStopCallback
 			hookSettingsPath: agentId === "claude" ? CLAUDE_TASK_SETTINGS_PATH : undefined,
 			hookServerPort: agentId === "codex" ? hookServerPort : undefined,
 			mcpConfigPath: agentId === "claude" ? mcpConfigPath : undefined,
 			mcpServer: agentId === "codex" ? mcpServer : undefined,
-			appendSystemPrompt,
+			appendSystemPrompt: agentId !== "opencode" ? appendSystemPrompt : undefined,
 			files: agentId === "claude" ? files : undefined,
 			effort,
 			model,
@@ -432,6 +453,7 @@ function runAgentOnce(
 				unregister();
 				void saveTerminalBuffer(workspaceId, streamId, output);
 				if (mcpConfigPath) unlink(mcpConfigPath).catch(() => {});
+				if (agentId === "opencode") void cleanupOpencodeFiles(streamId);
 				resolve(output);
 			},
 		});

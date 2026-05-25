@@ -1126,6 +1126,7 @@ function SlotCard({
 
 // Dropdown of curated per-agent model presets with an optional custom override.
 // Empty string = use the agent's default model.
+// For opencode, the list is fetched by running `opencode models` on demand.
 function ModelSelect({
 	agentId,
 	value,
@@ -1135,34 +1136,90 @@ function ModelSelect({
 	value: string;
 	onChange: (v: string) => void;
 }) {
-	const options = MODEL_OPTIONS[agentId];
+	const staticOptions = MODEL_OPTIONS[agentId];
+
+	const [dynamicModels, setDynamicModels] = useState<string[]>([]);
+	const [isFetching, setIsFetching] = useState(false);
+
+	const fetchOpencodeModels = () => {
+		setIsFetching(true);
+		trpc.agents.opencodeModels
+			.query()
+			.then((models) => setDynamicModels(models))
+			.catch(() => {})
+			.finally(() => setIsFetching(false));
+	};
+
+	useEffect(() => {
+		if (agentId === "opencode") fetchOpencodeModels();
+	}, [agentId]);
+
+	const options =
+		agentId === "opencode"
+			? dynamicModels.map((m) => ({ value: m, label: m }))
+			: staticOptions;
+
 	const isPresetValue = value === "" || options.some((o) => o.value === value);
 	const [customMode, setCustomMode] = useState(!isPresetValue);
 
 	return (
 		<div className="space-y-2">
-			<Select
-				value={customMode ? "__custom__" : value}
-				onChange={(v) => {
-					if (v === "__custom__") {
-						setCustomMode(true);
-					} else {
-						setCustomMode(false);
-						onChange(v);
-					}
-				}}
-			>
-				<SelectOption value="" label="Default" />
-				{options.map((o) => (
-					<SelectOption key={o.value} value={o.value} label={o.label} />
-				))}
-				<SelectOption value="__custom__" label="Custom..." />
-			</Select>
+			<div className="flex gap-2">
+				<div className="flex-1">
+					<Select
+						value={customMode ? "__custom__" : value}
+						onChange={(v) => {
+							if (v === "__custom__") {
+								setCustomMode(true);
+							} else {
+								setCustomMode(false);
+								onChange(v);
+							}
+						}}
+						filterable
+					>
+						<SelectOption value="" label="Default" />
+						{options.map((o) => (
+							<SelectOption key={o.value} value={o.value} label={o.label} />
+						))}
+						<SelectOption value="__custom__" label="Custom..." />
+					</Select>
+				</div>
+				{agentId === "opencode" && (
+					<button
+						type="button"
+						onClick={fetchOpencodeModels}
+						disabled={isFetching}
+						title="Refresh model list"
+						className="flex items-center justify-center px-2 rounded border border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] disabled:opacity-50 transition-colors"
+					>
+						<svg
+							className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`}
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							strokeWidth={2}
+						>
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+							/>
+						</svg>
+					</button>
+				)}
+			</div>
 			{customMode && (
 				<Input
 					value={value}
 					onChange={(e) => onChange(e.target.value)}
-					placeholder={agentId === "claude" ? "e.g. claude-opus-4-7" : "e.g. gpt-5-codex"}
+					placeholder={
+						agentId === "opencode"
+							? "e.g. anthropic/claude-opus-4-7"
+							: agentId === "claude"
+								? "e.g. claude-opus-4-7"
+								: "e.g. gpt-5-codex"
+					}
 				/>
 			)}
 		</div>
@@ -1178,7 +1235,7 @@ function AgentSlotDialog({
 	onSave: (updated: WorkflowSlot) => void;
 	onClose: () => void;
 }) {
-	const [binary, setBinary] = useState<"claude" | "codex">(slot.agentBinary);
+	const [binary, setBinary] = useState<RuntimeAgentId>(slot.agentBinary);
 	const [model, setModel] = useState<string>(slot.model ?? "");
 	const [effort, setEffort] = useState<EffortLevel | "">(slot.effort ?? "");
 	const [prompt, setPrompt] = useState(slot.prompt ?? "");
@@ -1213,7 +1270,7 @@ function AgentSlotDialog({
 						<Select
 							value={binary}
 							onChange={(v) => {
-								setBinary(v as "claude" | "codex");
+								setBinary(v as RuntimeAgentId);
 								setModel("");
 							}}
 						>
@@ -1316,7 +1373,7 @@ function AddCustomAgentDialog({
 						<Select
 							value={binary}
 							onChange={(v) => {
-								setBinary(v as "claude" | "codex");
+								setBinary(v as RuntimeAgentId);
 								setModel("");
 							}}
 						>

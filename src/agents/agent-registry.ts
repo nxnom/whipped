@@ -1,5 +1,24 @@
 import { spawnSync } from "node:child_process";
 import type { EffortLevel, RuntimeAgentId } from "../core/api-contract.js";
+
+export function getOpencodeModels(): string[] {
+	try {
+		const result = spawnSync("opencode", ["models"], {
+			stdio: ["ignore", "pipe", "ignore"],
+			timeout: 10_000,
+			encoding: "utf-8",
+		});
+		if (result.status === 0 && result.stdout) {
+			return result.stdout
+				.split("\n")
+				.map((l) => l.trim())
+				.filter((l) => l.length > 0 && l.includes("/"));
+		}
+	} catch {
+		/* opencode not installed or failed */
+	}
+	return [];
+}
 import {
 	buildCodexDeveloperInstructions,
 	buildCodexEffortOverride,
@@ -26,6 +45,12 @@ const AGENT_DEFINITIONS: AgentInfo[] = [
 		label: "OpenAI Codex",
 		command: "codex",
 		checkCommand: ["codex", "--version"],
+	},
+	{
+		id: "opencode",
+		label: "OpenCode",
+		command: "opencode",
+		checkCommand: ["opencode", "--version"],
 	},
 ];
 
@@ -112,6 +137,33 @@ export function buildAgentArgs(agentId: RuntimeAgentId, prompt: string, ctx: Age
 				args.push("--dangerously-bypass-approvals-and-sandbox");
 				if (prompt.trim()) args.push(prompt);
 			}
+			return args;
+		}
+		case "opencode": {
+			// --agent build: built-in agent with permission "*" allow "*" (skip-permissions equivalent).
+			if (mode === "print") {
+				// One-shot non-interactive run (review pipeline slots).
+				// `opencode run` supports --variant; --prompt is not used here (prompt is a positional).
+				const args: string[] = ["run", "--agent", "build"];
+				if (ctx.model) args.push("-m", ctx.model);
+				if (ctx.effort) {
+					const effortMap: Record<EffortLevel, string> = {
+						low: "minimal",
+						medium: "low",
+						high: "medium",
+						xhigh: "high",
+						max: "max",
+					};
+					args.push("--variant", effortMap[ctx.effort]);
+				}
+				if (prompt.trim()) args.push(prompt);
+				return args;
+			}
+			// Interactive TUI (dev agent). `--prompt` seeds the initial message.
+			// --variant is not available on the root TUI command.
+			const args: string[] = ["--agent", "build"];
+			if (ctx.model) args.push("-m", ctx.model);
+			if (prompt.trim()) args.push("--prompt", prompt);
 			return args;
 		}
 		default:

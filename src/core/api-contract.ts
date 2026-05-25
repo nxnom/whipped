@@ -2,12 +2,13 @@ import { z } from "zod";
 
 // ─── Agent ───────────────────────────────────────────────────────────────────
 
-export const runtimeAgentIdSchema = z.enum(["claude", "codex"]);
+export const runtimeAgentIdSchema = z.enum(["claude", "codex", "opencode"]);
 export type RuntimeAgentId = z.infer<typeof runtimeAgentIdSchema>;
 
 export const AGENT_BINARY_OPTIONS: ReadonlyArray<{ value: RuntimeAgentId; label: string }> = [
 	{ value: "claude", label: "claude" },
 	{ value: "codex", label: "codex" },
+	{ value: "opencode", label: "opencode" },
 ];
 
 export const effortLevelSchema = z.enum(["low", "medium", "high", "xhigh", "max"]);
@@ -40,6 +41,9 @@ export const MODEL_OPTIONS: Record<RuntimeAgentId, ReadonlyArray<{ value: string
 		{ value: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
 		{ value: "gpt-5.2", label: "GPT-5.2" },
 	],
+	// opencode supports any provider/model string — no fixed presets.
+	// The UI renders a free-form text input for opencode model selection.
+	opencode: [],
 };
 
 // ─── Workflows ───────────────────────────────────────────────────────────────

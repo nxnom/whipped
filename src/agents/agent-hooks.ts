@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -112,4 +112,79 @@ export function buildTaskHookEnv(taskId: string, workspaceId: string): Record<st
 		[HOOK_TASK_ID_ENV]: taskId,
 		[HOOK_WORKSPACE_ID_ENV]: workspaceId,
 	};
+}
+
+// ─── OpenCode support ─────────────────────────────────────────────────────────
+// OpenCode uses a TypeScript plugin system instead of shell-command hooks.
+// We write a plugin + opencode.json to a per-task directory under HOOKS_DIR
+// and set OPENCODE_CONFIG_DIR so opencode discovers them without touching the worktree.
+
+export const OPENCODE_CONFIG_DIR_ENV = "OPENCODE_CONFIG_DIR";
+
+export function getOpencodeConfigDir(id: string): string {
+	const safe = id.replace(/[^a-zA-Z0-9_-]/g, "_");
+	return join(HOOKS_DIR, `opencode-${safe}`);
+}
+
+export async function writeOpencodeFiles(
+	id: string,
+	serverPort: number,
+	mcpServer: { command: string; args: string[] },
+	opts: { appendSystemPrompt?: string } = {},
+): Promise<void> {
+	const dir = getOpencodeConfigDir(id);
+	await mkdir(join(dir, "plugin"), { recursive: true });
+
+	const systemParts: string[] = [];
+	if (opts.appendSystemPrompt) systemParts.push(opts.appendSystemPrompt);
+	// Tell the agent about the task_complete tool so it knows to call it when done.
+	systemParts.push(
+		"When you have finished all your work (committed, set PR metadata, and added your dev comment), call the `task_complete` tool to signal completion.",
+	);
+
+	const systemTransformHook = `\n    "experimental.chat.system.transform": async (_input, output) => {\n      ${systemParts.map((p) => `output.system.push(${JSON.stringify(p)})`).join("\n      ")}\n    },`;
+
+	const plugin = `import { tool } from "@opencode-ai/plugin"
+import type { Plugin } from "@opencode-ai/plugin"
+
+export const OveremployedPlugin: Plugin = async () => {
+  const port = ${serverPort}
+
+  return {${systemTransformHook}
+    tool: {
+      task_complete: tool({
+        description: "Signal that you have finished all work on this task. Call this after committing, setting PR metadata with kanban_set_pr_meta, and adding your summary with kanban_add_comment.",
+        args: {},
+        execute: async (_args, _ctx) => {
+          const taskId = process.env.${HOOK_TASK_ID_ENV}
+          const workspaceId = process.env.${HOOK_WORKSPACE_ID_ENV}
+          if (taskId && workspaceId) {
+            await fetch(\`http://127.0.0.1:\${port}/api/hook?event=stop&taskId=\${encodeURIComponent(taskId)}&workspaceId=\${encodeURIComponent(workspaceId)}\`)
+              .catch(() => {})
+          }
+          return "Task marked as complete."
+        }
+      })
+    },
+  }
+}
+`;
+
+	const config = {
+		mcp: {
+			overemployed: {
+				type: "local",
+				command: [mcpServer.command, ...mcpServer.args],
+			},
+		},
+	};
+
+	await Promise.all([
+		writeFile(join(dir, "plugin", "overemployed.ts"), plugin),
+		writeFile(join(dir, "opencode.json"), JSON.stringify(config, null, 2)),
+	]);
+}
+
+export async function cleanupOpencodeFiles(id: string): Promise<void> {
+	await rm(getOpencodeConfigDir(id), { recursive: true, force: true });
 }
