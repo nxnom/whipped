@@ -19,6 +19,34 @@ export function getOpencodeModels(): string[] {
 	}
 	return [];
 }
+
+export function getCursorModels(): Array<{ value: string; label: string }> {
+	try {
+		const result = spawnSync("agent", ["models"], {
+			stdio: ["ignore", "pipe", "ignore"],
+			timeout: 10_000,
+			encoding: "utf-8",
+		});
+		if (result.status === 0 && result.stdout) {
+			return result.stdout
+				.split("\n")
+				.map((l) => l.trim())
+				.filter((l) => l.length > 0 && l.includes(" - "))
+				.map((l) => {
+					const sep = l.indexOf(" - ");
+					const value = l.slice(0, sep).trim();
+					const label = l
+						.slice(sep + 3)
+						.replace(/\s*\((current|default)\)\s*$/i, "")
+						.trim();
+					return { value, label };
+				});
+		}
+	} catch {
+		/* agent not installed or failed */
+	}
+	return [];
+}
 import {
 	buildCodexDeveloperInstructions,
 	buildCodexEffortOverride,
@@ -51,6 +79,12 @@ const AGENT_DEFINITIONS: AgentInfo[] = [
 		label: "OpenCode",
 		command: "opencode",
 		checkCommand: ["opencode", "--version"],
+	},
+	{
+		id: "cursor",
+		label: "Cursor Agent",
+		command: "agent",
+		checkCommand: ["agent", "--version"],
 	},
 ];
 
@@ -164,6 +198,20 @@ export function buildAgentArgs(agentId: RuntimeAgentId, prompt: string, ctx: Age
 			const args: string[] = ["--agent", "build"];
 			if (ctx.model) args.push("-m", ctx.model);
 			if (prompt.trim()) args.push("--prompt", prompt);
+			return args;
+		}
+		case "cursor": {
+			// Cursor agent CLI: --yolo skips permission prompts, --approve-mcps auto-approves MCP,
+			// MCP servers configured via CURSOR_CONFIG_DIR/mcp.json (written by the caller).
+			// No --append-system-prompt flag exists; prepend context to the initial prompt instead.
+			const args: string[] = ["--yolo", "--approve-mcps"];
+			if (ctx.model) args.push("--model", ctx.model);
+			const fullPrompt = ctx.appendSystemPrompt ? `${ctx.appendSystemPrompt}\n\n${prompt}` : prompt;
+			if (mode === "print") {
+				args.push("-p", fullPrompt);
+			} else {
+				if (fullPrompt.trim()) args.push(fullPrompt);
+			}
 			return args;
 		}
 		default:

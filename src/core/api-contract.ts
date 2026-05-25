@@ -2,13 +2,14 @@ import { z } from "zod";
 
 // ─── Agent ───────────────────────────────────────────────────────────────────
 
-export const runtimeAgentIdSchema = z.enum(["claude", "codex", "opencode"]);
+export const runtimeAgentIdSchema = z.enum(["claude", "codex", "opencode", "cursor"]);
 export type RuntimeAgentId = z.infer<typeof runtimeAgentIdSchema>;
 
 export const AGENT_BINARY_OPTIONS: ReadonlyArray<{ value: RuntimeAgentId; label: string }> = [
 	{ value: "claude", label: "claude" },
 	{ value: "codex", label: "codex" },
 	{ value: "opencode", label: "opencode" },
+	{ value: "cursor", label: "cursor" },
 ];
 
 export const effortLevelSchema = z.enum(["low", "medium", "high", "xhigh", "max"]);
@@ -44,6 +45,9 @@ export const MODEL_OPTIONS: Record<RuntimeAgentId, ReadonlyArray<{ value: string
 	// opencode supports any provider/model string — no fixed presets.
 	// The UI renders a free-form text input for opencode model selection.
 	opencode: [],
+	// cursor supports many models — no fixed presets.
+	// The UI fetches the live list via agents.cursorModels and renders a Select.
+	cursor: [],
 };
 
 // ─── Workflows ───────────────────────────────────────────────────────────────

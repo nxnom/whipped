@@ -557,8 +557,10 @@ server.registerTool(
 							),
 						name: z.string().describe("Display name for this slot"),
 						agentBinary: z
-							.enum(["claude", "codex"])
-							.describe("Agent binary to use. 'claude' = Claude Code CLI, 'codex' = OpenAI Codex CLI."),
+							.enum(["claude", "codex", "opencode", "cursor"])
+							.describe(
+								"Agent binary to use. 'claude' = Claude Code CLI, 'codex' = OpenAI Codex CLI, 'opencode' = OpenCode CLI, 'cursor' = Cursor Agent CLI.",
+							),
 						order: z.number().int().nonnegative().describe("Execution order (0 = first)"),
 						enabled: z.boolean().describe("Whether this slot is active in the pipeline"),
 						prompt: z
@@ -755,6 +757,28 @@ server.registerTool(
 				{ type: "text", text: result.cleared ? `Shared system prompt cleared.` : `Shared system prompt updated.` },
 			],
 		};
+	},
+);
+
+// Cursor Agent CLI does not fire a settings.json "stop" hook reliably, so we expose
+// task_complete as an MCP tool that cursor can call explicitly to signal completion.
+// Other agents ignore it (they use their own stop mechanisms).
+server.registerTool(
+	"task_complete",
+	{
+		description:
+			"Signal that you have finished all work on this task. Call this ONLY after you have committed all changes, called kanban_set_pr_meta, and called kanban_add_comment with your final status. This terminates the agent session.",
+		inputSchema: {},
+	},
+	async () => {
+		const taskId = process.env["OVEREMPLOYED_HOOK_TASK_ID"];
+		const wsId = process.env["OVEREMPLOYED_HOOK_WORKSPACE_ID"];
+		if (taskId && wsId) {
+			await fetch(
+				`${serverUrl}/api/hook?event=stop&taskId=${encodeURIComponent(taskId)}&workspaceId=${encodeURIComponent(wsId)}`,
+			).catch(() => {});
+		}
+		return { content: [{ type: "text", text: "Task completion signaled. Your session will now end." }] };
 	},
 );
 

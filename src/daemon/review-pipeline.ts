@@ -6,12 +6,16 @@ import {
 	buildOveremployedMcpServerSpec,
 	buildTaskHookEnv,
 	CLAUDE_TASK_SETTINGS_PATH,
+	cleanupCursorConfigDir,
 	cleanupOpencodeFiles,
+	CURSOR_CONFIG_DIR_ENV,
+	getCursorConfigDir,
 	getMcpConfigPath,
 	getOpencodeConfigDir,
 	getServerPort,
 	OPENCODE_CONFIG_DIR_ENV,
 	writeClaudeMcpConfig,
+	writeCursorConfigFiles,
 	writeOpencodeFiles,
 } from "../agents/agent-hooks.js";
 import type { AgentProcess } from "../agents/agent-runner.js";
@@ -183,7 +187,7 @@ async function runReviewSlot(
 	const stat = getGitStat(worktreePath, card.baseRef);
 	const fullDiff = getGitFullDiff(worktreePath, card.baseRef);
 	const context = formatPriorComments(card);
-	const systemPrompt = buildReviewSlotSystemPrompt(
+	const rawSystemPrompt = buildReviewSlotSystemPrompt(
 		slot,
 		card,
 		stat,
@@ -193,13 +197,22 @@ async function runReviewSlot(
 		options.secrets,
 		options.systemPrompt,
 	);
+	// Cursor Agent CLI does not fire a settings.json stop hook reliably.
+	// Tell it to call the task_complete MCP tool explicitly when done.
+	const systemPrompt =
+		slot.agentBinary === "cursor"
+			? rawSystemPrompt + "\n\nAfter calling `kanban_add_comment`, call the `task_complete` MCP tool to signal that you are done."
+			: rawSystemPrompt;
 	const triggerWord = getSlotTriggerWord(slot.type);
 
-	const mcpConfigPath = slot.agentBinary !== "opencode" ? getMcpConfigPath(streamId) : undefined;
+	const mcpConfigPath =
+		slot.agentBinary !== "opencode" && slot.agentBinary !== "cursor" ? getMcpConfigPath(streamId) : undefined;
 	const hookServerPort =
-		slot.agentBinary === "codex" || slot.agentBinary === "opencode" ? getServerPort(options.serverUrl) : undefined;
+		slot.agentBinary === "codex" || slot.agentBinary === "opencode" || slot.agentBinary === "cursor"
+			? getServerPort(options.serverUrl)
+			: undefined;
 	const mcpServer =
-		slot.agentBinary === "codex" || slot.agentBinary === "opencode"
+		slot.agentBinary === "codex" || slot.agentBinary === "opencode" || slot.agentBinary === "cursor"
 			? buildOveremployedMcpServerSpec(options.mcpBinary, options.serverUrl, workspaceId, slot.agentBinary)
 			: undefined;
 
@@ -409,6 +422,9 @@ function runAgentOnce(
 	if (agentId === "opencode" && hookServerPort != null && mcpServer) {
 		void writeOpencodeFiles(streamId, hookServerPort, mcpServer, { appendSystemPrompt }).catch(() => {});
 	}
+	if (agentId === "cursor" && hookServerPort != null && mcpServer) {
+		void writeCursorConfigFiles(streamId, hookServerPort, mcpServer).catch(() => {});
+	}
 
 	return new Promise((resolve) => {
 		let output = "";
@@ -420,6 +436,7 @@ function runAgentOnce(
 			void saveTerminalBuffer(workspaceId, streamId, output);
 			if (mcpConfigPath) unlink(mcpConfigPath).catch(() => {});
 			if (agentId === "opencode") void cleanupOpencodeFiles(streamId);
+			if (agentId === "cursor") void cleanupCursorConfigDir(streamId);
 			resolve(output);
 		});
 
@@ -433,8 +450,8 @@ function runAgentOnce(
 				...buildTaskHookEnv(streamId, workspaceId),
 				...secretsEnv,
 				...(agentId === "opencode" ? { [OPENCODE_CONFIG_DIR_ENV]: getOpencodeConfigDir(streamId) } : {}),
+				...(agentId === "cursor" ? { [CURSOR_CONFIG_DIR_ENV]: getCursorConfigDir(streamId) } : {}),
 			},
-			// Stop hook signals completion back to runAgentOnce via registerStopCallback
 			hookSettingsPath: agentId === "claude" ? CLAUDE_TASK_SETTINGS_PATH : undefined,
 			hookServerPort: agentId === "codex" ? hookServerPort : undefined,
 			mcpConfigPath: agentId === "claude" ? mcpConfigPath : undefined,
@@ -454,6 +471,7 @@ function runAgentOnce(
 				void saveTerminalBuffer(workspaceId, streamId, output);
 				if (mcpConfigPath) unlink(mcpConfigPath).catch(() => {});
 				if (agentId === "opencode") void cleanupOpencodeFiles(streamId);
+				if (agentId === "cursor") void cleanupCursorConfigDir(streamId);
 				resolve(output);
 			},
 		});

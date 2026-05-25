@@ -188,3 +188,49 @@ export const OveremployedPlugin: Plugin = async () => {
 export async function cleanupOpencodeFiles(id: string): Promise<void> {
 	await rm(getOpencodeConfigDir(id), { recursive: true, force: true });
 }
+
+// ─── Cursor Agent support ─────────────────────────────────────────────────────
+// Cursor reads config from CURSOR_CONFIG_DIR if set (same pattern as OPENCODE_CONFIG_DIR).
+// We write a per-task isolated directory with settings.json (stop hook), mcp.json, and rules.
+
+export const CURSOR_CONFIG_DIR_ENV = "CURSOR_CONFIG_DIR";
+
+export function getCursorConfigDir(id: string): string {
+	const safe = id.replace(/[^a-zA-Z0-9_-]/g, "_");
+	return join(HOOKS_DIR, `cursor-${safe}`);
+}
+
+// Writes settings.json (stop hook) and mcp.json into a per-task CURSOR_CONFIG_DIR.
+// Cursor's hook format uses flat {"command": "..."} entries under lowercase event names.
+// System prompt is NOT injected here — .cursor/rules/ is unreliable; instead the caller
+// prepends it to the initial prompt via AgentArgsContext.appendSystemPrompt.
+export async function writeCursorConfigFiles(
+	id: string,
+	serverPort: number,
+	mcpServerSpec: { command: string; args: string[] },
+): Promise<void> {
+	const dir = getCursorConfigDir(id);
+	await mkdir(dir, { recursive: true });
+
+	const hookUrl = `http://127.0.0.1:${serverPort}/api/hook?event=stop&taskId=$${HOOK_TASK_ID_ENV}&workspaceId=$${HOOK_WORKSPACE_ID_ENV}`;
+	const settings = {
+		hooks: {
+			stop: [{ command: `curl -sg "${hookUrl}"` }],
+		},
+	};
+
+	const mcpConfig = {
+		mcpServers: {
+			overemployed: mcpServerSpec,
+		},
+	};
+
+	await Promise.all([
+		writeFile(join(dir, "settings.json"), JSON.stringify(settings, null, 2)),
+		writeFile(join(dir, "mcp.json"), JSON.stringify(mcpConfig, null, 2)),
+	]);
+}
+
+export async function cleanupCursorConfigDir(id: string): Promise<void> {
+	await rm(getCursorConfigDir(id), { recursive: true, force: true });
+}

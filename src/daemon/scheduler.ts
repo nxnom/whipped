@@ -8,13 +8,17 @@ import {
 	buildTaskHookEnv,
 	CLAUDE_HOME_MCP_CONFIG_PATH,
 	CLAUDE_TASK_SETTINGS_PATH,
+	cleanupCursorConfigDir,
 	cleanupOpencodeFiles,
+	CURSOR_CONFIG_DIR_ENV,
+	getCursorConfigDir,
 	getMcpConfigPath,
 	getOpencodeConfigDir,
 	getServerPort,
 	OPENCODE_CONFIG_DIR_ENV,
 	writeClaudeHomeSettings,
 	writeClaudeMcpConfig,
+	writeCursorConfigFiles,
 	writeOpencodeFiles,
 } from "../agents/agent-hooks.js";
 import { getAvailableAgents } from "../agents/agent-registry.js";
@@ -156,6 +160,11 @@ export class TaskScheduler {
 			await writeOpencodeFiles(taskId, getServerPort(serverUrl), mcpSpec, { appendSystemPrompt }).catch((err) => {
 				logger.warn({ err }, "[scheduler] Failed to write opencode home agent files");
 			});
+		} else if (agentId === "cursor") {
+			const mcpSpec = buildOveremployedMcpServerSpec(getMcpServerPath(), serverUrl, workspaceId);
+			await writeCursorConfigFiles(taskId, getServerPort(serverUrl), mcpSpec).catch((err) => {
+				logger.warn({ err }, "[scheduler] Failed to write cursor home agent config");
+			});
 		}
 
 		const homeTask: RunningTask = {
@@ -170,6 +179,7 @@ export class TaskScheduler {
 					...secretsEnv,
 					...buildTaskHookEnv(taskId, workspaceId),
 					...(agentId === "opencode" ? { [OPENCODE_CONFIG_DIR_ENV]: getOpencodeConfigDir(taskId) } : {}),
+					...(agentId === "cursor" ? { [CURSOR_CONFIG_DIR_ENV]: getCursorConfigDir(taskId) } : {}),
 				},
 				mcpConfigPath: agentId === "claude" ? CLAUDE_HOME_MCP_CONFIG_PATH : undefined,
 				mcpServer:
@@ -331,7 +341,7 @@ export class TaskScheduler {
 
 		// Write agent-specific config so the dev agent can call kanban_add_comment when done
 		// and fire the Stop hook when it finishes a turn.
-		const mcpConfigPath = agentId !== "opencode" ? getMcpConfigPath(taskId) : undefined;
+		const mcpConfigPath = agentId !== "opencode" && agentId !== "cursor" ? getMcpConfigPath(taskId) : undefined;
 
 		// Create isolated worktree; merge extra dep branches when card has multiple independent deps
 		const worktree =
@@ -428,6 +438,9 @@ export class TaskScheduler {
 				await writeOpencodeFiles(taskId, getServerPort(this.options.serverUrl), mcpSpec, {
 					appendSystemPrompt: devSystemPromptResult.text,
 				}).catch(() => {});
+			} else if (agentId === "cursor") {
+				const mcpSpec = buildOveremployedMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId, agentId);
+				await writeCursorConfigFiles(taskId, getServerPort(this.options.serverUrl), mcpSpec).catch(() => {});
 			}
 
 			await appendActivityLog(workspaceId, taskId, `Agent ${agentId} started`);
@@ -456,6 +469,7 @@ export class TaskScheduler {
 						...buildTaskHookEnv(taskId, workspaceId),
 						...secretsEnv,
 						...(agentId === "opencode" ? { [OPENCODE_CONFIG_DIR_ENV]: getOpencodeConfigDir(taskId) } : {}),
+						...(agentId === "cursor" ? { [CURSOR_CONFIG_DIR_ENV]: getCursorConfigDir(taskId) } : {}),
 					},
 					hookSettingsPath: agentId === "claude" ? CLAUDE_TASK_SETTINGS_PATH : undefined,
 					hookServerPort: agentId === "codex" ? getServerPort(this.options.serverUrl) : undefined,
@@ -464,7 +478,13 @@ export class TaskScheduler {
 						agentId === "codex"
 							? buildOveremployedMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId, agentId)
 							: undefined,
-					appendSystemPrompt: agentId !== "opencode" ? devSystemPromptResult.text : undefined,
+					appendSystemPrompt:
+						agentId !== "opencode"
+							? agentId === "cursor"
+								? devSystemPromptResult.text +
+									"\n\n4. Call the `task_complete` MCP tool to signal that the task is complete."
+								: devSystemPromptResult.text
+							: undefined,
 					files: agentId === "claude" ? devSystemPromptResult.files : undefined,
 					effort: devSlotEarly.effort ?? undefined,
 					model: devSlotEarly.model ?? undefined,
@@ -481,6 +501,7 @@ export class TaskScheduler {
 						this.running.delete(taskId);
 						if (mcpConfigPath) unlink(mcpConfigPath).catch(() => {});
 						if (agentId === "opencode") void cleanupOpencodeFiles(taskId);
+						if (agentId === "cursor") void cleanupCursorConfigDir(taskId);
 
 						// Graceful shutdown already persisted the failed/todo state — bail out.
 						if (this.isShuttingDown) return;
@@ -874,6 +895,9 @@ export class TaskScheduler {
 			await writeOpencodeFiles(streamId, getServerPort(this.options.serverUrl), mcpSpec, {
 				appendSystemPrompt: CONFLICT_RESOLUTION_SYSTEM_PROMPT,
 			}).catch(() => {});
+		} else if (defaultAgent === "cursor") {
+			const mcpSpec = buildOveremployedMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId);
+			await writeCursorConfigFiles(streamId, getServerPort(this.options.serverUrl), mcpSpec).catch(() => {});
 		}
 
 		const proc = spawnAgent({
@@ -885,6 +909,7 @@ export class TaskScheduler {
 			env: {
 				...buildTaskHookEnv(streamId, workspaceId),
 				...(defaultAgent === "opencode" ? { [OPENCODE_CONFIG_DIR_ENV]: getOpencodeConfigDir(streamId) } : {}),
+				...(defaultAgent === "cursor" ? { [CURSOR_CONFIG_DIR_ENV]: getCursorConfigDir(streamId) } : {}),
 			},
 			appendSystemPrompt: defaultAgent !== "opencode" ? CONFLICT_RESOLUTION_SYSTEM_PROMPT : undefined,
 			onOutput: (data) => {
@@ -895,6 +920,7 @@ export class TaskScheduler {
 				this.liveProcesses.delete(streamId);
 				this.setRecentBuffer(streamId, outputBuffer);
 				void saveTerminalBuffer(workspaceId, streamId, outputBuffer);
+				if (defaultAgent === "cursor") void cleanupCursorConfigDir(streamId);
 				await endTerminalSession(workspaceId, card.id, streamId, Date.now(), exitCode === 0 ? "completed" : "failed");
 				if (!hookHandled) await onComplete(exitCode === 0);
 			},
@@ -909,6 +935,7 @@ export class TaskScheduler {
 			void saveTerminalBuffer(workspaceId, streamId, outputBuffer);
 			void endTerminalSession(workspaceId, card.id, streamId, Date.now(), "completed");
 			if (defaultAgent === "opencode") void cleanupOpencodeFiles(streamId);
+			if (defaultAgent === "cursor") void cleanupCursorConfigDir(streamId);
 			proc.kill();
 			onComplete(true).catch((err) => logger.error({ err }, `[scheduler] conflict onComplete failed for ${card.id}:`));
 		});

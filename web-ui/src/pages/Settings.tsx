@@ -155,7 +155,7 @@ function NavGroup({
 
 function ProjectSettings({ workspaceId, section }: { workspaceId: string; section: ProjectSection }) {
 	const [config, setConfig] = useState<RuntimeProjectConfig | null>(null);
-	const [globalDefaultBinary, setGlobalDefaultBinary] = useState<"claude" | "codex">("claude");
+	const [globalDefaultBinary, setGlobalDefaultBinary] = useState<RuntimeAgentId>("claude");
 	const [saving, setSaving] = useState(false);
 	const [togglingAutonomous, setTogglingAutonomous] = useState(false);
 	const [jiraTickets, setJiraTickets] = useState<RuntimeJiraTicket[] | null>(null);
@@ -538,7 +538,7 @@ function WorkflowsSection({
 	saving,
 }: {
 	workflows: Workflow[];
-	defaultBinary: "claude" | "codex";
+	defaultBinary: RuntimeAgentId;
 	onChange: (workflows: Workflow[]) => void;
 	onSave: () => void;
 	saving: boolean;
@@ -890,7 +890,7 @@ function WorkflowEditor({
 	onAddOrch,
 }: {
 	workflow: Workflow;
-	defaultBinary: "claude" | "codex";
+	defaultBinary: RuntimeAgentId;
 	onUpdate: (wf: Workflow) => void;
 	onEditSlot: (slot: WorkflowSlot) => void;
 	onAddCustom: () => void;
@@ -1138,26 +1138,31 @@ function ModelSelect({
 }) {
 	const staticOptions = MODEL_OPTIONS[agentId];
 
-	const [dynamicModels, setDynamicModels] = useState<string[]>([]);
+	const [dynamicModels, setDynamicModels] = useState<{ value: string; label: string }[]>([]);
 	const [isFetching, setIsFetching] = useState(false);
 
-	const fetchOpencodeModels = () => {
+	const fetchDynamicModels = () => {
 		setIsFetching(true);
-		trpc.agents.opencodeModels
-			.query()
-			.then((models) => setDynamicModels(models))
-			.catch(() => {})
-			.finally(() => setIsFetching(false));
+		if (agentId === "opencode") {
+			trpc.agents.opencodeModels
+				.query()
+				.then((models) => setDynamicModels(models.map((m) => ({ value: m, label: m }))))
+				.catch(() => {})
+				.finally(() => setIsFetching(false));
+		} else if (agentId === "cursor") {
+			trpc.agents.cursorModels
+				.query()
+				.then((models) => setDynamicModels(models))
+				.catch(() => {})
+				.finally(() => setIsFetching(false));
+		}
 	};
 
 	useEffect(() => {
-		if (agentId === "opencode") fetchOpencodeModels();
+		if (agentId === "opencode" || agentId === "cursor") fetchDynamicModels();
 	}, [agentId]);
 
-	const options =
-		agentId === "opencode"
-			? dynamicModels.map((m) => ({ value: m, label: m }))
-			: staticOptions;
+	const options = agentId === "opencode" || agentId === "cursor" ? dynamicModels : staticOptions;
 
 	const isPresetValue = value === "" || options.some((o) => o.value === value);
 	const [customMode, setCustomMode] = useState(!isPresetValue);
@@ -1185,10 +1190,10 @@ function ModelSelect({
 						<SelectOption value="__custom__" label="Custom..." />
 					</Select>
 				</div>
-				{agentId === "opencode" && (
+				{(agentId === "opencode" || agentId === "cursor") && (
 					<button
 						type="button"
-						onClick={fetchOpencodeModels}
+						onClick={fetchDynamicModels}
 						disabled={isFetching}
 						title="Refresh model list"
 						className="flex items-center justify-center px-2 rounded border border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] disabled:opacity-50 transition-colors"
@@ -1216,9 +1221,11 @@ function ModelSelect({
 					placeholder={
 						agentId === "opencode"
 							? "e.g. anthropic/claude-opus-4-7"
-							: agentId === "claude"
-								? "e.g. claude-opus-4-7"
-								: "e.g. gpt-5-codex"
+							: agentId === "cursor"
+								? "e.g. claude-opus-4-7-thinking-max"
+								: agentId === "claude"
+									? "e.g. claude-opus-4-7"
+									: "e.g. gpt-5-codex"
 					}
 				/>
 			)}
@@ -1326,11 +1333,11 @@ function AddCustomAgentDialog({
 	onAdd,
 	onClose,
 }: {
-	defaultBinary: "claude" | "codex";
+	defaultBinary: RuntimeAgentId;
 	title?: string;
 	onAdd: (
 		name: string,
-		binary: "claude" | "codex",
+		binary: RuntimeAgentId,
 		model: string | null,
 		effort: EffortLevel | null,
 		prompt: string,
@@ -1338,7 +1345,7 @@ function AddCustomAgentDialog({
 	onClose: () => void;
 }) {
 	const [name, setName] = useState("");
-	const [binary, setBinary] = useState<"claude" | "codex">(defaultBinary);
+	const [binary, setBinary] = useState<RuntimeAgentId>(defaultBinary);
 	const [model, setModel] = useState<string>("");
 	const [effort, setEffort] = useState<EffortLevel | "">("");
 	const [prompt, setPrompt] = useState("");

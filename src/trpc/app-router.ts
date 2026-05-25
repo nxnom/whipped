@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { getAvailableAgents, getOpencodeModels } from "../agents/agent-registry.js";
+import { getAvailableAgents, getCursorModels, getOpencodeModels } from "../agents/agent-registry.js";
 import { loadGlobalConfig, updateGlobalConfig } from "../config/runtime-config.js";
 import {
 	projectsLayoutSchema,
@@ -813,6 +813,9 @@ export const appRouter = router({
 		}),
 		opencodeModels: publicProcedure.query(() => {
 			return getOpencodeModels();
+		}),
+		cursorModels: publicProcedure.query(() => {
+			return getCursorModels();
 		}),
 	}),
 
