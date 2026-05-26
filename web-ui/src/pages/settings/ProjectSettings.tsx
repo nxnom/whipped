@@ -8,7 +8,7 @@ import { WorkflowsSection } from "./workflows";
 import { EnvironmentSecretsSection } from "./EnvironmentSecretsSection";
 import { GeneralAutomationSection } from "./sections/GeneralAutomationSection";
 import { InstructionsSection } from "./sections/InstructionsSection";
-import { JiraSection } from "./sections/JiraSection";
+import { IntegrationsSection } from "./sections/IntegrationsSection";
 
 function PageHeader({ title, description }: { title: string; description: string }) {
 	return (
@@ -199,15 +199,13 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 				)}
 
 				{section === "integrations" && (
-					<div className="max-w-xl space-y-6">
-						<JiraSection
-							workspaceId={workspaceId}
-							config={config}
-							saving={saving}
-							onUpdate={updateConfig}
-							onSave={handleSave}
-						/>
-					</div>
+					<IntegrationsSection
+						workspaceId={workspaceId}
+						config={config}
+						saving={saving}
+						onUpdate={updateConfig}
+						onSave={handleSave}
+					/>
 				)}
 			</div>
 		</div>
