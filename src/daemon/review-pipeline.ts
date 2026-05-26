@@ -446,6 +446,14 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 			const prUrl = await createGithubPR(worktreePath, prTitle, prDescription, card.baseRef, githubToken);
 			logger.info(`[review] Auto PR created: ${prUrl}`);
 			await updateCard(workspaceId, card.id, { pr: { ...card.pr, url: prUrl } });
+			// Propagate PR URL to all subtasks sharing this story's worktree.
+			const prBoard = await loadBoard(workspaceId);
+			const subtasks = Object.values(prBoard.cards).filter((c) => c.sharedWorktreeId === card.id);
+			for (const subtask of subtasks) {
+				if (!subtask.pr?.url) {
+					await updateCard(workspaceId, subtask.id, { pr: { ...(subtask.pr ?? {}), url: prUrl } });
+				}
+			}
 			await appendActivityLog(workspaceId, card.id, `Auto PR created → ${prUrl}`);
 		} catch (err) {
 			logger.error({ err }, `[review] Auto PR failed for "${card.title}":`);
