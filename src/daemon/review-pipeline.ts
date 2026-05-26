@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { unlink } from "node:fs/promises";
 import { join } from "node:path";
 import {
@@ -54,6 +54,7 @@ interface ReviewPipelineOptions {
 	stateHub: RuntimeStateHub;
 	githubClient?: GithubClient;
 	autoPR: boolean;
+	autoCommit: boolean;
 	secrets: RuntimeProjectSecret[];
 	systemPrompt?: string;
 	registerStopCallback: (streamId: string, callback: () => void) => () => void;
@@ -182,8 +183,16 @@ async function runReviewSlot(
 	customPrompt: string,
 ): Promise<ReviewSlotResult> {
 	const { workspaceId, stateHub } = options;
-	// Orch slots run on the story card directly — no worktree is created for story cards
-	const worktreePath = slot.type === "orch" ? options.repoPath : getWorktreePath(card.id);
+	// Orch slots use the story card's shared worktree (story is the worktree owner).
+	// Falls back to repoPath if that worktree no longer exists.
+	// Non-orch slots use the shared worktree when sharedWorktreeId is set.
+	const orchWorktreePath = getWorktreePath(card.id);
+	const worktreePath =
+		slot.type === "orch"
+			? existsSync(orchWorktreePath)
+				? orchWorktreePath
+				: options.repoPath
+			: getWorktreePath(card.sharedWorktreeId ?? card.id);
 	const stat = getGitStat(worktreePath, card.baseRef);
 	const fullDiff = getGitFullDiff(worktreePath, card.baseRef);
 	const context = formatPriorComments(card);
@@ -196,6 +205,7 @@ async function runReviewSlot(
 		context.text,
 		options.secrets,
 		options.systemPrompt,
+		options.autoCommit,
 	);
 	// Cursor Agent CLI does not fire a settings.json stop hook reliably.
 	// Tell it to call the task_complete MCP tool explicitly when done.
@@ -304,8 +314,52 @@ async function handleReviewFailure(card: RuntimeBoardCard, options: ReviewPipeli
 	const { workspaceId, maxAutoFixAttempts, stateHub } = options;
 
 	if (card.type === "story") {
-		// Orch failure: return to todo to wait for subtask rework — no retry counting
-		logger.info(`[review] Orch review failed for story "${card.title}" → todo`);
+		// Orch failure: scan for subtasks that the orch left a fail comment on and reopen them.
+		// The orch only needs to add comments — we handle the card moves server-side so a missed
+		// kanban_move_card call can't leave a subtask stuck without a transition.
+		logger.info(`[review] Orch review failed for story "${card.title}" → reopening flagged subtasks`);
+		const orchBoard = await loadBoard(workspaceId);
+		const subtaskIds = card.dependsOn ?? [];
+		const orchFailedAt = Date.now();
+		let reopenedCount = 0;
+		for (const subtaskId of subtaskIds) {
+			const subtask = orchBoard.cards[subtaskId];
+			if (!subtask) continue;
+			const hasOrchFail = subtask.reviewComments?.some((c) => c.type === "orch" && c.status === "fail");
+			if (hasOrchFail && subtask.columnId !== "reopened" && subtask.columnId !== "blocked") {
+				await moveCard(workspaceId, subtaskId, "reopened");
+				await appendActivityLog(workspaceId, subtaskId, "Orch review failed → moved to Reopened for rework");
+				reopenedCount++;
+			}
+		}
+		if (reopenedCount === 0) {
+			// Orch failed but didn't comment on any subtask — propagate the story-level orch comment
+			// down to each subtask so the dev agent has instructions when it picks the card up.
+			logger.warn(`[review] Orch failed for "${card.title}" but no subtask orch-fail comments found — propagating story comment to all subtasks`);
+			const reloadedStory = orchBoard.cards[card.id];
+			const storyOrchComment = reloadedStory?.reviewComments?.slice().reverse().find((c) => c.type === "orch" && c.status === "fail");
+			for (const subtaskId of subtaskIds) {
+				const subtask = orchBoard.cards[subtaskId];
+				if (!subtask || subtask.columnId === "blocked") continue;
+				if (storyOrchComment) {
+					const existing = subtask.reviewComments ?? [];
+					await updateCard(workspaceId, subtaskId, {
+						reviewComments: [
+							...existing,
+							{
+								...storyOrchComment,
+								createdAt: Date.now(),
+								summary: `[From orchestrator review of story "${card.title}"]\n\n${storyOrchComment.summary}`,
+							},
+						],
+					});
+				}
+				await moveCard(workspaceId, subtaskId, "reopened");
+				await appendActivityLog(workspaceId, subtaskId, "Orch review failed → moved to Reopened");
+				reopenedCount++;
+			}
+		}
+		logger.info(`[review] Orch failure handled: ${reopenedCount} subtasks reopened (orchFailedAt=${orchFailedAt})`);
 		await moveCard(workspaceId, card.id, "todo");
 		await appendActivityLog(workspaceId, card.id, "Orchestrator review failed → waiting for subtask rework");
 		stateHub.broadcastWorkspaceUpdate(workspaceId);
@@ -600,6 +654,8 @@ export function buildDevAgentSystemPrompt(
 	systemPrompt?: string,
 	gitInstructions?: string,
 	autoCommit = true,
+	effectiveBaseRef?: string,
+	siblingCards: RuntimeBoardCard[] = [],
 ): { text: string; files: string[] } {
 	const effectiveGitInstructions = gitInstructions?.trim() || DEFAULT_GIT_INSTRUCTIONS;
 	const priorPr = card.pr;
@@ -616,8 +672,15 @@ export function buildDevAgentSystemPrompt(
 	const context = formatPriorComments(card);
 	const parts: string[] = [];
 
-	const stat = worktreePath ? getGitStat(worktreePath, card.baseRef) : null;
-	const statSection = stat ? `\n\n## Current worktree state (vs ${card.baseRef})\n${stat}` : "";
+	const statBase = effectiveBaseRef ?? card.baseRef;
+	const stat = worktreePath ? getGitStat(worktreePath, statBase) : null;
+	const fullDiff = worktreePath ? getGitFullDiff(worktreePath, statBase) : "";
+	const diffSection = fullDiff
+		? fullDiff.length <= INLINE_DIFF_LIMIT
+			? `\n\n## Diff (vs ${statBase})\n${fullDiff}`
+			: `\n\n## Diff (vs ${statBase})\nLarge changeset (${fullDiff.length.toLocaleString()} chars). Use \`git diff ${statBase}...HEAD\` and read individual files to explore.`
+		: "";
+	const statSection = stat ? `\n\n## Current worktree state (vs ${statBase})\n${stat}${diffSection}` : "";
 
 	const descAttachNote =
 		(card.descriptionAttachments?.length ?? 0) > 0
@@ -642,13 +705,28 @@ export function buildDevAgentSystemPrompt(
 		}
 	}
 
+	if (siblingCards.length > 0) {
+		const siblingSummaries = siblingCards
+			.map((s) => {
+				const devComment = [...(s.reviewComments ?? [])].reverse().find((c) => c.type === "dev");
+				if (!devComment) return null;
+				return `### ${s.title}\n${devComment.summary}`;
+			})
+			.filter((s): s is string => s !== null);
+		if (siblingSummaries.length > 0) {
+			parts.push(
+				`## Work already in this worktree\n\nThe following sibling tasks have already been completed in this shared working directory. Their changes are visible in your working directory — build on them, do not re-implement:\n\n${siblingSummaries.join("\n\n")}`,
+			);
+		}
+	}
+
 	const commitInstruction = autoCommit
 		? `1. Commit all changes. Write the commit message following the project's git conventions (see "## Git conventions" below) — do not use a hard-coded template like the task title.`
 		: `1. Do NOT commit your changes. Leave all changes uncommitted in the worktree — the user will review and commit manually when they trigger Merge or Create PR.`;
 
 	parts.push(`You are an autonomous coding agent working on a Kanban task.
 
-Work autonomously without asking for permission or confirmation. You have full access to the codebase in your current working directory. Your worktree is branched off \`${card.baseRef}\`.
+Work autonomously without asking for permission or confirmation. You have full access to the codebase in your current working directory. Your worktree is branched off \`${effectiveBaseRef ?? card.baseRef}\`.
 
 If there are prior review comments above with issues listed, you MUST address ALL of them before finishing — including info-level ones. Do not skip any issue regardless of severity.
 
@@ -687,6 +765,7 @@ function buildReviewSlotSystemPrompt(
 	priorContext: string,
 	secrets: RuntimeProjectSecret[] = [],
 	systemPrompt?: string,
+	autoCommit = true,
 ): string {
 	switch (slot.type) {
 		case "code_review":
@@ -694,7 +773,7 @@ function buildReviewSlotSystemPrompt(
 		case "qa":
 			return buildQASystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets, systemPrompt);
 		case "orch":
-			return buildOrchSystemPrompt(slot, card, customPrompt, priorContext, secrets, systemPrompt);
+			return buildOrchSystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets, systemPrompt, autoCommit);
 		default:
 			return buildCustomSystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets, systemPrompt);
 	}
@@ -800,16 +879,23 @@ Then call \`kanban_add_comment\` with cardId: "${card.id}", type: "qa", status: 
 function buildOrchSystemPrompt(
 	slot: WorkflowSlot,
 	card: RuntimeBoardCard,
+	stat: string,
+	fullDiff: string,
 	customPrompt: string,
 	priorContext: string,
 	secrets: RuntimeProjectSecret[],
 	systemPrompt?: string,
+	autoCommit = true,
 ): string {
 	const subtaskIds = card.dependsOn ?? [];
 	const commentType = slot.type === "custom" ? slot.id : slot.type;
 	const custom = customPrompt.trim() ? `\n\n## Additional instructions\n\n${customPrompt.trim()}` : "";
 	const secretsSection = buildSecretsSection(secrets);
 	const projectContext = systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : "";
+	const diffSection =
+		fullDiff.length <= INLINE_DIFF_LIMIT
+			? `Git diff:\n${fullDiff}`
+			: `Large changeset (${fullDiff.length.toLocaleString()} chars). Use \`git diff ${card.baseRef}...HEAD\` and read individual files to explore — start with the stat above to decide where to focus.`;
 
 	return `You are an Orchestrator agent. All subtasks for a story have finished their dev and review workflows. Your job is to decide whether the story goal has been fully and correctly met across all subtasks.
 
@@ -819,19 +905,25 @@ ${card.description ? `\n${card.description}\n` : ""}
 ## Subtasks
 ${subtaskIds.length > 0 ? subtaskIds.map((id) => `- ${id}`).join("\n") : "(none)"}
 ${priorContext}
-## Step 1 — Read the board
+## Changed files
+${stat}
+
+## Diff
+${diffSection}
+
+## Step 1 — Read the board and inspect the code
 Call \`kanban_get_board\` to get the current state of all cards. For each subtask ID listed above, examine:
 - Its **title and description** (what it was supposed to do)
 - Its **review comments** (what was actually built, any CR/QA findings, and how issues were resolved)
 
-Do not rely on assumptions — read the actual comment summaries.
+The diff above shows the combined changes for this story's shared worktree. You may also use your tools (Read, grep) to inspect specific files and verify the implementation matches the story goal. If the diff is large, use \`git diff ${card.baseRef}...HEAD\` to explore.
 
 ## Step 2 — Evaluate against the story goal
 Work through these checks:
 
 1. **Completeness** — Does the combined implementation cover everything stated in the story description and acceptance criteria? Is anything missing?
 2. **Integration** — Do the subtasks connect correctly? If subtask A exposes an endpoint/type/function that subtask B consumes, do the interfaces actually match?
-3. **Correctness** — Based on what the CR and QA agents reported, are there unresolved issues that affect the story goal? (Info-level notes that don't block individual subtasks may still matter at the story level.)
+3. **Correctness** — Based on what the CR and QA agents reported and what you see in the diff, are there unresolved issues that affect the story goal?
 4. **Consistency** — Are patterns, naming, data shapes, and behaviors consistent across subtasks?
 
 ## Step 3 — Act
@@ -845,30 +937,28 @@ summary: Confirm the story goal is met. Summarise what was built across all subt
 \`\`\`
 
 ### ❌ Rework needed
-For **each subtask that needs changes**:
-
-1. Call \`kanban_add_comment\` on the **subtask card**:
+For **each subtask that needs changes**, call \`kanban_add_comment\` on that **subtask card**:
 \`\`\`
 type: "orch"
 status: "fail"
-summary: Exact description of what is wrong and what to change. Reference specific files, functions, endpoints, or field names. The dev agent will read this as its instruction — be precise enough that no further clarification is needed.
+summary: Exact description of what is wrong and what to change. Reference specific files, functions, endpoints, or field names. The dev agent will read this as its only instruction — be precise enough that no further clarification is needed.
 issues: [{ severity: "blocking", message: "..." }]  // one issue per distinct problem
 \`\`\`
 
-2. Call \`kanban_move_card\` on that subtask to \`"reopened"\`
+Do NOT call \`kanban_move_card\` — the system moves subtasks automatically based on your comments.
 
 Then call \`kanban_add_comment\` on the **story card** (${card.id}):
 \`\`\`
 type: "${commentType}"
 status: "fail"
-summary: Which subtasks were sent back and the overall reason (1–2 sentences).
+summary: Which subtasks need rework and the overall reason (1–2 sentences).
 \`\`\`
 
 ## Rules
 - You will run again after subtasks are fixed, so only pass when you are confident the story goal is met
-- Only reopen subtasks for issues that affect the story goal — do not reopen for minor style preferences or issues the CR/QA agent already marked as info-only
-- Never reopen a subtask without a specific, actionable comment — vague feedback blocks the dev agent
-- **Choosing the right subtask**: When a change could apply to multiple subtasks, target the *leaf* subtask — the one furthest along the dependency chain (i.e., no other story subtask depends on it). The leaf subtask's branch is the most up-to-date: it has already merged or built on top of all earlier subtasks' work. Sending rework to an earlier subtask risks stale-ref conflicts with later subtasks that share the same files.
+- Only flag subtasks for issues that affect the story goal — do not flag for minor style preferences or issues the CR/QA agent already marked as info-only
+- Never flag a subtask without a specific, actionable comment — vague feedback blocks the dev agent
+- **Choosing the right subtask**: Reopen the subtask whose work scope is most directly responsible for the issue. Since all subtasks share the same worktree directory, the dev agent can fix any file regardless of which subtask you target — pick the one where the fix semantically belongs.${!autoCommit ? "\n- **Auto-commit is disabled**: Subtask worktrees intentionally have uncommitted changes. Do NOT flag this." : ""}
 - Your pass/fail summary must describe only what was built and whether it meets the story goal — nothing else.${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}`;
 }
 

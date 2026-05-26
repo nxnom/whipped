@@ -338,6 +338,7 @@ export async function createCard(
 				| "workflowId"
 				| "descriptionAttachments"
 				| "branchName"
+				| "sharedWorktreeId"
 			>
 		>,
 	baseRef: string,
@@ -368,6 +369,7 @@ export async function createCard(
 			workflowId: data.workflowId,
 			descriptionAttachments: data.descriptionAttachments ?? [],
 			branchName: data.branchName,
+			sharedWorktreeId: data.sharedWorktreeId,
 			reviewComments: [],
 			activityLog: [],
 			terminalSessions: [],
@@ -590,6 +592,7 @@ export async function updateCard(
 			| "githubCommentIds"
 			| "worktreePath"
 			| "branchName"
+			| "sharedWorktreeId"
 		>
 	>,
 ): Promise<RuntimeBoardCard> {

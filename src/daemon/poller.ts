@@ -84,10 +84,11 @@ async function resolvePRConflicts(
 ): Promise<void> {
 	try {
 		const taskBranch = getCardBranch(card);
-		const worktreePath = getWorktreePath(card.id);
+		const worktreePath = getWorktreePath(card.sharedWorktreeId ?? card.id);
 
 		if (!existsSync(worktreePath)) {
-			createWorktree(card.id, repoPath, card.baseRef, card.branchName);
+			const ownerCardId = card.sharedWorktreeId ?? card.id;
+			createWorktree(ownerCardId, repoPath, card.baseRef, card.sharedWorktreeId ? undefined : card.branchName);
 		}
 
 		spawnSync("git", ["fetch", "origin", card.baseRef], { cwd: repoPath, stdio: "ignore" });
@@ -192,7 +193,7 @@ export class BoardPoller {
 	private schedulePoll(): void {
 		this.timer = setTimeout(async () => {
 			if (!this.running) return;
-			await this.poll();
+			await this.poll().catch((err) => logger.error(`[poller] poll() threw unexpectedly: ${String(err)}`));
 			if (this.running) this.schedulePoll();
 		}, this.options.pollingIntervalSeconds * 1000);
 	}
@@ -200,7 +201,7 @@ export class BoardPoller {
 	private schedulePRPoll(): void {
 		this.prTimer = setTimeout(async () => {
 			if (!this.prPollingActive) return;
-			await this.pollPRs();
+			await this.pollPRs().catch((err) => logger.error(`[poller] pollPRs() threw unexpectedly: ${String(err)}`));
 			if (this.prPollingActive) this.schedulePRPoll();
 		}, this.options.prPollingIntervalSeconds * 1000);
 	}
@@ -246,10 +247,11 @@ export class BoardPoller {
 
 		for (const card of pendingCards) {
 			if (!scheduler.canAcceptTask(inFlightCount)) break;
-			// Skip cards whose dependencies are not yet in ready_for_review or done
+			// Skip cards whose dependency is not yet in ready_for_review.
+			// Done cards may have had their worktrees deleted — don't treat them as met.
 			const unmetDep = (card.dependsOn ?? []).find((depId) => {
 				const dep = board.cards[depId];
-				return !dep || (dep.columnId !== "ready_for_review" && dep.columnId !== "done");
+				return !dep || dep.columnId !== "ready_for_review";
 			});
 			if (unmetDep) continue;
 			logger.info(
@@ -351,25 +353,16 @@ export class BoardPoller {
 				await moveCard(workspaceId, taskId, "done");
 				await clearCardSession(workspaceId, taskId);
 				await appendActivityLog(workspaceId, taskId, "PR merged on GitHub → Done");
-				// Defer branch cleanup until no non-done card still needs this branch as a base.
-				// Dependent cards branch off this task's worktree branch, so deleting it early
-				// causes them to fall back to the wrong base when they eventually start.
-				const boardAfterDone = await loadBoard(workspaceId);
-				const hasPendingDependents = Object.values(boardAfterDone.cards).some(
-					(c) => c.dependsOn.includes(taskId) && c.columnId !== "done",
-				);
-				if (!hasPendingDependents) {
-					cleanupWorktree(taskId, repoPath, card.branchName);
-					// Also check whether any of this card's own deps can now be cleaned up
-					// (covers the case where a dep was waiting for all its dependents to finish).
-					for (const depId of card.dependsOn ?? []) {
-						const dep = boardAfterDone.cards[depId as string];
-						if (dep?.columnId === "done") {
-							const depStillNeeded = Object.values(boardAfterDone.cards).some(
-								(c) => c.dependsOn.includes(depId as string) && c.columnId !== "done",
-							);
-							if (!depStillNeeded) cleanupWorktree(depId as string, repoPath, dep.branchName);
-						}
+				// Keep the worktree alive as long as any other card still depends on this one —
+				// those cards share this card's worktree and would break without it.
+				// Cards with sharedWorktreeId don't own a worktree — skip cleanup entirely.
+				if (!card.sharedWorktreeId) {
+					const boardAfterDone = await loadBoard(workspaceId);
+					const hasDependents = Object.values(boardAfterDone.cards).some((c) =>
+						c.dependsOn.includes(taskId),
+					);
+					if (!hasDependents) {
+						cleanupWorktree(taskId, repoPath, card.branchName);
 					}
 				}
 				void syncMainRepoAfterPRMerge(repoPath, card.baseRef, card, workspaceId, scheduler, stateHub);

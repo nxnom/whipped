@@ -652,12 +652,9 @@ export function CardDetailPanel({
 							<span className="text-[11px] font-semibold text-[#8888a0] tracking-[0.3px]">Workflow Pipeline</span>
 						</div>
 						<div className="flex flex-col px-[18px] pb-4">
-							{workflowSlots && workflowSlots.length > 0 ? (() => {
-								const activeSlots = workflowSlots.filter(slot => visibleSessions.some(ts => ts.type === slot.id));
-								return activeSlots.map((slot, idx) => {
-								// Use the most recent session for this slot (in case of retries)
-								// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-								const session = visibleSessions.filter((ts) => ts.type === slot.id).at(-1)!;
+							{visibleSessions.length > 0 ? (() => {
+								return visibleSessions.map((session, idx) => {
+								const slotName = workflowSlots?.find(s => s.id === session.type)?.name ?? session.type;
 								const status = !session.endedAt
 									? "running"
 									: session.state === "failed" || session.state === "stopped"
@@ -666,7 +663,7 @@ export function CardDetailPanel({
 								const duration = slotDuration(session.startedAt, session.endedAt);
 								const isFocused = activeStreamId === session.streamId;
 								return (
-									<div key={slot.id} className="flex items-stretch gap-0">
+									<div key={session.streamId} className="flex items-stretch gap-0">
 										{/* Focus indicator */}
 										<div className={`w-0.5 shrink-0 rounded-full mr-2 self-stretch transition-colors ${isFocused ? "bg-[#7c6aff]" : "bg-transparent"}`} />
 										{/* Status icon + connector */}
@@ -683,7 +680,7 @@ export function CardDetailPanel({
 												{status === "failed" && <Circle size={14} className="text-[#ef4444]" />}
 												{status === "stopped" && <Circle size={14} className="text-yellow-400" />}
 											</div>
-											{idx < activeSlots.length - 1 && (
+											{idx < visibleSessions.length - 1 && (
 												<div className={`w-0.5 flex-1 min-h-[12px] rounded-full mt-0.5 mb-0.5 ${status === "completed" ? "bg-[#22c55e]/40" : "bg-[#2a2a35]"}`} />
 											)}
 										</div>
@@ -696,7 +693,7 @@ export function CardDetailPanel({
 											className={`flex flex-col gap-0.5 pl-2 py-0.5 pb-3 flex-1 min-w-0 text-left cursor-pointer rounded transition-colors ${isFocused ? "bg-[#7c6aff]/8" : "hover:bg-white/[0.03]"}`}
 										>
 											<span className={`text-xs ${isFocused ? "font-semibold text-[#c4baff]" : status === "running" ? "font-semibold text-[#f0f0f5]" : status === "completed" ? "text-[#f0f0f5]" : "text-[#4a4a5a]"}`}>
-												{slot.name}
+												{slotName}
 											</span>
 											<span className="text-[10px] flex items-center gap-1.5">
 												{status === "running" && <span className={isFocused ? "text-[#a78bfa]" : "text-[#3b82f6]"}>Running</span>}
@@ -714,7 +711,7 @@ export function CardDetailPanel({
 								);
 								});
 							})() : (
-								<p className="text-xs text-[#4a4a5a] pb-2">No workflow configured</p>
+								<p className="text-xs text-[#4a4a5a] pb-2">Not started yet</p>
 							)}
 						</div>
 					</div>

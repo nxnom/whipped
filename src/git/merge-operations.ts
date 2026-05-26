@@ -36,12 +36,17 @@ export async function isWorktreeDirty(worktreePath: string): Promise<boolean> {
 		cwd: worktreePath,
 		encoding: "utf-8",
 	}).catch(() => null);
-	return !!statusResult?.stdout?.trim();
+	const dirty = !!statusResult?.stdout?.trim();
+	logger.info(`[git:isWorktreeDirty] path=${worktreePath} dirty=${dirty} output=${JSON.stringify(statusResult?.stdout?.trim())}`);
+	return dirty;
 }
 
 export async function commitWorktree(worktreePath: string, message: string): Promise<void> {
-	await execFileAsync("git", ["add", "-A"], { cwd: worktreePath }).catch(() => {});
-	await execFileAsync("git", ["commit", "-m", message], { cwd: worktreePath }).catch(() => {});
+	logger.info(`[git:commitWorktree] Staging all changes in ${worktreePath}`);
+	const addResult = await execFileAsync("git", ["add", "-A"], { cwd: worktreePath }).catch((err) => { logger.error(`[git:commitWorktree] git add -A failed: ${String(err)}`); return null; });
+	logger.info(`[git:commitWorktree] git add -A done. Committing with message: "${message}"`);
+	const commitResult = await execFileAsync("git", ["commit", "-m", message], { cwd: worktreePath }).catch((err) => { logger.error(`[git:commitWorktree] git commit failed: ${String(err)}`); return null; });
+	logger.info(`[git:commitWorktree] git commit done. stdout=${JSON.stringify((commitResult as any)?.stdout?.trim())}`);
 }
 
 export async function commitIfDirty(worktreePath: string, message: string): Promise<boolean> {
@@ -49,6 +54,23 @@ export async function commitIfDirty(worktreePath: string, message: string): Prom
 	if (!dirty) return false;
 	await commitWorktree(worktreePath, message);
 	return true;
+}
+
+// Stages and commits all changes as a temporary "__overemployed_wip__" commit so a
+// dependent worktree can branch from it. Returns true if a commit was made.
+// Always pair with undoTempCommit() after the dependent worktree is created.
+export async function createTempCommit(worktreePath: string): Promise<boolean> {
+	const dirty = await isWorktreeDirty(worktreePath);
+	if (!dirty) return false;
+	await execFileAsync("git", ["add", "-A"], { cwd: worktreePath }).catch(() => {});
+	await execFileAsync("git", ["commit", "-m", "__overemployed_wip__"], { cwd: worktreePath });
+	return true;
+}
+
+// Soft-resets the last commit, restoring all changes as staged.
+// Used to clean up after createTempCommit once the dependent worktree exists.
+export async function undoTempCommit(worktreePath: string): Promise<void> {
+	await execFileAsync("git", ["reset", "--soft", "HEAD~1"], { cwd: worktreePath }).catch(() => {});
 }
 
 export interface MergeResult {

@@ -291,6 +291,7 @@ export const runtimeBoardCardSchema = z.object({
 	githubCommentIds: z.array(z.string()).default([]),
 	worktreePath: z.string().optional(),
 	branchName: z.string().optional(),
+	sharedWorktreeId: z.string().optional(),
 });
 export type RuntimeBoardCard = z.infer<typeof runtimeBoardCardSchema>;
 
@@ -413,6 +414,7 @@ export const runtimeCardCreateRequestSchema = z.object({
 	workflowId: z.string().optional(),
 	descriptionAttachments: z.array(reviewAttachmentSchema).optional(),
 	branchName: z.string().optional(),
+	sharedWorktreeId: z.string().optional(),
 });
 export type RuntimeCardCreateRequest = z.infer<typeof runtimeCardCreateRequestSchema>;
 
@@ -436,6 +438,7 @@ export const runtimeCardUpdateRequestSchema = z.object({
 	dependsOn: z.array(z.string()).optional(),
 	workflowId: z.string().optional(),
 	branchName: z.string().optional(),
+	sharedWorktreeId: z.string().optional(),
 	revision: z.number(),
 });
 export type RuntimeCardUpdateRequest = z.infer<typeof runtimeCardUpdateRequestSchema>;

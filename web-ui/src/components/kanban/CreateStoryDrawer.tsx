@@ -282,6 +282,16 @@ export function CreateStoryDrawer({
 				});
 			}
 
+			// Pass 3: wire sharedWorktreeId on all subtasks so they share the story's worktree
+			for (const { realId } of created) {
+				await trpc.cards.update.mutate({
+					workspaceId,
+					cardId: realId,
+					sharedWorktreeId: storyCard.id,
+					revision: 0,
+				});
+			}
+
 			handleClose();
 			onRefresh();
 		} catch {

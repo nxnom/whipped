@@ -198,6 +198,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 					stateHub,
 					githubClient: latestGithubClient,
 					autoPR: latestProjectConfig.autoPR ?? false,
+					autoCommit: latestProjectConfig.autoCommit ?? true,
 					secrets: latestProjectConfig.secrets ?? [],
 					systemPrompt: latestProjectConfig.systemPrompt,
 					registerStopCallback: scheduler.registerStopCallback.bind(scheduler),

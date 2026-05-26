@@ -425,6 +425,12 @@ export function CreateTaskDialog({
 		if (!title.trim()) return;
 		setLoading(true);
 		try {
+			// Inherit shared worktree from the single dep if present
+			let sharedWorktreeId: string | undefined;
+			if (dependsOn.length === 1) {
+				const dep = allCards[dependsOn[0]!];
+				if (dep) sharedWorktreeId = dep.sharedWorktreeId ?? dep.id;
+			}
 			const card = await trpc.cards.create.mutate({
 				workspaceId,
 				title: title.trim(),
@@ -435,6 +441,7 @@ export function CreateTaskDialog({
 				baseRef: baseRef || undefined,
 				workflowId: workflowId || undefined,
 				branchName: branchName.trim() || undefined,
+				sharedWorktreeId,
 			});
 			if (pendingImages.length > 0) {
 				const uploaded = await uploadImages(workspaceId, card.id, pendingImages);
@@ -452,11 +459,20 @@ export function CreateTaskDialog({
 	const handleCreateStory = async () => {
 		if (!title.trim() || subtasks.length === 0) return;
 		setLoading(true);
+		console.log("[CreateStory] Starting story creation");
+		console.log("[CreateStory] Story title:", title.trim());
+		console.log("[CreateStory] Story description:", description);
+		console.log("[CreateStory] Story priority:", priority);
+		console.log("[CreateStory] Base ref:", baseRef);
+		console.log("[CreateStory] Story workflow ID:", storyWorkflowId);
+		console.log("[CreateStory] Ready for dev:", readyForDev);
+		console.log("[CreateStory] Subtasks:", JSON.parse(JSON.stringify(subtasks)));
 		try {
 			const tempIdToRealId = new Map<string, string>();
 			const created: Array<{ realId: string; rawDeps: string[] }> = [];
 			for (const subtask of subtasks) {
 				const existingDeps = subtask.dependsOn.filter((dep) => !subtasks.some((s) => s.tempId === dep));
+				console.log(`[CreateStory] Creating subtask "${subtask.title}"`, { workflowId: subtask.workflowId, baseRef: subtask.baseRef || baseRef, branchName: subtask.branchName, priority: subtask.priority, existingDeps });
 				const card = await trpc.cards.create.mutate({
 					workspaceId,
 					title: subtask.title.trim(),
@@ -473,6 +489,7 @@ export function CreateTaskDialog({
 					const uploaded = await uploadImages(workspaceId, card.id, subtask.pendingImages);
 					await trpc.cards.update.mutate({ workspaceId, cardId: card.id, descriptionAttachments: uploaded, revision: 0 });
 				}
+				console.log(`[CreateStory] Subtask "${subtask.title}" created with id: ${card.id}`);
 				tempIdToRealId.set(subtask.tempId, card.id);
 				created.push({ realId: card.id, rawDeps: subtask.dependsOn });
 			}
@@ -488,6 +505,8 @@ export function CreateTaskDialog({
 					revision: 0,
 				});
 			}
+			console.log("[CreateStory] All subtasks created. tempId→realId map:", Object.fromEntries(tempIdToRealId));
+			console.log("[CreateStory] Creating story card with subtask deps:", created.map((c) => c.realId));
 			const storyCard = await trpc.cards.create.mutate({
 				workspaceId,
 				title: title.trim(),
@@ -502,9 +521,15 @@ export function CreateTaskDialog({
 				const uploaded = await uploadImages(workspaceId, storyCard.id, pendingImages);
 				await trpc.cards.update.mutate({ workspaceId, cardId: storyCard.id, descriptionAttachments: uploaded, revision: 0 });
 			}
+			// Pass 3: wire sharedWorktreeId on all subtasks so they share the story's worktree
+			for (const { realId } of created) {
+				await trpc.cards.update.mutate({ workspaceId, cardId: realId, sharedWorktreeId: storyCard.id, revision: 0 });
+			}
+			console.log("[CreateStory] Story card created with id:", storyCard.id);
 			handleClose();
 			onRefresh();
-		} catch {
+		} catch (err) {
+			console.error("[CreateStory] Error:", err);
 			toast.error("Failed to create story");
 		} finally {
 			setLoading(false);

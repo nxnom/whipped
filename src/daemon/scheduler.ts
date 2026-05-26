@@ -45,7 +45,7 @@ import {
 	saveTerminalBuffer,
 	updateCard,
 } from "../state/workspace-state.js";
-import { createMergedWorktree, createWorktree, getCardBranch, getWorktreePath } from "../worktree/worktree-manager.js";
+import { createWorktree, getCardBranch, getEffectiveWorktreeId, getWorktreePath, titleToBranch } from "../worktree/worktree-manager.js";
 import {
 	buildDevAgentSystemPrompt,
 	buildSecretsEnv,
@@ -72,6 +72,7 @@ interface RunningTask {
 	process: AgentProcess;
 	startedAt: number;
 	outputBuffer: string;
+	sharedWorktreeId?: string; // set when card shares another card's worktree; used to release sibling lock
 }
 
 const FAST_EXIT_THRESHOLD_MS = 8_000;
@@ -99,6 +100,9 @@ export class TaskScheduler {
 	private manuallyStoppedForHook = new Set<string>();
 	// Tasks stopped because their parent was reopened — session set to "stopped" in onExit.
 	private parentReopenedTasks = new Set<string>();
+	// Shared worktree IDs currently in use by a dev agent — prevents sibling cards from
+	// running concurrently in the same worktree directory.
+	private runningSharedWorktrees = new Set<string>();
 	// Set during graceful shutdown — onExit becomes a no-op to preserve cleanup state.
 	private isShuttingDown = false;
 
@@ -263,49 +267,77 @@ export class TaskScheduler {
 
 		logger.info(`[scheduler] Starting task ${taskId} "${card.title}" with agent ${agentId}`);
 
-		// Check and resolve dependencies
-		let effectiveBaseRef = card.baseRef;
-		let extraDepBranches: string[] = [];
+		// Auto-derive sharedWorktreeId for single-dep cards that don't have it set.
+		// Covers cards created from the frontend or before this feature was added.
+		if (!card.sharedWorktreeId && card.dependsOn.length === 1) {
+			const depBoard = await loadBoard(workspaceId);
+			const dep = depBoard.cards[card.dependsOn[0]!];
+			if (dep) {
+				const inheritedId = dep.sharedWorktreeId ?? dep.id;
+				await updateCard(workspaceId, taskId, { sharedWorktreeId: inheritedId });
+				card = { ...card, sharedWorktreeId: inheritedId };
+				logger.info(`[scheduler] Auto-set sharedWorktreeId=${inheritedId} for "${card.title}"`);
+			}
+		}
+
+		// Compute effective worktree ID: cards with sharedWorktreeId share another card's worktree.
+		const effectiveWorktreeId = getEffectiveWorktreeId(card.id, card.sharedWorktreeId);
+		const hasSharedWorktree = !!card.sharedWorktreeId;
+
+		// Sibling lock: prevent two cards from running concurrently in the same shared worktree.
+		if (hasSharedWorktree && this.runningSharedWorktrees.has(effectiveWorktreeId)) {
+			logger.info(`[scheduler] Shared worktree ${effectiveWorktreeId} busy — deferring "${card.title}"`);
+			return;
+		}
+		if (hasSharedWorktree) this.runningSharedWorktrees.add(effectiveWorktreeId);
+
+		// Check and resolve dependencies.
+		// A dep is only considered met when it's in ready_for_review — done cards may have had
+		// their worktrees deleted already, so we don't allow depending on them.
 		let parentCards: RuntimeBoardCard[] = [];
+		let siblingCards: RuntimeBoardCard[] = [];
 		if (card.dependsOn && card.dependsOn.length > 0) {
 			const board = await loadBoard(workspaceId);
 			const unmetDep = card.dependsOn.find((depId) => {
 				const dep = board.cards[depId];
-				return !dep || (dep.columnId !== "ready_for_review" && dep.columnId !== "done");
+				return !dep || dep.columnId !== "ready_for_review";
 			});
 			if (unmetDep) {
+				if (hasSharedWorktree) this.runningSharedWorktrees.delete(effectiveWorktreeId);
 				await moveCard(workspaceId, taskId, "blocked");
 				const depCard = board.cards[unmetDep];
 				await appendActivityLog(
 					workspaceId,
 					taskId,
-					`Blocked: dependency "${depCard?.title ?? unmetDep}" is not yet complete`,
+					`Blocked: dependency "${depCard?.title ?? unmetDep}" is not yet in Ready for Review`,
 				);
 				stateHub.broadcastWorkspaceUpdate(workspaceId);
 				return;
 			}
-			// Story cards run the orch workflow on the base branch — don't branch off subtask worktrees
 			if (card.type !== "story") {
-				// Collect all resolved dep branches in order; use last as primary base, merge in the rest.
-				// Including "done" deps here is intentional — their branches are kept alive until all
-				// dependents complete (see poller cleanup logic).
-				const resolvedDepBranches: string[] = [];
-				for (const depId of card.dependsOn) {
-					const dep = board.cards[depId as string];
-					if (dep?.columnId === "ready_for_review" || dep?.columnId === "done") {
-						resolvedDepBranches.push(getCardBranch(dep));
-					}
-				}
-				if (resolvedDepBranches.length > 0) {
-					effectiveBaseRef = resolvedDepBranches[resolvedDepBranches.length - 1]!;
-					extraDepBranches = resolvedDepBranches.slice(0, -1);
-				}
 				parentCards = card.dependsOn.map((id) => board.cards[id]).filter((c): c is RuntimeBoardCard => !!c);
 			}
+			if (hasSharedWorktree) {
+				siblingCards = Object.values(board.cards).filter(
+					(c) =>
+						c.sharedWorktreeId === card.sharedWorktreeId &&
+						c.id !== card.id &&
+						c.columnId === "ready_for_review",
+				);
+			}
+		} else if (hasSharedWorktree) {
+			const board = await loadBoard(workspaceId);
+			siblingCards = Object.values(board.cards).filter(
+				(c) =>
+					c.sharedWorktreeId === card.sharedWorktreeId &&
+					c.id !== card.id &&
+					c.columnId === "ready_for_review",
+			);
 		}
 
 		// Story cards have no dev phase — go straight to the orch review pipeline
 		if (card.type === "story") {
+			if (hasSharedWorktree) this.runningSharedWorktrees.delete(effectiveWorktreeId);
 			await moveCard(workspaceId, taskId, "in_progress");
 			await appendActivityLog(workspaceId, taskId, "All subtasks complete → triggering orchestrator workflow");
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
@@ -329,9 +361,13 @@ export class TaskScheduler {
 			`[scheduler] Resume check for "${card.title}": lastTsState=${lastTs?.state} devPassedInThisSession=${devPassedInThisSession} lastDevComment=${lastDevComment?.status} lastDevTsStart=${lastDevTs?.startedAt} devCreatedAt=${lastDevComment?.createdAt}`,
 		);
 		if (lastTs?.state === "killed" && devPassedInThisSession) {
-			extraDepBranches.length > 0
-				? createMergedWorktree(taskId, repoPath, effectiveBaseRef, extraDepBranches, card.branchName)
-				: createWorktree(taskId, repoPath, effectiveBaseRef, card.branchName);
+			createWorktree(
+				effectiveWorktreeId,
+				repoPath,
+				card.baseRef,
+				hasSharedWorktree ? undefined : card.branchName,
+			);
+			if (hasSharedWorktree) this.runningSharedWorktrees.delete(effectiveWorktreeId);
 			await moveCard(workspaceId, taskId, "in_progress");
 			await appendActivityLog(workspaceId, taskId, "Dev already completed — resuming AI review from last killed step");
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
@@ -343,14 +379,47 @@ export class TaskScheduler {
 		// and fire the Stop hook when it finishes a turn.
 		const mcpConfigPath = agentId !== "opencode" && agentId !== "cursor" ? getMcpConfigPath(taskId) : undefined;
 
-		// Create isolated worktree; merge extra dep branches when card has multiple independent deps
-		const worktree =
-			extraDepBranches.length > 0
-				? createMergedWorktree(taskId, repoPath, effectiveBaseRef, extraDepBranches, card.branchName)
-				: createWorktree(taskId, repoPath, effectiveBaseRef, card.branchName);
+		// For shared-worktree cards, look up the owner card's branch name.
+		// Uses the owner's saved branchName if set; otherwise derives it from the title and saves it
+		// so all subsequent subtasks in the same story see the same branch name.
+		let sharedBranchName: string | undefined;
+		if (hasSharedWorktree) {
+			const ownerBoard = await loadBoard(workspaceId);
+			const ownerCard = ownerBoard.cards[card.sharedWorktreeId!];
+			if (ownerCard) {
+				if (ownerCard.branchName) {
+					sharedBranchName = ownerCard.branchName;
+				} else {
+					sharedBranchName = titleToBranch(ownerCard.title);
+					await updateCard(workspaceId, card.sharedWorktreeId!, { branchName: sharedBranchName });
+					logger.info(`[scheduler] Derived and saved shared branch name: ${sharedBranchName}`);
+				}
+			}
+		}
 
-		// Move card + set worktree path immediately so the UI reflects it before setup runs
-		await updateCard(workspaceId, taskId, { worktreePath: worktree.path });
+		// Create or reuse the worktree.
+		// Shared-worktree cards use the owner's directory (effectiveWorktreeId = sharedWorktreeId).
+		// Classic single cards get their own directory. No merge/multi-dep logic.
+		let worktree: ReturnType<typeof createWorktree>;
+		try {
+			worktree = createWorktree(
+				effectiveWorktreeId,
+				repoPath,
+				card.baseRef,
+				hasSharedWorktree ? sharedBranchName : card.branchName,
+			);
+		} catch (err) {
+			logger.error(`[scheduler] Failed to create worktree for "${card.title}": ${String(err)}`);
+			if (hasSharedWorktree) this.runningSharedWorktrees.delete(effectiveWorktreeId);
+			await moveCard(workspaceId, taskId, "blocked");
+			await appendActivityLog(workspaceId, taskId, `Failed to create worktree: ${String(err)}`);
+			stateHub.broadcastWorkspaceUpdate(workspaceId);
+			return;
+		}
+
+		// Move card + set worktree path and actual branch name.
+		// Always sync branchName in case createWorktree resolved a collision and picked a unique name.
+		await updateCard(workspaceId, taskId, { worktreePath: worktree.path, branchName: worktree.branch });
 		await moveCard(workspaceId, taskId, "in_progress");
 		stateHub.broadcastWorkspaceUpdate(workspaceId);
 
@@ -418,6 +487,8 @@ export class TaskScheduler {
 				projectConfig.systemPrompt,
 				projectConfig.gitInstructions,
 				projectConfig.autoCommit ?? true,
+				undefined, // effectiveBaseRef: no longer needed — shared worktrees use card.baseRef
+				siblingCards,
 			);
 			const secretsEnv = buildSecretsEnv(secrets);
 
@@ -462,6 +533,7 @@ export class TaskScheduler {
 				taskId,
 				streamId: devStreamId,
 				agentId,
+				sharedWorktreeId: card.sharedWorktreeId,
 				process: spawnAgent({
 					agentId,
 					prompt,
@@ -500,6 +572,7 @@ export class TaskScheduler {
 						this.setRecentBuffer(devStreamId, runningTask.outputBuffer);
 						void saveTerminalBuffer(workspaceId, devStreamId, runningTask.outputBuffer);
 						this.running.delete(taskId);
+						if (runningTask.sharedWorktreeId) this.runningSharedWorktrees.delete(runningTask.sharedWorktreeId);
 						if (mcpConfigPath) unlink(mcpConfigPath).catch(() => {});
 						if (agentId === "opencode") void cleanupOpencodeFiles(taskId);
 						if (agentId === "cursor") void cleanupCursorConfigDir(taskId);
@@ -811,12 +884,31 @@ export class TaskScheduler {
 				// End the session now — don't wait for pty.onExit which may never fire.
 				const hookBoard = await loadBoard(workspaceId);
 				const hookCard = hookBoard.cards[taskId];
+				// Only match a dev comment from THIS run (createdAt >= task.startedAt).
+				// Without this guard, re-runs reuse the old comment and never record a new one.
 				const hookDevComment = hookCard?.reviewComments
 					?.slice()
 					.reverse()
-					.find((c) => c.type === "dev");
+					.find((c) => c.type === "dev" && c.createdAt >= task.startedAt);
 				if (hookDevComment) {
 					await linkCommentToSession(workspaceId, taskId, hookDevComment.createdAt, task.streamId);
+				} else {
+					// Dev agent didn't call kanban_add_comment — add a fallback so the review
+					// pipeline and UI always have a comment to work with.
+					const parsed = tryParseAgentJson(task.outputBuffer);
+					const fallback: import("../core/api-contract.js").RuntimeReviewComment = {
+						type: "dev",
+						actor: { type: "ai", id: task.agentId },
+						status: "pass",
+						createdAt: Date.now(),
+						streamId: task.streamId,
+						summary: parsed?.summary ?? "Agent completed.",
+						issues: parsed?.issues,
+						metadata: parsed?.metadata,
+					};
+					const existingComments = hookCard?.reviewComments ?? [];
+					await updateCard(workspaceId, taskId, { reviewComments: [...existingComments, fallback] });
+					logger.info(`[scheduler] Hook Stop: added fallback dev comment for task ${taskId}`);
 				}
 				await endTerminalSession(workspaceId, taskId, task.streamId, Date.now(), "completed");
 				logger.info(`[scheduler] Hook Stop: endTerminalSession done for ${task.streamId}`);

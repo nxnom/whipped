@@ -314,14 +314,19 @@ export const appRouter = router({
 			.input(runtimeCardCreateRequestSchema.extend({ workspaceId: z.string() }))
 			.mutation(async ({ ctx, input }) => {
 				const { workspaceId, baseRef: requestedBase, ...cardData } = input;
-				const workspaces = await listWorkspaces();
-				const ws = workspaces.find((w) => w.workspaceId === workspaceId);
-				if (!ws) throw new TRPCError({ code: "NOT_FOUND", message: "Workspace not found" });
-				const config = await loadProjectConfig(workspaceId);
-				const baseRef = requestedBase || config.defaultBaseBranch || getDefaultBranch(ws.repoPath);
-				const card = await createCard(workspaceId, cardData, baseRef);
-				ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
-				return card;
+				try {
+					const workspaces = await listWorkspaces();
+					const ws = workspaces.find((w) => w.workspaceId === workspaceId);
+					if (!ws) throw new TRPCError({ code: "NOT_FOUND", message: "Workspace not found" });
+					const config = await loadProjectConfig(workspaceId);
+					const baseRef = requestedBase || config.defaultBaseBranch || getDefaultBranch(ws.repoPath);
+					const card = await createCard(workspaceId, cardData, baseRef);
+					ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
+					return card;
+				} catch (err) {
+					logger.error(`[cards.create] Error creating card: ${String(err)}\nInput: ${JSON.stringify(input)}\nStack: ${err instanceof Error ? err.stack : ""}`);
+					throw err;
+				}
 			}),
 
 		listBranches: publicProcedure.input(z.object({ workspaceId: z.string() })).query(async ({ input }) => {
@@ -349,7 +354,7 @@ export const appRouter = router({
 					throw new TRPCError({ code: "BAD_REQUEST", message: "Card is not in Ready for Review" });
 				}
 
-				const worktreePath = getWorktreePath(cardId);
+				const worktreePath = getWorktreePath(card.sharedWorktreeId ?? cardId);
 				const taskBranch = getCardBranch(card);
 
 				const mergeConfig = await loadProjectConfig(workspaceId);
@@ -450,7 +455,7 @@ export const appRouter = router({
 					return { status: "no_token" as const };
 				}
 
-				const worktreePath = getWorktreePath(cardId);
+				const worktreePath = getWorktreePath(card.sharedWorktreeId ?? cardId);
 				const taskBranch = getCardBranch(card);
 
 				const dirty = await isWorktreeDirty(worktreePath);
@@ -490,9 +495,14 @@ export const appRouter = router({
 			.input(runtimeCardUpdateRequestSchema.extend({ workspaceId: z.string() }))
 			.mutation(async ({ ctx, input }) => {
 				const { workspaceId, cardId, revision, ...update } = input;
-				const card = await updateCard(workspaceId, cardId, update);
-				ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
-				return card;
+				try {
+					const card = await updateCard(workspaceId, cardId, update);
+					ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
+					return card;
+				} catch (err) {
+					logger.error(`[cards.update] Error updating card ${cardId}: ${String(err)}\nUpdate: ${JSON.stringify(update)}\nStack: ${err instanceof Error ? err.stack : ""}`);
+					throw err;
+				}
 			}),
 
 		move: publicProcedure
@@ -543,7 +553,15 @@ export const appRouter = router({
 							});
 						}
 					}
-					await removeWorktreeAsync(cardId, ws.repoPath, card?.branchName);
+					if (!card?.sharedWorktreeId) {
+							const cleanupBoard = await loadBoard(workspaceId).catch(() => null);
+							const hasDependents = cleanupBoard
+								? Object.values(cleanupBoard.cards).some((c) => c.dependsOn.includes(cardId))
+								: false;
+							if (!hasDependents) {
+								await removeWorktreeAsync(cardId, ws.repoPath, card?.branchName);
+							}
+						}
 				});
 
 				return { ok: true };
@@ -718,7 +736,7 @@ export const appRouter = router({
 				const card = board.cards[cardId];
 				if (!card) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
 
-				const worktreePath = getWorktreePath(cardId);
+				const worktreePath = getWorktreePath(card.sharedWorktreeId ?? cardId);
 				const { existsSync } = await import("node:fs");
 				if (!existsSync(worktreePath)) {
 					return { diff: null, error: "No worktree — agent has not started yet" };
@@ -747,9 +765,34 @@ export const appRouter = router({
 					maxBuffer: 4 * 1024 * 1024,
 				});
 
-				const diff = [committedResult.stdout, stagedResult.stdout, unstagedResult.stdout]
+				// Include untracked new files as synthetic diffs — they're invisible to all
+				// git diff variants but are real changes when auto-commit is disabled.
+				const untrackedResult = spawnSync("git", ["ls-files", "--others", "--exclude-standard"], {
+					cwd: worktreePath,
+					encoding: "utf-8",
+				});
+				const untrackedFiles = (untrackedResult.stdout ?? "")
+					.split("\n")
+					.map((f) => f.trim())
+					.filter(Boolean);
+				const { readFileSync } = await import("node:fs");
+				const untrackedDiffs = untrackedFiles
+					.map((file) => {
+						try {
+							const content = readFileSync(`${worktreePath}/${file}`, "utf-8");
+							const lines = content.split("\n");
+							const addedLines = lines.map((l, i) => `+${l}`).join("\n");
+							const hunkHeader = `@@ -0,0 +1,${lines.length} @@`;
+							return `diff --git a/${file} b/${file}\nnew file mode 100644\n--- /dev/null\n+++ b/${file}\n${hunkHeader}\n${addedLines}`;
+						} catch {
+							return null;
+						}
+					})
+					.filter((d): d is string => d !== null);
+
+				const diff = [committedResult.stdout, stagedResult.stdout, unstagedResult.stdout, ...untrackedDiffs]
 					.filter((s) => s?.trim())
-					.join("");
+					.join("\n");
 
 				const behindResult = spawnSync("git", ["rev-list", "--count", `HEAD..${card.baseRef}`], {
 					cwd: worktreePath,

@@ -10,13 +10,13 @@ const execFileAsync = promisify(execFile);
 
 const WORKTREES_DIR = join(homedir(), ".overemployed", "worktrees");
 
-function git(args: string[], cwd: string): { stdout: string; ok: boolean } {
+function git(args: string[], cwd: string): { stdout: string; stderr: string; ok: boolean } {
 	const result = spawnSync("git", args, {
 		cwd,
 		encoding: "utf-8",
 		stdio: ["ignore", "pipe", "pipe"],
 	});
-	return { stdout: result.stdout?.trim() ?? "", ok: result.status === 0 };
+	return { stdout: result.stdout?.trim() ?? "", stderr: result.stderr?.trim() ?? "", ok: result.status === 0 };
 }
 
 export function titleToSnakeCase(title: string): string {
@@ -25,6 +25,17 @@ export function titleToSnakeCase(title: string): string {
 		.replace(/[^a-z0-9]+/g, "_")
 		.replace(/^_+|_+$/g, "")
 		.slice(0, 50);
+}
+
+export function titleToBranch(title: string): string {
+	return (
+		"feat/" +
+		title
+			.toLowerCase()
+			.replace(/[^a-z0-9]+/g, "-")
+			.replace(/^-+|-+$/g, "")
+			.slice(0, 50)
+	);
 }
 
 export function getCardBranch(card: { id: string; branchName?: string }): string {
@@ -50,12 +61,18 @@ export function createWorktree(
 ): WorktreeCreateResult {
 	mkdirSync(WORKTREES_DIR, { recursive: true });
 
-	const branch = branchName ?? `task/${taskId}`;
+	let branch = branchName ?? `task/${taskId}`;
 	const worktreePath = join(WORKTREES_DIR, taskId);
+
+	logger.info(`[worktree:create] taskId=${taskId} branch=${branch} baseRef=${baseRef} worktreePath=${worktreePath}`);
 
 	// Reuse existing worktree so retries (reopened cards) build on prior work
 	if (existsSync(worktreePath)) {
-		return { taskId, path: worktreePath, branch, isNew: false, conflictedFiles: [] };
+		// Detect the actual git branch so callers always get the real branch name
+		const actualBranch = git(["rev-parse", "--abbrev-ref", "HEAD"], worktreePath);
+		const resolvedBranch = actualBranch.ok && actualBranch.stdout ? actualBranch.stdout : branch;
+		logger.info(`[worktree:create] Worktree already exists — reusing (branch: ${resolvedBranch})`);
+		return { taskId, path: worktreePath, branch: resolvedBranch, isNew: false, conflictedFiles: [] };
 	}
 
 	// Prune stale git refs in case a previous run left the worktree deregistered
@@ -63,15 +80,44 @@ export function createWorktree(
 
 	const branchCheck = git(["branch", "--list", branch], repoPath);
 	const branchExists = branchCheck.stdout.includes(branch);
+	logger.info(`[worktree:create] branchExists=${branchExists}`);
 
 	if (branchExists) {
+		logger.info(`[worktree:create] Running: git worktree add ${worktreePath} ${branch}`);
 		const r = git(["worktree", "add", worktreePath, branch], repoPath);
-		if (!r.ok) throw new Error(`Failed to add worktree at ${worktreePath}`);
+		logger.info(`[worktree:create] git worktree add result: ok=${r.ok} stdout=${JSON.stringify(r.stdout)} stderr=${JSON.stringify(r.stderr)}`);
+		if (!r.ok) {
+			// Parse which worktree currently holds this branch
+			const conflictMatch = r.stderr.match(/already used by worktree at '([^']+)'/);
+			const conflictPath = conflictMatch?.[1];
+			if (conflictPath && existsSync(conflictPath)) {
+				// Branch is live in another worktree — generate a unique branch name for this card
+				const uniqueBranch = `${branch}-${taskId.slice(0, 7)}`;
+				logger.warn(`[worktree:create] Branch collision with ${conflictPath} — using unique branch ${uniqueBranch}`);
+				git(["branch", "-D", uniqueBranch], repoPath); // clean up if it exists from a prior attempt
+				const r2 = git(["worktree", "add", "-b", uniqueBranch, worktreePath, baseRef], repoPath);
+				if (!r2.ok) throw new Error(`Failed to add worktree at ${worktreePath}: ${r2.stderr}`);
+				branch = uniqueBranch;
+			} else {
+				// Branch is orphaned (worktree directory removed). Prune and recreate.
+				logger.warn(`[worktree:create] Orphaned branch — pruning and recreating`);
+				git(["worktree", "prune"], repoPath);
+				const r2 = git(["worktree", "add", worktreePath, branch], repoPath);
+				if (!r2.ok) {
+					git(["branch", "-D", branch], repoPath);
+					const r3 = git(["worktree", "add", "-b", branch, worktreePath, baseRef], repoPath);
+					if (!r3.ok) throw new Error(`Failed to add worktree at ${worktreePath}: ${r3.stderr}`);
+				}
+			}
+		}
 	} else {
+		logger.info(`[worktree:create] Running: git worktree add -b ${branch} ${worktreePath} ${baseRef}`);
 		const r = git(["worktree", "add", "-b", branch, worktreePath, baseRef], repoPath);
+		logger.info(`[worktree:create] git worktree add -b result: ok=${r.ok} stdout=${JSON.stringify(r.stdout)} stderr=${JSON.stringify(r.stderr)}`);
 		if (!r.ok) throw new Error(`Failed to create worktree branch ${branch} at ${worktreePath}`);
 	}
 
+	logger.info(`[worktree:create] Done — new worktree at ${worktreePath} on branch ${branch}`);
 	return { taskId, path: worktreePath, branch, isNew: true, conflictedFiles: [] };
 }
 
@@ -170,6 +216,11 @@ export async function removeWorktreeAsync(taskId: string, repoPath: string, bran
 
 export function getWorktreePath(taskId: string): string {
 	return join(WORKTREES_DIR, taskId);
+}
+
+// Returns the worktree owner ID — sharedWorktreeId when set, otherwise the card's own ID.
+export function getEffectiveWorktreeId(cardId: string, sharedWorktreeId?: string): string {
+	return sharedWorktreeId ?? cardId;
 }
 
 export function getWorktreeBranch(taskId: string): string {

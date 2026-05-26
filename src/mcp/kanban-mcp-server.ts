@@ -257,6 +257,17 @@ Creates all subtasks first, then the story card that depends on them. The story 
 			}
 		}
 
+		// Pass 3: wire sharedWorktreeId on all subtasks so they share one worktree.
+		// The story card ID is the worktree owner — all subtasks write to the same directory.
+		for (const { realId } of createdSubtasks) {
+			await trpc("cards.update", {
+				workspaceId,
+				cardId: realId,
+				sharedWorktreeId: storyCard.id,
+				revision: 0,
+			});
+		}
+
 		const lines = [`Created story [${storyCard.id}] "${title}" with ${subtaskIds.length} subtask(s):`];
 		for (const { realId, title: st } of createdSubtasks) lines.push(`  Subtask [${realId}] "${st}"`);
 		lines.push(`The story will trigger its orchestrator workflow once all subtasks complete.`);
@@ -317,6 +328,24 @@ server.registerTool(
 		attachments,
 		branchName,
 	}) => {
+		// For non-story cards with a single primary dependency, inherit the dep's shared
+		// worktree so the whole chain works in one directory.
+		let sharedWorktreeId: string | undefined;
+		if (type !== "story" && dependsOn && dependsOn.length === 1) {
+			try {
+				const state = await trpcQuery<{
+					board: { cards: Record<string, { sharedWorktreeId?: string }> };
+				}>("workspace.state", { workspaceId });
+				const primaryDepId = dependsOn[0]!;
+				const primaryDep = state.board.cards[primaryDepId];
+				if (primaryDep) {
+					sharedWorktreeId = primaryDep.sharedWorktreeId ?? primaryDepId;
+				}
+			} catch {
+				// Board lookup failed — proceed without sharedWorktreeId
+			}
+		}
+
 		const card = await trpc<{ id: string; title: string; columnId: string }>("cards.create", {
 			workspaceId,
 			title,
@@ -328,6 +357,7 @@ server.registerTool(
 			columnId: columnId ?? "todo",
 			workflowId,
 			branchName: branchName || undefined,
+			sharedWorktreeId,
 		});
 		if (attachments?.length) {
 			const processed = await processAttachments(attachments, card.id);
