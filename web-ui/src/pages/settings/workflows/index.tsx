@@ -1,4 +1,4 @@
-import { Input, toast } from "@geckoui/geckoui";
+import { ConfirmDialog, Input, toast } from "@geckoui/geckoui";
 import type { RuntimeAgentId, Workflow, WorkflowSlot } from "@runtime-contract";
 import { workflowSchema } from "@runtime-contract";
 import { Bot, Check, Download, Layers, Plus, Star, Trash2, Upload } from "lucide-react";
@@ -106,13 +106,24 @@ export function WorkflowsSection({
 	};
 
 	const handleDeleteWorkflow = (workflowId: string) => {
-		const updated = workflows.filter((w) => w.id !== workflowId);
-		onChange(updated);
-		if (selectedId === workflowId) {
-			const remaining = updated.filter((w) => (activeTab === "task" ? !w.forStory : w.forStory));
-			setSelectedId(remaining.find((w) => w.isDefault)?.id ?? remaining[0]?.id ?? "");
-		}
-		deleteWorkflow(workflowId);
+		const wf = workflows.find((w) => w.id === workflowId);
+		ConfirmDialog.show({
+			title: "Delete workflow",
+			content: `Delete "${wf?.name ?? "this workflow"}"? This cannot be undone.`,
+			confirmButtonLabel: "Delete",
+			cancelButtonLabel: "Cancel",
+			onConfirm: ({ dismiss }) => {
+				const updated = workflows.filter((w) => w.id !== workflowId);
+				onChange(updated);
+				if (selectedId === workflowId) {
+					const remaining = updated.filter((w) => (activeTab === "task" ? !w.forStory : w.forStory));
+					setSelectedId(remaining.find((w) => w.isDefault)?.id ?? remaining[0]?.id ?? "");
+				}
+				deleteWorkflow(workflowId);
+				dismiss();
+			},
+			onCancel: ({ dismiss }) => dismiss(),
+		});
 	};
 
 	const handleSaveName = () => {

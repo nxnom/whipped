@@ -1,4 +1,4 @@
-import { Switch } from "@geckoui/geckoui";
+import { ConfirmDialog, Switch } from "@geckoui/geckoui";
 import {
 	DragDropContext,
 	Draggable,
@@ -44,10 +44,21 @@ export function WorkflowEditor({
 	};
 
 	const handleRemove = (slotId: string) => {
-		const remaining = workflow.slots.filter((s) => s.id !== slotId);
-		const devs = remaining.filter((s) => s.type === "dev");
-		const others = remaining.filter((s) => s.type !== "dev").map((s, i) => ({ ...s, order: i + 1 }));
-		onUpdate({ ...workflow, slots: [...devs, ...others] });
+		const slot = workflow.slots.find((s) => s.id === slotId);
+		ConfirmDialog.show({
+			title: "Remove agent",
+			content: `Remove "${slot?.name ?? "this agent"}" from the workflow?`,
+			confirmButtonLabel: "Remove",
+			cancelButtonLabel: "Cancel",
+			onConfirm: ({ dismiss }) => {
+				const remaining = workflow.slots.filter((s) => s.id !== slotId);
+				const devs = remaining.filter((s) => s.type === "dev");
+				const others = remaining.filter((s) => s.type !== "dev").map((s, i) => ({ ...s, order: i + 1 }));
+				onUpdate({ ...workflow, slots: [...devs, ...others] });
+				dismiss();
+			},
+			onCancel: ({ dismiss }) => dismiss(),
+		});
 	};
 
 	const addBuiltinSlot = (type: "code_review" | "qa") => {
@@ -136,7 +147,7 @@ export function WorkflowEditor({
 												slot={slot}
 												dragHandleProps={drag.dragHandleProps ?? undefined}
 												onToggle={(v) => handleToggle(slot.id, v)}
-												onRemove={slot.type === "custom" ? () => handleRemove(slot.id) : undefined}
+												onRemove={() => handleRemove(slot.id)}
 												onEdit={() => onEditSlot(slot)}
 											/>
 										</div>
