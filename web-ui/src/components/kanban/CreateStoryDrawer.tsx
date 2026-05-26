@@ -2,6 +2,7 @@ import { Button, Drawer, Input, Select, SelectOption, Textarea, toast } from "@g
 import type { RuntimeBoardCard, Workflow } from "@runtime-contract";
 import { Layers, Paperclip, Pencil, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { BranchSelect } from "@/components/BranchSelect";
 import { trpc } from "@/runtime/trpc-client";
 import { deriveBranchName } from "@/utils/branch";
@@ -148,6 +149,7 @@ export function CreateStoryDrawer({
 	workflows,
 	onRefresh,
 }: CreateStoryDrawerProps) {
+	const navigate = useNavigate();
 	const storyWorkflows = workflows.filter((w) => w.forStory);
 	const defaultStoryWorkflow = storyWorkflows.find((w) => w.isDefault) ?? storyWorkflows[0];
 
@@ -339,11 +341,20 @@ export function CreateStoryDrawer({
 							</div>
 							<div>
 								<label className="text-xs text-gray-400 block mb-1">Orch Workflow</label>
-								<Select value={workflowId} onChange={(v) => setWorkflowId(v as string)} placeholder="None">
-									{storyWorkflows.map((w) => (
-										<SelectOption key={w.id} value={w.id} label={w.name} />
-									))}
-								</Select>
+								{storyWorkflows.length === 0 ? (
+									<button
+										className="text-xs text-amber-500 hover:text-amber-400 underline underline-offset-2 text-left transition-colors"
+										onClick={() => { onClose(); navigate(`/${encodeURIComponent(workspaceId)}/settings/workflows`); }}
+									>
+										No workflows — create one in Settings
+									</button>
+								) : (
+									<Select value={workflowId} onChange={(v) => setWorkflowId(v as string)} placeholder="None">
+										{storyWorkflows.map((w) => (
+											<SelectOption key={w.id} value={w.id} label={w.name} />
+										))}
+									</Select>
+								)}
 							</div>
 						</div>
 						<div>
@@ -432,7 +443,7 @@ export function CreateStoryDrawer({
 					<Button variant="ghost" onClick={handleClose}>
 						Cancel
 					</Button>
-					<Button onClick={handleCreate} disabled={!title.trim() || subtasks.length === 0 || loading}>
+					<Button onClick={handleCreate} disabled={!title.trim() || subtasks.length === 0 || loading || storyWorkflows.length === 0}>
 						{loading ? "Creating..." : "Create Story"}
 					</Button>
 				</div>

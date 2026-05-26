@@ -68,7 +68,7 @@ export function WorkflowsSection({
 		const newWf: Workflow = {
 			id,
 			name: "New Workflow",
-			isDefault: false,
+			isDefault: taskWorkflows.length === 0,
 			forStory: false,
 			slots: [{ id: "dev", type: "dev", name: "Dev", agentBinary: defaultBinary, order: 0, enabled: true, prompt: "" }],
 		};
@@ -84,7 +84,7 @@ export function WorkflowsSection({
 		const newWf: Workflow = {
 			id,
 			name: "New Story Workflow",
-			isDefault: false,
+			isDefault: storyWorkflows.length === 0,
 			forStory: true,
 			slots: [
 				{ id: "orch", type: "orch", name: "Orchestrator", agentBinary: defaultBinary, order: 0, enabled: true, prompt: "" },

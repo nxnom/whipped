@@ -104,6 +104,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
 					workflows={state.projectConfig.workflows}
 					dismiss={dismiss}
 					onRefresh={onRefresh}
+					navigate={navigate}
 				/>
 			),
 		});
@@ -362,12 +363,14 @@ function CreateCardContent({
 	workflows,
 	dismiss,
 	onRefresh,
+	navigate,
 }: {
 	workspaceId: string;
 	allCards: Record<string, RuntimeBoardCard>;
 	workflows: Workflow[];
 	dismiss: () => void;
 	onRefresh: () => void;
+	navigate: (path: string) => void;
 }) {
 	const taskWorkflows = workflows.filter((w) => !w.forStory);
 	const defaultWorkflow = taskWorkflows.find((w) => w.isDefault) ?? taskWorkflows[0];
@@ -486,11 +489,20 @@ function CreateCardContent({
 					</div>
 					<div>
 						<label className="text-xs text-gray-400 block mb-1">Workflow</label>
-						<Select value={workflowId} onChange={(v) => setWorkflowId(v as string)} placeholder="Default">
-							{taskWorkflows.map((w) => (
-								<SelectOption key={w.id} value={w.id} label={w.name + (w.isDefault ? " (default)" : "")} />
-							))}
-						</Select>
+						{taskWorkflows.length === 0 ? (
+							<button
+								className="text-xs text-amber-500 hover:text-amber-400 underline underline-offset-2 text-left transition-colors"
+								onClick={() => { dismiss(); navigate(`/${encodeURIComponent(workspaceId)}/settings/workflows`); }}
+							>
+								No workflows — create one in Settings
+							</button>
+						) : (
+							<Select value={workflowId} onChange={(v) => setWorkflowId(v as string)} placeholder="Default">
+								{taskWorkflows.map((w) => (
+									<SelectOption key={w.id} value={w.id} label={w.name + (w.isDefault ? " (default)" : "")} />
+								))}
+							</Select>
+						)}
 					</div>
 				</div>
 				<div>
@@ -540,7 +552,7 @@ function CreateCardContent({
 				<Button variant="ghost" onClick={dismiss}>
 					Cancel
 				</Button>
-				<Button onClick={handleCreate} disabled={!title.trim() || loading}>
+				<Button onClick={handleCreate} disabled={!title.trim() || loading || taskWorkflows.length === 0}>
 					{loading ? "Creating..." : "Create"}
 				</Button>
 			</div>
