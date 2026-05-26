@@ -79,8 +79,8 @@ export interface MergeResult {
 	dirtyBase?: boolean;
 }
 
-export function attemptMerge(repoPath: string, taskId: string, taskBranch: string): MergeResult {
-	const worktreePath = join(WORKTREES_DIR, taskId);
+export function attemptMerge(repoPath: string, effectiveWorktreeId: string, taskBranch: string): MergeResult {
+	const worktreePath = join(WORKTREES_DIR, effectiveWorktreeId);
 
 	if (existsSync(worktreePath)) {
 		rmSync(worktreePath, { recursive: true, force: true });
@@ -167,14 +167,11 @@ export async function createGithubPR(
 }
 
 // Closes a GitHub PR via the REST API, optionally posting a comment first.
-export async function closePR(prUrl: string, comment: string, token: string): Promise<void> {
+export async function closePR(prUrl: string, token: string): Promise<void> {
 	const parsed = parsePRUrl(prUrl);
 	if (!parsed) return;
 	const octokit = new Octokit({ auth: token });
 	const { owner, repo, number: pull_number } = parsed;
-	await octokit.issues.createComment({ owner, repo, issue_number: pull_number, body: comment }).catch((err) => {
-		logger.warn(`[closePR] Failed to post comment on ${prUrl}: ${String(err)}`);
-	});
 	await octokit.pulls.update({ owner, repo, pull_number, state: "closed" }).catch((err) => {
 		logger.warn(`[closePR] Failed to close ${prUrl}: ${String(err)}`);
 	});

@@ -31,7 +31,7 @@ import {
 	type WorkflowSlot,
 } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
-import { pushBranch } from "../git/merge-operations.js";
+import { commitIfDirty, pushBranch } from "../git/merge-operations.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import {
 	appendActivityLog,
@@ -916,8 +916,15 @@ export class TaskScheduler {
 
 			if (card.columnId === "in_progress") {
 				if (card.pr?.url) {
-					const worktreePath = getWorktreePath(taskId);
+					const worktreePath = getWorktreePath(card.sharedWorktreeId ?? taskId);
 					const taskBranch = getCardBranch(card);
+					const hookConfig2 = await loadProjectConfig(workspaceId);
+					if (!hookConfig2.autoCommit) {
+						const commitMsg = card.pr?.title ?? card.title;
+						await commitIfDirty(worktreePath, commitMsg).catch((err) =>
+							logger.warn(`[scheduler] commitIfDirty before push failed for ${taskId}: ${String(err)}`),
+						);
+					}
 					await pushBranch(worktreePath, taskBranch).then(
 						() => appendActivityLog(workspaceId, taskId, `Pushed to PR`),
 						(err: Error) => appendActivityLog(workspaceId, taskId, `Push failed: ${err.message}`),

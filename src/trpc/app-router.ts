@@ -58,6 +58,17 @@ import { getCardBranch, getDefaultBranch, getWorktreePath, removeWorktreeAsync }
 // ─── Background cleanup queue ─────────────────────────────────────────────────
 // All worktree removals run serially in this queue so they never block the
 // event loop (each step uses async I/O) and never contend on the git lock.
+// Returns all card IDs in the same story group: the shared worktree owner + all its subtasks.
+function getStoryGroupCardIds(cardId: string, cards: Record<string, import("../core/api-contract.js").RuntimeBoardCard>): string[] {
+	const card = cards[cardId];
+	if (!card) return [cardId];
+	const ownerId = card.sharedWorktreeId ?? cardId;
+	const subtaskIds = Object.values(cards)
+		.filter((c) => c.sharedWorktreeId === ownerId)
+		.map((c) => c.id);
+	return [...new Set([ownerId, ...subtaskIds])];
+}
+
 const cleanupQueue: (() => Promise<void>)[] = [];
 let cleanupRunning = false;
 
@@ -354,7 +365,8 @@ export const appRouter = router({
 					throw new TRPCError({ code: "BAD_REQUEST", message: "Card is not in Ready for Review" });
 				}
 
-				const worktreePath = getWorktreePath(card.sharedWorktreeId ?? cardId);
+				const effectiveWorktreeId = card.sharedWorktreeId ?? cardId;
+				const worktreePath = getWorktreePath(effectiveWorktreeId);
 				const taskBranch = getCardBranch(card);
 
 				const mergeConfig = await loadProjectConfig(workspaceId);
@@ -369,22 +381,39 @@ export const appRouter = router({
 
 				let mergeResult: ReturnType<typeof attemptMerge>;
 				try {
-					mergeResult = attemptMerge(ws.repoPath, cardId, taskBranch);
+					mergeResult = attemptMerge(ws.repoPath, effectiveWorktreeId, taskBranch);
 				} catch (err) {
 					throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: String(err) });
 				}
 
 				const mergeGithubToken = mergeConfig.secrets?.find((s) => s.key === "GITHUB_TOKEN")?.value;
 
-				if (mergeResult.ok) {
-					if (card.pr?.url && mergeGithubToken) {
-						const mergedPrUrl = card.pr.url;
-						closePR(mergedPrUrl, "Merged locally", mergeGithubToken).catch((err) => {
-							logger.warn(`[merge] Failed to close PR ${mergedPrUrl}: ${String(err)}`);
+				// Collect all cards in the same story group (this card + siblings + story/owner).
+				const mergeBoard = await loadBoard(workspaceId);
+				const storyGroupIds = getStoryGroupCardIds(cardId, mergeBoard.cards);
+				const sharedPrUrl = storyGroupIds.map((id) => mergeBoard.cards[id]?.pr?.url).find(Boolean);
+
+				const closeSharedPR = () => {
+					if (sharedPrUrl && mergeGithubToken) {
+						closePR(sharedPrUrl, mergeGithubToken).catch((err) => {
+							logger.warn(`[merge] Failed to close PR ${sharedPrUrl}: ${String(err)}`);
 						});
 					}
-					await moveCard(workspaceId, cardId, "done");
-					await appendActivityLog(workspaceId, cardId, `Merged into ${card.baseRef} → Done`);
+				};
+
+				const markAllDone = async (logSuffix: string) => {
+					for (const relId of storyGroupIds) {
+						const relCard = mergeBoard.cards[relId];
+						if (relCard && relCard.columnId !== "done") {
+							await moveCard(workspaceId, relId, "done");
+							await appendActivityLog(workspaceId, relId, logSuffix);
+						}
+					}
+				};
+
+				if (mergeResult.ok) {
+					closeSharedPR();
+					await markAllDone(`Merged into ${card.baseRef} → Done`);
 					ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 					return { status: "merged" as const };
 				}
@@ -413,14 +442,8 @@ export const appRouter = router({
 				await scheduler.startConflictResolution(card, ws.repoPath, mergeResult.conflictedFiles, async (success) => {
 					if (success) {
 						finalizeMerge(ws.repoPath, taskBranch);
-						if (card.pr?.url && mergeGithubToken) {
-							const conflictedPrUrl = card.pr.url;
-							closePR(conflictedPrUrl, "Merged locally", mergeGithubToken).catch((err) => {
-								logger.warn(`[merge] Failed to close PR ${conflictedPrUrl}: ${String(err)}`);
-							});
-						}
-						await moveCard(workspaceId, cardId, "done");
-						await appendActivityLog(workspaceId, cardId, `Conflicts resolved → merged into ${card.baseRef} → Done`);
+						closeSharedPR();
+						await markAllDone(`Conflicts resolved → merged into ${card.baseRef} → Done`);
 					} else {
 						abortMerge(ws.repoPath);
 						await moveCard(workspaceId, cardId, "blocked");
@@ -455,38 +478,56 @@ export const appRouter = router({
 					return { status: "no_token" as const };
 				}
 
-				const worktreePath = getWorktreePath(card.sharedWorktreeId ?? cardId);
+				const prWorktreePath = getWorktreePath(card.sharedWorktreeId ?? cardId);
 				const taskBranch = getCardBranch(card);
 
-				const dirty = await isWorktreeDirty(worktreePath);
+				const dirty = await isWorktreeDirty(prWorktreePath);
 				if (dirty) {
 					if (!input.commitMessage) {
 						return { status: "needs_commit" as const };
 					}
-					await commitWorktree(worktreePath, input.commitMessage);
+					await commitWorktree(prWorktreePath, input.commitMessage);
 				}
 
-				try {
-					await pushBranch(worktreePath, taskBranch);
-				} catch (err) {
-					throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Push failed: ${err}` });
-				}
-
-				const devSummary =
-					[...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev")?.summary ?? card.description;
-				const prTitle = card.pr?.title ?? card.title;
-				const prDescription = card.pr?.description ?? devSummary;
+				// Collect all cards in the same story group to deduplicate and propagate the PR URL.
+				const prBoard = await loadBoard(workspaceId);
+				const prGroupIds = getStoryGroupCardIds(cardId, prBoard.cards);
+				const existingPrUrl = prGroupIds.map((id) => prBoard.cards[id]?.pr?.url).find(Boolean);
 
 				let prUrl: string;
-				try {
-					prUrl = await createGithubPR(worktreePath, prTitle, prDescription, card.baseRef, prGithubToken);
-				} catch (err) {
-					spawnSync("git", ["push", "origin", "--delete", taskBranch], { cwd: worktreePath, stdio: "ignore" });
-					throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `PR creation failed: ${err}` });
+				if (existingPrUrl) {
+					// Branch already has a PR — reuse it and propagate to any card that missed it.
+					prUrl = existingPrUrl;
+				} else {
+					try {
+						await pushBranch(prWorktreePath, taskBranch);
+					} catch (err) {
+						throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Push failed: ${err}` });
+					}
+
+					// Use the story/owner card's PR metadata when available for a unified PR title.
+					const ownerCard = prBoard.cards[card.sharedWorktreeId ?? cardId];
+					const devSummary =
+						[...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev")?.summary ?? card.description;
+					const prTitle = ownerCard?.pr?.title ?? card.pr?.title ?? ownerCard?.title ?? card.title;
+					const prDescription = ownerCard?.pr?.description ?? card.pr?.description ?? devSummary;
+
+					try {
+						prUrl = await createGithubPR(prWorktreePath, prTitle, prDescription, card.baseRef, prGithubToken);
+					} catch (err) {
+						spawnSync("git", ["push", "origin", "--delete", taskBranch], { cwd: prWorktreePath, stdio: "ignore" });
+						throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `PR creation failed: ${err}` });
+					}
 				}
 
-				await updateCard(workspaceId, cardId, { pr: { ...card.pr, url: prUrl } });
-				await appendActivityLog(workspaceId, cardId, `PR created → ${prUrl}`);
+				// Propagate PR URL to all cards in the story group (story + all subtasks).
+				for (const relId of prGroupIds) {
+					const relCard = prBoard.cards[relId];
+					if (relCard && !relCard.pr?.url) {
+						await updateCard(workspaceId, relId, { pr: { ...(relCard.pr ?? {}), url: prUrl } });
+					}
+				}
+				await appendActivityLog(workspaceId, cardId, `PR ${existingPrUrl ? "linked" : "created"} → ${prUrl}`);
 				ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 				return { status: "pr_created" as const, prUrl };
 			}),
@@ -548,7 +589,7 @@ export const appRouter = router({
 						const deleteProjectConfig = await loadProjectConfig(workspaceId).catch(() => null);
 						const deleteGithubToken = deleteProjectConfig?.secrets?.find((s) => s.key === "GITHUB_TOKEN")?.value;
 						if (deleteGithubToken) {
-							await closePR(deletePrUrl, "Task deleted from overemployed", deleteGithubToken).catch((err) => {
+							await closePR(deletePrUrl, deleteGithubToken).catch((err) => {
 								logger.warn(`[cleanup:${cardId}] closePR failed: ${String(err)}`);
 							});
 						}
