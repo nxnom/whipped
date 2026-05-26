@@ -1,7 +1,7 @@
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
 import type { ProjectsLayout, RuntimeProject } from "@runtime-contract";
-import { ChevronDown, ChevronRight, Folder, GripVertical, Pencil, Trash2 } from "lucide-react";
-import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
+import { ChevronDown, ChevronRight, Folder, Pencil, Trash2 } from "lucide-react";
+import React, { useEffect, useImperativeHandle, useRef, useState, useCallback } from "react";
 import { trpc } from "@/runtime/trpc-client";
 
 function genId() {
@@ -12,17 +12,23 @@ function genId() {
 
 type FlatItem =
 	| { kind: "folder-header"; folderId: string }
-	| { kind: "project"; workspaceId: string; folderId: string | null };
+	| { kind: "project"; workspaceId: string; folderId: string | null }
+	| { kind: "empty-folder-slot"; folderId: string };
 
 /** Build the ordered flat array including folder headers. */
-function buildFlat(layout: ProjectsLayout, expandAll: boolean): FlatItem[] {
+function buildFlat(layout: ProjectsLayout, expandAll: boolean, isDragging = false): FlatItem[] {
 	const flat: FlatItem[] = [];
 	for (const item of layout.topLevel) {
 		if (item.type === "folder") {
 			flat.push({ kind: "folder-header", folderId: item.id });
-			if (expandAll || !layout.folders[item.id]?.collapsed) {
-				for (const wsId of layout.folders[item.id]?.projectIds ?? []) {
+			const expanded = expandAll || !layout.folders[item.id]?.collapsed;
+			if (expanded) {
+				const projectIds = layout.folders[item.id]?.projectIds ?? [];
+				for (const wsId of projectIds) {
 					flat.push({ kind: "project", workspaceId: wsId, folderId: item.id });
+				}
+				if (isDragging && projectIds.length === 0) {
+					flat.push({ kind: "empty-folder-slot", folderId: item.id });
 				}
 			}
 		} else {
@@ -40,6 +46,7 @@ function flatToLayout(flat: FlatItem[], existing: ProjectsLayout): ProjectsLayou
 	);
 	const seen = new Set<string>();
 	for (const item of flat) {
+		if (item.kind === "empty-folder-slot") continue;
 		if (item.kind === "folder-header") {
 			if (!seen.has(item.folderId)) {
 				seen.add(item.folderId);
@@ -54,15 +61,25 @@ function flatToLayout(flat: FlatItem[], existing: ProjectsLayout): ProjectsLayou
 	return { ...existing, topLevel, folders };
 }
 
-/** What folder does a drop at `destIndex` land in (after source removal)? */
+/** What folder does a drop at `destIndex` land in (after source removal)?
+ *
+ * Primary: look at item AFTER destination (forward-look is unambiguous for "between folders").
+ * Fallback at end-of-list: look at item BEFORE destination so you can still append inside a folder.
+ */
 function folderAtDest(flat: FlatItem[], destIndex: number): string | null {
-	// Walk backwards from destIndex to find the nearest folder header or same-folder project.
-	for (let i = destIndex - 1; i >= 0; i--) {
-		const item = flat[i]!;
-		if (item.kind === "folder-header") return item.folderId;
-		if (item.kind === "project") return item.folderId; // could be null (ungrouped)
+	const after = flat[destIndex];
+
+	if (!after) {
+		// End of list — inherit from previous item (lets users drop at end of a folder)
+		const prev = flat[destIndex - 1];
+		if (!prev || prev.kind === "folder-header") return null;
+		if (prev.kind === "empty-folder-slot") return prev.folderId;
+		return (prev as Extract<FlatItem, { kind: "project" }>).folderId;
 	}
-	return null; // before everything → ungrouped
+
+	if (after.kind === "folder-header") return after.folderId; // dropping on folder header → into that folder
+	if (after.kind === "empty-folder-slot") return after.folderId;
+	return (after as Extract<FlatItem, { kind: "project" }>).folderId;
 }
 
 /** Sync layout: add new projects, remove stale refs. */
@@ -104,6 +121,7 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(
 	function ProjectsSidebar({ projects, activeWorkspaceId, onSwitch }, ref) {
 	const [layout, setLayout] = useState<ProjectsLayout>({ version: 1, topLevel: [], folders: {} });
 	const [isDragging, setIsDragging] = useState(false);
+	const [hoveredFolderId, setHoveredFolderId] = useState<string | null>(null);
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [editName, setEditName] = useState("");
 	const editRef = useRef<HTMLInputElement>(null);
@@ -194,25 +212,36 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(
 
 	// ── Drag and drop ─────────────────────────────────────────────────────────
 
+	const onDragUpdate = useCallback((update: import("@hello-pangea/dnd").DragUpdate) => {
+		if (!update.destination) { setHoveredFolderId(null); return; }
+		const flat = buildFlat(layout, true, true);
+		// Simulate source removal so destination index is accurate
+		flat.splice(update.source.index, 1);
+		const folderId = folderAtDest(flat, update.destination.index);
+		setHoveredFolderId(folderId);
+	}, [layout]);
+
 	const onDragEnd = (result: DropResult) => {
 		setIsDragging(false);
+		setHoveredFolderId(null);
 		if (!result.destination) return;
 		const { draggableId, source, destination } = result;
 		if (source.index === destination.index) return;
 
-		// Rebuild flat with all folders expanded during drag
-		const flat = buildFlat(layout, true);
+		// Must use the SAME flat list as was rendered (with slots) so indices match
+		const flat = buildFlat(layout, true, true);
 
 		if (draggableId.startsWith("fh:")) {
-			// ── Moving a folder header — bring all its projects along ──
+			// ── Moving a folder header — bring all its projects (and slot) along ──
 			const folderId = draggableId.slice(3);
-			// Remove header from flat
 			flat.splice(source.index, 1);
-			// Collect the folder's project items that now sit at source.index
 			const group: FlatItem[] = [];
 			while (
-				flat[source.index]?.kind === "project" &&
-				(flat[source.index] as Extract<FlatItem, { kind: "project" }>).folderId === folderId
+				flat[source.index] &&
+				((flat[source.index]!.kind === "project" &&
+					(flat[source.index] as Extract<FlatItem, { kind: "project" }>).folderId === folderId) ||
+					(flat[source.index]!.kind === "empty-folder-slot" &&
+						(flat[source.index] as Extract<FlatItem, { kind: "empty-folder-slot" }>).folderId === folderId))
 			) {
 				group.push(flat.splice(source.index, 1)[0]!);
 			}
@@ -233,10 +262,10 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(
 	// ── Render ────────────────────────────────────────────────────────────────
 
 	const projectMap = Object.fromEntries(projects.map((p) => [p.workspaceId, p]));
-	const flat = buildFlat(layout, isDragging);
+	const flat = buildFlat(layout, isDragging, isDragging);
 
 	return (
-		<DragDropContext onDragStart={() => setIsDragging(true)} onDragEnd={onDragEnd}>
+		<DragDropContext onDragStart={() => setIsDragging(true)} onDragUpdate={onDragUpdate} onDragEnd={onDragEnd}>
 			<Droppable droppableId="sidebar">
 				{(provided) => (
 					<div ref={provided.innerRef} {...provided.droppableProps} className="flex flex-col">
@@ -251,55 +280,110 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(
 											<div
 												ref={dp.innerRef}
 												{...dp.draggableProps}
-												className={`group flex items-center gap-1.5 py-1.5 pr-2 pl-4 text-xs text-[#8888a0] hover:text-[#c0c0d0] transition-colors
-                          ${snap.isDragging ? "opacity-60 bg-[#1f1f28] rounded" : ""}`}
+												{...dp.dragHandleProps}
+												onClick={() => toggleCollapse(item.folderId)}
+												className="group flex items-center cursor-pointer select-none"
+												style={{
+													...dp.draggableProps.style,
+													gap: 6,
+													height: 32,
+													paddingLeft: 10,
+													paddingRight: 8,
+													background: snap.isDragging
+														? "#1f1f28"
+														: hoveredFolderId === item.folderId
+															? "#7c6aff15"
+															: "transparent",
+													borderRadius: 6,
+													margin: "1px 4px",
+													transition: "background 0.1s",
+												}}
 											>
-												<span
-													{...dp.dragHandleProps}
-													className="shrink-0 text-gray-700 hover:text-gray-400 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
-												>
-													<GripVertical size={11} />
-												</span>
-												<button onClick={() => toggleCollapse(item.folderId)} className="shrink-0 text-[#60607a]">
+												{/* Chevron */}
+												<div className="shrink-0 flex items-center justify-center" style={{ width: 14, color: "#4a4a5a" }}>
 													{expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-												</button>
-												<Folder size={12} className="shrink-0 text-[#60607a]" />
+												</div>
+
+												{/* Folder icon */}
+												<Folder size={13} style={{ color: hoveredFolderId === item.folderId ? "#7c6aff" : "#60607a", flexShrink: 0 }} />
+
+												{/* Name */}
 												{editingId === item.folderId ? (
 													<input
 														ref={editRef}
 														value={editName}
 														onChange={(e) => setEditName(e.target.value)}
 														onBlur={commitRename}
+														onClick={(e) => e.stopPropagation()}
 														onKeyDown={(e) => {
 															if (e.key === "Enter") commitRename();
 															if (e.key === "Escape") setEditingId(null);
 														}}
-														className="flex-1 min-w-0 bg-gray-800 text-gray-100 text-xs px-1 rounded outline-none border border-gray-600"
+														className="flex-1 min-w-0 outline-none text-[11px] rounded px-1"
+														style={{ background: "#0c0c0f", border: "1px solid #3a3a55", color: "#f0f0f5" }}
 													/>
 												) : (
 													<span
-														className="flex-1 min-w-0 truncate"
-														onDoubleClick={() => startRename(item.folderId)}
+														className="flex-1 min-w-0 truncate text-[11px] font-medium"
+														style={{ color: hoveredFolderId === item.folderId ? "#c0c0d0" : "#8888a0", letterSpacing: 0.2 }}
+														onDoubleClick={(e) => { e.stopPropagation(); startRename(item.folderId); }}
 													>
 														{folder.name}
 													</span>
 												)}
-												<span className="shrink-0 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+
+												{/* Actions */}
+												<span className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
 													<button
-														onClick={() => startRename(item.folderId)}
-														className="p-0.5 hover:text-gray-200"
+														onClick={(e) => { e.stopPropagation(); startRename(item.folderId); }}
+														className="flex items-center justify-center rounded hover:bg-[#2a2a35] transition-colors"
+														style={{ width: 20, height: 20, color: "#60607a" }}
 														title="Rename"
 													>
 														<Pencil size={10} />
 													</button>
 													<button
-														onClick={() => deleteFolder(item.folderId)}
-														className="p-0.5 hover:text-red-400"
+														onClick={(e) => { e.stopPropagation(); deleteFolder(item.folderId); }}
+														className="flex items-center justify-center rounded hover:bg-[#ef444420] transition-colors"
+														style={{ width: 20, height: 20, color: "#60607a" }}
 														title="Delete"
 													>
 														<Trash2 size={10} />
 													</button>
 												</span>
+											</div>
+										)}
+									</Draggable>
+								);
+							}
+
+							// Empty folder drop zone
+							if (item.kind === "empty-folder-slot") {
+								return (
+									<Draggable key={`slot:${item.folderId}`} draggableId={`slot:${item.folderId}`} index={index} isDragDisabled>
+										{(dp) => (
+											<div
+												ref={dp.innerRef}
+												{...dp.draggableProps}
+												{...dp.dragHandleProps}
+												style={{ paddingLeft: 40, paddingRight: 10, paddingTop: 3, paddingBottom: 3 }}
+											>
+												<div
+													style={{
+														height: 28,
+														border: "1px dashed #2a2a35",
+														borderRadius: 6,
+														display: "flex",
+														alignItems: "center",
+														paddingLeft: 10,
+														gap: 6,
+													}}
+												>
+													<div style={{ width: 4, height: 4, borderRadius: "50%", background: "#2a2a35" }} />
+													<span className="text-[10px]" style={{ color: "#3a3a45" }}>
+														Drop project here
+													</span>
+												</div>
 											</div>
 										)}
 									</Draggable>
@@ -317,25 +401,38 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(
 										<div
 											ref={dp.innerRef}
 											{...dp.draggableProps}
-											className={`group flex items-center gap-1.5 py-[6px] pr-3 text-xs transition-colors
-                        ${indent ? "pl-9" : "pl-4"}
-                        ${snap.isDragging ? "opacity-70" : ""}
-                        ${isActive && !snap.isDragging
-                          ? "bg-[#1f1f28] border-l-2 border-[#7c6aff] text-[#f0f0f5]"
-                          : "text-[#8888a0] hover:text-[#c0c0d0] hover:bg-[#181820] rounded-sm"}`}
+											{...dp.dragHandleProps}
+											onClick={() => onSwitch(item.workspaceId)}
+											className={`flex items-center gap-2 cursor-pointer select-none transition-colors ${snap.isDragging ? "opacity-70" : isActive ? "" : "hover:bg-[#1a1a1f]"}`}
+											style={{
+												...dp.draggableProps.style,
+												height: 32,
+												paddingLeft: indent ? 40 : 12,
+												paddingRight: 12,
+												margin: "1px 4px",
+												borderRadius: 6,
+												background: isActive && !snap.isDragging ? "#7c6aff18" : "transparent",
+												borderLeft: isActive && !snap.isDragging ? "2px solid #7c6aff" : "2px solid transparent",
+											}}
 										>
+											{/* Active dot */}
+											<div style={{
+												width: 6,
+												height: 6,
+												borderRadius: "50%",
+												flexShrink: 0,
+												background: isActive ? "#7c6aff" : "#2a2a35",
+												boxShadow: isActive ? "0 0 6px #7c6aff80" : "none",
+											}} />
 											<span
-												{...dp.dragHandleProps}
-												className="shrink-0 text-gray-700 hover:text-gray-400 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
+												className="truncate text-[12px]"
+												style={{
+													color: isActive ? "#f0f0f5" : "#8888a0",
+													fontWeight: isActive ? 500 : 400,
+												}}
 											>
-												<GripVertical size={11} />
+												{project.name}
 											</span>
-											<button
-												onClick={() => onSwitch(item.workspaceId)}
-												className="flex items-center gap-2 flex-1 min-w-0 text-left"
-											>
-												<span className="truncate">{project.name}</span>
-											</button>
 										</div>
 									)}
 								</Draggable>
