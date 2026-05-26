@@ -138,6 +138,7 @@ export function WorkflowsSection({
 
 	const [activeTab, setActiveTab] = useState<"task" | "story">("task");
 	const [openWorkflowId, setOpenWorkflowId] = useState<string | null>(null);
+	const [draftWorkflow, setDraftWorkflow] = useState<Workflow | null>(null);
 
 	const importFileRef = useRef<HTMLInputElement>(null);
 
@@ -175,42 +176,17 @@ export function WorkflowsSection({
 
 	const handleAddWorkflow = () => {
 		const id = `wf_${Date.now()}`;
+		const isStory = activeTab === "story";
 		const newWf: Workflow = {
 			id,
 			name: "New Workflow",
-			isDefault: taskWorkflows.length === 0,
-			forStory: activeTab === "story",
-			slots:
-				activeTab === "story"
-					? [
-							{
-								id: "orch",
-								type: "orch",
-								name: "Orchestrator",
-								agentBinary: defaultBinary,
-								order: 0,
-								enabled: true,
-								prompt: "",
-							},
-						]
-					: [
-							{
-								id: "dev",
-								type: "dev",
-								name: "Dev",
-								agentBinary: defaultBinary,
-								order: 0,
-								enabled: true,
-								prompt: "",
-							},
-						],
+			isDefault: isStory ? storyWorkflows.length === 0 : taskWorkflows.length === 0,
+			forStory: isStory,
+			slots: isStory
+				? [{ id: "orch", type: "orch", name: "Orchestrator", agentBinary: defaultBinary, order: 0, enabled: true, prompt: "" }]
+				: [{ id: "dev", type: "dev", name: "Dev", agentBinary: defaultBinary, order: 0, enabled: true, prompt: "" }],
 		};
-		if (activeTab === "story") {
-			newWf.isDefault = storyWorkflows.length === 0;
-		}
-		onChange([...workflows, newWf]);
-		patchWorkflow(newWf);
-		setOpenWorkflowId(newWf.id);
+		setDraftWorkflow(newWf);
 	};
 
 	const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -380,15 +356,31 @@ export function WorkflowsSection({
 				</div>
 			</div>
 
-			{/* Editor dialog */}
+			{/* Edit existing workflow */}
 			{openWorkflow && (
 				<WorkflowEditorDialog
 					workflow={openWorkflow}
 					defaultBinary={defaultBinary}
-					onUpdate={(updated) => {
-						updateWorkflow(updated);
-					}}
+					onUpdate={updateWorkflow}
+					onSave={updateWorkflow}
 					onClose={() => setOpenWorkflowId(null)}
+				/>
+			)}
+
+			{/* Create new workflow (draft — not saved until Create is clicked) */}
+			{draftWorkflow && (
+				<WorkflowEditorDialog
+					workflow={draftWorkflow}
+					defaultBinary={defaultBinary}
+					isNew
+					onUpdate={() => {}}
+					onSave={(wf) => {
+						onChange([...workflows, wf]);
+						patchWorkflow(wf);
+						setActiveTab(wf.forStory ? "story" : "task");
+						setDraftWorkflow(null);
+					}}
+					onClose={() => setDraftWorkflow(null)}
 				/>
 			)}
 		</div>

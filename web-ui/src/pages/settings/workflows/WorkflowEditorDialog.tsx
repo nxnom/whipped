@@ -1,4 +1,4 @@
-import { ConfirmDialog } from "@geckoui/geckoui";
+import { Menu, MenuItem, MenuTrigger } from "@geckoui/geckoui";
 import {
 	AGENT_BINARY_OPTIONS,
 	EFFORT_OPTIONS,
@@ -33,18 +33,21 @@ function slotTypeColor(type: string): string {
 export function WorkflowEditorDialog({
 	workflow,
 	defaultBinary,
+	isNew = false,
 	onUpdate,
+	onSave,
 	onClose,
 }: {
 	workflow: Workflow;
 	defaultBinary: RuntimeAgentId;
+	isNew?: boolean;
 	onUpdate: (wf: Workflow) => void;
+	onSave: (wf: Workflow) => void;
 	onClose: () => void;
 }) {
 	const [localWorkflow, setLocalWorkflow] = useState<Workflow>(workflow);
 	const sortedSlots = [...localWorkflow.slots].sort((a, b) => a.order - b.order);
 	const [selectedSlotId, setSelectedSlotId] = useState<string>(sortedSlots[0]?.id ?? "");
-	const [addSlotMenuOpen, setAddSlotMenuOpen] = useState(false);
 	const [addingCustom, setAddingCustom] = useState<"custom" | "orch" | null>(null);
 
 	const selectedSlot = localWorkflow.slots.find((s) => s.id === selectedSlotId);
@@ -57,27 +60,17 @@ export function WorkflowEditorDialog({
 	};
 
 	const handleSave = () => {
-		onUpdate(localWorkflow);
+		onSave(localWorkflow);
+		onClose();
 	};
 
 	const handleDeleteSlot = () => {
-		ConfirmDialog.show({
-			title: "Remove slot",
-			content: `Remove "${selectedSlot?.name}" from the workflow?`,
-			confirmButtonLabel: "Remove",
-			cancelButtonLabel: "Cancel",
-			onConfirm: ({ dismiss }) => {
-				const remaining = localWorkflow.slots.filter((s) => s.id !== selectedSlotId);
-				const devs = remaining.filter((s) => s.type === "dev");
-				const others = remaining.filter((s) => s.type !== "dev").map((s, i) => ({ ...s, order: i + 1 }));
-				const updated = [...devs, ...others];
-				setLocalWorkflow((prev) => ({ ...prev, slots: updated }));
-				setSelectedSlotId(updated[0]?.id ?? "");
-				onUpdate({ ...localWorkflow, slots: updated });
-				dismiss();
-			},
-			onCancel: ({ dismiss }) => dismiss(),
-		});
+		const remaining = localWorkflow.slots.filter((s) => s.id !== selectedSlotId);
+		const devs = remaining.filter((s) => s.type === "dev");
+		const others = remaining.filter((s) => s.type !== "dev").map((s, i) => ({ ...s, order: i + 1 }));
+		const updated = [...devs, ...others];
+		setLocalWorkflow((prev) => ({ ...prev, slots: updated }));
+		setSelectedSlotId(updated[0]?.id ?? "");
 	};
 
 	const hasCR = localWorkflow.slots.some((s) => s.type === "code_review");
@@ -101,8 +94,7 @@ export function WorkflowEditorDialog({
 		const updated = [...localWorkflow.slots, newSlot];
 		setLocalWorkflow((prev) => ({ ...prev, slots: updated }));
 		setSelectedSlotId(newSlot.id);
-		setAddSlotMenuOpen(false);
-		onUpdate({ ...localWorkflow, slots: updated });
+		if (!isNew) onUpdate({ ...localWorkflow, slots: updated });
 	};
 
 	return (
@@ -134,9 +126,15 @@ export function WorkflowEditorDialog({
 							style={{ padding: "16px 24px", borderBottom: "1px solid #2a2a35" }}
 						>
 							<WorkflowIcon size={18} style={{ color: "#7c6aff", flexShrink: 0 }} />
-							<span className="text-[17px] font-semibold" style={{ color: "#f0f0f5" }}>
-								{localWorkflow.name}
-							</span>
+							<input
+								value={localWorkflow.name}
+								onChange={(e) =>
+									setLocalWorkflow((prev) => ({ ...prev, name: e.target.value }))
+								}
+								className="bg-transparent outline-none text-[17px] font-semibold min-w-0"
+								style={{ color: "#f0f0f5", flex: 1 }}
+								placeholder="Workflow name"
+							/>
 							{localWorkflow.isDefault && (
 								<div
 									className="flex items-center gap-1 shrink-0"
@@ -156,8 +154,7 @@ export function WorkflowEditorDialog({
 									{localWorkflow.forStory ? "Story" : "Task"}
 								</span>
 							</div>
-							<div style={{ flex: 1 }} />
-							<button onClick={onClose} className="hover:opacity-70 transition-opacity">
+							<button onClick={onClose} className="hover:opacity-70 transition-opacity shrink-0">
 								<X size={18} style={{ color: "#60607a" }} />
 							</button>
 						</div>
@@ -173,83 +170,45 @@ export function WorkflowEditorDialog({
 									PIPELINE
 								</span>
 								<div style={{ flex: 1, height: 1, background: "#1a1a1f" }} />
-								<div className="relative">
-									<button
-										onClick={() => setAddSlotMenuOpen((v) => !v)}
-										className="flex items-center gap-1 hover:opacity-80 transition-opacity"
-										style={{
-											background: "transparent",
-											border: "1px solid #2a2a35",
-											borderRadius: 4,
-											padding: "3px 8px",
-										}}
-									>
-										<Plus size={11} style={{ color: "#60607a" }} />
-										<span className="text-[10px]" style={{ color: "#60607a" }}>
-											Add Slot
-										</span>
-									</button>
-									{addSlotMenuOpen && (
-										<div
-											className="absolute right-0 top-full mt-1 z-10 flex flex-col"
-											style={{
-												background: "#1a1a1f",
-												border: "1px solid #2a2a35",
-												borderRadius: 6,
-												overflow: "hidden",
-												minWidth: 140,
-											}}
-										>
-											{!localWorkflow.forStory && !hasCR && (
-												<button
-													onClick={() => addBuiltinSlot("code_review")}
-													className="text-left px-3 py-2 text-[12px] hover:bg-[#2a2a35] transition-colors"
-													style={{ color: "#c0c0d0" }}
-												>
-													Code Review
-												</button>
-											)}
-											{!localWorkflow.forStory && !hasQA && (
-												<button
-													onClick={() => addBuiltinSlot("qa")}
-													className="text-left px-3 py-2 text-[12px] hover:bg-[#2a2a35] transition-colors"
-													style={{ color: "#c0c0d0" }}
-												>
-													QA
-												</button>
-											)}
-											{!localWorkflow.forStory && (
-												<button
-													onClick={() => {
-														setAddingCustom("custom");
-														setAddSlotMenuOpen(false);
-													}}
-													className="text-left px-3 py-2 text-[12px] hover:bg-[#2a2a35] transition-colors"
-													style={{ color: "#c0c0d0" }}
-												>
-													Custom Agent
-												</button>
-											)}
-											{localWorkflow.forStory && (
-												<button
-													onClick={() => {
-														setAddingCustom("orch");
-														setAddSlotMenuOpen(false);
-													}}
-													className="text-left px-3 py-2 text-[12px] hover:bg-[#2a2a35] transition-colors"
-													style={{ color: "#c0c0d0" }}
-												>
-													Orch Agent
-												</button>
-											)}
-										</div>
+								<Menu placement="bottom-end">
+									<MenuTrigger>
+										{({ toggleMenu }) => (
+											<button
+												onClick={toggleMenu}
+												className="flex items-center gap-1 hover:opacity-80 transition-opacity"
+												style={{
+													background: "transparent",
+													border: "1px solid #2a2a35",
+													borderRadius: 4,
+													padding: "3px 8px",
+												}}
+											>
+												<Plus size={11} style={{ color: "#60607a" }} />
+												<span className="text-[10px]" style={{ color: "#60607a" }}>
+													Add Slot
+												</span>
+											</button>
+										)}
+									</MenuTrigger>
+									{!localWorkflow.forStory && !hasCR && (
+										<MenuItem onClick={() => addBuiltinSlot("code_review")}>Code Review</MenuItem>
 									)}
-								</div>
+									{!localWorkflow.forStory && !hasQA && (
+										<MenuItem onClick={() => addBuiltinSlot("qa")}>QA</MenuItem>
+									)}
+									{!localWorkflow.forStory && (
+										<MenuItem onClick={() => setAddingCustom("custom")}>Custom Agent</MenuItem>
+									)}
+									{localWorkflow.forStory && (
+										<MenuItem onClick={() => setAddingCustom("orch")}>Orch Agent</MenuItem>
+									)}
+								</Menu>
 							</div>
 							{/* Slot pills */}
 							<div className="flex items-center flex-wrap">
 								{sortedSlots.map((slot, idx) => {
 									const isSelected = slot.id === selectedSlotId;
+									const isDisabled = !slot.enabled;
 									const color = slotTypeColor(slot.type);
 									return (
 										<div key={slot.id} className="flex items-center">
@@ -267,6 +226,7 @@ export function WorkflowEditorDialog({
 													padding: "8px 14px",
 													border: isSelected ? "2px solid #7c6aff" : "1px solid #2a2a35",
 													gap: 8,
+													opacity: isDisabled ? 0.4 : 1,
 												}}
 											>
 												<div
@@ -275,18 +235,22 @@ export function WorkflowEditorDialog({
 														width: 20,
 														height: 20,
 														borderRadius: 10,
-														background: `${color}25`,
+														background: isDisabled ? "#2a2a3525" : `${color}25`,
 													}}
 												>
-													<span className="text-[9px] font-bold" style={{ color }}>
+													<span
+														className="text-[9px] font-bold"
+														style={{ color: isDisabled ? "#4a4a5a" : color }}
+													>
 														{idx + 1}
 													</span>
 												</div>
 												<span
 													className="text-[12px]"
 													style={{
-														color: isSelected ? "#f0f0f5" : "#8888a0",
+														color: isSelected ? "#f0f0f5" : isDisabled ? "#4a4a5a" : "#8888a0",
 														fontWeight: isSelected ? 600 : 400,
+														textDecoration: isDisabled ? "line-through" : "none",
 													}}
 												>
 													{slot.name}
@@ -330,7 +294,7 @@ export function WorkflowEditorDialog({
 										padding: "16px 20px",
 									}}
 								>
-										<textarea
+									<textarea
 										value={selectedSlot.prompt ?? ""}
 										onChange={(e) => updateSlot({ prompt: e.target.value })}
 										placeholder="Describe what this agent should check or do..."
@@ -448,35 +412,39 @@ export function WorkflowEditorDialog({
 										</select>
 									</div>
 								</div>
-								<div style={{ height: 1, background: "#2a2a35", flexShrink: 0 }} />
-								{/* Enabled toggle */}
-								<div className="flex items-center">
-									<span className="text-[13px]" style={{ color: "#c0c0d0" }}>
-										Enabled
-									</span>
-									<div style={{ flex: 1 }} />
-									<button
-										type="button"
-										onClick={() => updateSlot({ enabled: !selectedSlot.enabled })}
-										style={{
-											width: 36,
-											height: 20,
-											borderRadius: 10,
-											background: selectedSlot.enabled ? "#22c55e" : "#2a2a35",
-											padding: 2,
-											display: "flex",
-											alignItems: "center",
-											justifyContent: selectedSlot.enabled ? "flex-end" : "flex-start",
-											transition: "background 0.15s",
-											border: "none",
-											cursor: "pointer",
-										}}
-									>
-										<div
-											style={{ width: 16, height: 16, borderRadius: "50%", background: "#ffffff" }}
-										/>
-									</button>
-								</div>
+								{selectedSlot.type !== "dev" && (
+									<>
+										<div style={{ height: 1, background: "#2a2a35", flexShrink: 0 }} />
+										{/* Enabled toggle */}
+										<div className="flex items-center">
+											<span className="text-[13px]" style={{ color: "#c0c0d0" }}>
+												Enabled
+											</span>
+											<div style={{ flex: 1 }} />
+											<button
+												type="button"
+												onClick={() => updateSlot({ enabled: !selectedSlot.enabled })}
+												style={{
+													width: 36,
+													height: 20,
+													borderRadius: 10,
+													background: selectedSlot.enabled ? "#22c55e" : "#2a2a35",
+													padding: 2,
+													display: "flex",
+													alignItems: "center",
+													justifyContent: selectedSlot.enabled ? "flex-end" : "flex-start",
+													transition: "background 0.15s",
+													border: "none",
+													cursor: "pointer",
+												}}
+											>
+												<div
+													style={{ width: 16, height: 16, borderRadius: "50%", background: "#ffffff" }}
+												/>
+											</button>
+										</div>
+									</>
+								)}
 								<div style={{ flex: 1 }} />
 								{/* Delete + Save */}
 								<div className="flex items-center justify-end gap-2 shrink-0">
@@ -504,7 +472,7 @@ export function WorkflowEditorDialog({
 									>
 										<Check size={13} style={{ color: "#ffffff" }} />
 										<span className="text-[12px] font-medium" style={{ color: "#ffffff" }}>
-											Save
+											{isNew ? "Create" : "Save"}
 										</span>
 									</button>
 								</div>
@@ -542,7 +510,7 @@ export function WorkflowEditorDialog({
 						const updated = [...localWorkflow.slots, newSlot];
 						setLocalWorkflow((prev) => ({ ...prev, slots: updated }));
 						setSelectedSlotId(newSlot.id);
-						onUpdate({ ...localWorkflow, slots: updated });
+						if (!isNew) onUpdate({ ...localWorkflow, slots: updated });
 						setAddingCustom(null);
 					}}
 					onClose={() => setAddingCustom(null)}
