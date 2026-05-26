@@ -1,6 +1,7 @@
 import {
 	ArrowLeft,
 	BookOpen,
+	ChevronDown,
 	FolderGit2,
 	Plug,
 	Server,
@@ -8,7 +9,9 @@ import {
 	Terminal,
 	Workflow,
 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { trpc } from "@/runtime/trpc-client";
 import { useWorkspaceState } from "@/stores/board-store";
 import { GlobalSettings } from "./GlobalSettings";
 import { ProjectSettings } from "./ProjectSettings";
@@ -29,6 +32,122 @@ const PROJECT_NAV: Array<{ id: ProjectSection; label: string; icon: React.ReactN
 const GLOBAL_NAV: Array<{ id: GlobalSection; label: string; icon: React.ReactNode }> = [
 	{ id: "runtime", label: "Runtime Config", icon: <Server size={15} /> },
 ];
+
+function ProjectDropdown({
+	workspaceId,
+	projectName,
+	shortPath,
+	onSwitch,
+}: {
+	workspaceId: string;
+	projectName: string;
+	shortPath: string;
+	onSwitch: (id: string) => void;
+}) {
+	const [open, setOpen] = useState(false);
+	const [workspaces, setWorkspaces] = useState<{ workspaceId: string; name: string; repoPath: string }[]>([]);
+	const ref = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		trpc.projects.list.query().then(setWorkspaces).catch(() => {});
+	}, []);
+
+	useEffect(() => {
+		if (!open) return;
+		const handler = (e: MouseEvent) => {
+			if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+		};
+		document.addEventListener("mousedown", handler);
+		return () => document.removeEventListener("mousedown", handler);
+	}, [open]);
+
+	return (
+		<div ref={ref} className="relative">
+			<button
+				onClick={() => setOpen((v) => !v)}
+				className="w-full flex items-center gap-2.5 px-[18px] py-3 hover:bg-[#1a1a1f] transition-colors text-left"
+			>
+				<FolderGit2 size={14} className="mt-px shrink-0" style={{ color: "#60607a" }} />
+				<div className="flex-1 min-w-0">
+					<p className="text-[12px] font-medium truncate" style={{ color: "#c0c0d0" }}>
+						{projectName}
+					</p>
+					{shortPath && (
+						<p className="text-[10px] truncate mt-0.5 font-mono" style={{ color: "#4a4a5a" }}>
+							{shortPath}
+						</p>
+					)}
+				</div>
+				<ChevronDown
+					size={13}
+					className="shrink-0 transition-transform"
+					style={{ color: "#60607a", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+				/>
+			</button>
+
+			{open && (
+				<div
+					className="absolute left-0 right-0 z-50 flex flex-col overflow-hidden"
+					style={{
+						top: "100%",
+						background: "#1a1a1f",
+						border: "1px solid #2a2a35",
+						borderRadius: 8,
+						boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
+						margin: "4px 8px 0",
+					}}
+				>
+					{workspaces.map((ws) => {
+						const isCurrent = ws.workspaceId === workspaceId;
+						const name = ws.name || ws.repoPath.split("/").filter(Boolean).at(-1) || ws.workspaceId;
+						const path = ws.repoPath.replace(/^\/Users\/[^/]+/, "~");
+						return (
+							<button
+								key={ws.workspaceId}
+								onClick={() => {
+									setOpen(false);
+									if (!isCurrent) onSwitch(ws.workspaceId);
+								}}
+								className="flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-[#2a2a35]"
+								style={{ background: isCurrent ? "#7c6aff12" : "transparent" }}
+							>
+								<FolderGit2
+									size={13}
+									className="shrink-0 mt-px"
+									style={{ color: isCurrent ? "#7c6aff" : "#60607a" }}
+								/>
+								<div className="flex-1 min-w-0">
+									<p
+										className="text-[12px] font-medium truncate"
+										style={{ color: isCurrent ? "#f0f0f5" : "#c0c0d0" }}
+									>
+										{name}
+									</p>
+									{path && (
+										<p className="text-[10px] truncate font-mono" style={{ color: "#4a4a5a" }}>
+											{path}
+										</p>
+									)}
+								</div>
+								{isCurrent && (
+									<div
+										className="shrink-0"
+										style={{ width: 6, height: 6, borderRadius: "50%", background: "#7c6aff" }}
+									/>
+								)}
+							</button>
+						);
+					})}
+					{workspaces.length === 0 && (
+						<p className="px-3 py-2.5 text-[11px]" style={{ color: "#4a4a5a" }}>
+							Loading…
+						</p>
+					)}
+				</div>
+			)}
+		</div>
+	);
+}
 
 const PROJECT_SECTIONS = new Set<SettingsSection>([
 	"general-automation",
@@ -54,6 +173,10 @@ export function SettingsPage() {
 		navigate(`/${encodeURIComponent(workspaceId)}/settings/${s}`);
 	};
 
+	const handleSwitchProject = (toId: string) => {
+		navigate(`/${encodeURIComponent(toId)}/settings/${section}`);
+	};
+
 	return (
 		<div className="flex-1 overflow-hidden flex bg-[#0f0f10]">
 			{/* Sidebar */}
@@ -73,20 +196,13 @@ export function SettingsPage() {
 				</button>
 				<div style={{ height: 1, background: "#2a2a35" }} />
 
-				{/* Project identity */}
-				<div className="flex items-start gap-2.5 px-[18px] py-3">
-					<FolderGit2 size={14} className="mt-px shrink-0" style={{ color: "#60607a" }} />
-					<div className="min-w-0">
-						<p className="text-[12px] font-medium truncate" style={{ color: "#c0c0d0" }}>
-							{projectName}
-						</p>
-						{shortPath && (
-							<p className="text-[10px] truncate mt-0.5 font-mono" style={{ color: "#4a4a5a" }}>
-								{shortPath}
-							</p>
-						)}
-					</div>
-				</div>
+				{/* Project dropdown */}
+				<ProjectDropdown
+					workspaceId={workspaceId}
+					projectName={projectName}
+					shortPath={shortPath}
+					onSwitch={handleSwitchProject}
+				/>
 				<div style={{ height: 1, background: "#2a2a35" }} />
 
 				{/* PROJECT section */}
