@@ -187,7 +187,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 				const reviewSlots = (cardWorkflow?.slots ?? [])
 					.filter((s) => s.type !== "dev" && s.enabled)
 					.sort((a, b) => a.order - b.order);
-				if (reviewSlots.length === 0) return;
+				if (reviewSlots.length === 0 && !(latestProjectConfig.autoPR ?? false)) return;
 				await runReviewPipeline(card, {
 					workspaceId,
 					repoPath: wsRepoPath,
