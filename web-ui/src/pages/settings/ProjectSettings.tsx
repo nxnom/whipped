@@ -5,8 +5,7 @@ import { trpc } from "@/runtime/trpc-client";
 import { useWorkspaceState } from "@/stores/board-store";
 import { type ProjectSection } from "./_shared";
 import { WorkflowsSection } from "./workflows";
-import { EnvironmentSection } from "./EnvironmentSection";
-import { SecretsSection } from "./SecretsSection";
+import { EnvironmentSecretsSection } from "./EnvironmentSecretsSection";
 import { GeneralAutomationSection } from "./sections/GeneralAutomationSection";
 import { AssistantSection } from "./sections/AssistantSection";
 import { GitSection } from "./sections/GitSection";
@@ -100,7 +99,7 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 		try {
 			await trpc.workspace.setAutonomousMode.mutate({ workspaceId, enabled: next });
 			updateConfig({ ...config, autonomousModeEnabled: next });
-			toast.success(next ? "Autonomous mode on" : "Autonomous mode off");
+			toast.success(next ? "Autonomous mode enabled" : "Autonomous mode disabled");
 		} catch {
 			toast.error("Failed to toggle autonomous mode");
 		} finally {
@@ -114,9 +113,9 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 		try {
 			await trpc.projectConfig.save.mutate({ workspaceId, config });
 			isDirtyRef.current = false;
-			toast.success("Project settings saved");
+			toast.success("Settings saved");
 		} catch {
-			toast.error("Failed to save project settings");
+			toast.error("Failed to save settings");
 		} finally {
 			setSaving(false);
 		}
@@ -133,6 +132,7 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 			toast.success("Secrets saved");
 		} catch {
 			toast.error("Failed to save secrets");
+
 		} finally {
 			setSaving(false);
 		}
@@ -179,25 +179,14 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 				)}
 
 				{section === "environment" && (
-					<div className="max-w-xl space-y-6">
-						<EnvironmentSection
-							workspaceId={workspaceId}
-							setup={config.worktreeSetup ?? { filesToCopy: [], installCommand: "" }}
-							onChange={(worktreeSetup) => updateConfig({ ...config, worktreeSetup })}
-							startCommand={config.startCommand ?? ""}
-							onStartCommandChange={(startCommand) => updateConfig({ ...config, startCommand })}
-							onSave={handleSave}
-							saving={saving}
-						/>
-						<div style={{ borderTop: "1px solid #2a2a35" }} className="pt-6">
-							<SecretsSection
-								secrets={config.secrets ?? []}
-								onChange={(secrets) => updateConfig({ ...config, secrets })}
-								onSave={handleSaveSecrets}
-								saving={saving}
-							/>
-						</div>
-					</div>
+					<EnvironmentSecretsSection
+						workspaceId={workspaceId}
+						config={config}
+						saving={saving}
+						onUpdate={updateConfig}
+						onSave={handleSave}
+						onSaveSecrets={handleSaveSecrets}
+					/>
 				)}
 
 				{section === "instructions" && (
