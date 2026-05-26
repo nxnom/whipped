@@ -7,10 +7,49 @@ import { type ProjectSection } from "./_shared";
 import { WorkflowsSection } from "./workflows";
 import { EnvironmentSection } from "./EnvironmentSection";
 import { SecretsSection } from "./SecretsSection";
-import { AutonomousSection } from "./sections/AutonomousSection";
+import { GeneralAutomationSection } from "./sections/GeneralAutomationSection";
 import { AssistantSection } from "./sections/AssistantSection";
 import { GitSection } from "./sections/GitSection";
 import { JiraSection } from "./sections/JiraSection";
+
+function PageHeader({ title, description }: { title: string; description: string }) {
+	return (
+		<div
+			className="shrink-0 flex flex-col gap-1 px-10 py-6"
+			style={{ borderBottom: "1px solid #2a2a35" }}
+		>
+			<h1 className="text-xl font-semibold" style={{ color: "#f0f0f5" }}>
+				{title}
+			</h1>
+			<p className="text-[13px]" style={{ color: "#60607a" }}>
+				{description}
+			</p>
+		</div>
+	);
+}
+
+const SECTION_META: Record<ProjectSection, { title: string; description: string }> = {
+	"general-automation": {
+		title: "General & Automation",
+		description: "Configure autonomous behaviors and runtime defaults for this project.",
+	},
+	workflows: {
+		title: "Workflows",
+		description: "Define agent pipelines for tasks and stories.",
+	},
+	environment: {
+		title: "Environment & Secrets",
+		description: "Configure worktree setup and manage secrets for agents.",
+	},
+	instructions: {
+		title: "Instructions",
+		description: "Configure shared prompts and conventions for all agents.",
+	},
+	integrations: {
+		title: "Integrations",
+		description: "Connect external services to import tickets and sync data.",
+	},
+};
 
 export function ProjectSettings({ workspaceId, section }: { workspaceId: string; section: ProjectSection }) {
 	const [config, setConfig] = useState<RuntimeProjectConfig | null>(null);
@@ -30,7 +69,7 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 	}, []);
 
 	useEffect(() => {
-		if (section === "git") {
+		if (section === "general-automation" || section === "instructions") {
 			trpc.cards.listBranches
 				.query({ workspaceId })
 				.then(({ branches: b }) => setBranches(b))
@@ -99,8 +138,17 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 		}
 	};
 
+	const meta = SECTION_META[section];
+
 	if (!config) {
-		return <div className="flex items-center justify-center py-20 text-gray-500 text-sm">Loading...</div>;
+		return (
+			<div className="flex-1 flex flex-col">
+				<PageHeader title={meta.title} description={meta.description} />
+				<div className="flex items-center justify-center py-20 text-sm" style={{ color: "#60607a" }}>
+					Loading...
+				</div>
+			</div>
+		);
 	}
 
 	if (section === "workflows") {
@@ -115,11 +163,13 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 	}
 
 	return (
-		<div className="h-full overflow-y-auto">
-			<div className="p-6 max-w-xl space-y-6">
-				{section === "autonomous" && (
-					<AutonomousSection
+		<div className="flex-1 flex flex-col overflow-hidden">
+			<PageHeader title={meta.title} description={meta.description} />
+			<div className="flex-1 overflow-y-auto px-10 py-6">
+				{section === "general-automation" && (
+					<GeneralAutomationSection
 						config={config}
+						branches={branches}
 						saving={saving}
 						togglingAutonomous={togglingAutonomous}
 						onToggleAutonomous={handleToggleAutonomous}
@@ -128,49 +178,53 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 					/>
 				)}
 
-				{section === "assistant" && (
-					<AssistantSection config={config} saving={saving} onUpdate={updateConfig} onSave={handleSave} />
-				)}
-
 				{section === "environment" && (
-					<EnvironmentSection
-						workspaceId={workspaceId}
-						setup={config.worktreeSetup ?? { filesToCopy: [], installCommand: "" }}
-						onChange={(worktreeSetup) => updateConfig({ ...config, worktreeSetup })}
-						startCommand={config.startCommand ?? ""}
-						onStartCommandChange={(startCommand) => updateConfig({ ...config, startCommand })}
-						onSave={handleSave}
-						saving={saving}
-					/>
+					<div className="max-w-xl space-y-6">
+						<EnvironmentSection
+							workspaceId={workspaceId}
+							setup={config.worktreeSetup ?? { filesToCopy: [], installCommand: "" }}
+							onChange={(worktreeSetup) => updateConfig({ ...config, worktreeSetup })}
+							startCommand={config.startCommand ?? ""}
+							onStartCommandChange={(startCommand) => updateConfig({ ...config, startCommand })}
+							onSave={handleSave}
+							saving={saving}
+						/>
+						<div style={{ borderTop: "1px solid #2a2a35" }} className="pt-6">
+							<SecretsSection
+								secrets={config.secrets ?? []}
+								onChange={(secrets) => updateConfig({ ...config, secrets })}
+								onSave={handleSaveSecrets}
+								saving={saving}
+							/>
+						</div>
+					</div>
 				)}
 
-				{section === "secrets" && (
-					<SecretsSection
-						secrets={config.secrets ?? []}
-						onChange={(secrets) => updateConfig({ ...config, secrets })}
-						onSave={handleSaveSecrets}
-						saving={saving}
-					/>
+				{section === "instructions" && (
+					<div className="max-w-xl space-y-6">
+						<AssistantSection config={config} saving={saving} onUpdate={updateConfig} onSave={handleSave} />
+						<div style={{ borderTop: "1px solid #2a2a35" }} className="pt-6">
+							<GitSection
+								config={config}
+								branches={branches}
+								saving={saving}
+								onUpdate={updateConfig}
+								onSave={handleSave}
+							/>
+						</div>
+					</div>
 				)}
 
-				{section === "git" && (
-					<GitSection
-						config={config}
-						branches={branches}
-						saving={saving}
-						onUpdate={updateConfig}
-						onSave={handleSave}
-					/>
-				)}
-
-				{section === "jira" && (
-					<JiraSection
-						workspaceId={workspaceId}
-						config={config}
-						saving={saving}
-						onUpdate={updateConfig}
-						onSave={handleSave}
-					/>
+				{section === "integrations" && (
+					<div className="max-w-xl space-y-6">
+						<JiraSection
+							workspaceId={workspaceId}
+							config={config}
+							saving={saving}
+							onUpdate={updateConfig}
+							onSave={handleSave}
+						/>
+					</div>
 				)}
 			</div>
 		</div>

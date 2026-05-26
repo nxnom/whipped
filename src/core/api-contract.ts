@@ -360,6 +360,8 @@ export const runtimeProjectConfigSchema = z.object({
 	name: z.string().optional(),
 	defaultAgent: runtimeAgentIdSchema.optional(),
 	maxParallelTasks: z.number().int().positive().optional(),
+	maxAutoFixAttempts: z.number().int().nonnegative().optional(),
+	pollingIntervalSeconds: z.number().int().positive().optional(),
 	autonomousModeEnabled: z.boolean().default(false),
 	autoPR: z.boolean().default(false),
 	autoCommit: z.boolean().default(true),

@@ -1,7 +1,7 @@
 import { Button } from "@geckoui/geckoui";
 
-export type ProjectSection = "autonomous" | "workflows" | "assistant" | "environment" | "secrets" | "jira" | "git";
-export type GlobalSection = "general";
+export type ProjectSection = "general-automation" | "workflows" | "environment" | "instructions" | "integrations";
+export type GlobalSection = "runtime";
 export type SettingsSection = ProjectSection | GlobalSection;
 
 export function SectionHeader({ title, description }: { title: string; description: string }) {

@@ -194,7 +194,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 					serverUrl: `http://${host}:${port}`,
 					mcpBinary: getMcpServerPath(),
 					reviewSlots,
-					maxAutoFixAttempts: latestConfig.maxAutoFixAttempts,
+					maxAutoFixAttempts: latestProjectConfig.maxAutoFixAttempts ?? latestConfig.maxAutoFixAttempts,
 					stateHub,
 					githubClient: latestGithubClient,
 					autoPR: latestProjectConfig.autoPR ?? false,
@@ -214,7 +214,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 			repoPath: wsRepoPath,
 			serverUrl: `http://${host}:${port}`,
 			maxParallelTasks: projectConfig.maxParallelTasks ?? config.maxParallelTasks,
-			maxAutoFixAttempts: config.maxAutoFixAttempts,
+			maxAutoFixAttempts: projectConfig.maxAutoFixAttempts ?? config.maxAutoFixAttempts,
 			defaultAgent: projectConfig.defaultAgent ?? config.defaultAgent,
 			stateHub,
 			onTaskCompleted: (taskId) => {
@@ -232,7 +232,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 		const poller = new BoardPoller({
 			workspaceId,
 			repoPath: wsRepoPath,
-			pollingIntervalSeconds: config.pollingIntervalSeconds,
+			pollingIntervalSeconds: projectConfig.pollingIntervalSeconds ?? config.pollingIntervalSeconds,
 			prPollingIntervalSeconds: config.prPollingIntervalSeconds,
 			scheduler,
 			stateHub,
