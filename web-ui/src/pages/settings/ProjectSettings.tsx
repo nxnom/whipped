@@ -7,8 +7,7 @@ import { type ProjectSection } from "./_shared";
 import { WorkflowsSection } from "./workflows";
 import { EnvironmentSecretsSection } from "./EnvironmentSecretsSection";
 import { GeneralAutomationSection } from "./sections/GeneralAutomationSection";
-import { AssistantSection } from "./sections/AssistantSection";
-import { GitSection } from "./sections/GitSection";
+import { InstructionsSection } from "./sections/InstructionsSection";
 import { JiraSection } from "./sections/JiraSection";
 
 function PageHeader({ title, description }: { title: string; description: string }) {
@@ -162,6 +161,16 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 		);
 	}
 
+	// Instructions fills the full height (textareas expand to fill remaining space)
+	if (section === "instructions") {
+		return (
+			<div className="flex-1 flex flex-col overflow-hidden">
+				<PageHeader title={meta.title} description={meta.description} />
+				<InstructionsSection config={config} saving={saving} onUpdate={updateConfig} onSave={handleSave} />
+			</div>
+		);
+	}
+
 	return (
 		<div className="flex-1 flex flex-col overflow-hidden">
 			<PageHeader title={meta.title} description={meta.description} />
@@ -187,21 +196,6 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 						onSave={handleSave}
 						onSaveSecrets={handleSaveSecrets}
 					/>
-				)}
-
-				{section === "instructions" && (
-					<div className="max-w-xl space-y-6">
-						<AssistantSection config={config} saving={saving} onUpdate={updateConfig} onSave={handleSave} />
-						<div style={{ borderTop: "1px solid #2a2a35" }} className="pt-6">
-							<GitSection
-								config={config}
-								branches={branches}
-								saving={saving}
-								onUpdate={updateConfig}
-								onSave={handleSave}
-							/>
-						</div>
-					</div>
 				)}
 
 				{section === "integrations" && (
