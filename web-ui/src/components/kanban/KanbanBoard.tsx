@@ -6,7 +6,7 @@ import type {
 	RuntimeWorkspaceStateResponse,
 	Workflow,
 } from "@runtime-contract";
-import { Bot, Layers, Paperclip, Plus, Settings, X } from "lucide-react";
+import { Bot, Layers, Paperclip, Play, Plus, Settings, Square, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { BranchSelect } from "@/components/BranchSelect";
@@ -31,11 +31,20 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
 	const navigate = useNavigate();
 	const { workspaceId: urlWorkspaceId, cardId: detailCardId } = useParams<{ workspaceId: string; cardId?: string }>();
 	const workspaceId = urlWorkspaceId!;
-	const { session: runSession, start: startRun, stop: stopRun } = useRunSession(workspaceId);
+	const { session: runSession, start: startRun, startBase: startBaseRun, stop: stopRun } = useRunSession(workspaceId);
 
 	const handleRun = async (cardId: string) => {
 		try {
 			await startRun(cardId);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			toast.error(msg);
+		}
+	};
+
+	const handleRunBase = async () => {
+		try {
+			await startBaseRun();
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
 			toast.error(msg);
@@ -195,6 +204,21 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
 					<Button size="sm" variant="outlined" onClick={openCreateDialog}>
 						<Plus size={13} className="mr-1" /> New task
 					</Button>
+					{runSession.status === "running" && runSession.cardId === null ? (
+						<Button size="sm" variant="ghost" onClick={handleStop} title="Stop">
+							<Square size={12} className="fill-current text-red-400 mr-1" /> Stop
+						</Button>
+					) : (
+						<Button
+							size="sm"
+							variant="ghost"
+							onClick={handleRunBase}
+							disabled={runSession.status === "running"}
+							title="Run base repo"
+						>
+							<Play size={13} className="mr-1" /> Run
+						</Button>
+					)}
 					<Button size="sm" variant="ghost" onClick={onOpenSettings}>
 						<Settings size={14} />
 					</Button>

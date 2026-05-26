@@ -92,9 +92,13 @@ export function useRunSession(workspaceId: string) {
 		[workspaceId],
 	);
 
+	const startBase = useCallback(async () => {
+		await trpc.run.startBase.mutate({ workspaceId });
+	}, [workspaceId]);
+
 	const stop = useCallback(async () => {
 		await trpc.run.stop.mutate({ workspaceId });
 	}, [workspaceId]);
 
-	return { session, start, stop };
+	return { session, start, startBase, stop };
 }

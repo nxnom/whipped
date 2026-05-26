@@ -31,7 +31,7 @@ export function RunBar({ workspaceId }: RunBarProps) {
 		(session.status === "stopped" && session.cardId !== null);
 	if (!isVisible) return null;
 
-	const title = cardTitle ?? session.cardId ?? "Unknown ticket";
+	const title = session.cardId === null ? "Base repo" : (cardTitle ?? session.cardId ?? "Unknown");
 
 	const handleStop = async () => {
 		try {

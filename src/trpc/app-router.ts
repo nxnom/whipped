@@ -80,7 +80,7 @@ async function drainCleanupQueue(): Promise<void> {
 }
 
 export interface RunSession {
-	cardId: string;
+	cardId: string | null;
 	status: "running" | "stopped" | "error";
 	errorMessage?: string;
 	outputBuffer: string;
@@ -94,7 +94,7 @@ export interface AppContext {
 	ensureWorkspace: (workspaceId: string) => Promise<{ workspaceId: string; repoPath: string }>;
 	currentWorkspaceId: string | null;
 	currentRepoPath: string | null;
-	startRun: (workspaceId: string, cardId: string, command: string, cwd: string) => void;
+	startRun: (workspaceId: string, cardId: string | null, command: string, cwd: string) => void;
 	stopRun: (workspaceId: string) => void;
 	getRunSession: (workspaceId: string) => RunSession | null;
 }
@@ -898,6 +898,22 @@ export const appRouter = router({
 				if (!card) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
 				const cwd = card.worktreePath ?? ws.repoPath;
 				ctx.startRun(input.workspaceId, input.cardId, command, cwd);
+				return { ok: true };
+			}),
+
+		startBase: publicProcedure
+			.input(z.object({ workspaceId: z.string() }))
+			.mutation(async ({ ctx, input }) => {
+				const ws = await ctx.ensureWorkspace(input.workspaceId);
+				const projectConfig = await loadProjectConfig(input.workspaceId);
+				const command = projectConfig.startCommand?.trim();
+				if (!command) {
+					throw new TRPCError({
+						code: "PRECONDITION_FAILED",
+						message: "No start command configured. Add one in Settings → Environment.",
+					});
+				}
+				ctx.startRun(input.workspaceId, null, command, ws.repoPath);
 				return { ok: true };
 			}),
 

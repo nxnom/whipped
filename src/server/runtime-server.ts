@@ -75,7 +75,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 	type RunTerminalListener = (data: string) => void;
 	const runTerminalListeners = new Map<string, Set<RunTerminalListener>>();
 
-	function startRun(workspaceId: string, cardId: string, command: string, cwd: string): void {
+	function startRun(workspaceId: string, cardId: string | null, command: string, cwd: string): void {
 		stopRun(workspaceId);
 		const shell = process.env.SHELL ?? "/bin/bash";
 		const pty = nodePty.spawn(shell, ["-c", command], {
