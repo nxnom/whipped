@@ -418,7 +418,9 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 	await appendActivityLog(workspaceId, card.id, "All reviews passed → moved to Ready for Review");
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 
-	if (autoPR && card.type !== "story") {
+	// subtasks (type:"subtask") skip autoPR — the story card creates the PR after orch passes.
+	// Standalone dependent tasks (type:"task" with sharedWorktreeId) still create their own PR.
+	if (autoPR && card.type !== "subtask") {
 		const effectiveWorktreeId = card.sharedWorktreeId ?? card.id;
 		const worktreePath = getWorktreePath(effectiveWorktreeId);
 		const taskBranch = getCardBranch(card);
@@ -434,55 +436,22 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 			return;
 		}
 		try {
-			// Check if any card in the same story group already has a PR — reuse it.
-			const autoPrBoard = await loadBoard(workspaceId);
-			const ownerId = card.sharedWorktreeId ?? card.id;
-			const groupIds = [ownerId, ...Object.values(autoPrBoard.cards).filter((c) => c.sharedWorktreeId === ownerId).map((c) => c.id)];
-			const existingPrUrl = groupIds.map((id) => autoPrBoard.cards[id]?.pr?.url).find(Boolean);
-
-			let prUrl: string;
-			if (existingPrUrl) {
-				prUrl = existingPrUrl;
-				logger.info(`[review] Auto PR: reusing existing PR ${prUrl} for "${card.title}"`);
-			} else {
-				logger.info(`[review] Auto PR: commit → push → create for "${card.title}" (branch: ${taskBranch})`);
-				await commitIfDirty(worktreePath, card.pr?.title ?? card.title);
-				await pushBranch(worktreePath, taskBranch);
-				const ownerCard = autoPrBoard.cards[ownerId];
-				const devSummary =
-					[...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev")?.summary ?? card.description;
-				const prTitle = ownerCard?.pr?.title ?? card.pr?.title ?? ownerCard?.title ?? card.title;
-				const prDescription = ownerCard?.pr?.description ?? card.pr?.description ?? devSummary;
-				prUrl = await createGithubPR(worktreePath, prTitle, prDescription, card.baseRef, githubToken);
-				logger.info(`[review] Auto PR created: ${prUrl}`);
-			}
-
-			// Propagate PR URL to all cards in the group that don't have it yet.
-			for (const relId of groupIds) {
-				const relCard = autoPrBoard.cards[relId];
-				if (relCard && !relCard.pr?.url) {
-					await updateCard(workspaceId, relId, { pr: { ...(relCard.pr ?? {}), url: prUrl } });
-				}
-			}
-			await appendActivityLog(workspaceId, card.id, `Auto PR ${existingPrUrl ? "linked" : "created"} → ${prUrl}`);
+			logger.info(`[review] Auto PR: commit → push → create for "${card.title}" (branch: ${taskBranch})`);
+			await commitIfDirty(worktreePath, card.pr?.title ?? card.title);
+			await pushBranch(worktreePath, taskBranch);
+			const devSummary =
+				[...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev")?.summary ?? card.description;
+			const prTitle = card.pr?.title ?? card.title;
+			const prDescription = card.pr?.description ?? devSummary;
+			const prUrl = await createGithubPR(worktreePath, prTitle, prDescription, card.baseRef, githubToken);
+			logger.info(`[review] Auto PR created: ${prUrl}`);
+			await updateCard(workspaceId, card.id, { pr: { ...card.pr, url: prUrl } });
+			await appendActivityLog(workspaceId, card.id, `Auto PR created → ${prUrl}`);
 		} catch (err) {
 			logger.error({ err }, `[review] Auto PR failed for "${card.title}":`);
 			await appendActivityLog(workspaceId, card.id, `Auto PR failed: ${String(err)}`);
 		}
 		stateHub.broadcastWorkspaceUpdate(workspaceId);
-	}
-
-	// For story cards, propagate any existing subtask PR URL to the story card itself.
-	if (card.type === "story" && !card.pr?.url) {
-		const storyBoard = await loadBoard(workspaceId);
-		const subtaskPrUrl = Object.values(storyBoard.cards)
-			.filter((c) => c.sharedWorktreeId === card.id)
-			.map((c) => c.pr?.url)
-			.find(Boolean);
-		if (subtaskPrUrl) {
-			await updateCard(workspaceId, card.id, { pr: { ...card.pr, url: subtaskPrUrl } });
-			stateHub.broadcastWorkspaceUpdate(workspaceId);
-		}
 	}
 }
 
