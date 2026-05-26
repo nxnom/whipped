@@ -18,10 +18,12 @@ function WorkflowCard({
 	workflow,
 	onClick,
 	onDelete,
+	onSetDefault,
 }: {
 	workflow: Workflow;
 	onClick: () => void;
 	onDelete: (e: React.MouseEvent) => void;
+	onSetDefault: (e: React.MouseEvent) => void;
 }) {
 	const sortedSlots = [...workflow.slots].sort((a, b) => a.order - b.order);
 	const [hovered, setHovered] = useState(false);
@@ -61,6 +63,16 @@ function WorkflowCard({
 					<span className="text-[11px]" style={{ color: "#4a4a5a" }}>
 						{workflow.slots.length} slots
 					</span>
+					{hovered && !workflow.isDefault && (
+						<button
+							onClick={onSetDefault}
+							className="hover:opacity-80 transition-opacity shrink-0"
+							style={{ padding: "2px 4px" }}
+							title="Set as default"
+						>
+							<Star size={13} style={{ color: "#7c6aff" }} />
+						</button>
+					)}
 					{hovered && (
 						<button
 							onClick={onDelete}
@@ -167,6 +179,18 @@ export function WorkflowsSection({
 		trpc.workflows.upsert.mutate({ workspaceId, workflow: wf }).catch(() => {
 			toast.error("Failed to save workflow");
 		});
+	};
+
+	const handleSetDefault = (workflowId: string) => {
+		const target = workflows.find((w) => w.id === workflowId);
+		if (!target || target.isDefault) return;
+		const updated = workflows.map((w) => {
+			if (w.forStory !== target.forStory) return w;
+			const next = { ...w, isDefault: w.id === workflowId };
+			if (next.isDefault !== w.isDefault) patchWorkflow(next);
+			return next;
+		});
+		onChange(updated);
 	};
 
 	const updateWorkflow = (updated: Workflow) => {
@@ -331,6 +355,10 @@ export function WorkflowsSection({
 						onDelete={(e) => {
 							e.stopPropagation();
 							deleteWorkflow(wf.id);
+						}}
+						onSetDefault={(e) => {
+							e.stopPropagation();
+							handleSetDefault(wf.id);
 						}}
 					/>
 					))}

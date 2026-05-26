@@ -96,6 +96,7 @@ export interface RunSession {
 	errorMessage?: string;
 	outputBuffer: string;
 	kill: () => void;
+	writeInput: (data: string) => void;
 }
 
 export interface AppContext {

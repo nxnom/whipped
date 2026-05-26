@@ -24,7 +24,7 @@ export function RunTerminal({ workspaceId, className }: RunTerminalProps) {
 			},
 			fontSize: 12,
 			fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-			cursorBlink: false,
+			cursorBlink: true,
 			scrollback: 10000,
 		});
 
@@ -51,6 +51,12 @@ export function RunTerminal({ workspaceId, className }: RunTerminalProps) {
 			term.write("\r\n\x1b[31m[run terminal: connection failed]\x1b[0m\r\n");
 		});
 
+		const inputDisposable = term.onData((data) => {
+			if (ws.readyState === WebSocket.OPEN) {
+				ws.send(data);
+			}
+		});
+
 		let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 		const resizeObserver = new ResizeObserver(() => {
 			if (resizeTimer !== null) clearTimeout(resizeTimer);
@@ -63,6 +69,7 @@ export function RunTerminal({ workspaceId, className }: RunTerminalProps) {
 
 		return () => {
 			resizeObserver.disconnect();
+			inputDisposable.dispose();
 			if (resizeTimer !== null) clearTimeout(resizeTimer);
 			ws.close(1000);
 			term.dispose();

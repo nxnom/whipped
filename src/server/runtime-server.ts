@@ -96,6 +96,13 @@ export async function createRuntimeServer(options: ServerOptions) {
 					/* already dead */
 				}
 			},
+			writeInput: (data: string) => {
+				try {
+					pty.write(data);
+				} catch {
+					/* pty may have exited */
+				}
+			},
 		};
 		runSessions.set(workspaceId, session);
 		stateHub.broadcastRunSessionChange(workspaceId, cardId, "running");
@@ -530,6 +537,11 @@ export async function createRuntimeServer(options: ServerOptions) {
 			// Send buffered output so far
 			const session = runSessions.get(workspaceId);
 			if (session?.outputBuffer && ws.readyState === 1) ws.send(session.outputBuffer);
+
+			// Forward keyboard input from client to PTY
+			ws.on("message", (raw) => {
+				runSessions.get(workspaceId)?.writeInput(raw.toString());
+			});
 
 			ws.on("error", () => {});
 			ws.on("close", () => {
