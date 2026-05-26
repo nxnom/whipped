@@ -129,13 +129,13 @@ export const appRouter = router({
 		}),
 
 		checkPath: publicProcedure.input(z.object({ repoPath: z.string() })).query(async ({ input }) => {
-			if (!input.repoPath.trim()) return { valid: false, isGitRepo: false, error: null };
+			if (!input.repoPath.trim()) return { valid: false, isGitRepo: false, error: null, name: null, branch: null, remote: null };
 			const { statSync } = await import("node:fs");
 			try {
 				const stat = statSync(input.repoPath);
-				if (!stat.isDirectory()) return { valid: false, isGitRepo: false, error: "Not a directory" };
+				if (!stat.isDirectory()) return { valid: false, isGitRepo: false, error: "Not a directory", name: null, branch: null, remote: null };
 			} catch {
-				return { valid: false, isGitRepo: false, error: "Path does not exist" };
+				return { valid: false, isGitRepo: false, error: "Path does not exist", name: null, branch: null, remote: null };
 			}
 			const r = spawnSync("git", ["rev-parse", "--git-dir"], {
 				cwd: input.repoPath,
@@ -143,7 +143,14 @@ export const appRouter = router({
 				stdio: ["ignore", "pipe", "pipe"],
 			});
 			const isGitRepo = r.status === 0;
-			return { valid: isGitRepo, isGitRepo, error: isGitRepo ? null : "Not a git repository" };
+			if (!isGitRepo) return { valid: false, isGitRepo: false, error: "Not a git repository", name: null, branch: null, remote: null };
+			const branchR = spawnSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: input.repoPath, encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] });
+			const remoteR = spawnSync("git", ["remote", "get-url", "origin"], { cwd: input.repoPath, encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] });
+			const name = input.repoPath.split("/").filter(Boolean).at(-1) ?? null;
+			const branch = branchR.status === 0 ? branchR.stdout.trim() : null;
+			const rawRemote = remoteR.status === 0 ? remoteR.stdout.trim() : null;
+			const remote = rawRemote ? rawRemote.replace(/^https?:\/\//, "").replace(/^git@([^:]+):/, "$1/").replace(/\.git$/, "") : null;
+			return { valid: true, isGitRepo: true, error: null, name, branch, remote };
 		}),
 
 		add: publicProcedure

@@ -1,10 +1,10 @@
-import { toast } from "@geckoui/geckoui";
-import { Plus, Settings, Wifi, WifiOff } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Menu, MenuItem, MenuTrigger, toast } from "@geckoui/geckoui";
+import { FolderOpen, FolderPlus, Plus, Settings, WifiOff } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { RuntimeProject } from "@runtime-contract";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
-import { ProjectsSidebar } from "@/components/ProjectsSidebar";
+import { type ProjectsSidebarHandle, ProjectsSidebar } from "@/components/ProjectsSidebar";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
 import { useWorkspaceState } from "@/stores/board-store";
 import { trpc } from "@/runtime/trpc-client";
@@ -20,8 +20,8 @@ export function BoardPage({ onOpenAgent }: Props) {
 
 	const [projects, setProjects] = useState<RuntimeProject[]>([]);
 	const [showAddProject, setShowAddProject] = useState(false);
+	const sidebarRef = useRef<ProjectsSidebarHandle>(null);
 
-	const autonomousOn = state?.autonomousModeEnabled ?? false;
 	const activeProject = projects.find((p) => p.workspaceId === workspaceId) ?? null;
 
 	useEffect(() => {
@@ -48,52 +48,78 @@ export function BoardPage({ onOpenAgent }: Props) {
 	return (
 		<div className="flex h-full overflow-hidden">
 			{/* Sidebar */}
-			<nav className="w-52 shrink-0 bg-[#141418] border-r border-[#2a2a35] flex flex-col">
-				<div className="px-4 py-3.5 border-b border-[#2a2a35] shrink-0 flex items-center gap-2">
+			<nav
+				className="shrink-0 flex flex-col"
+				style={{ width: 220, background: "#141418", borderRight: "1px solid #2a2a35" }}
+			>
+				{/* Logo header */}
+				<div className="flex items-center shrink-0" style={{ gap: 10, padding: "18px 16px" }}>
 					<div
-						className="size-[22px] rounded-[5px] shrink-0"
-						style={{ background: "linear-gradient(135deg, #7c6aff 0%, #a78bfa 100%)" }}
+						className="shrink-0"
+						style={{ width: 24, height: 24, borderRadius: 6, background: "#7c6aff" }}
 					/>
-					<span className="text-sm font-bold text-white tracking-tight">Overemployed</span>
+					<span className="text-[14px] font-bold" style={{ color: "#f0f0f5" }}>
+						Overemployed
+					</span>
 				</div>
 
-				<div className="flex-1 overflow-y-auto py-2">
-					<ProjectsSidebar projects={projects} activeWorkspaceId={workspaceId ?? null} onSwitch={switchProject} />
-					{projects.length === 0 && <p className="px-4 py-2 text-xs text-gray-600">No projects yet</p>}
+				<div style={{ height: 1, background: "#2a2a35", flexShrink: 0 }} />
+
+				{/* PROJECTS section header */}
+				<div className="flex items-center shrink-0" style={{ padding: "14px 16px 8px 16px" }}>
+					<span className="text-[10px] font-semibold" style={{ color: "#60607a", letterSpacing: 0.8 }}>
+						PROJECTS
+					</span>
+					<div style={{ flex: 1 }} />
+					<Menu placement="bottom-end">
+						<MenuTrigger>
+							{({ toggleMenu }) => (
+								<button onClick={toggleMenu} className="hover:opacity-70 transition-opacity" title="Add">
+									<Plus size={14} style={{ color: "#60607a" }} />
+								</button>
+							)}
+						</MenuTrigger>
+						<MenuItem onClick={() => setShowAddProject(true)}>
+							<span className="flex items-center gap-1.5">
+								<Plus size={12} /> Add Project
+							</span>
+						</MenuItem>
+						<MenuItem onClick={() => sidebarRef.current?.addFolder()}>
+							<span className="flex items-center gap-1.5">
+								<FolderPlus size={12} /> New Folder
+							</span>
+						</MenuItem>
+					</Menu>
 				</div>
 
-				{autonomousOn && (
-					<div className="border-t border-[#2a2a35] shrink-0 px-4 py-2.5 flex items-center gap-2 bg-[#3b82f6]/5">
-						<span
-							className="size-2 rounded-full bg-blue-500 shrink-0"
-							style={{ boxShadow: "0 0 6px rgba(59,130,246,0.4)" }}
-						/>
-						<span className="text-xs font-medium text-blue-400">Autonomous</span>
-					</div>
-				)}
-
-				<div className="border-t border-[#2a2a35] shrink-0 px-4 py-2.5 flex items-center gap-2">
-					{connected ? (
-						<Wifi size={14} className="text-emerald-400" />
+				{/* Project list */}
+				<div className="flex-1 overflow-y-auto">
+					{projects.length > 0 ? (
+						<ProjectsSidebar ref={sidebarRef} projects={projects} activeWorkspaceId={workspaceId ?? null} onSwitch={switchProject} />
 					) : (
-						<Wifi size={14} className="text-gray-700" />
+						<div
+							className="flex items-center"
+							style={{ gap: 8, padding: "20px 16px" }}
+						>
+							<FolderOpen size={24} style={{ color: "#2a2a35" }} />
+							<span className="text-[12px]" style={{ color: "#60607a" }}>
+								No projects yet
+							</span>
+						</div>
 					)}
-					<div className="flex-1" />
+				</div>
+
+				{/* Global Settings */}
+				<div style={{ borderTop: "1px solid #2a2a35", padding: "12px 16px", gap: 6, display: "flex", flexDirection: "column" }}>
 					<button
-						onClick={() => setShowAddProject(true)}
-						className="text-gray-600 hover:text-gray-400 transition-colors"
-						title="Add project"
+						onClick={() => { if (workspaceId) navigate(`/${encodeURIComponent(workspaceId)}/settings`); }}
+						className="flex items-center hover:opacity-80 transition-opacity"
+						style={{ gap: 10, padding: "6px 2px" }}
 					>
-						<Plus size={14} />
-					</button>
-					<button
-						onClick={() => {
-							if (workspaceId) navigate(`/${encodeURIComponent(workspaceId)}/settings`);
-						}}
-						className="text-gray-600 hover:text-gray-400 transition-colors"
-						title="Settings"
-					>
-						<Settings size={14} />
+						<Settings size={15} style={{ color: "#60607a" }} />
+						<span className="text-[12px]" style={{ color: "#8888a0" }}>
+							Global Settings
+						</span>
 					</button>
 				</div>
 			</nav>

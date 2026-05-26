@@ -1,6 +1,5 @@
-import { Button } from "@geckoui/geckoui";
-import { ArrowLeft, Check, ChevronRight, Folder, FolderOpen } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowLeft, ChevronRight, Folder, FolderOpen, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
 
 interface Props {
@@ -19,13 +18,14 @@ export function FolderPickerDialog({ initialPath, onSelect, onClose }: Props) {
 	const [listing, setListing] = useState<DirListing | null>(null);
 	const [loading, setLoading] = useState(false);
 	const [selected, setSelected] = useState<string | null>(null);
+	const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	const navigate = async (path: string) => {
 		setLoading(true);
+		setSelected(null);
 		try {
 			const result = await trpc.fs.listDir.query({ path });
 			setListing(result);
-			setSelected(null);
 		} finally {
 			setLoading(false);
 		}
@@ -40,78 +40,141 @@ export function FolderPickerDialog({ initialPath, onSelect, onClose }: Props) {
 		if (path) onSelect(path);
 	};
 
+	const handleRowClick = (path: string) => {
+		if (clickTimer.current) {
+			clearTimeout(clickTimer.current);
+			clickTimer.current = null;
+			navigate(path);
+		} else {
+			setSelected((prev) => (prev === path ? null : path));
+			clickTimer.current = setTimeout(() => {
+				clickTimer.current = null;
+			}, 300);
+		}
+	};
+
 	return (
-		<div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]" onClick={onClose}>
+		<div
+			className="fixed inset-0 z-[60] flex items-center justify-center"
+			style={{ background: "rgba(0,0,0,0.7)" }}
+			onClick={onClose}
+		>
 			<div
-				className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-md flex flex-col"
-				style={{ maxHeight: "70vh" }}
+				className="flex flex-col overflow-hidden"
+				style={{
+					width: 520,
+					maxHeight: "70vh",
+					background: "#141418",
+					border: "1px solid #2a2a35",
+					borderRadius: 12,
+					boxShadow: "0 8px 40px 4px #00000060",
+				}}
 				onClick={(e) => e.stopPropagation()}
 			>
 				{/* Header */}
-				<div className="flex items-center gap-2 px-4 py-3 border-b border-gray-800">
-					<FolderOpen size={15} className="text-blue-400 shrink-0" />
-					<span className="text-xs text-gray-300 truncate flex-1 font-mono">{listing?.current ?? "…"}</span>
+				<div
+					className="flex items-center shrink-0"
+					style={{ gap: 10, padding: "16px 20px", borderBottom: "1px solid #2a2a35" }}
+				>
+					<FolderOpen size={15} style={{ color: "#7c6aff", flexShrink: 0 }} />
+					<span
+						className="flex-1 truncate text-[12px]"
+						style={{ color: "#c0c0d0", fontFamily: "JetBrains Mono, monospace" }}
+					>
+						{listing?.current ?? "…"}
+					</span>
+					<button onClick={onClose} className="hover:opacity-70 transition-opacity">
+						<X size={15} style={{ color: "#60607a" }} />
+					</button>
 				</div>
 
 				{/* Directory list */}
 				<div className="flex-1 overflow-y-auto">
 					{listing?.parent && (
 						<button
-							className="w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-800 text-gray-400 hover:text-gray-200 transition-colors text-sm"
+							className="w-full flex items-center text-left transition-colors hover:bg-[#1a1a1f]"
+							style={{ gap: 10, padding: "10px 20px", borderBottom: "1px solid #1a1a1f" }}
 							onClick={() => navigate(listing.parent!)}
 						>
-							<ArrowLeft size={13} />
-							<span className="font-mono text-xs">..</span>
+							<ArrowLeft size={13} style={{ color: "#60607a", flexShrink: 0 }} />
+							<span className="text-[12px]" style={{ color: "#60607a", fontFamily: "JetBrains Mono, monospace" }}>
+								..
+							</span>
 						</button>
 					)}
 
-					{loading && <div className="px-4 py-6 text-center text-xs text-gray-500">Loading…</div>}
+					{loading && (
+						<div className="px-5 py-8 text-center text-[12px]" style={{ color: "#4a4a5a" }}>
+							Loading…
+						</div>
+					)}
 
 					{!loading && listing?.dirs.length === 0 && (
-						<div className="px-4 py-6 text-center text-xs text-gray-500">No subdirectories</div>
+						<div className="px-5 py-8 text-center text-[12px]" style={{ color: "#4a4a5a" }}>
+							No subdirectories
+						</div>
 					)}
 
 					{!loading &&
 						listing?.dirs.map((dir) => {
 							const isSelected = selected === dir.path;
 							return (
-								<button
+								<div
 									key={dir.path}
-									className={`w-full flex items-center gap-2 px-4 py-2 transition-colors text-sm text-left ${
-										isSelected ? "bg-blue-600/20 text-blue-300" : "hover:bg-gray-800 text-gray-300"
-									}`}
-									onClick={() => setSelected(isSelected ? null : dir.path)}
-									onDoubleClick={() => navigate(dir.path)}
+									className="flex items-center transition-colors cursor-pointer"
+									style={{
+										gap: 10,
+										padding: "10px 20px",
+										borderBottom: "1px solid #1a1a1f",
+										background: isSelected ? "#7c6aff12" : "transparent",
+									}}
+									onClick={() => handleRowClick(dir.path)}
+									onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#1a1a1f"; }}
+									onMouseLeave={(e) => { e.currentTarget.style.background = isSelected ? "#7c6aff12" : "transparent"; }}
 								>
-									<Folder size={13} className={isSelected ? "text-blue-400" : "text-gray-500"} />
-									<span className="flex-1 truncate text-xs font-mono">{dir.name}</span>
-									{isSelected ? (
-										<Check size={12} className="text-blue-400 shrink-0" />
-									) : (
-										<ChevronRight size={12} className="text-gray-600 shrink-0" />
-									)}
-								</button>
+									<Folder size={13} style={{ color: isSelected ? "#7c6aff" : "#60607a", flexShrink: 0 }} />
+									<span className="flex-1 truncate text-[13px]" style={{ color: isSelected ? "#f0f0f5" : "#c0c0d0" }}>
+										{dir.name}
+									</span>
+									<button
+										onClick={(e) => { e.stopPropagation(); navigate(dir.path); }}
+										className="hover:opacity-70 transition-opacity shrink-0 p-1"
+										title="Open folder"
+									>
+										<ChevronRight size={13} style={{ color: isSelected ? "#7c6aff" : "#3a3a45" }} />
+									</button>
+								</div>
 							);
 						})}
 				</div>
 
 				{/* Footer */}
-				<div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-gray-800">
-					<p className="text-xs text-gray-500 truncate flex-1">
-						{selected ? (
-							<span className="text-gray-300 font-mono">{selected.split("/").pop()}</span>
-						) : (
-							<span>Single-click to select · double-click to open</span>
-						)}
-					</p>
-					<div className="flex gap-2 shrink-0">
-						<Button variant="ghost" size="sm" onClick={onClose}>
+				<div
+					className="flex items-center shrink-0"
+					style={{ gap: 8, padding: "12px 20px", borderTop: "1px solid #2a2a35" }}
+				>
+					<span className="flex-1 text-[11px] truncate" style={{ color: "#4a4a5a", fontFamily: "JetBrains Mono, monospace" }}>
+						{selected ?? listing?.current ?? ""}
+					</span>
+					<button
+						onClick={onClose}
+						className="hover:opacity-80 transition-opacity shrink-0"
+						style={{ padding: "8px 16px", border: "1px solid #2a2a35", borderRadius: 6 }}
+					>
+						<span className="text-[13px]" style={{ color: "#8888a0" }}>
 							Cancel
-						</Button>
-						<Button size="sm" onClick={handleConfirm} disabled={!listing}>
+						</span>
+					</button>
+					<button
+						onClick={handleConfirm}
+						disabled={!listing}
+						className="hover:opacity-80 transition-opacity disabled:opacity-40 shrink-0"
+						style={{ padding: "8px 16px", background: "#7c6aff", borderRadius: 6 }}
+					>
+						<span className="text-[13px] font-medium" style={{ color: "#ffffff" }}>
 							{selected ? "Select" : "Select current"}
-						</Button>
-					</div>
+						</span>
+					</button>
 				</div>
 			</div>
 		</div>

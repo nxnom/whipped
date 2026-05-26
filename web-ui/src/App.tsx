@@ -1,6 +1,6 @@
 import { GeckoUIPortal } from "@geckoui/geckoui";
-import { FolderOpen, Plus } from "lucide-react";
-import { useState } from "react";
+import { Cpu, Plus } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
 import { AssistantPanel } from "@/components/AssistantPanel";
@@ -17,17 +17,70 @@ export default function App() {
 	const [agentOpen, setAgentOpen] = useState(false);
 	const [showAddProject, setShowAddProject] = useState(false);
 
+	useEffect(() => {
+		const handler = (e: KeyboardEvent) => {
+			if ((e.metaKey || e.ctrlKey) && e.key === "n") {
+				e.preventDefault();
+				setShowAddProject(true);
+			}
+		};
+		window.addEventListener("keydown", handler);
+		return () => window.removeEventListener("keydown", handler);
+	}, []);
+
 	const noProjectState = (
-		<div className="flex-1 flex flex-col items-center justify-center gap-4 text-gray-500">
-			<FolderOpen size={40} />
-			<p className="text-sm">No project open</p>
+		<div
+			className="flex-1 flex flex-col items-center justify-center"
+			style={{ gap: 24 }}
+		>
+			{/* CPU icon */}
+			<div
+				className="flex items-center justify-center"
+				style={{ width: 80, height: 80, borderRadius: 40, background: "#7c6aff10" }}
+			>
+				<Cpu size={36} style={{ color: "#7c6aff" }} />
+			</div>
+
+			{/* Text block */}
+			<div className="flex flex-col items-center" style={{ gap: 8 }}>
+				<span className="text-[24px] font-semibold" style={{ color: "#f0f0f5" }}>
+					No project open
+				</span>
+				<span className="text-[14px]" style={{ color: "#60607a" }}>
+					Add a repository to start running autonomous AI agents
+				</span>
+			</div>
+
+			{/* Add Project button */}
 			<button
 				onClick={() => setShowAddProject(true)}
-				className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300"
+				className="flex items-center hover:opacity-80 transition-opacity"
+				style={{ background: "#7c6aff", borderRadius: 8, padding: "12px 24px", gap: 8 }}
 			>
-				<Plus size={14} />
-				Add a project
+				<Plus size={16} style={{ color: "#ffffff" }} />
+				<span className="text-[14px] font-semibold" style={{ color: "#ffffff" }}>
+					Add Project
+				</span>
 			</button>
+
+			{/* Keyboard shortcut hint */}
+			<div className="flex items-center" style={{ gap: 6 }}>
+				<span className="text-[12px]" style={{ color: "#60607a" }}>
+					or press
+				</span>
+				<div
+					style={{
+						background: "#1a1a1f",
+						border: "1px solid #2a2a35",
+						borderRadius: 4,
+						padding: "2px 6px",
+					}}
+				>
+					<span style={{ color: "#8888a0", fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}>
+						⌘ N
+					</span>
+				</div>
+			</div>
 		</div>
 	);
 

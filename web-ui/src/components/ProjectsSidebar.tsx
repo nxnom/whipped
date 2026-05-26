@@ -1,7 +1,7 @@
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
 import type { ProjectsLayout, RuntimeProject } from "@runtime-contract";
-import { ChevronDown, ChevronRight, Folder, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ChevronDown, ChevronRight, Folder, GripVertical, Pencil, Trash2 } from "lucide-react";
+import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
 
 function genId() {
@@ -96,7 +96,12 @@ interface Props {
 	onSwitch: (workspaceId: string) => void;
 }
 
-export function ProjectsSidebar({ projects, activeWorkspaceId, onSwitch }: Props) {
+export interface ProjectsSidebarHandle {
+	addFolder: () => void;
+}
+
+export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(
+	function ProjectsSidebar({ projects, activeWorkspaceId, onSwitch }, ref) {
 	const [layout, setLayout] = useState<ProjectsLayout>({ version: 1, topLevel: [], folders: {} });
 	const [isDragging, setIsDragging] = useState(false);
 	const [editingId, setEditingId] = useState<string | null>(null);
@@ -145,6 +150,8 @@ export function ProjectsSidebar({ projects, activeWorkspaceId, onSwitch }: Props
 			editRef.current?.select();
 		}, 50);
 	};
+
+	useImperativeHandle(ref, () => ({ addFolder }));
 
 	const startRename = (id: string) => {
 		setEditingId(id);
@@ -230,13 +237,6 @@ export function ProjectsSidebar({ projects, activeWorkspaceId, onSwitch }: Props
 
 	return (
 		<DragDropContext onDragStart={() => setIsDragging(true)} onDragEnd={onDragEnd}>
-			<div className="flex items-center justify-between px-4 mb-1">
-				<p className="text-[10px] font-medium text-[#60607a]">Projects</p>
-				<button onClick={addFolder} title="New folder" className="text-[#60607a] hover:text-gray-400 transition-colors">
-					<Plus size={12} />
-				</button>
-			</div>
-
 			<Droppable droppableId="sidebar">
 				{(provided) => (
 					<div ref={provided.innerRef} {...provided.droppableProps} className="flex flex-col">
@@ -334,12 +334,6 @@ export function ProjectsSidebar({ projects, activeWorkspaceId, onSwitch }: Props
 												onClick={() => onSwitch(item.workspaceId)}
 												className="flex items-center gap-2 flex-1 min-w-0 text-left"
 											>
-												{isActive && (
-													<span
-														className="size-[6px] rounded-full shrink-0 bg-blue-400"
-														style={{ boxShadow: "0 0 4px rgba(59,130,246,0.5)" }}
-													/>
-												)}
 												<span className="truncate">{project.name}</span>
 											</button>
 										</div>
@@ -353,4 +347,5 @@ export function ProjectsSidebar({ projects, activeWorkspaceId, onSwitch }: Props
 			</Droppable>
 		</DragDropContext>
 	);
-}
+});
+

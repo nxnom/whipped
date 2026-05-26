@@ -1,7 +1,7 @@
-import { Button, Input, Switch, toast } from "@geckoui/geckoui";
 import type { RuntimeProjectConfig } from "@runtime-contract";
-import { AlertCircle, CheckCircle2, ChevronLeft, FolderOpen, Loader2 } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, Folder, FolderPlus, Loader2, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "@geckoui/geckoui";
 import { trpc } from "@/runtime/trpc-client";
 import { FolderPickerDialog } from "./FolderPickerDialog";
 
@@ -13,11 +13,18 @@ interface Props {
 type Step = "select" | "configure";
 type PathStatus = "idle" | "checking" | "valid" | "invalid";
 
+interface RepoInfo {
+	name: string | null;
+	branch: string | null;
+	remote: string | null;
+}
+
 export function AddProjectDialog({ onClose, onAdded }: Props) {
 	const [step, setStep] = useState<Step>("select");
 	const [repoPath, setRepoPath] = useState("");
 	const [pathStatus, setPathStatus] = useState<PathStatus>("idle");
 	const [pathError, setPathError] = useState<string | null>(null);
+	const [repoInfo, setRepoInfo] = useState<RepoInfo>({ name: null, branch: null, remote: null });
 	const [showPicker, setShowPicker] = useState(false);
 	const [adding, setAdding] = useState(false);
 
@@ -31,6 +38,7 @@ export function AddProjectDialog({ onClose, onAdded }: Props) {
 		if (!repoPath.trim()) {
 			setPathStatus("idle");
 			setPathError(null);
+			setRepoInfo({ name: null, branch: null, remote: null });
 			return;
 		}
 		setPathStatus("checking");
@@ -39,10 +47,12 @@ export function AddProjectDialog({ onClose, onAdded }: Props) {
 			try {
 				const result = await trpc.projects.checkPath.query({ repoPath: repoPath.trim() });
 				setPathStatus(result.valid ? "valid" : "invalid");
-				setPathError(result.error);
+				setPathError(result.error ?? null);
+				setRepoInfo({ name: result.name ?? null, branch: result.branch ?? null, remote: result.remote ?? null });
 			} catch {
 				setPathStatus("invalid");
 				setPathError("Failed to check path");
+				setRepoInfo({ name: null, branch: null, remote: null });
 			}
 		}, 400);
 	}, [repoPath]);
@@ -68,16 +78,104 @@ export function AddProjectDialog({ onClose, onAdded }: Props) {
 
 	return (
 		<>
-			<div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
+			{/* Backdrop */}
+			<div
+				className="fixed inset-0 z-50 flex items-center justify-center"
+				style={{ background: "rgba(0,0,0,0.7)" }}
+				onClick={onClose}
+			>
+				{/* Dialog */}
 				<div
-					className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-lg overflow-hidden"
+					className="flex flex-col overflow-hidden"
+					style={{
+						width: 560,
+						height: 580,
+						background: "#141418",
+						border: "1px solid #2a2a35",
+						borderRadius: 12,
+						boxShadow: "0 8px 40px 4px #00000060",
+					}}
 					onClick={(e) => e.stopPropagation()}
 				>
+					{/* Header */}
+					<div
+						className="flex items-center shrink-0"
+						style={{ gap: 12, padding: "18px 24px", borderBottom: "1px solid #2a2a35" }}
+					>
+						<FolderPlus size={18} style={{ color: "#7c6aff", flexShrink: 0 }} />
+						<span className="text-[16px] font-semibold" style={{ color: "#f0f0f5" }}>
+							Add Project
+						</span>
+						<div style={{ flex: 1 }} />
+						<button onClick={onClose} className="hover:opacity-70 transition-opacity">
+							<X size={16} style={{ color: "#60607a" }} />
+						</button>
+					</div>
+
+					{/* Step indicator */}
+					<div
+						className="flex items-center shrink-0"
+						style={{ gap: 8, padding: "16px 24px", borderBottom: "1px solid #2a2a35" }}
+					>
+						{/* Step 1 */}
+						<div className="flex items-center" style={{ gap: 8 }}>
+							<div
+								className="flex items-center justify-center shrink-0"
+								style={{
+									width: 22,
+									height: 22,
+									borderRadius: 11,
+									background: step === "select" ? "#7c6aff" : "#1a1a1f",
+									border: step === "select" ? "none" : "1px solid #2a2a35",
+								}}
+							>
+								<span className="text-[11px] font-bold" style={{ color: step === "select" ? "#ffffff" : "#60607a" }}>
+									1
+								</span>
+							</div>
+							<span
+								className="text-[12px]"
+								style={{ color: step === "select" ? "#f0f0f5" : "#60607a", fontWeight: step === "select" ? 600 : 400 }}
+							>
+								Select Repository
+							</span>
+						</div>
+
+						{/* Connector */}
+						<div style={{ width: 24, height: 1, background: "#2a2a35", flexShrink: 0 }} />
+
+						{/* Step 2 */}
+						<div className="flex items-center" style={{ gap: 8 }}>
+							<div
+								className="flex items-center justify-center shrink-0"
+								style={{
+									width: 22,
+									height: 22,
+									borderRadius: 11,
+									background: step === "configure" ? "#7c6aff" : "#1a1a1f",
+									border: step === "configure" ? "none" : "1px solid #2a2a35",
+								}}
+							>
+								<span className="text-[11px] font-semibold" style={{ color: step === "configure" ? "#ffffff" : "#60607a" }}>
+									2
+								</span>
+							</div>
+							<span
+								className="text-[12px]"
+								style={{ color: step === "configure" ? "#f0f0f5" : "#60607a", fontWeight: step === "configure" ? 600 : 400 }}
+							>
+								Configure
+							</span>
+						</div>
+					</div>
+
+					{/* Body */}
 					{step === "select" ? (
 						<SelectStep
 							repoPath={repoPath}
 							pathStatus={pathStatus}
 							pathError={pathError}
+							repoInfo={repoInfo}
 							onPathChange={setRepoPath}
 							onBrowse={() => setShowPicker(true)}
 							onNext={() => setStep("configure")}
@@ -118,6 +216,7 @@ function SelectStep({
 	repoPath,
 	pathStatus,
 	pathError,
+	repoInfo,
 	onPathChange,
 	onBrowse,
 	onNext,
@@ -126,61 +225,163 @@ function SelectStep({
 	repoPath: string;
 	pathStatus: PathStatus;
 	pathError: string | null;
+	repoInfo: RepoInfo;
 	onPathChange: (v: string) => void;
 	onBrowse: () => void;
 	onNext: () => void;
 	onClose: () => void;
 }) {
 	return (
-		<div className="p-5">
-			<h3 className="text-base font-semibold text-gray-100 mb-1">Add Project</h3>
-			<p className="text-xs text-gray-500 mb-4">Select a git repository to manage with Overemployed.</p>
+		<div className="flex-1 flex flex-col min-h-0">
+			{/* Scrollable body */}
+			<div className="flex-1 overflow-y-auto" style={{ padding: 24, gap: 16, display: "flex", flexDirection: "column" }}>
+			{/* Repository Path label */}
+			<span className="text-[13px] font-medium shrink-0" style={{ color: "#c0c0d0" }}>
+				Repository Path
+			</span>
 
-			<div className="mb-1">
-				<label className="text-xs text-gray-400 block mb-1">Repository path</label>
-				<div className="flex gap-2">
-					<Input
+			{/* Path input row */}
+			<div className="flex shrink-0" style={{ gap: 8 }}>
+				<div
+					className="flex items-center flex-1 min-w-0"
+					style={{
+						background: "#0c0c0f",
+						border: "1px solid #2a2a35",
+						borderRadius: 6,
+						padding: "10px 14px",
+						gap: 8,
+					}}
+				>
+					<Folder size={14} style={{ color: "#60607a", flexShrink: 0 }} />
+					<input
 						value={repoPath}
 						onChange={(e) => onPathChange(e.target.value)}
 						onKeyDown={(e) => e.key === "Enter" && pathStatus === "valid" && onNext()}
-						placeholder="/Users/you/projects/my-app"
-						className="flex-1"
+						placeholder="/Users/dev/projects/my-app"
+						className="flex-1 bg-transparent outline-none min-w-0"
+						style={{ color: "#c0c0d0", fontFamily: "JetBrains Mono, monospace", fontSize: 12 }}
 					/>
-					<Button variant="outlined" size="sm" onClick={onBrowse} title="Browse folders">
-						<FolderOpen size={14} />
-					</Button>
+					{pathStatus === "checking" && <Loader2 size={12} className="animate-spin shrink-0" style={{ color: "#60607a" }} />}
 				</div>
+				<button
+					onClick={onBrowse}
+					className="shrink-0 hover:opacity-80 transition-opacity"
+					style={{ padding: "10px 14px", border: "1px solid #2a2a35", borderRadius: 6 }}
+				>
+					<span className="text-[12px]" style={{ color: "#8888a0" }}>
+						Browse
+					</span>
+				</button>
 			</div>
 
-			<div className="h-5 flex items-center gap-1.5 mb-4">
-				{pathStatus === "checking" && (
-					<>
-						<Loader2 size={12} className="text-gray-500 animate-spin" />
-						<span className="text-xs text-gray-500">Checking...</span>
-					</>
-				)}
+			{/* Status row */}
+			<div className="flex items-center shrink-0" style={{ gap: 6, minHeight: 20 }}>
 				{pathStatus === "valid" && (
 					<>
-						<CheckCircle2 size={12} className="text-green-400" />
-						<span className="text-xs text-green-400">Valid git repository</span>
+						<CheckCircle2 size={14} style={{ color: "#22c55e", flexShrink: 0 }} />
+						<span className="text-[12px]" style={{ color: "#22c55e" }}>
+							Valid git repository
+						</span>
 					</>
 				)}
 				{pathStatus === "invalid" && (
 					<>
-						<AlertCircle size={12} className="text-red-400" />
-						<span className="text-xs text-red-400">{pathError ?? "Invalid path"}</span>
+						<AlertCircle size={14} style={{ color: "#ef4444", flexShrink: 0 }} />
+						<span className="text-[12px]" style={{ color: "#ef4444" }}>
+							{pathError ?? "Invalid path"}
+						</span>
 					</>
 				)}
 			</div>
 
-			<div className="flex gap-2 justify-end">
-				<Button variant="ghost" onClick={onClose}>
-					Cancel
-				</Button>
-				<Button onClick={onNext} disabled={pathStatus !== "valid"}>
-					Next
-				</Button>
+			{/* Divider */}
+			<div style={{ height: 1, background: "#1a1a1f", flexShrink: 0 }} />
+
+			{/* Repo info card */}
+			{pathStatus === "valid" && (
+				<div
+					className="shrink-0 flex flex-col"
+					style={{
+						background: "#0c0c0f",
+						border: "1px solid #2a2a35",
+						borderRadius: 8,
+						padding: "14px 16px",
+						gap: 10,
+					}}
+				>
+					<InfoRow label="Name" value={repoInfo.name ?? "—"} mono={false} />
+					<InfoRow label="Branch" value={repoInfo.branch ?? "—"} mono />
+					<InfoRow label="Remote" value={repoInfo.remote ?? "—"} mono />
+				</div>
+			)}
+			{pathStatus !== "valid" && (
+				<div
+					className="shrink-0 flex flex-col"
+					style={{
+						background: "#0c0c0f",
+						border: "1px solid #2a2a35",
+						borderRadius: 8,
+						padding: "14px 16px",
+						gap: 10,
+						opacity: 0.4,
+					}}
+				>
+					<InfoRow label="Name" value="—" mono={false} />
+					<InfoRow label="Branch" value="—" mono />
+					<InfoRow label="Remote" value="—" mono />
+				</div>
+			)}
+
+			{/* Spacer */}
+			<div style={{ flex: 1 }} />
 			</div>
+
+			{/* Pinned footer */}
+			<div
+				className="flex items-center justify-end shrink-0"
+				style={{ gap: 8, padding: "12px 24px", borderTop: "1px solid #2a2a35" }}
+			>
+				<button
+					onClick={onClose}
+					className="hover:opacity-80 transition-opacity"
+					style={{ padding: "9px 18px", border: "1px solid #2a2a35", borderRadius: 6 }}
+				>
+					<span className="text-[13px]" style={{ color: "#8888a0" }}>
+						Cancel
+					</span>
+				</button>
+				<button
+					onClick={onNext}
+					disabled={pathStatus !== "valid"}
+					className="flex items-center hover:opacity-80 transition-opacity disabled:opacity-40"
+					style={{ padding: "9px 18px", background: "#7c6aff", borderRadius: 6, gap: 6 }}
+				>
+					<span className="text-[13px] font-medium" style={{ color: "#ffffff" }}>
+						Next
+					</span>
+					<ArrowRight size={14} style={{ color: "#ffffff" }} />
+				</button>
+			</div>
+		</div>
+	);
+}
+
+function InfoRow({ label, value, mono }: { label: string; value: string; mono: boolean }) {
+	return (
+		<div className="flex items-center">
+			<span className="text-[11px] shrink-0" style={{ color: "#60607a", width: 80 }}>
+				{label}
+			</span>
+			<span
+				className="text-[12px] font-medium truncate"
+				style={{
+					color: label === "Name" ? "#f0f0f5" : "#c0c0d0",
+					fontFamily: mono ? "JetBrains Mono, monospace" : undefined,
+					fontWeight: mono ? 400 : 500,
+				}}
+			>
+				{value}
+			</span>
 		</div>
 	);
 }
@@ -211,55 +412,153 @@ function ConfigureStep({
 	const folderName = repoPath.split("/").filter(Boolean).at(-1) ?? repoPath;
 
 	return (
-		<div className="p-5 space-y-5">
-			<div>
-				<h3 className="text-base font-semibold text-gray-100">
-					Configure <span className="text-blue-400">{folderName}</span>
-				</h3>
-				<p className="text-xs text-gray-500 mt-0.5">{repoPath}</p>
-			</div>
-
-			{/* Automation */}
-			<div className="space-y-3">
-				<p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Automation</p>
-				<label className="flex items-center justify-between cursor-pointer">
-					<div>
-						<p className="text-sm text-gray-200">Autonomous mode</p>
-						<p className="text-xs text-gray-500">Auto-pick and run tasks marked as Ready</p>
-					</div>
-					<Switch checked={autoMode} onChange={onAutoMode} />
-				</label>
-				<label className="flex items-center justify-between cursor-pointer">
-					<div>
-						<p className="text-sm text-gray-200">Auto PR</p>
-						<p className="text-xs text-gray-500">Create a GitHub PR when all reviews pass</p>
-					</div>
-					<Switch checked={autoPR} onChange={onAutoPR} />
-				</label>
-			</div>
-
-			{/* Setup */}
-			<div className="space-y-2">
-				<p className="text-xs font-medium text-gray-400 uppercase tracking-wide">
-					Worktree setup <span className="text-gray-600 normal-case font-normal">(optional)</span>
-				</p>
+		<div className="flex-1 flex flex-col min-h-0">
+			{/* Scrollable body */}
+			<div className="flex-1 overflow-y-auto" style={{ padding: 24, gap: 20, display: "flex", flexDirection: "column" }}>
 				<div>
-					<label className="text-xs text-gray-500 block mb-1">Install command</label>
-					<Input value={installCommand} onChange={(e) => onInstallCommand(e.target.value)} placeholder="pnpm install" />
-					<p className="text-xs text-gray-600 mt-1">Runs once when a new worktree is created for a task.</p>
+					<span className="text-[15px] font-semibold" style={{ color: "#f0f0f5" }}>
+						Configure{" "}
+						<span style={{ color: "#7c6aff" }}>{folderName}</span>
+					</span>
+					<p className="text-[12px] mt-1" style={{ color: "#60607a", fontFamily: "JetBrains Mono, monospace" }}>
+						{repoPath}
+					</p>
+				</div>
+
+				<div className="flex flex-col" style={{ gap: 14 }}>
+					<span className="text-[10px] font-medium uppercase" style={{ color: "#4a4a5a", letterSpacing: 1 }}>
+						Automation
+					</span>
+					<ToggleRow
+						label="Autonomous mode"
+						description="Auto-pick and run tasks marked as Ready"
+						checked={autoMode}
+						onChange={onAutoMode}
+					/>
+					<ToggleRow
+						label="Auto PR"
+						description="Create a GitHub PR when all reviews pass"
+						checked={autoPR}
+						onChange={onAutoPR}
+					/>
+				</div>
+
+				<div className="flex flex-col" style={{ gap: 10 }}>
+					<span className="text-[10px] font-medium uppercase" style={{ color: "#4a4a5a", letterSpacing: 1 }}>
+						Worktree setup
+					</span>
+					<div>
+						<span className="text-[12px]" style={{ color: "#8888a0" }}>
+							Install command
+						</span>
+						<input
+							value={installCommand}
+							onChange={(e) => onInstallCommand(e.target.value)}
+							placeholder="pnpm install"
+							className="mt-1.5 w-full outline-none"
+							style={{
+								background: "#0c0c0f",
+								border: "1px solid #2a2a35",
+								borderRadius: 6,
+								padding: "8px 12px",
+								color: "#c0c0d0",
+								fontSize: 12,
+							}}
+						/>
+						<p className="text-[11px] mt-1" style={{ color: "#4a4a5a" }}>
+							Runs once when a new worktree is created for a task.
+						</p>
+					</div>
 				</div>
 			</div>
 
-			<p className="text-xs text-gray-600">Workflows and agent models can be configured in Settings after adding.</p>
-
-			<div className="flex gap-2 justify-between pt-1">
-				<Button variant="ghost" size="sm" onClick={onBack}>
-					<ChevronLeft size={14} className="mr-1" /> Back
-				</Button>
-				<Button onClick={onAdd} disabled={adding}>
-					{adding ? "Adding..." : "Add Project"}
-				</Button>
+			{/* Pinned footer */}
+			<div
+				className="flex items-center shrink-0"
+				style={{ gap: 8, padding: "12px 24px", borderTop: "1px solid #2a2a35" }}
+			>
+				<button
+					onClick={onBack}
+					className="flex items-center hover:opacity-80 transition-opacity"
+					style={{ gap: 5, padding: "9px 18px", border: "1px solid #2a2a35", borderRadius: 6 }}
+				>
+					<ArrowLeft size={14} style={{ color: "#8888a0" }} />
+					<span className="text-[13px]" style={{ color: "#8888a0" }}>
+						Back
+					</span>
+				</button>
+				<div style={{ flex: 1 }} />
+				<button
+					onClick={onAdd}
+					disabled={adding}
+					className="hover:opacity-80 transition-opacity disabled:opacity-40"
+					style={{ padding: "9px 18px", border: "1px solid #2a2a35", borderRadius: 6 }}
+				>
+					<span className="text-[13px]" style={{ color: "#8888a0" }}>
+						Skip Setup
+					</span>
+				</button>
+				<button
+					onClick={onAdd}
+					disabled={adding}
+					className="flex items-center hover:opacity-80 transition-opacity disabled:opacity-40"
+					style={{ gap: 6, padding: "9px 18px", background: "#7c6aff", borderRadius: 6 }}
+				>
+					<Plus size={14} style={{ color: "#ffffff" }} />
+					<span className="text-[13px] font-medium" style={{ color: "#ffffff" }}>
+						{adding ? "Creating..." : "Create Project"}
+					</span>
+				</button>
 			</div>
+		</div>
+	);
+}
+
+function ToggleRow({
+	label,
+	description,
+	checked,
+	onChange,
+}: {
+	label: string;
+	description: string;
+	checked: boolean;
+	onChange: (v: boolean) => void;
+}) {
+	return (
+		<div className="flex items-center justify-between">
+			<div>
+				<p className="text-[13px]" style={{ color: "#c0c0d0" }}>
+					{label}
+				</p>
+				<p className="text-[11px] mt-0.5" style={{ color: "#4a4a5a" }}>
+					{description}
+				</p>
+			</div>
+			<button
+				onClick={() => onChange(!checked)}
+				className="shrink-0 transition-colors"
+				style={{
+					width: 36,
+					height: 20,
+					borderRadius: 10,
+					background: checked ? "#7c6aff" : "#2a2a35",
+					position: "relative",
+				}}
+			>
+				<div
+					style={{
+						position: "absolute",
+						top: 3,
+						left: checked ? 19 : 3,
+						width: 14,
+						height: 14,
+						borderRadius: "50%",
+						background: "#ffffff",
+						transition: "left 0.15s",
+					}}
+				/>
+			</button>
 		</div>
 	);
 }
