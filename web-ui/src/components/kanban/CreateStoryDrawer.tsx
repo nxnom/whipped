@@ -119,7 +119,7 @@ const COLUMN_LABEL: Record<string, string> = {
 	done: "Done",
 };
 
-interface SubtaskDraft {
+export interface SubtaskDraft {
 	tempId: string;
 	title: string;
 	description: string;
@@ -479,7 +479,7 @@ interface AddSubtaskDrawerProps {
 	onSave: (subtask: SubtaskDraft) => void;
 }
 
-function AddSubtaskDrawer({
+export function AddSubtaskDrawer({
 	open,
 	onClose,
 	allCards,

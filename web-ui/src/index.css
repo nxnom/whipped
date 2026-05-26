@@ -11,8 +11,8 @@
 
   body {
     margin: 0;
-    background: #030712;
-    color: #f9fafb;
+    background: #0a0a0e;
+    color: #f0f0f5;
     font-family: ui-sans-serif, system-ui, sans-serif;
   }
 
@@ -26,43 +26,157 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #374151;
+    background: #2a2a35;
     border-radius: 3px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #4b5563;
+    background: #3a3a48;
   }
 }
 
-/* ─── GeckoUI dark theme overrides ─────────────────────────────────────────
-   Align GeckoUI's surface/border tokens with the app's gray-900 palette
-   so dialogs, dropdowns, and inputs match without per-call className hacks.
-   ────────────────────────────────────────────────────────────────────────── */
+/* ─── Design-system tokens → GeckoUI CSS variables ─────────────────────────
+   Maps the app's #0a0a0e / #141418 / #1a1a1f / #2a2a35 / #7c6aff palette
+   so every geckoui component inherits the right colors automatically.
+   ──────────────────────────────────────────────────────────────────────── */
 .dark {
-  --color-surface-primary: #111827;      /* gray-900 — dialog / menu bg */
-  --color-surface-secondary: #1f2937;    /* gray-800 — secondary panels */
-  --color-surface-tertiary: #1f2937;     /* gray-800 */
-  --color-surface-hover: #1f2937;        /* gray-800 — hover bg */
-  --color-surface-hover-strong: #374151; /* gray-700 — strong hover */
-  --color-surface-active: #4b5563;       /* gray-600 — pressed */
-  --color-surface-disabled: #1f2937;     /* gray-800 */
-  --color-border-primary: #374151;       /* gray-700 */
-  --color-border-secondary: #374151;     /* gray-700 */
-  --color-border-focus: #4b5563;         /* gray-600 */
-  --color-border-hover: #4b5563;         /* gray-600 */
-  --color-border-disabled: #1f2937;      /* gray-800 */
+  --color-surface-primary: #141418;       /* dialog / menu bg */
+  --color-surface-secondary: #1a1a1f;     /* input / select bg */
+  --color-surface-tertiary: #111115;      /* sidebar bg */
+  --color-surface-hover: #222228;         /* subtle hover */
+  --color-surface-hover-strong: #2a2a35;  /* strong hover / selected */
+  --color-surface-active: #2a2a35;
+  --color-surface-disabled: #1a1a1f;
+  --color-surface-emphasis: #2a2a35;
+
+  --color-border-primary: #2a2a35;
+  --color-border-secondary: #2a2a35;
+  --color-border-focus: #7c6aff;
+  --color-border-hover: #3a3a48;
+  --color-border-disabled: #1a1a1f;
+
+  --color-text-primary: #f0f0f5;
+  --color-text-secondary: #8888a0;
+  --color-text-muted: #60607a;
+  --color-text-placeholder: #4a4a5a;
+  --color-text-disabled: #4a4a5a;
+
+  /* Accent purple — drives focus rings, checked states, primary buttons */
+  --color-primary-300: #a78bfa;
+  --color-primary-400: #7c6aff;
+  --color-primary-500: #6c5ce7;
+  --color-primary-600: #5b4bd8;
 }
 
-/* Dialog / ConfirmDialog panel */
+/* ─── Input ──────────────────────────────────────────────────────────────── */
+.dark .GeckoUIInput {
+  background-color: #1a1a1f;
+  min-height: 36px;
+  font-size: 12px;
+}
+
+/* ─── Select trigger ─────────────────────────────────────────────────────── */
+.dark .GeckoUISelectButton {
+  background-color: #1a1a1f;
+  min-height: 36px;
+  font-size: 12px;
+  color: #f0f0f5;
+}
+
+.dark .GeckoUISelectButton__value {
+  font-size: 12px;
+  color: #f0f0f5;
+}
+
+.dark .GeckoUISelectButton__multiselected {
+  background-color: #7c6aff15;
+  color: #c4baff;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.dark .GeckoUISelectButton__icons {
+  color: #60607a;
+}
+
+.dark .GeckoUISelectButton__search__input {
+  font-size: 12px;
+  color: #f0f0f5;
+  background: transparent;
+}
+
+/* ─── Select dropdown ────────────────────────────────────────────────────── */
+.dark .GeckoUISelectMenu {
+  background-color: #141418;
+  border: 1px solid #2a2a35;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px #00000060;
+}
+
+.dark .GeckoUISelectMenu__search {
+  background-color: #1a1a1f;
+  border-bottom: 1px solid #2a2a35;
+  padding: 8px;
+}
+
+.dark .GeckoUISelectMenu__items {
+  border-radius: 8px;
+}
+
+.dark .GeckoUISelectEmpty {
+  color: #4a4a5a;
+  font-size: 12px;
+}
+
+/* ─── Select option ──────────────────────────────────────────────────────── */
+.dark .GeckoUISelectOption {
+  font-size: 12px;
+  color: #d0d0e0;
+  border-radius: 4px;
+}
+
+.dark .GeckoUISelectOption:not([data-disabled="true"]):hover {
+  background-color: #1a1a1f;
+}
+
+.dark .GeckoUISelectOption[data-selected="true"] {
+  background-color: #7c6aff15;
+  color: #c4baff;
+}
+
+.dark .GeckoUISelectOption__check {
+  color: #7c6aff;
+}
+
+/* ─── Textarea ───────────────────────────────────────────────────────────── */
+.dark .GeckoUITextarea {
+  background-color: #1a1a1f;
+  color: #d0d0e0;
+  font-size: 13px;
+}
+
+/* ─── Dialog / ConfirmDialog ─────────────────────────────────────────────── */
 .dark .GeckoUIDialog__dialog,
 .dark .GeckoUIConfirmDialog__dialog {
-  border: 1px solid #374151;
+  background-color: #141418;
+  border: 1px solid #2a2a35;
   border-radius: 0.75rem;
 }
 
-/* Select dropdown + Menu popup */
-.dark .GeckoUISelectMenu,
+/* ─── Drawer ─────────────────────────────────────────────────────────────── */
+.dark .GeckoUIDrawer__drawer {
+  background-color: #141418;
+  border-color: #2a2a35;
+}
+
+/* ─── Menu popup ─────────────────────────────────────────────────────────── */
 .dark .GeckoUIMenu__items {
-  border-radius: 0.75rem;
+  background-color: #141418;
+  border: 1px solid #2a2a35;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px #00000060;
+}
+
+.dark .GeckoUIMenu__item:hover {
+  background-color: #1a1a1f;
 }

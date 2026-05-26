@@ -14,7 +14,7 @@ import { trpc } from "@/runtime/trpc-client";
 import { useRunSession } from "@/stores/run-session-store";
 import { deriveBranchName } from "@/utils/branch";
 import { CardDetailPanel } from "./CardDetailPanel";
-import { CreateStoryDrawer } from "./CreateStoryDrawer";
+import { CreateTaskDialog } from "./CreateTaskDialog";
 import { KanbanColumn } from "./KanbanColumn";
 
 interface KanbanBoardProps {
@@ -25,8 +25,6 @@ interface KanbanBoardProps {
 	onOpenAgent: () => void;
 	projectName?: string;
 }
-
-const DIALOG_CLASS = "w-full";
 
 export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, onOpenAgent, projectName }: KanbanBoardProps) {
 	const navigate = useNavigate();
@@ -60,7 +58,8 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
 		}
 	};
 	const detailCard = detailCardId ? (state.board.cards[detailCardId] ?? null) : null;
-	const [storyDrawerOpen, setStoryDrawerOpen] = useState(false);
+	const [createDialogOpen, setCreateDialogOpen] = useState(false);
+	const [createDialogMode, setCreateDialogMode] = useState<"task" | "story">("task");
 	const [currentBranch, setCurrentBranch] = useState<string>("");
 
 	useEffect(() => {
@@ -112,25 +111,9 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
 		}
 	};
 
-	const openCreateDialog = () => {
-		Dialog.show({
-			className: DIALOG_CLASS,
-			content: ({ dismiss }) => (
-				<CreateCardContent
-					workspaceId={workspaceId}
-					allCards={state.board.cards}
-					workflows={state.projectConfig.workflows}
-					dismiss={dismiss}
-					onRefresh={onRefresh}
-					navigate={navigate}
-				/>
-			),
-		});
-	};
-
 	const openEditDialog = (card: RuntimeBoardCard) => {
 		Dialog.show({
-			className: DIALOG_CLASS,
+			className: "w-full",
 			content: ({ dismiss }) => (
 				<EditCardContent
 					workspaceId={workspaceId}
@@ -212,14 +195,14 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
 				)}
 				<div className="flex-1" />
 				<button
-					onClick={() => setStoryDrawerOpen(true)}
+					onClick={() => { setCreateDialogMode("story"); setCreateDialogOpen(true); }}
 					className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#1a1a1f] border border-[#2a2a35] text-xs text-gray-500 hover:border-[#3a3a48] transition-colors"
 				>
 					<Layers size={12} />
 					New Story
 				</button>
 				<button
-					onClick={openCreateDialog}
+					onClick={() => { setCreateDialogMode("task"); setCreateDialogOpen(true); }}
 					className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#1a1a1f] border border-[#2a2a35] text-xs text-gray-500 hover:border-[#3a3a48] transition-colors"
 				>
 					<Plus size={12} />
@@ -274,7 +257,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
 										onCardToggleReady={handleToggleReady}
 										onCardRun={handleRun}
 										onCardStop={handleStop}
-										onAddCard={openCreateDialog}
+										onAddCard={() => { setCreateDialogMode("task"); setCreateDialogOpen(true); }}
 									/>
 								</div>
 							);
@@ -302,13 +285,15 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
 				/>
 			)}
 
-			<CreateStoryDrawer
-				open={storyDrawerOpen}
-				onClose={() => setStoryDrawerOpen(false)}
+			<CreateTaskDialog
+				open={createDialogOpen}
+				onClose={() => setCreateDialogOpen(false)}
+				initialMode={createDialogMode}
 				workspaceId={workspaceId}
 				allCards={state.board.cards}
 				workflows={state.projectConfig.workflows}
 				onRefresh={onRefresh}
+				navigate={(path) => navigate(path)}
 			/>
 		</div>
 	);
