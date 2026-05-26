@@ -258,7 +258,7 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 	// ── Render ────────────────────────────────────────────────────────────────
 
 	return (
-		<div className="flex-1 min-h-0 flex flex-col font-mono text-xs bg-[#030712]">
+		<div className="flex-1 min-h-0 flex flex-col font-mono text-xs bg-[#0a0a0e]">
 			{/* Top bar */}
 			<div className="shrink-0 flex items-center justify-between px-3 py-2 border-b border-gray-800 bg-gray-900/60 font-sans">
 				<span className="text-gray-400 text-xs">

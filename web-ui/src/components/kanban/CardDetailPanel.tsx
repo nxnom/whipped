@@ -3,7 +3,12 @@ import type { RuntimeBoardCard, WorkflowSlot } from "@runtime-contract";
 import {
 	ArrowLeft,
 	Check,
+	CheckCircle2,
+	ChevronRight,
+	Circle,
+	Clock,
 	ExternalLink,
+	FolderOpen,
 	GitBranch,
 	GitMerge,
 	GitPullRequest,
@@ -19,7 +24,6 @@ import { useEffect, useRef, useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { attachmentUrl, uploadAttachmentFile } from "@/runtime/attachments";
 import { trpc } from "@/runtime/trpc-client";
-import { useRunSession } from "@/stores/run-session-store";
 import { ChatComments } from "./ChatComments";
 import { DiffView } from "./DiffView";
 
@@ -28,17 +32,11 @@ interface Props {
 	workspaceId: string;
 	allCards?: Record<string, RuntimeBoardCard>;
 	workflowSlots?: WorkflowSlot[];
+	projectName?: string;
 	onClose: () => void;
 	onRefresh: () => void;
 	onDeleteCard: (cardId: string) => void;
 }
-
-const PRIORITY_STYLES: Record<string, string> = {
-	urgent: "text-red-400 bg-red-400/10 border-red-400/20",
-	high: "text-orange-400 bg-orange-400/10 border-orange-400/20",
-	medium: "text-yellow-400 bg-yellow-400/10 border-yellow-400/20",
-	low: "text-slate-400 bg-slate-400/10 border-slate-400/20",
-};
 
 const COLUMN_LABELS: Record<string, string> = {
 	todo: "Todo",
@@ -68,17 +66,45 @@ const BUILTIN_SESSION_LABELS: Record<string, string> = {
 };
 
 function getSessionLabel(type: string, workflowSlots?: WorkflowSlot[]): string {
-	if (BUILTIN_SESSION_LABELS[type]) return BUILTIN_SESSION_LABELS[type];
+	if (BUILTIN_SESSION_LABELS[type]) return BUILTIN_SESSION_LABELS[type]!;
 	const slot = workflowSlots?.find((s) => s.id === type);
 	if (slot) return slot.name;
 	return type;
 }
 
-const MIN_SIDEBAR = 340;
-const MAX_SIDEBAR = 520;
-const DEFAULT_SIDEBAR = 340;
+const COLUMN_STATUS: Record<string, { label: string; color: string; bg: string; border: string; dotColor: string; glow?: string }> = {
+	todo: { label: "Todo", color: "text-gray-400", bg: "bg-gray-400/10", border: "border-gray-400/25", dotColor: "bg-gray-400" },
+	in_progress: { label: "In Progress", color: "text-[#3b82f6]", bg: "bg-[#3b82f6]/10", border: "border-[#3b82f6]/25", dotColor: "bg-[#3b82f6]", glow: "#3b82f660" },
+	reopened: { label: "Reopened", color: "text-orange-400", bg: "bg-orange-400/10", border: "border-orange-400/25", dotColor: "bg-orange-400" },
+	ready_for_review: { label: "Ready for Review", color: "text-yellow-400", bg: "bg-yellow-400/10", border: "border-yellow-400/25", dotColor: "bg-yellow-400" },
+	blocked: { label: "Blocked", color: "text-red-400", bg: "bg-red-400/10", border: "border-red-400/25", dotColor: "bg-red-400" },
+	done: { label: "Done", color: "text-emerald-400", bg: "bg-emerald-400/10", border: "border-emerald-400/25", dotColor: "bg-emerald-400" },
+};
 
-type SidebarTab = "overview" | "activity";
+const PRIORITY_BADGE: Record<string, { color: string; bg: string; border: string; dotColor: string }> = {
+	urgent: { color: "text-[#ef4444]", bg: "bg-[#ef4444]/10", border: "border-[#ef4444]/25", dotColor: "bg-[#ef4444]" },
+	high: { color: "text-orange-400", bg: "bg-orange-400/10", border: "border-orange-400/25", dotColor: "bg-orange-400" },
+	medium: { color: "text-yellow-400", bg: "bg-yellow-400/10", border: "border-yellow-400/25", dotColor: "bg-yellow-400" },
+	low: { color: "text-slate-400", bg: "bg-slate-400/10", border: "border-slate-400/25", dotColor: "bg-slate-400" },
+};
+
+const AGENT_DISPLAY: Record<string, { label: string; color: string; bg: string; border: string; dotColor: string }> = {
+	claude: { label: "Claude", color: "text-[#7c6aff]", bg: "bg-[#7c6aff]/10", border: "border-[#7c6aff]/25", dotColor: "bg-[#7c6aff]" },
+	codex: { label: "Codex", color: "text-[#22c55e]", bg: "bg-[#22c55e]/10", border: "border-[#22c55e]/25", dotColor: "bg-[#22c55e]" },
+	cursor: { label: "Cursor", color: "text-[#3b82f6]", bg: "bg-[#3b82f6]/10", border: "border-[#3b82f6]/25", dotColor: "bg-[#3b82f6]" },
+	opencode: { label: "Opencode", color: "text-[#f97316]", bg: "bg-[#f97316]/10", border: "border-[#f97316]/25", dotColor: "bg-[#f97316]" },
+};
+
+function formatElapsed(sec: number): string {
+	return `${Math.floor(sec / 60)}m ${(sec % 60).toString().padStart(2, "0")}s`;
+}
+
+function slotDuration(startedAt: string | number, endedAt?: string | number | null): string {
+	const endMs = endedAt ? new Date(endedAt).getTime() : Date.now();
+	const sec = Math.floor((endMs - new Date(startedAt).getTime()) / 1000);
+	return `${Math.floor(sec / 60)}m ${(sec % 60).toString().padStart(2, "0")}s`;
+}
+
 type RightTab = "terminal" | "diff" | "comments";
 
 function DescAttachment({ path, name, mimeType }: { path: string; name: string; mimeType?: string }) {
@@ -92,7 +118,7 @@ function DescAttachment({ path, name, mimeType }: { path: string; name: string; 
 					alt={name}
 					onClick={() => setExpanded((v) => !v)}
 					title={expanded ? "Click to collapse" : name}
-					className={`rounded border border-gray-700 cursor-pointer object-contain ${expanded ? "max-w-full max-h-64" : "h-16 w-16 object-cover"}`}
+					className={`rounded border border-[#2a2a35] cursor-pointer object-contain ${expanded ? "max-w-full max-h-64" : "h-16 w-16 object-cover"}`}
 				/>
 			</div>
 		);
@@ -103,7 +129,7 @@ function DescAttachment({ path, name, mimeType }: { path: string; name: string; 
 			target="_blank"
 			rel="noreferrer"
 			title={name}
-			className="flex items-center gap-1.5 px-2 py-1 rounded border border-gray-700 bg-gray-800 text-xs text-gray-300 hover:text-gray-100 hover:border-gray-600 transition-colors max-w-[160px] truncate"
+			className="flex items-center gap-1.5 px-2 py-1 rounded border border-[#2a2a35] bg-[#1a1a1f] text-xs text-gray-300 hover:text-gray-100 hover:border-[#3a3a48] transition-colors max-w-[160px] truncate"
 		>
 			<Paperclip size={11} className="shrink-0" />
 			{name}
@@ -161,6 +187,7 @@ export function CardDetailPanel({
 	workspaceId,
 	allCards,
 	workflowSlots,
+	projectName,
 	onClose,
 	onRefresh,
 	onDeleteCard,
@@ -170,53 +197,41 @@ export function CardDetailPanel({
 	);
 	const [merging, setMerging] = useState(false);
 	const [creatingPR, setCreatingPR] = useState(false);
-	const [activeTab, setActiveTab] = useState<SidebarTab>("overview");
 	const [rightTab, setRightTab] = useState<RightTab>("terminal");
-	const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR);
 	const [uploadingDesc, setUploadingDesc] = useState(false);
 	const [descExpanded, setDescExpanded] = useState(false);
 	const [editingBranch, setEditingBranch] = useState(false);
 	const [branchInput, setBranchInput] = useState("");
 	const [savingBranch, setSavingBranch] = useState(false);
+	const [elapsedSec, setElapsedSec] = useState(0);
+	const [activityExpanded, setActivityExpanded] = useState(false);
 	const descFileInputRef = useRef<HTMLInputElement>(null);
-	const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
 	const isStory = card.type === "story";
 	const isReadyForReview = card.columnId === "ready_for_review";
 
-	// Story cards have a synthetic dev session/comment that is an implementation
-	// detail — hide it so the user only sees the real orch sessions/comments.
 	const visibleSessions = isStory
 		? (card.terminalSessions ?? []).filter((ts) => ts.type !== "dev")
 		: (card.terminalSessions ?? []);
+
 	const commentCount = isStory
 		? (card.reviewComments ?? []).filter((c) => c.type !== "dev").length +
 			(card.dependsOn ?? []).reduce((sum, depId) => sum + (allCards?.[depId]?.reviewComments?.length ?? 0), 0)
 		: (card.reviewComments?.length ?? 0);
 
-	// ── Resize drag handle ─────────────────────────────────────────────────
-	useEffect(() => {
-		const onMouseMove = (e: MouseEvent) => {
-			if (!dragRef.current) return;
-			setSidebarWidth(
-				Math.min(MAX_SIDEBAR, Math.max(MIN_SIDEBAR, dragRef.current.startWidth + e.clientX - dragRef.current.startX)),
-			);
-		};
-		const onMouseUp = () => {
-			dragRef.current = null;
-		};
-		window.addEventListener("mousemove", onMouseMove);
-		window.addEventListener("mouseup", onMouseUp);
-		return () => {
-			window.removeEventListener("mousemove", onMouseMove);
-			window.removeEventListener("mouseup", onMouseUp);
-		};
-	}, []);
+	const isRunning = card.terminalSessions?.some((ts) => !ts.endedAt) ?? false;
+	const activeTerminalSession = card.terminalSessions?.find((ts) => !ts.endedAt);
+	const hasTerminalOutput = visibleSessions.length > 0;
+	const agentId = activeTerminalSession?.agentId ?? card.agentId ?? null;
 
-	const onDragStart = (e: React.MouseEvent) => {
-		dragRef.current = { startX: e.clientX, startWidth: sidebarWidth };
-		e.preventDefault();
-	};
+	// ── Elapsed timer ──────────────────────────────────────────────────────
+	useEffect(() => {
+		if (!isRunning || !activeTerminalSession) { setElapsedSec(0); return; }
+		const update = () => setElapsedSec(Math.floor((Date.now() - new Date(activeTerminalSession.startedAt as string | number).getTime()) / 1000));
+		update();
+		const id = setInterval(update, 1000);
+		return () => clearInterval(id);
+	}, [isRunning, activeTerminalSession?.startedAt]);
 
 	// ── Session tracking ───────────────────────────────────────────────────
 	const prevCardIdRef = useRef(card.id);
@@ -238,22 +253,6 @@ export function CardDetailPanel({
 		}
 		prevSessionLenRef.current = sessions.length;
 	}, [card.terminalSessions?.length]);
-
-	const isRunning = card.terminalSessions?.some((ts) => !ts.endedAt) ?? false;
-	const activeTerminalSession = card.terminalSessions?.find((ts) => !ts.endedAt);
-	const hasTerminalOutput = visibleSessions.length > 0;
-
-	const { session: runSession, start: startRun } = useRunSession(workspaceId);
-	const isThisCardRunning = runSession.status === "running" && runSession.cardId === card.id;
-
-	const handleRunTicket = async () => {
-		try {
-			await startRun(card.id);
-		} catch (err) {
-			const msg = err instanceof Error ? err.message : String(err);
-			toast.error(msg);
-		}
-	};
 
 	// ── Handlers ───────────────────────────────────────────────────────────
 	const handleStart = async () => {
@@ -417,18 +416,10 @@ export function CardDetailPanel({
 
 	const saveBranchName = async () => {
 		const next = branchInput.trim();
-		if (next === (card.branchName ?? "")) {
-			cancelEditBranch();
-			return;
-		}
+		if (next === (card.branchName ?? "")) { cancelEditBranch(); return; }
 		setSavingBranch(true);
 		try {
-			await trpc.cards.update.mutate({
-				workspaceId,
-				cardId: card.id,
-				branchName: next || undefined,
-				revision: 0,
-			});
+			await trpc.cards.update.mutate({ workspaceId, cardId: card.id, branchName: next || undefined, revision: 0 });
 			toast.success("Branch name updated");
 			cancelEditBranch();
 			onRefresh();
@@ -454,503 +445,502 @@ export function CardDetailPanel({
 					onRefresh();
 				} catch {
 					toast.error("Failed to delete task");
-					onRefresh(); // revert optimistic update on failure
+					onRefresh();
 				}
 			},
 			onCancel: ({ dismiss }) => dismiss(),
 		});
 	};
 
+	const columnStatus = COLUMN_STATUS[card.columnId];
+	const priorityBadge = card.priority ? PRIORITY_BADGE[card.priority] : null;
+	const agentBadge = agentId ? (AGENT_DISPLAY[agentId] ?? null) : null;
+	const externalUrl = card.jiraUrl ?? card.githubIssueUrl ?? card.pr?.url ?? null;
+
 	return (
-		<div className="absolute inset-0 z-10 bg-gray-950 flex overflow-hidden">
-			{/* ── Sidebar ──────────────────────────────────────────────── */}
-			<div className="shrink-0 border-r border-gray-800 flex flex-col" style={{ width: sidebarWidth }}>
-				{/* Header */}
-				<div className="flex items-center gap-2 px-3 py-3 border-b border-gray-800 shrink-0">
-					<button
-						onClick={onClose}
-						className="text-gray-500 hover:text-gray-300 transition-colors p-1 rounded hover:bg-gray-800"
-						title="Back to board"
+		<div className="fixed inset-0 z-10 bg-[#0a0a0e] flex flex-col overflow-hidden">
+
+			{/* ── Header ── */}
+			<div className="flex items-center gap-3 px-6 py-2.5 border-b border-[#2a2a35] bg-[#141418] shrink-0">
+				<button
+					onClick={onClose}
+					className="text-[#60607a] hover:text-gray-300 transition-colors"
+					title="Back to board"
+				>
+					<ArrowLeft size={18} />
+				</button>
+				<div className="w-px h-[18px] bg-[#2a2a35] shrink-0" />
+				{projectName && (
+					<>
+						<span className="text-xs text-[#60607a]">{projectName}</span>
+						<span className="text-xs text-[#2a2a35]">/</span>
+					</>
+				)}
+				<span className="text-[13px] font-semibold text-[#f0f0f5] truncate">{card.title}</span>
+				<div className="flex-1" />
+				{card.jiraKey && (
+					<span className="text-[10px] font-mono text-[#4a4a5a]">{card.jiraKey}</span>
+				)}
+				{externalUrl && (
+					<a
+						href={externalUrl}
+						target="_blank"
+						rel="noreferrer"
+						className="text-[#60607a] hover:text-gray-300 transition-colors"
+						title="Open external link"
 					>
-						<ArrowLeft size={16} />
-					</button>
-					<span className="text-xs text-gray-400 truncate flex-1 font-medium">{card.title}</span>
-					{isRunning && <span className="size-1.5 rounded-full shrink-0 bg-blue-400 animate-pulse" />}
-					{!isThisCardRunning && (
-						<button
-							onClick={handleRunTicket}
-							className="p-1 rounded text-gray-500 hover:text-emerald-400 hover:bg-gray-800 transition-colors"
-							title="Run this ticket's start command"
-						>
-							<Play size={13} />
+						<ExternalLink size={15} />
+					</a>
+				)}
+				<div className="w-px h-[18px] bg-[#2a2a35] shrink-0" />
+				{/* Action buttons */}
+				{isStory ? (
+					isRunning && (
+						<button onClick={handleStop} title="Stop agent" className="text-[#60607a] hover:text-red-400 transition-colors">
+							<Square size={15} className="fill-current" />
 						</button>
+					)
+				) : isReadyForReview ? (
+					<>
+						<Tooltip content={merging ? "Merging..." : `Merge into ${card.baseRef}`} side="bottom" triggerAsChild>
+							<button
+								onClick={handleCommitAndMerge}
+								disabled={merging || creatingPR}
+								className="text-[#60607a] hover:text-emerald-400 transition-colors disabled:opacity-40"
+							>
+								<GitMerge size={15} />
+							</button>
+						</Tooltip>
+						{card.pr?.url ? (
+							<a
+								href={card.pr.url}
+								target="_blank"
+								rel="noreferrer"
+								title="Open Pull Request"
+								className="text-green-400 hover:text-green-300 transition-colors"
+							>
+								<GitPullRequest size={15} />
+							</a>
+						) : (
+							<Tooltip content={creatingPR ? "Creating..." : `Create PR against ${card.baseRef}`} side="bottom" triggerAsChild>
+								<button
+									onClick={handleCommitAndPR}
+									disabled={merging || creatingPR}
+									className="text-[#60607a] hover:text-green-400 transition-colors disabled:opacity-40"
+								>
+									<GitPullRequest size={15} />
+								</button>
+							</Tooltip>
+						)}
+					</>
+				) : isRunning ? (
+					<button onClick={handleStop} title="Stop agent" className="text-[#60607a] hover:text-red-400 transition-colors">
+						<Square size={15} className="fill-current" />
+					</button>
+				) : (
+					<button onClick={handleStart} title="Start agent" className="text-[#60607a] hover:text-emerald-400 transition-colors">
+						<Play size={15} />
+					</button>
+				)}
+				<div className="w-px h-[18px] bg-[#2a2a35] shrink-0" />
+				<button
+					onClick={handleDelete}
+					className="text-[#60607a] hover:text-red-400 transition-colors"
+					title="Delete task"
+				>
+					<Trash2 size={15} />
+				</button>
+			</div>
+
+			{/* ── Sub-header ── */}
+			<div className="flex items-center gap-2 px-6 py-2 border-b border-[#2a2a35] bg-[#141418] shrink-0 flex-wrap">
+				{columnStatus && (
+					<span className={`flex items-center gap-1.5 px-2.5 py-[3px] rounded-md text-[11px] font-medium border ${columnStatus.color} ${columnStatus.bg} ${columnStatus.border}`}>
+						<span
+							className={`size-[7px] rounded-full shrink-0 ${columnStatus.dotColor}`}
+							style={columnStatus.glow ? { boxShadow: `0 0 5px ${columnStatus.glow}` } : {}}
+						/>
+						{columnStatus.label}
+					</span>
+				)}
+				{priorityBadge && (
+					<span className={`flex items-center gap-1.5 px-2.5 py-[3px] rounded-md text-[11px] font-medium border ${priorityBadge.color} ${priorityBadge.bg} ${priorityBadge.border}`}>
+						<span className={`size-[7px] rounded-full shrink-0 ${priorityBadge.dotColor}`} />
+						{card.priority!.charAt(0).toUpperCase() + card.priority!.slice(1)}
+					</span>
+				)}
+				{agentBadge && (
+					<span className={`flex items-center gap-1.5 px-2.5 py-[3px] rounded-md text-[11px] font-medium border ${agentBadge.color} ${agentBadge.bg} ${agentBadge.border}`}>
+						<span className={`size-[7px] rounded-full shrink-0 ${agentBadge.dotColor}`} />
+						{agentBadge.label}
+					</span>
+				)}
+				{card.branchName && (
+					<span className="flex items-center gap-1.5 px-2.5 py-[3px] rounded-md text-[11px] text-[#8888a0] bg-[#1a1a1f] border border-[#2a2a35]">
+						<GitBranch size={11} />
+						{card.branchName}
+					</span>
+				)}
+				{card.worktreePath && (
+					<button
+						onClick={() => trpc.fs.openTerminal.mutate({ path: card.worktreePath! })}
+						className="flex items-center gap-1.5 px-2.5 py-[3px] rounded-md text-[11px] text-[#8888a0] bg-[#1a1a1f] border border-[#2a2a35] hover:border-[#3a3a48] transition-colors"
+					>
+						<FolderOpen size={11} />
+						{card.worktreePath.split("/").slice(-2).join("/")}
+					</button>
+				)}
+				<div className="flex-1" />
+				{isRunning && (
+					<span className="flex items-center gap-1.5 text-[11px] font-medium text-[#f0f0f5]">
+						<Clock size={13} className="text-[#60607a]" />
+						<span className="font-mono">{formatElapsed(elapsedSec)}</span>
+					</span>
+				)}
+			</div>
+
+			{/* ── Main content ── */}
+			<div className="flex flex-1 min-h-0 overflow-hidden">
+
+				{/* Terminal / left panel */}
+				<div className="flex-1 min-w-0 flex flex-col bg-[#141418]">
+					{/* Tab bar */}
+					<div className="flex shrink-0 bg-[#0d0d12] border-b border-[#2a2a35] px-5">
+						{([
+							{ id: "terminal" as RightTab, label: "Terminal", Icon: TerminalSquare },
+							...(!isStory ? [{ id: "diff" as RightTab, label: "Diff", Icon: GitBranch }] : []),
+							{ id: "comments" as RightTab, label: `Comments${commentCount > 0 ? ` (${commentCount})` : ""}`, Icon: null },
+						] as { id: RightTab; label: string; Icon: React.FC<{ size: number }> | null }[]).map(({ id, label, Icon }) => (
+							<button
+								key={id}
+								onClick={() => setRightTab(id)}
+								className={`relative flex items-center gap-1.5 px-4 py-[11px] text-xs font-medium transition-colors ${
+									rightTab === id ? "text-[#f0f0f5]" : "text-[#4a4a5a] hover:text-[#8888a0]"
+								}`}
+							>
+								{Icon && <Icon size={11} />}
+								{label}
+								{rightTab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#7c6aff]" />}
+							</button>
+						))}
+					</div>
+
+					{rightTab === "terminal" &&
+						(hasTerminalOutput ? (
+							<TaskTerminal key={activeStreamId} taskId={activeStreamId} workspaceId={workspaceId} className="flex-1" />
+						) : (
+							<div className="flex-1 flex items-center justify-center flex-col gap-3 text-gray-600">
+								<span className="text-4xl">⌨</span>
+								<p className="text-sm">No agent output yet</p>
+								<p className="text-xs">Start the agent to see terminal output here</p>
+							</div>
+						))}
+					{rightTab === "diff" && (
+						<DiffView workspaceId={workspaceId} cardId={card.id} isReadyForReview={isReadyForReview} onRefresh={onRefresh} />
 					)}
-					<button
-						onClick={handleDelete}
-						className="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-gray-800 transition-colors"
-						title="Delete this task"
-					>
-						<Trash2 size={13} />
-					</button>
+					{rightTab === "comments" && (
+						<ChatComments card={card} workspaceId={workspaceId} allCards={allCards} workflowSlots={workflowSlots} onRefresh={onRefresh} />
+					)}
 				</div>
 
-				{/* Tab bar */}
-				<div className="flex border-b border-gray-800 shrink-0">
-					{(["overview", "activity"] as SidebarTab[]).map((tab) => (
-						<button
-							key={tab}
-							onClick={() => setActiveTab(tab)}
-							className={`flex-1 py-2 text-xs font-medium transition-colors relative ${
-								activeTab === tab ? "text-gray-100" : "text-gray-500 hover:text-gray-300"
-							}`}
-						>
-							{tab.charAt(0).toUpperCase() + tab.slice(1)}
-							{activeTab === tab && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-t" />}
-						</button>
-					))}
-				</div>
+				{/* ── Right sidebar ── */}
+				<div className="w-80 shrink-0 bg-[#141418] border-l border-[#2a2a35] flex flex-col overflow-hidden">
 
-				{/* Tab content */}
-				<div className="flex-1 min-h-0 flex flex-col">
-					{/* ── Overview tab ── */}
-					{activeTab === "overview" && (
-						<div className="flex-1 overflow-y-auto p-4 space-y-4">
+					{/* Workflow Pipeline */}
+					<div className="shrink-0">
+						<div className="px-[18px] pt-3.5 pb-2">
+							<span className="text-[11px] font-semibold text-[#8888a0] tracking-[0.3px]">Workflow Pipeline</span>
+						</div>
+						<div className="flex flex-col px-[18px] pb-4">
+							{workflowSlots && workflowSlots.length > 0 ? (() => {
+								const activeSlots = workflowSlots.filter(slot => visibleSessions.some(ts => ts.type === slot.id));
+								return activeSlots.map((slot, idx) => {
+								// Use the most recent session for this slot (in case of retries)
+								// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+								const session = visibleSessions.filter((ts) => ts.type === slot.id).at(-1)!;
+								const status = !session.endedAt
+									? "running"
+									: session.state === "failed" || session.state === "stopped"
+										? session.state
+										: "completed";
+								const duration = slotDuration(session.startedAt, session.endedAt);
+								const isFocused = activeStreamId === session.streamId;
+								return (
+									<div key={slot.id} className="flex items-stretch gap-0">
+										{/* Focus indicator */}
+										<div className={`w-0.5 shrink-0 rounded-full mr-2 self-stretch transition-colors ${isFocused ? "bg-[#7c6aff]" : "bg-transparent"}`} />
+										{/* Status icon + connector */}
+										<div className="flex flex-col items-center w-7 shrink-0">
+											<div className={`size-6 rounded-full flex items-center justify-center shrink-0 ${status === "running" ? "bg-[#3b82f6]/15" : "bg-transparent"}`}>
+												{status === "completed" && <CheckCircle2 size={14} className="text-[#22c55e]" />}
+												{status === "running" && (
+													<Play
+														size={14}
+														className="text-[#3b82f6] fill-current"
+														style={{ filter: "drop-shadow(0 0 6px #3b82f650)" }}
+													/>
+												)}
+												{status === "failed" && <Circle size={14} className="text-[#ef4444]" />}
+												{status === "stopped" && <Circle size={14} className="text-yellow-400" />}
+											</div>
+											{idx < activeSlots.length - 1 && (
+												<div className={`w-0.5 flex-1 min-h-[12px] rounded-full mt-0.5 mb-0.5 ${status === "completed" ? "bg-[#22c55e]/40" : "bg-[#2a2a35]"}`} />
+											)}
+										</div>
+										{/* Info */}
+										<button
+											onClick={() => {
+												setActiveStreamId(session.streamId);
+												setRightTab("terminal");
+											}}
+											className={`flex flex-col gap-0.5 pl-2 py-0.5 pb-3 flex-1 min-w-0 text-left cursor-pointer rounded transition-colors ${isFocused ? "bg-[#7c6aff]/8" : "hover:bg-white/[0.03]"}`}
+										>
+											<span className={`text-xs ${isFocused ? "font-semibold text-[#c4baff]" : status === "running" ? "font-semibold text-[#f0f0f5]" : status === "completed" ? "text-[#f0f0f5]" : "text-[#4a4a5a]"}`}>
+												{slot.name}
+											</span>
+											<span className="text-[10px] flex items-center gap-1.5">
+												{status === "running" && <span className={isFocused ? "text-[#a78bfa]" : "text-[#3b82f6]"}>Running</span>}
+												{status === "completed" && <span className="text-[#22c55e]">Completed</span>}
+												{status !== "running" && status !== "completed" && <span className="text-[#4a4a5a]">—</span>}
+												{duration && (
+													<>
+														<span className="text-[#4a4a5a]">·</span>
+														<span className="text-[#4a4a5a] font-mono">{duration}</span>
+													</>
+												)}
+											</span>
+										</button>
+									</div>
+								);
+								});
+							})() : (
+								<p className="text-xs text-[#4a4a5a] pb-2">No workflow configured</p>
+							)}
+						</div>
+					</div>
+
+					<div className="h-px bg-[#2a2a35] shrink-0" />
+
+					{/* Details */}
+					<div className="px-[18px] pt-3.5 pb-2 shrink-0">
+						<span className="text-[11px] font-semibold text-[#8888a0] tracking-[0.3px]">Details</span>
+					</div>
+					<div className="flex-1 min-h-0 overflow-y-auto px-[18px] pb-4 flex flex-col gap-3">
+						{/* Description */}
+						{card.description && (
 							<div>
-								<h2 className="text-sm font-semibold text-gray-100 leading-snug">{card.title}</h2>
-								{isRunning && <p className="text-xs text-gray-500 mt-1">{activeTerminalSession?.agentId} · Running</p>}
-								{card.worktreePath && (
+								<p className={`text-xs text-[#8888a0] whitespace-pre-wrap leading-relaxed ${descExpanded ? "" : "line-clamp-4"}`}>
+									{card.description}
+								</p>
+								{(card.description.split("\n").length > 4 || card.description.length > 240) && (
 									<button
-										onClick={() => trpc.fs.openTerminal.mutate({ path: card.worktreePath! })}
-										className="mt-2 flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-400 cursor-pointer transition-colors"
-										title="Open terminal at worktree"
+										onClick={() => setDescExpanded((v) => !v)}
+										className="mt-1 text-[11px] text-[#4a4a5a] hover:text-[#8888a0] transition-colors"
 									>
-										<TerminalSquare size={12} />
-										<span className="font-mono truncate max-w-[220px]">
-											{card.worktreePath.split("/").slice(-2).join("/")}
-										</span>
+										{descExpanded ? "Show less" : "Show more"}
 									</button>
 								)}
-								{card.baseRef && (
-									<div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
-										<GitBranch size={11} className="shrink-0" />
-										{editingBranch ? (
-											<div className="flex items-center gap-1 flex-1 min-w-0">
-												<Input
-													autoFocus
-													value={branchInput}
-													onChange={(e) => setBranchInput(e.target.value)}
-													onKeyDown={(e) => {
-														if (e.key === "Enter") void saveBranchName();
-														if (e.key === "Escape") cancelEditBranch();
-													}}
-													placeholder={`task/${card.id}`}
-													disabled={savingBranch}
-												/>
-												<button
-													onClick={() => void saveBranchName()}
-													disabled={savingBranch}
-													className="p-1 rounded text-gray-500 hover:text-emerald-400 hover:bg-gray-800 transition-colors disabled:opacity-50"
-													title="Save branch name"
-												>
-													<Check size={12} />
-												</button>
-												<button
-													onClick={cancelEditBranch}
-													disabled={savingBranch}
-													className="p-1 rounded text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors disabled:opacity-50"
-													title="Cancel"
-												>
-													<X size={12} />
-												</button>
-											</div>
-										) : (
-											<>
-												<span className="font-mono text-gray-400 truncate max-w-[140px]" title={currentBranch}>
-													{currentBranch}
-												</span>
-												{canEditBranch && (
-													<button
-														onClick={startEditBranch}
-														className="p-1 rounded text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors"
-														title="Edit branch name"
-													>
-														<Pencil size={11} />
-													</button>
-												)}
-												<span className="text-gray-600">→</span>
-												<span className="font-mono text-gray-400 truncate max-w-[140px]">{card.baseRef}</span>
-											</>
+							</div>
+						)}
+
+						{/* Description attachments */}
+						<div>
+							<input
+								ref={descFileInputRef}
+								type="file"
+								accept="*/*"
+								multiple
+								className="hidden"
+								onChange={(e) => {
+									if (e.target.files) void handleDescriptionAttach(e.target.files);
+									e.target.value = "";
+								}}
+							/>
+							{(card.descriptionAttachments?.length ?? 0) > 0 &&
+								(() => {
+									const isImg = (att: { mimeType?: string; name: string }) =>
+										(att.mimeType ?? "").startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(att.name);
+									const indexed = (card.descriptionAttachments ?? []).map((att, idx) => ({ att, idx }));
+									const imgs = indexed.filter(({ att }) => isImg(att));
+									const files = indexed.filter(({ att }) => !isImg(att));
+									const RemoveBtn = ({ idx }: { idx: number }) => (
+										<button
+											onClick={() => void handleRemoveDescAttachment(idx)}
+											className="absolute -top-1 -right-1 size-4 rounded-full bg-[#1a1a1f] border border-[#2a2a35] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+										>
+											<X size={10} className="text-gray-300" />
+										</button>
+									);
+									return (
+										<div className="flex flex-col gap-1.5 mb-2">
+											{imgs.length > 0 && (
+												<div className="flex flex-wrap gap-2">
+													{imgs.map(({ att, idx }) => (
+														<div key={idx} className="relative group">
+															<DescAttachment path={att.path} name={att.name} mimeType={att.mimeType} />
+															<RemoveBtn idx={idx} />
+														</div>
+													))}
+												</div>
+											)}
+											{files.length > 0 && (
+												<div className="flex flex-wrap gap-1.5">
+													{files.map(({ att, idx }) => (
+														<div key={idx} className="relative group inline-flex">
+															<DescAttachment path={att.path} name={att.name} mimeType={att.mimeType} />
+															<RemoveBtn idx={idx} />
+														</div>
+													))}
+												</div>
+											)}
+										</div>
+									);
+								})()}
+							<button
+								onClick={() => descFileInputRef.current?.click()}
+								disabled={uploadingDesc}
+								className="flex items-center gap-1.5 text-xs text-[#4a4a5a] hover:text-[#8888a0] transition-colors disabled:opacity-50"
+							>
+								<Paperclip size={12} />
+								{uploadingDesc ? "Uploading…" : "Attach file"}
+							</button>
+						</div>
+
+						{/* Branch */}
+						{card.baseRef && (
+							<div className="flex items-start gap-2 text-xs text-[#8888a0]">
+								<GitBranch size={11} className="shrink-0 mt-0.5" />
+								{editingBranch ? (
+									<div className="flex items-center gap-1 flex-1 min-w-0">
+										<Input
+											autoFocus
+											value={branchInput}
+											onChange={(e) => setBranchInput(e.target.value)}
+											onKeyDown={(e) => {
+												if (e.key === "Enter") void saveBranchName();
+												if (e.key === "Escape") cancelEditBranch();
+											}}
+											placeholder={`task/${card.id}`}
+											disabled={savingBranch}
+										/>
+										<button
+											onClick={() => void saveBranchName()}
+											disabled={savingBranch}
+											className="p-1 rounded text-[#4a4a5a] hover:text-[#22c55e] hover:bg-[#1a1a1f] transition-colors disabled:opacity-50"
+										>
+											<Check size={12} />
+										</button>
+										<button
+											onClick={cancelEditBranch}
+											disabled={savingBranch}
+											className="p-1 rounded text-[#4a4a5a] hover:text-[#8888a0] hover:bg-[#1a1a1f] transition-colors disabled:opacity-50"
+										>
+											<X size={12} />
+										</button>
+									</div>
+								) : (
+									<div className="flex items-center gap-1 flex-wrap">
+										<span className="font-mono text-[#8888a0] truncate max-w-[110px]" title={currentBranch}>{currentBranch}</span>
+										{canEditBranch && (
+											<button
+												onClick={startEditBranch}
+												className="p-0.5 rounded text-[#4a4a5a] hover:text-[#8888a0] hover:bg-[#1a1a1f] transition-colors"
+											>
+												<Pencil size={10} />
+											</button>
 										)}
+										<span className="text-[#4a4a5a]">→</span>
+										<span className="font-mono text-[#8888a0] truncate max-w-[110px]">{card.baseRef}</span>
 									</div>
 								)}
 							</div>
+						)}
 
-							{card.description && (
-								<div>
-									<p
-										className={`text-xs text-gray-400 whitespace-pre-wrap leading-relaxed ${descExpanded ? "" : "line-clamp-4"}`}
-									>
-										{card.description}
-									</p>
-									{card.description.split("\n").length > 4 || card.description.length > 240 ? (
-										<button
-											onClick={() => setDescExpanded((v) => !v)}
-											className="mt-1 text-[11px] text-gray-600 hover:text-gray-400 transition-colors"
-										>
-											{descExpanded ? "Show less" : "Show more"}
-										</button>
-									) : null}
-								</div>
-							)}
-
-							{/* Description attachments */}
+						{/* Dependencies */}
+						{(card.dependsOn ?? []).length > 0 && (
 							<div>
-								<input
-									ref={descFileInputRef}
-									type="file"
-									accept="*/*"
-									multiple
-									className="hidden"
-									onChange={(e) => {
-										if (e.target.files) void handleDescriptionAttach(e.target.files);
-										e.target.value = "";
-									}}
-								/>
-								{(card.descriptionAttachments?.length ?? 0) > 0 &&
-									(() => {
-										const isImg = (att: { mimeType?: string; name: string }) =>
-											(att.mimeType ?? "").startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(att.name);
-										const indexed = (card.descriptionAttachments ?? []).map((att, idx) => ({ att, idx }));
-										const imgs = indexed.filter(({ att }) => isImg(att));
-										const files = indexed.filter(({ att }) => !isImg(att));
-										const RemoveBtn = ({ idx }: { idx: number }) => (
-											<button
-												onClick={() => void handleRemoveDescAttachment(idx)}
-												className="absolute -top-1 -right-1 size-4 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-											>
-												<X size={10} className="text-gray-300" />
-											</button>
-										);
+								<p className="text-[10px] font-medium text-[#4a4a5a] mb-1.5">Dependencies</p>
+								<div className="space-y-1">
+									{(card.dependsOn ?? []).map((depId) => {
+										const dep = allCards?.[depId];
+										if (!dep) return null;
 										return (
-											<div className="flex flex-col gap-1.5 mb-2">
-												{imgs.length > 0 && (
-													<div className="flex flex-wrap gap-2">
-														{imgs.map(({ att, idx }) => (
-															<div key={idx} className="relative group">
-																<DescAttachment path={att.path} name={att.name} mimeType={att.mimeType} />
-																<RemoveBtn idx={idx} />
-															</div>
-														))}
-													</div>
-												)}
-												{files.length > 0 && (
-													<div className="flex flex-wrap gap-1.5">
-														{files.map(({ att, idx }) => (
-															<div key={idx} className="relative group inline-flex">
-																<DescAttachment path={att.path} name={att.name} mimeType={att.mimeType} />
-																<RemoveBtn idx={idx} />
-															</div>
-														))}
-													</div>
-												)}
+											<div
+												key={depId}
+												className="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-[#1a1a1f] border border-[#2a2a35]"
+											>
+												<span className="text-xs text-gray-300 truncate">{dep.title}</span>
+												<span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${DEP_COL_BADGE[dep.columnId] ?? "text-gray-400 bg-gray-700"}`}>
+													{COLUMN_LABELS[dep.columnId] ?? dep.columnId}
+												</span>
 											</div>
 										);
-									})()}
-								<button
-									onClick={() => descFileInputRef.current?.click()}
-									disabled={uploadingDesc}
-									className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-400 transition-colors disabled:opacity-50"
-								>
-									<Paperclip size={12} />
-									{uploadingDesc ? "Uploading…" : "Attach file"}
-								</button>
+									})}
+								</div>
 							</div>
+						)}
 
-							{/* Priority */}
-							{card.priority && (
-								<div>
-									<h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Priority</h4>
-									<span
-										className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${PRIORITY_STYLES[card.priority] ?? "text-gray-400 bg-gray-700/30 border-gray-700"}`}
-									>
-										{card.priority.charAt(0).toUpperCase() + card.priority.slice(1)}
-									</span>
-								</div>
-							)}
-
-							{/* Dependencies */}
-							{(card.dependsOn ?? []).length > 0 && (
-								<div>
-									<h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Dependencies</h4>
-									<div className="space-y-1">
-										{(card.dependsOn ?? []).map((depId) => {
-											const dep = allCards?.[depId];
-											if (!dep) return null;
-											return (
-												<div
-													key={depId}
-													className="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-gray-800/50 border border-gray-800"
-												>
-													<span className="text-xs text-gray-300 truncate">{dep.title}</span>
-													<span
-														className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${DEP_COL_BADGE[dep.columnId] ?? "text-gray-400 bg-gray-700"}`}
-													>
-														{COLUMN_LABELS[dep.columnId] ?? dep.columnId}
-													</span>
-												</div>
-											);
-										})}
-									</div>
-								</div>
-							)}
-
-							{(card.githubIssueUrl || card.pr?.url || card.jiraUrl) && (
-								<div className="space-y-1.5">
-									{card.githubIssueUrl && (
-										<a
-											href={card.githubIssueUrl}
-											target="_blank"
-											rel="noreferrer"
-											className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300"
-										>
-											<ExternalLink size={11} /> GitHub Issue
-										</a>
-									)}
-									{card.pr?.url && (
-										<a
-											href={card.pr?.url}
-											target="_blank"
-											rel="noreferrer"
-											className="flex items-center gap-1.5 text-xs text-green-400 hover:text-green-300"
-										>
-											<ExternalLink size={11} /> Pull Request
-										</a>
-									)}
-									{card.jiraUrl && (
-										<a
-											href={card.jiraUrl}
-											target="_blank"
-											rel="noreferrer"
-											className="flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300"
-										>
-											<ExternalLink size={11} /> {card.jiraKey}
-										</a>
-									)}
-								</div>
-							)}
-
-							{visibleSessions.length > 0 && (
-								<div>
-									<h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Sessions</h4>
-									<div className="space-y-1">
-										{visibleSessions.map((ts) => {
-											const isActive = !ts.endedAt;
-											const isSelected = activeStreamId === ts.streamId;
-											const tsState = isActive ? "running" : ts.state;
-											const stateColor =
-												tsState === "running"
-													? "bg-blue-400 animate-pulse"
-													: tsState === "failed"
-														? "bg-red-400"
-														: tsState === "stopped"
-															? "bg-yellow-400"
-															: tsState === "completed"
-																? "bg-green-400"
-																: "bg-gray-400";
-
-											return (
-												<button
-													key={ts.streamId}
-													onClick={() => {
-														setActiveStreamId(ts.streamId);
-														setRightTab("terminal");
-													}}
-													className={`w-full text-left rounded text-xs flex items-center gap-2 transition-colors ${
-														isActive
-															? `px-2 py-1.5 ${isSelected ? "bg-gray-800 text-gray-100" : "text-gray-300 hover:text-gray-100 hover:bg-gray-800/50"}`
-															: `px-2 py-1.5 ${isSelected ? "bg-gray-800 text-gray-100" : "text-gray-500 hover:text-gray-300 hover:bg-gray-800/50"}`
-													}`}
-												>
-													{isActive ? (
-														<span className={`size-1.5 rounded-full shrink-0 ${stateColor}`} />
-													) : (
-														<span className={`size-1.5 rounded-full shrink-0 ${stateColor}`} />
-													)}
-													<span className="flex-1">{getSessionLabel(ts.type, workflowSlots)}</span>
-													{isActive ? (
-														<span className="text-[10px] text-blue-400 font-medium">Running</span>
-													) : (
-														<span className="text-gray-600 tabular-nums">
-															{new Date(ts.startedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-														</span>
-													)}
-												</button>
-											);
-										})}
-									</div>
-								</div>
-							)}
-						</div>
-					)}
-
-					{/* ── Activity tab ── */}
-					{activeTab === "activity" && (
-						<div className="flex-1 overflow-y-auto p-4">
-							{!card.activityLog?.length ? (
-								<p className="text-xs text-gray-600 text-center py-8">No activity yet</p>
-							) : (
-								<div className="space-y-1.5">
-									{card.activityLog.map((entry, i) => (
-										<div key={i} className="flex items-baseline gap-2 text-xs">
-											<span className="text-gray-600 shrink-0 tabular-nums">
-												{new Date(entry.timestamp).toLocaleTimeString([], {
-													hour: "2-digit",
-													minute: "2-digit",
-													second: "2-digit",
-												})}
-											</span>
-											<span className="text-gray-400">{entry.message}</span>
-										</div>
-									))}
-								</div>
-							)}
-						</div>
-					)}
-				</div>
-
-				{/* Footer actions */}
-				<div className="border-t border-gray-800 p-3 flex items-center justify-end gap-2 shrink-0">
-					{isStory ? (
-						isRunning && (
-							<Tooltip content="Interrupt the running agent" side="top" triggerAsChild>
-								<Button variant="outlined" size="sm" onClick={handleStop}>
-									<Square size={12} className="mr-1" /> Stop
-								</Button>
-							</Tooltip>
-						)
-					) : isReadyForReview ? (
-						<div className="flex gap-1.5">
-							<Tooltip content={`Commit & merge directly into ${card.baseRef}`} side="top" triggerAsChild>
-								<Button variant="outlined" size="sm" onClick={handleCommitAndMerge} disabled={merging || creatingPR}>
-									<GitMerge size={12} className="mr-1" />
-									{merging ? "Merging..." : `→ ${card.baseRef}`}
-								</Button>
-							</Tooltip>
-							{card.pr?.url ? (
-								<Tooltip content="Open Pull Request" side="top" triggerAsChild>
-									<a
-										href={card.pr?.url}
-										target="_blank"
-										rel="noreferrer"
-										className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md bg-green-500/15 text-green-400 border border-green-500/30 hover:bg-green-500/25 hover:border-green-500/50 transition-colors"
-									>
-										<GitPullRequest size={12} />
-										View PR
-										<ExternalLink size={10} />
+						{/* External links */}
+						{(card.githubIssueUrl || card.pr?.url || card.jiraUrl) && (
+							<div className="space-y-1">
+								{card.githubIssueUrl && (
+									<a href={card.githubIssueUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300">
+										<ExternalLink size={11} /> GitHub Issue
 									</a>
-								</Tooltip>
-							) : (
-								<Tooltip content={`Push & open a PR against ${card.baseRef}`} side="top" triggerAsChild>
-									<Button size="sm" onClick={handleCommitAndPR} disabled={merging || creatingPR}>
-										<GitPullRequest size={12} className="mr-1" />
-										{creatingPR ? "Creating..." : "PR"}
-									</Button>
-								</Tooltip>
-							)}
-						</div>
-					) : isRunning ? (
-						<Tooltip content="Interrupt the running agent" side="top" triggerAsChild>
-							<Button variant="outlined" size="sm" onClick={handleStop}>
-								<Square size={12} className="mr-1" /> Stop
-							</Button>
-						</Tooltip>
-					) : (
-						<Tooltip content="Start the AI agent on this task" side="top" triggerAsChild>
-							<Button size="sm" onClick={handleStart}>
-								<Play size={12} className="mr-1" /> Start Agent
-							</Button>
-						</Tooltip>
-					)}
-				</div>
-			</div>
+								)}
+								{card.pr?.url && (
+									<a href={card.pr?.url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs text-green-400 hover:text-green-300">
+										<ExternalLink size={11} /> Pull Request
+									</a>
+								)}
+								{card.jiraUrl && (
+									<a href={card.jiraUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300">
+										<ExternalLink size={11} /> {card.jiraKey}
+									</a>
+								)}
+							</div>
+						)}
+					</div>
 
-			{/* ── Drag handle ──────────────────────────────────────────── */}
-			<div
-				onMouseDown={onDragStart}
-				className="w-1 shrink-0 cursor-col-resize hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors bg-gray-800"
-			/>
+					<div className="h-px bg-[#2a2a35] shrink-0" />
 
-			{/* ── Right panel ───────────────────────────────────────────── */}
-			<div className="flex-1 min-w-0 flex flex-col bg-[#030712]">
-				{/* Tab bar */}
-				<div className="shrink-0 flex items-center border-b border-gray-800 bg-gray-900/40">
-					<button
-						onClick={() => setRightTab("terminal")}
-						className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-b-2 ${
-							rightTab === "terminal"
-								? "text-gray-100 border-blue-500"
-								: "text-gray-500 hover:text-gray-300 border-transparent"
-						}`}
-					>
-						<TerminalSquare size={11} /> Terminal
-					</button>
-					{!isStory && (
+					{/* Activity */}
+					<div className="shrink-0">
 						<button
-							onClick={() => setRightTab("diff")}
-							className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-b-2 ${
-								rightTab === "diff"
-									? "text-gray-100 border-blue-500"
-									: "text-gray-500 hover:text-gray-300 border-transparent"
-							}`}
+							onClick={() => setActivityExpanded((v) => !v)}
+							className="flex items-center w-full gap-1.5 px-[18px] py-3.5"
 						>
-							<GitBranch size={11} /> Diff
+							<span className="text-[11px] font-semibold text-[#8888a0] tracking-[0.3px] flex-1 text-left">Activity</span>
+							<ChevronRight size={14} className={`text-[#4a4a5a] transition-transform duration-150 ${activityExpanded ? "rotate-90" : ""}`} />
 						</button>
-					)}
-					<button
-						onClick={() => setRightTab("comments")}
-						className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-b-2 ${
-							rightTab === "comments"
-								? "text-gray-100 border-blue-500"
-								: "text-gray-500 hover:text-gray-300 border-transparent"
-						}`}
-					>
-						Comments{commentCount > 0 ? ` (${commentCount})` : ""}
-					</button>
+						{activityExpanded && (
+							<div className="px-[18px] pb-3 max-h-48 overflow-y-auto">
+								{!card.activityLog?.length ? (
+									<p className="text-xs text-[#4a4a5a] py-2">No activity yet</p>
+								) : (
+									<div className="space-y-1.5">
+										{card.activityLog.map((entry, i) => (
+											<div key={i} className="flex items-baseline gap-2 text-xs">
+												<span className="text-[#4a4a5a] shrink-0 tabular-nums">
+													{new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+												</span>
+												<span className="text-[#8888a0]">{entry.message}</span>
+											</div>
+										))}
+									</div>
+								)}
+							</div>
+						)}
+					</div>
 				</div>
-
-				{/* Terminal view */}
-				{rightTab === "terminal" &&
-					(hasTerminalOutput ? (
-						<TaskTerminal key={activeStreamId} taskId={activeStreamId} workspaceId={workspaceId} className="flex-1" />
-					) : (
-						<div className="flex-1 flex items-center justify-center flex-col gap-3 text-gray-600">
-							<span className="text-4xl">⌨</span>
-							<p className="text-sm">No agent output yet</p>
-							<p className="text-xs">Start the agent to see terminal output here</p>
-						</div>
-					))}
-
-				{/* Diff view */}
-				{rightTab === "diff" && (
-					<DiffView
-						workspaceId={workspaceId}
-						cardId={card.id}
-						isReadyForReview={isReadyForReview}
-						onRefresh={onRefresh}
-					/>
-				)}
-
-				{/* Comments view */}
-				{rightTab === "comments" && (
-					<ChatComments
-						card={card}
-						workspaceId={workspaceId}
-						allCards={allCards}
-						workflowSlots={workflowSlots}
-						onRefresh={onRefresh}
-					/>
-				)}
 			</div>
+
+			{/* attempt count hint in bottom bar only when retries exist */}
+			{card.autoFixAttempts > 0 && (
+				<div className="flex items-center gap-2.5 px-6 py-2 border-t border-[#2a2a35] bg-[#141418] shrink-0">
+					<span className="text-[10px] text-[#4a4a5a]">Attempt {card.autoFixAttempts + 1}</span>
+				</div>
+			)}
 		</div>
 	);
 }

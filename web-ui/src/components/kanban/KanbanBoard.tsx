@@ -295,6 +295,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
 							state.projectConfig.workflows[0]
 						)?.slots
 					}
+					projectName={projectName}
 					onClose={closeCard}
 					onRefresh={onRefresh}
 					onDeleteCard={onDeleteCard}
