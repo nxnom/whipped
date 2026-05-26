@@ -314,6 +314,20 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 
 							<div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl p-4">
 								<div>
+									<p className="text-sm font-medium text-gray-100">Auto commit</p>
+									<p className="text-xs text-gray-500 mt-0.5">
+										Automatically commit any pending changes when merging or creating a PR. When off, you will be asked
+										for a commit message if there are uncommitted changes.
+									</p>
+								</div>
+								<Switch
+									checked={config.autoCommit ?? true}
+									onChange={(v) => updateConfig({ ...config, autoCommit: v })}
+								/>
+							</div>
+
+							<div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl p-4">
+								<div>
 									<p className="text-sm font-medium text-gray-100">Max parallel tasks</p>
 									<p className="text-xs text-gray-500 mt-0.5">
 										Max tasks in <span className="text-blue-400">In Progress</span> at once. Overrides the global

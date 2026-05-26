@@ -23,9 +23,10 @@ import {
 	abortMerge,
 	attemptMerge,
 	closePR,
-	commitIfDirty,
+	commitWorktree,
 	createGithubPR,
 	finalizeMerge,
+	isWorktreeDirty,
 	listLocalBranches,
 	pushBranch,
 } from "../git/merge-operations.js";
@@ -334,7 +335,7 @@ export const appRouter = router({
 		}),
 
 		commitAndMerge: publicProcedure
-			.input(z.object({ workspaceId: z.string(), cardId: z.string() }))
+			.input(z.object({ workspaceId: z.string(), cardId: z.string(), commitMessage: z.string().optional() }))
 			.mutation(async ({ ctx, input }) => {
 				const { workspaceId, cardId } = input;
 				const workspaces = await listWorkspaces();
@@ -351,9 +352,15 @@ export const appRouter = router({
 				const worktreePath = getWorktreePath(cardId);
 				const taskBranch = getCardBranch(card);
 
-				// Safety-net commit only fires when the agent left the worktree dirty.
-				// Prefer the agent-written PR title (follows project git conventions).
-				await commitIfDirty(worktreePath, card.pr?.title ?? card.title);
+				const mergeConfig = await loadProjectConfig(workspaceId);
+
+				const dirty = await isWorktreeDirty(worktreePath);
+				if (dirty) {
+					if (!input.commitMessage) {
+						return { status: "needs_commit" as const };
+					}
+					await commitWorktree(worktreePath, input.commitMessage);
+				}
 
 				let mergeResult: ReturnType<typeof attemptMerge>;
 				try {
@@ -362,8 +369,7 @@ export const appRouter = router({
 					throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: String(err) });
 				}
 
-				const mergeProjectConfig = await loadProjectConfig(workspaceId);
-				const mergeGithubToken = mergeProjectConfig.secrets?.find((s) => s.key === "GITHUB_TOKEN")?.value;
+				const mergeGithubToken = mergeConfig.secrets?.find((s) => s.key === "GITHUB_TOKEN")?.value;
 
 				if (mergeResult.ok) {
 					if (card.pr?.url && mergeGithubToken) {
@@ -423,7 +429,7 @@ export const appRouter = router({
 			}),
 
 		commitAndPR: publicProcedure
-			.input(z.object({ workspaceId: z.string(), cardId: z.string() }))
+			.input(z.object({ workspaceId: z.string(), cardId: z.string(), commitMessage: z.string().optional() }))
 			.mutation(async ({ ctx, input }) => {
 				const { workspaceId, cardId } = input;
 				const workspaces = await listWorkspaces();
@@ -447,9 +453,13 @@ export const appRouter = router({
 				const worktreePath = getWorktreePath(cardId);
 				const taskBranch = getCardBranch(card);
 
-				// Safety-net commit only fires when the agent left the worktree dirty.
-				// Prefer the agent-written PR title (follows project git conventions).
-				await commitIfDirty(worktreePath, card.pr?.title ?? card.title);
+				const dirty = await isWorktreeDirty(worktreePath);
+				if (dirty) {
+					if (!input.commitMessage) {
+						return { status: "needs_commit" as const };
+					}
+					await commitWorktree(worktreePath, input.commitMessage);
+				}
 
 				try {
 					await pushBranch(worktreePath, taskBranch);

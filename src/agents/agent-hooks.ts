@@ -139,7 +139,7 @@ export async function writeOpencodeFiles(
 	if (opts.appendSystemPrompt) systemParts.push(opts.appendSystemPrompt);
 	// Tell the agent about the task_complete tool so it knows to call it when done.
 	systemParts.push(
-		"When you have finished all your work (committed, set PR metadata, and added your dev comment), call the `task_complete` tool to signal completion.",
+		"When you have finished all your work (set PR metadata, and added your dev comment), call the `task_complete` tool to signal completion.",
 	);
 
 	const systemTransformHook = `\n    "experimental.chat.system.transform": async (_input, output) => {\n      ${systemParts.map((p) => `output.system.push(${JSON.stringify(p)})`).join("\n      ")}\n    },`;
@@ -153,7 +153,7 @@ export const OveremployedPlugin: Plugin = async () => {
   return {${systemTransformHook}
     tool: {
       task_complete: tool({
-        description: "Signal that you have finished all work on this task. Call this after committing, setting PR metadata with kanban_set_pr_meta, and adding your summary with kanban_add_comment.",
+        description: "Signal that you have finished all work on this task. Call this after completing all code changes, setting PR metadata with kanban_set_pr_meta, and adding your summary with kanban_add_comment.",
         args: {},
         execute: async (_args, _ctx) => {
           const taskId = process.env.${HOOK_TASK_ID_ENV}

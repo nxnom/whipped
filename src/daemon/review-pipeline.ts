@@ -599,6 +599,7 @@ export function buildDevAgentSystemPrompt(
 	parentCards: RuntimeBoardCard[] = [],
 	systemPrompt?: string,
 	gitInstructions?: string,
+	autoCommit = true,
 ): { text: string; files: string[] } {
 	const effectiveGitInstructions = gitInstructions?.trim() || DEFAULT_GIT_INSTRUCTIONS;
 	const priorPr = card.pr;
@@ -641,6 +642,10 @@ export function buildDevAgentSystemPrompt(
 		}
 	}
 
+	const commitInstruction = autoCommit
+		? `1. Commit all changes. Write the commit message following the project's git conventions (see "## Git conventions" below) — do not use a hard-coded template like the task title.`
+		: `1. Do NOT commit your changes. Leave all changes uncommitted in the worktree — the user will review and commit manually when they trigger Merge or Create PR.`;
+
 	parts.push(`You are an autonomous coding agent working on a Kanban task.
 
 Work autonomously without asking for permission or confirmation. You have full access to the codebase in your current working directory. Your worktree is branched off \`${card.baseRef}\`.
@@ -648,7 +653,7 @@ Work autonomously without asking for permission or confirmation. You have full a
 If there are prior review comments above with issues listed, you MUST address ALL of them before finishing — including info-level ones. Do not skip any issue regardless of severity.
 
 When you finish your work:
-1. Commit all changes. Write the commit message following the project's git conventions (see "## Git conventions" below) — do not use a hard-coded template like the task title.
+${commitInstruction}
 2. Call the \`kanban_set_pr_meta\` MCP tool with:
    - cardId: "${card.id}"
    - title: PR title following the git conventions below

@@ -31,14 +31,23 @@ function getGithubRemote(cwd: string): { owner: string; repo: string } | null {
 	return { owner: match[1]!, repo: match[2]! };
 }
 
-export async function commitIfDirty(worktreePath: string, message: string): Promise<boolean> {
+export async function isWorktreeDirty(worktreePath: string): Promise<boolean> {
 	const statusResult = await execFileAsync("git", ["status", "--porcelain"], {
 		cwd: worktreePath,
 		encoding: "utf-8",
 	}).catch(() => null);
-	if (!statusResult?.stdout?.trim()) return false;
+	return !!statusResult?.stdout?.trim();
+}
+
+export async function commitWorktree(worktreePath: string, message: string): Promise<void> {
 	await execFileAsync("git", ["add", "-A"], { cwd: worktreePath }).catch(() => {});
 	await execFileAsync("git", ["commit", "-m", message], { cwd: worktreePath }).catch(() => {});
+}
+
+export async function commitIfDirty(worktreePath: string, message: string): Promise<boolean> {
+	const dirty = await isWorktreeDirty(worktreePath);
+	if (!dirty) return false;
+	await commitWorktree(worktreePath, message);
 	return true;
 }
 

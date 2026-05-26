@@ -767,7 +767,7 @@ server.registerTool(
 	"task_complete",
 	{
 		description:
-			"Signal that you have finished all work on this task. Call this ONLY after you have committed all changes, called kanban_set_pr_meta, and called kanban_add_comment with your final status. This terminates the agent session.",
+			"Signal that you have finished all work on this task. Call this ONLY after you have completed all code changes, called kanban_set_pr_meta, and called kanban_add_comment with your final status. This terminates the agent session.",
 		inputSchema: {},
 	},
 	async () => {

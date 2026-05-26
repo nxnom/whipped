@@ -1,4 +1,4 @@
-import { Button, ConfirmDialog, Input, Tooltip, toast } from "@geckoui/geckoui";
+import { Button, ConfirmDialog, Dialog, Input, Tooltip, toast } from "@geckoui/geckoui";
 import type { RuntimeBoardCard, WorkflowSlot } from "@runtime-contract";
 import {
 	ArrowLeft,
@@ -108,6 +108,51 @@ function DescAttachment({ path, name, mimeType }: { path: string; name: string; 
 			<Paperclip size={11} className="shrink-0" />
 			{name}
 		</a>
+	);
+}
+
+function CommitMsgDialog({
+	dismiss,
+	action,
+	onSubmit,
+}: {
+	dismiss: () => void;
+	action: "merge" | "pr";
+	onSubmit: (msg: string) => void;
+}) {
+	const [msg, setMsg] = useState("");
+	const handleSubmit = () => {
+		if (!msg.trim()) return;
+		dismiss();
+		onSubmit(msg.trim());
+	};
+	return (
+		<div className="space-y-4">
+			<div>
+				<h3 className="text-base font-semibold text-gray-100">Commit pending changes</h3>
+				<p className="text-sm text-gray-400 mt-1">
+					There are uncommitted changes. Enter a commit message to proceed.
+				</p>
+			</div>
+			<Input
+				placeholder="Commit message"
+				value={msg}
+				onChange={(e) => setMsg(e.target.value)}
+				onKeyDown={(e) => {
+					if (e.key === "Enter") handleSubmit();
+					if (e.key === "Escape") dismiss();
+				}}
+				autoFocus
+			/>
+			<div className="flex justify-end gap-2">
+				<Button variant="outlined" size="sm" onClick={dismiss}>
+					Cancel
+				</Button>
+				<Button size="sm" onClick={handleSubmit} disabled={!msg.trim()}>
+					{action === "merge" ? "Commit & Merge" : "Commit & Create PR"}
+				</Button>
+			</div>
+		</div>
 	);
 }
 
@@ -239,6 +284,61 @@ export function CardDetailPanel({
 		});
 	};
 
+	const showCommitMsgDialog = (onSubmit: (msg: string) => void, action: "merge" | "pr") => {
+		setTimeout(() => {
+			Dialog.show({
+				className: "max-w-md w-full",
+				dismissOnOutsideClick: true,
+				content: ({ dismiss }) => <CommitMsgDialog dismiss={dismiss} action={action} onSubmit={onSubmit} />,
+			});
+		}, 400);
+	};
+
+	const doMerge = async (commitMessage?: string) => {
+		setMerging(true);
+		try {
+			const result = await trpc.cards.commitAndMerge.mutate({ workspaceId, cardId: card.id, commitMessage });
+			if (result.status === "needs_commit") {
+				showCommitMsgDialog((msg) => doMerge(msg), "merge");
+				return;
+			}
+			if (result.status === "merged") {
+				toast.success(`Merged into ${card.baseRef}`);
+				onRefresh();
+				onClose();
+			} else {
+				toast.success("Merge conflicts detected — resolving with AI agent...");
+				onRefresh();
+			}
+		} catch (err: unknown) {
+			toast.error(`Merge failed: ${err instanceof Error ? err.message : String(err)}`);
+		} finally {
+			setMerging(false);
+		}
+	};
+
+	const doPR = async (commitMessage?: string) => {
+		setCreatingPR(true);
+		try {
+			const result = await trpc.cards.commitAndPR.mutate({ workspaceId, cardId: card.id, commitMessage });
+			if (result.status === "needs_commit") {
+				showCommitMsgDialog((msg) => doPR(msg), "pr");
+				return;
+			}
+			if (result.status === "no_token") {
+				toast.error("GitHub token not configured — add GITHUB_TOKEN in project Settings > Secrets.");
+				return;
+			}
+			toast.success("PR created");
+			window.open(result.prUrl, "_blank");
+			onRefresh();
+		} catch (err: unknown) {
+			toast.error(`PR creation failed: ${err instanceof Error ? err.message : String(err)}`);
+		} finally {
+			setCreatingPR(false);
+		}
+	};
+
 	const handleCommitAndMerge = () => {
 		ConfirmDialog.show({
 			title: `Merge into ${card.baseRef}?`,
@@ -247,22 +347,7 @@ export function CardDetailPanel({
 			cancelButtonLabel: "Cancel",
 			onConfirm: async ({ dismiss }) => {
 				dismiss();
-				setMerging(true);
-				try {
-					const result = await trpc.cards.commitAndMerge.mutate({ workspaceId, cardId: card.id });
-					if (result.status === "merged") {
-						toast.success(`Merged into ${card.baseRef}`);
-						onRefresh();
-						onClose();
-					} else {
-						toast.success("Merge conflicts detected — resolving with AI agent...");
-						onRefresh();
-					}
-				} catch (err: unknown) {
-					toast.error(`Merge failed: ${err instanceof Error ? err.message : String(err)}`);
-				} finally {
-					setMerging(false);
-				}
+				await doMerge();
 			},
 			onCancel: ({ dismiss }) => dismiss(),
 		});
@@ -276,21 +361,7 @@ export function CardDetailPanel({
 			cancelButtonLabel: "Cancel",
 			onConfirm: async ({ dismiss }) => {
 				dismiss();
-				setCreatingPR(true);
-				try {
-					const result = await trpc.cards.commitAndPR.mutate({ workspaceId, cardId: card.id });
-					if (result.status === "no_token") {
-						toast.error("GitHub token not configured — add GITHUB_TOKEN in project Settings > Secrets.");
-						return;
-					}
-					toast.success("PR created");
-					window.open(result.prUrl, "_blank");
-					onRefresh();
-				} catch (err: unknown) {
-					toast.error(`PR creation failed: ${err instanceof Error ? err.message : String(err)}`);
-				} finally {
-					setCreatingPR(false);
-				}
+				await doPR();
 			},
 			onCancel: ({ dismiss }) => dismiss(),
 		});

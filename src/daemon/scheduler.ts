@@ -31,7 +31,7 @@ import {
 	type WorkflowSlot,
 } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
-import { commitIfDirty, pushBranch } from "../git/merge-operations.js";
+import { pushBranch } from "../git/merge-operations.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import {
 	appendActivityLog,
@@ -417,6 +417,7 @@ export class TaskScheduler {
 				parentCards,
 				projectConfig.systemPrompt,
 				projectConfig.gitInstructions,
+				projectConfig.autoCommit ?? true,
 			);
 			const secretsEnv = buildSecretsEnv(secrets);
 
@@ -825,8 +826,6 @@ export class TaskScheduler {
 				if (card.pr?.url) {
 					const worktreePath = getWorktreePath(taskId);
 					const taskBranch = getCardBranch(card);
-					// Safety-net commit; prefer agent-written PR title over raw card title.
-					await commitIfDirty(worktreePath, card.pr?.title ?? card.title);
 					await pushBranch(worktreePath, taskBranch).then(
 						() => appendActivityLog(workspaceId, taskId, `Pushed to PR`),
 						(err: Error) => appendActivityLog(workspaceId, taskId, `Push failed: ${err.message}`),
