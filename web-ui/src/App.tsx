@@ -9,7 +9,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ProjectsSidebar } from "@/components/ProjectsSidebar";
 import { RunBar } from "@/components/RunBar";
 import { BoardPage } from "@/pages/Board";
-import { SettingsPage } from "@/pages/Settings";
+import { SettingsPage } from "@/pages/settings";
 import { trpc } from "@/runtime/trpc-client";
 
 export default function App() {
@@ -134,6 +134,7 @@ export default function App() {
 										}
 									/>
 									<Route path="/:workspaceId/settings" element={<SettingsPage />} />
+									<Route path="/:workspaceId/settings/:section" element={<SettingsPage />} />
 									<Route path="*" element={noProjectState} />
 								</Routes>
 							</ErrorBoundary>
