@@ -388,7 +388,20 @@ function ProjectSettings({ workspaceId, section }: { workspaceId: string; sectio
 					<SecretsSection
 						secrets={config.secrets ?? []}
 						onChange={(secrets) => updateConfig({ ...config, secrets })}
-						onSave={handleSave}
+						onSave={async (secrets) => {
+							const next = { ...config, secrets };
+							updateConfig(next);
+							setSaving(true);
+							try {
+								await trpc.projectConfig.save.mutate({ workspaceId, config: next });
+								isDirtyRef.current = false;
+								toast.success("Secrets saved");
+							} catch {
+								toast.error("Failed to save secrets");
+							} finally {
+								setSaving(false);
+							}
+						}}
 						saving={saving}
 					/>
 				)}
@@ -1693,7 +1706,7 @@ function SecretsSection({
 }: {
 	secrets: RuntimeProjectSecret[];
 	onChange: (secrets: RuntimeProjectSecret[]) => void;
-	onSave: () => void;
+	onSave: (secrets: RuntimeProjectSecret[]) => void;
 	saving: boolean;
 }) {
 	const [revealed, setRevealed] = useState<Set<string>>(new Set());
@@ -1720,17 +1733,20 @@ function SecretsSection({
 		});
 	};
 
-	const applyEnvText = () => {
-		const parsed = parseEnvText(envText);
-		if (parsed.length === 0) return;
-		const merged = [...allSecrets];
-		for (const { key, value } of parsed) {
-			const idx = merged.findIndex((s) => s.key === key);
-			if (idx !== -1) merged[idx] = { key, value };
-			else merged.push({ key, value });
+	const handleSave = () => {
+		let toSave = allSecrets;
+		if (envText.trim()) {
+			const parsed = parseEnvText(envText);
+			const merged = [...allSecrets];
+			for (const { key, value } of parsed) {
+				const idx = merged.findIndex((s) => s.key === key);
+				if (idx !== -1) merged[idx] = { key, value };
+				else merged.push({ key, value });
+			}
+			toSave = merged;
+			setEnvText("");
 		}
-		onChange(merged);
-		setEnvText("");
+		onSave(toSave);
 	};
 
 	return (
@@ -1789,8 +1805,6 @@ function SecretsSection({
 				})}
 			</div>
 
-			<SaveRow saving={saving} onSave={onSave} />
-
 			{/* Paste .env */}
 			<div className="border-t border-gray-800 pt-4 space-y-2">
 				<p className="text-xs text-gray-400">
@@ -1803,13 +1817,9 @@ function SecretsSection({
 					rows={4}
 					className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2.5 text-xs font-mono text-gray-300 placeholder-gray-700 focus:outline-none focus:border-gray-600 resize-none"
 				/>
-				<div className="flex justify-end">
-					<Button variant="outlined" size="sm" onClick={applyEnvText} disabled={!envText.trim()}>
-						<Plus size={12} className="mr-1" />
-						Apply
-					</Button>
-				</div>
 			</div>
+
+			<SaveRow saving={saving} onSave={handleSave} />
 		</>
 	);
 }
