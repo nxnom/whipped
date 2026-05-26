@@ -38,6 +38,13 @@ const AGENT_LABELS: Record<string, string> = {
 	codex: "Codex",
 };
 
+const AGENT_COLORS: Record<string, { dot: string; text: string; bg: string }> = {
+	claude: { dot: "bg-[#7c6aff]", text: "text-[#7c6aff]", bg: "bg-[#7c6aff]/10" },
+	codex: { dot: "bg-[#22c55e]", text: "text-[#22c55e]", bg: "bg-[#22c55e]/10" },
+	cursor: { dot: "bg-[#3b82f6]", text: "text-[#3b82f6]", bg: "bg-[#3b82f6]/10" },
+	opencode: { dot: "bg-[#f97316]", text: "text-[#f97316]", bg: "bg-[#f97316]/10" },
+};
+
 const PRIORITY_STYLES: Record<string, string> = {
 	urgent: "text-red-400 bg-red-400/10",
 	high: "text-orange-400 bg-orange-400/10",
@@ -83,8 +90,11 @@ export function KanbanCard({
 	const borderClass = (snapshot_isDragging: boolean) => {
 		if (snapshot_isDragging) return "border-blue-500 shadow-lg shadow-blue-500/20 rotate-1";
 		if (isStory) return "border-purple-800";
+		if ((card.columnId === "in_progress" || card.columnId === "reopened" || card.columnId === "ready_for_review") && isRunning) {
+			return "border-[#3b82f6] shadow-[0_0_10px_rgba(59,130,246,0.15)]";
+		}
 		if (card.columnId === "todo" && card.readyForDev) return "border-emerald-500/50";
-		return "border-gray-700";
+		return "border-[#2a2a35]";
 	};
 
 	return (
@@ -97,8 +107,8 @@ export function KanbanCard({
 					className={`
 						border rounded-lg overflow-hidden select-none
 						transition-all duration-150
-						${isStory ? "bg-purple-950/30 hover:border-purple-700" : "bg-gray-800 hover:border-gray-500"}
-						${borderClass(snapshot.isDragging)}
+						${isStory ? "bg-purple-950/30 hover:border-purple-700" : "bg-[#1a1a1f] hover:border-gray-600"}
+					group ${borderClass(snapshot.isDragging)}
 					`}
 				>
 					<div onClick={onClick} className="p-3 cursor-pointer">
@@ -130,7 +140,7 @@ export function KanbanCard({
 										{metDeps.length}/{deps.length}
 									</span>
 								</div>
-								<div className="h-1 bg-gray-700 rounded-full overflow-hidden">
+								<div className="h-1 bg-[#2a2a35] rounded-full overflow-hidden">
 									<div
 										className="h-full bg-purple-500 rounded-full transition-all"
 										style={{ width: `${deps.length > 0 ? (metDeps.length / deps.length) * 100 : 0}%` }}
@@ -141,7 +151,7 @@ export function KanbanCard({
 
 						<div className="mt-2.5 flex items-center gap-2 flex-wrap">
 							{isSubtask && (
-								<span className="text-[10px] text-gray-500 bg-gray-700/50 rounded px-1.5 py-0.5 font-medium">
+								<span className="text-[10px] text-gray-500 bg-[#2a2a35] rounded px-1.5 py-0.5 font-medium">
 									subtask
 								</span>
 							)}
@@ -158,18 +168,21 @@ export function KanbanCard({
 							)}
 							{!isStory && deps.length > 0 && (
 								<span
-									className={`flex items-center gap-1 text-xs rounded px-1.5 py-0.5 font-medium ${allDepsMet ? "text-gray-400 bg-gray-700" : "text-orange-400 bg-orange-400/10"}`}
+									className={`flex items-center gap-1 text-xs rounded px-1.5 py-0.5 font-medium ${allDepsMet ? "text-[#8888a0] bg-[#2a2a35]" : "text-orange-400 bg-orange-400/10"}`}
 								>
 									<Link2 size={10} />
 									{metDeps.length}/{deps.length}
 								</span>
 							)}
-							{agentLabel && (
-								<span className="flex items-center gap-1 text-xs text-gray-400 bg-gray-700 rounded px-1.5 py-0.5">
-									<Bot size={10} />
-									{agentLabel}
-								</span>
-							)}
+							{card.agentId && (() => {
+								const ac = AGENT_COLORS[card.agentId!] ?? { dot: "bg-gray-500", text: "text-gray-400", bg: "bg-gray-500/10" };
+								return (
+									<span className={`flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full ${ac.bg} ${ac.text}`}>
+										<span className={`size-[5px] rounded-full ${ac.dot}`} />
+										{card.agentId}
+									</span>
+								);
+							})()}
 							{workflowName && (
 								<span
 									className={`flex items-center gap-1 text-xs rounded px-1.5 py-0.5 ${isStory ? "text-purple-400 bg-purple-400/10" : "text-purple-400 bg-purple-400/10"}`}
@@ -221,10 +234,16 @@ export function KanbanCard({
 								<span className={`text-xs ml-auto ${sessionColor}`}>running</span>
 							)}
 						</div>
+						{card.branchName && (
+							<div className="mt-1.5 flex items-center gap-1">
+								<GitBranch size={9} className="text-gray-600 shrink-0" />
+								<span className="text-[10px] text-gray-600 font-mono truncate">{card.branchName}</span>
+							</div>
+						)}
 					</div>
-					{/* Action bar — always visible at bottom */}
+					{/* Action bar — hidden by default, visible on group-hover */}
 					<div
-						className="px-3 pb-2 border-t border-gray-700/60 flex items-center gap-0.5 pt-1.5"
+						className="px-3 pb-2 border-t border-[#2a2a35] flex items-center gap-0.5 pt-1.5"
 						onClick={(e) => e.stopPropagation()}
 					>
 						{isRunningNow ? (
@@ -233,7 +252,7 @@ export function KanbanCard({
 									e.stopPropagation();
 									onStop?.();
 								}}
-								className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-red-400 hover:bg-gray-700 transition-colors cursor-pointer"
+								className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-red-400 hover:bg-[#252530] transition-colors cursor-pointer"
 								title="Stop running"
 							>
 								<Square size={13} className="fill-current" />
@@ -245,7 +264,7 @@ export function KanbanCard({
 									e.stopPropagation();
 									onRun?.();
 								}}
-								className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-gray-500 hover:text-emerald-400 hover:bg-gray-700 transition-colors cursor-pointer"
+								className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-gray-500 hover:text-emerald-400 hover:bg-[#252530] transition-colors cursor-pointer"
 								title="Run ticket"
 							>
 								<Play size={13} />
@@ -258,7 +277,7 @@ export function KanbanCard({
 									e.stopPropagation();
 									onToggleReady();
 								}}
-								className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs transition-colors cursor-pointer ${card.readyForDev ? "text-emerald-400 hover:text-gray-400 hover:bg-gray-700" : "text-gray-500 hover:text-emerald-400 hover:bg-gray-700"}`}
+								className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs transition-colors cursor-pointer ${card.readyForDev ? "text-emerald-400 hover:text-gray-400 hover:bg-[#252530]" : "text-gray-500 hover:text-emerald-400 hover:bg-[#252530]"}`}
 								title={card.readyForDev ? "Unmark as ready" : "Mark as ready for agent"}
 							>
 								<Zap size={13} />
@@ -270,7 +289,7 @@ export function KanbanCard({
 									e.stopPropagation();
 									trpc.fs.openPath.mutate({ path: card.worktreePath! });
 								}}
-								className="px-2.5 py-1.5 rounded text-xs text-gray-500 hover:text-blue-400 hover:bg-gray-700 transition-colors cursor-pointer"
+								className="px-2.5 py-1.5 rounded text-xs text-gray-500 hover:text-blue-400 hover:bg-[#252530] transition-colors cursor-pointer"
 								title="Open worktree folder"
 							>
 								<FolderOpen size={13} />
@@ -283,7 +302,7 @@ export function KanbanCard({
 									e.stopPropagation();
 									onEdit();
 								}}
-								className="px-2.5 py-1.5 rounded text-xs text-gray-500 hover:text-gray-200 hover:bg-gray-700 transition-colors cursor-pointer"
+								className="px-2.5 py-1.5 rounded text-xs text-gray-500 hover:text-gray-200 hover:bg-[#252530] transition-colors cursor-pointer"
 								title={isStory ? "Edit story" : "Edit task"}
 							>
 								<Pencil size={13} />
@@ -295,7 +314,7 @@ export function KanbanCard({
 									e.stopPropagation();
 									onDelete();
 								}}
-								className="px-2.5 py-1.5 rounded text-xs text-gray-500 hover:text-red-400 hover:bg-gray-700 transition-colors cursor-pointer"
+								className="px-2.5 py-1.5 rounded text-xs text-gray-500 hover:text-red-400 hover:bg-[#252530] transition-colors cursor-pointer"
 								title="Delete"
 							>
 								<Trash2 size={13} />

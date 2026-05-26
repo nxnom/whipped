@@ -1,5 +1,5 @@
 import { toast } from "@geckoui/geckoui";
-import { ChevronDown, ChevronUp, Square } from "lucide-react";
+import { Square, Terminal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { RunTerminal } from "@/components/terminal/RunTerminal";
 import { trpc } from "@/runtime/trpc-client";
@@ -13,15 +13,21 @@ export function RunBar({ workspaceId }: RunBarProps) {
 	const { session, stop } = useRunSession(workspaceId);
 	const [expanded, setExpanded] = useState(true);
 	const [cardTitle, setCardTitle] = useState<string | null>(null);
+	const [cardAgentId, setCardAgentId] = useState<string | null>(null);
 
 	useEffect(() => {
 		if (!session.cardId) {
 			setCardTitle(null);
+			setCardAgentId(null);
 			return;
 		}
 		trpc.workspace.state
 			.query({ workspaceId })
-			.then((s) => setCardTitle(s.board.cards[session.cardId!]?.title ?? session.cardId!))
+			.then((s) => {
+				const card = s.board.cards[session.cardId!];
+				setCardTitle(card?.title ?? session.cardId!);
+				setCardAgentId(card?.agentId ?? null);
+			})
 			.catch(() => setCardTitle(session.cardId));
 	}, [session.cardId, workspaceId]);
 
@@ -53,35 +59,51 @@ export function RunBar({ workspaceId }: RunBarProps) {
 	const statusLabel = session.status === "running" ? "Running" : session.status === "error" ? "Crashed" : "Stopped";
 
 	return (
-		<div className="shrink-0 border-t border-gray-800 bg-gray-950 flex flex-col">
-			{/* Bar header */}
-			<div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-800/60">
-				{statusDot}
-				<span className="text-xs font-medium text-gray-300 truncate flex-1">
-					{statusLabel}: <span className="text-gray-400">{title}</span>
-				</span>
+		<div className="shrink-0 border-t border-[#2a2a35] bg-[#141418] flex flex-col">
+			<div className="flex items-center gap-2.5 px-5 py-2">
+				<div className="flex items-center gap-1.5 shrink-0">
+					{statusDot}
+					<span className={`text-[11px] font-semibold ${session.status === "running" ? "text-blue-400" : session.status === "error" ? "text-red-400" : "text-gray-500"}`}>
+						{statusLabel}
+					</span>
+				</div>
+				<div className="w-px h-4 bg-[#2a2a35] shrink-0" />
+				<span className="text-[11px] font-medium text-[#f0f0f5] truncate flex-1 min-w-0">{title}</span>
+				{cardAgentId && (() => {
+					const colors: Record<string, { dot: string; text: string; bg: string }> = {
+						claude: { dot: "bg-[#7c6aff]", text: "text-[#7c6aff]", bg: "bg-[#7c6aff]/10" },
+						codex: { dot: "bg-[#22c55e]", text: "text-[#22c55e]", bg: "bg-[#22c55e]/10" },
+						cursor: { dot: "bg-[#3b82f6]", text: "text-[#3b82f6]", bg: "bg-[#3b82f6]/10" },
+						opencode: { dot: "bg-[#f97316]", text: "text-[#f97316]", bg: "bg-[#f97316]/10" },
+					};
+					const ac = colors[cardAgentId] ?? { dot: "bg-gray-500", text: "text-gray-400", bg: "bg-gray-500/10" };
+					return (
+						<span className={`flex items-center gap-1 text-[9px] font-medium px-2 py-1 rounded-full shrink-0 ${ac.bg} ${ac.text}`}>
+							<span className={`size-[5px] rounded-full ${ac.dot}`} />
+							{cardAgentId}
+						</span>
+					);
+				})()}
 				{session.status === "error" && session.errorMessage && (
-					<span className="text-xs text-red-400 truncate max-w-xs">{session.errorMessage}</span>
-				)}
-				{session.status === "running" && (
-					<button
-						onClick={handleStop}
-						title="Stop"
-						className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-red-400 hover:bg-red-400/10 border border-red-400/20 transition-colors"
-					>
-						<Square size={10} className="fill-current" /> Stop
-					</button>
+					<span className="text-[11px] text-red-400 truncate max-w-xs shrink-0">{session.errorMessage}</span>
 				)}
 				<button
 					onClick={() => setExpanded((v) => !v)}
-					className="p-0.5 rounded text-gray-500 hover:text-gray-300 transition-colors"
-					title={expanded ? "Collapse" : "Expand"}
+					className="flex items-center gap-1 text-[11px] text-gray-600 hover:text-gray-400 transition-colors shrink-0"
 				>
-					{expanded ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+					<Terminal size={13} />
+					{expanded ? "Hide Terminal" : "Show Terminal"}
 				</button>
+				{session.status === "running" && (
+					<button
+						onClick={handleStop}
+						className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-[#ef4444] text-[11px] font-medium text-white hover:bg-red-500 transition-colors shrink-0"
+					>
+						<Square size={10} className="fill-current" />
+						Stop
+					</button>
+				)}
 			</div>
-
-			{/* Terminal output */}
 			{expanded && <RunTerminal key={workspaceId} workspaceId={workspaceId} className="h-48" />}
 		</div>
 	);

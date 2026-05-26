@@ -6,7 +6,7 @@ import type {
 	RuntimeWorkspaceStateResponse,
 	Workflow,
 } from "@runtime-contract";
-import { Bot, Layers, Paperclip, Play, Plus, Settings, Square, X } from "lucide-react";
+import { ChevronDown, GitBranch, Layers, MessageSquare, Paperclip, Play, Plus, Settings, Square, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { BranchSelect } from "@/components/BranchSelect";
@@ -23,11 +23,12 @@ interface KanbanBoardProps {
 	onDeleteCard: (cardId: string) => void;
 	onOpenSettings: () => void;
 	onOpenAgent: () => void;
+	projectName?: string;
 }
 
 const DIALOG_CLASS = "w-full";
 
-export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, onOpenAgent }: KanbanBoardProps) {
+export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, onOpenAgent, projectName }: KanbanBoardProps) {
 	const navigate = useNavigate();
 	const { workspaceId: urlWorkspaceId, cardId: detailCardId } = useParams<{ workspaceId: string; cardId?: string }>();
 	const workspaceId = urlWorkspaceId!;
@@ -60,6 +61,14 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
 	};
 	const detailCard = detailCardId ? (state.board.cards[detailCardId] ?? null) : null;
 	const [storyDrawerOpen, setStoryDrawerOpen] = useState(false);
+	const [currentBranch, setCurrentBranch] = useState<string>("");
+
+	useEffect(() => {
+		trpc.cards.listBranches
+			.query({ workspaceId })
+			.then(({ defaultBranch }) => setCurrentBranch(defaultBranch))
+			.catch(() => {});
+	}, [workspaceId]);
 
 	const openCard = (id: string) =>
 		navigate(`/${encodeURIComponent(workspaceId)}/board/${encodeURIComponent(id)}`, { replace: true });
@@ -192,65 +201,82 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
 
 	return (
 		<div className="flex-1 overflow-hidden flex flex-col relative">
-			<div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
-				<h2 className="text-sm font-medium text-gray-300">Board</h2>
-				<div className="flex items-center gap-2">
-					<Button size="sm" variant="ghost" onClick={handleMoveAllToReady}>
-						Todo → Ready
-					</Button>
-					<Button size="sm" variant="ghost" onClick={() => setStoryDrawerOpen(true)}>
-						<Layers size={13} className="mr-1" /> New story
-					</Button>
-					<Button size="sm" variant="outlined" onClick={openCreateDialog}>
-						<Plus size={13} className="mr-1" /> New task
-					</Button>
-					{runSession.status === "running" && runSession.cardId === null ? (
-						<Button size="sm" variant="ghost" onClick={handleStop} title="Stop">
-							<Square size={12} className="fill-current text-red-400 mr-1" /> Stop
-						</Button>
-					) : (
-						<Button
-							size="sm"
-							variant="ghost"
-							onClick={handleRunBase}
-							disabled={runSession.status === "running"}
-							title="Run base repo"
-						>
-							<Play size={13} className="mr-1" /> Run
-						</Button>
-					)}
-					<Button size="sm" variant="ghost" onClick={onOpenSettings}>
-						<Settings size={14} />
-					</Button>
-					<Button size="sm" variant="ghost" onClick={onOpenAgent}>
-						<Bot size={14} />
-					</Button>
-				</div>
+			<div className="flex items-center gap-3 px-5 py-3 border-b border-[#2a2a35] shrink-0">
+				<h2 className="text-sm font-semibold text-gray-100">{projectName ?? "Board"}</h2>
+				{currentBranch && (
+					<button className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#1a1a1f] border border-[#2a2a35] text-xs text-gray-500 hover:border-[#3a3a48] transition-colors">
+						<GitBranch size={11} className="text-gray-600" />
+						<span>{currentBranch}</span>
+						<ChevronDown size={10} className="text-gray-600" />
+					</button>
+				)}
+				<div className="flex-1" />
+				<button
+					onClick={() => setStoryDrawerOpen(true)}
+					className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#1a1a1f] border border-[#2a2a35] text-xs text-gray-500 hover:border-[#3a3a48] transition-colors"
+				>
+					<Layers size={12} />
+					New Story
+				</button>
+				<button
+					onClick={openCreateDialog}
+					className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#1a1a1f] border border-[#2a2a35] text-xs text-gray-500 hover:border-[#3a3a48] transition-colors"
+				>
+					<Plus size={12} />
+					New Task
+				</button>
+				{runSession.status === "running" && runSession.cardId === null ? (
+					<button
+						onClick={handleStop}
+						className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-red-500 text-xs text-white hover:bg-red-600 transition-colors"
+					>
+						<Square size={11} className="fill-current" />
+						Stop
+					</button>
+				) : (
+					<button
+						onClick={handleRunBase}
+						disabled={runSession.status === "running"}
+						className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#7c6aff] text-xs text-white hover:bg-[#6a5ae0] disabled:opacity-50 transition-colors"
+					>
+						<Play size={11} className="fill-current" />
+						Run
+					</button>
+				)}
+				<button onClick={onOpenAgent} className="p-1.5 text-gray-600 hover:text-gray-400 transition-colors">
+					<MessageSquare size={15} />
+				</button>
+				<button onClick={onOpenSettings} className="p-1.5 text-gray-600 hover:text-gray-400 transition-colors">
+					<Settings size={15} />
+				</button>
 			</div>
 
 			<div className="flex-1 overflow-x-auto flex flex-col">
 				<DragDropContext onDragEnd={handleDragEnd}>
-					<div className="flex gap-3 p-4 flex-1 w-max">
-						{state.board.columns.map((column) => {
+					<div className="flex p-4 flex-1 w-max">
+						{state.board.columns.map((column, idx) => {
 							const cards = column.taskIds
 								.map((id) => state.board.cards[id])
 								.filter((c): c is RuntimeBoardCard => Boolean(c));
 							return (
-								<KanbanColumn
-									key={column.id}
-									column={column}
-									cards={cards}
-									allCards={state.board.cards}
-									workflows={state.projectConfig.workflows}
-									workspaceId={workspaceId}
-									runningCardId={runSession.status === "running" ? runSession.cardId : null}
-									onCardClick={(card) => openCard(card.id)}
-									onCardEdit={openEditDialog}
-									onCardDelete={handleCardDelete}
-									onCardToggleReady={handleToggleReady}
-									onCardRun={handleRun}
-									onCardStop={handleStop}
-								/>
+								<div key={column.id} className="flex">
+									{idx > 0 && <div className="w-px bg-[#2a2a35] self-stretch mx-2 shrink-0" />}
+									<KanbanColumn
+										column={column}
+										cards={cards}
+										allCards={state.board.cards}
+										workflows={state.projectConfig.workflows}
+										workspaceId={workspaceId}
+										runningCardId={runSession.status === "running" ? runSession.cardId : null}
+										onCardClick={(card) => openCard(card.id)}
+										onCardEdit={openEditDialog}
+										onCardDelete={handleCardDelete}
+										onCardToggleReady={handleToggleReady}
+										onCardRun={handleRun}
+										onCardStop={handleStop}
+										onAddCard={openCreateDialog}
+									/>
+								</div>
 							);
 						})}
 					</div>

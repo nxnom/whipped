@@ -9,9 +9,10 @@ interface Props {
 	onAutonomousChange: (v: boolean) => void;
 	onOpenSettings: () => void;
 	onOpenAgent: () => void;
+	projectName?: string;
 }
 
-export function BoardPage({ onConnectedChange, onAutonomousChange, onOpenSettings, onOpenAgent }: Props) {
+export function BoardPage({ onConnectedChange, onAutonomousChange, onOpenSettings, onOpenAgent, projectName }: Props) {
 	const { workspaceId } = useParams<{ workspaceId: string }>();
 	const { state, connected, refetch, optimisticDeleteCard } = useWorkspaceState(workspaceId!);
 
@@ -45,6 +46,7 @@ export function BoardPage({ onConnectedChange, onAutonomousChange, onOpenSetting
 			onDeleteCard={optimisticDeleteCard}
 			onOpenSettings={onOpenSettings}
 			onOpenAgent={onOpenAgent}
+			projectName={projectName}
 		/>
 	);
 }

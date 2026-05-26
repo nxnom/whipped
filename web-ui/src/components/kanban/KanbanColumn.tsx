@@ -1,23 +1,15 @@
 import { Droppable } from "@hello-pangea/dnd";
 import type { RuntimeBoardCard, RuntimeBoardColumn, Workflow } from "@runtime-contract";
+import { Plus } from "lucide-react";
 import { KanbanCard } from "./KanbanCard";
 
-const COLUMN_COLORS: Record<string, string> = {
-	todo: "border-gray-600",
-	in_progress: "border-blue-500/50",
-	reopened: "border-orange-500/50",
-	ready_for_review: "border-yellow-500/50",
-	blocked: "border-red-500/50",
-	done: "border-gray-500/50",
-};
-
-const COLUMN_HEADER_COLORS: Record<string, string> = {
-	todo: "text-gray-400",
-	in_progress: "text-blue-400",
-	reopened: "text-orange-400",
-	ready_for_review: "text-yellow-400",
-	blocked: "text-red-400",
-	done: "text-gray-400",
+const COLUMN_DOT_COLORS: Record<string, string> = {
+	todo: "bg-gray-500",
+	in_progress: "bg-blue-500",
+	reopened: "bg-orange-500",
+	ready_for_review: "bg-yellow-500",
+	blocked: "bg-red-500",
+	done: "bg-gray-500",
 };
 
 interface KanbanColumnProps {
@@ -33,6 +25,7 @@ interface KanbanColumnProps {
 	onCardToggleReady: (card: RuntimeBoardCard) => void;
 	onCardRun: (cardId: string) => void;
 	onCardStop: () => void;
+	onAddCard?: () => void;
 }
 
 export function KanbanColumn({
@@ -48,17 +41,22 @@ export function KanbanColumn({
 	onCardToggleReady,
 	onCardRun,
 	onCardStop,
+	onAddCard,
 }: KanbanColumnProps) {
-	const borderColor = COLUMN_COLORS[column.id] ?? "border-gray-600";
-	const headerColor = COLUMN_HEADER_COLORS[column.id] ?? "text-gray-400";
-
 	return (
-		<div className={`flex flex-col w-72 shrink-0 bg-gray-900 border rounded-xl overflow-hidden ${borderColor}`}>
-			<div className="px-3 py-2.5 border-b border-gray-800">
-				<div className="flex items-center justify-between">
-					<h3 className={`text-sm font-semibold ${headerColor}`}>{column.title}</h3>
-					<span className="text-xs text-gray-500 bg-gray-800 rounded-full px-2 py-0.5">{cards.length}</span>
-				</div>
+		<div className="flex flex-col w-60 shrink-0">
+			<div className="flex items-center gap-1.5 px-2.5 py-2 shrink-0">
+				<span className={`size-2 rounded-full shrink-0 ${COLUMN_DOT_COLORS[column.id] ?? "bg-gray-500"}`} />
+				<span className="text-xs font-medium text-[#8888a0]">{column.title}</span>
+				<span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#2a2a35] text-gray-500 font-medium">{cards.length}</span>
+				<div className="flex-1" />
+				<button
+					onClick={onAddCard}
+					className="text-gray-600 hover:text-gray-400 transition-colors"
+					title="Add task"
+				>
+					<Plus size={13} />
+				</button>
 			</div>
 
 			<Droppable droppableId={column.id}>
@@ -66,10 +64,7 @@ export function KanbanColumn({
 					<div
 						ref={provided.innerRef}
 						{...provided.droppableProps}
-						className={`
-							flex-1 p-2 flex flex-col gap-2 min-h-20 overflow-y-auto transition-colors
-							${snapshot.isDraggingOver ? "bg-gray-800/50" : ""}
-						`}
+						className={`flex-1 px-0 pt-1 pb-2 flex flex-col gap-2 min-h-20 overflow-y-auto transition-colors rounded-lg ${snapshot.isDraggingOver ? "bg-[#1a1a1f]/40" : ""}`}
 					>
 						{cards.map((card, index) => (
 							<KanbanCard

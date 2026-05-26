@@ -1,6 +1,6 @@
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
 import type { ProjectsLayout, RuntimeProject } from "@runtime-contract";
-import { ChevronDown, ChevronRight, FolderPlus, GripVertical, Pencil, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
 
@@ -231,9 +231,9 @@ export function ProjectsSidebar({ projects, activeWorkspaceId, onSwitch }: Props
 	return (
 		<DragDropContext onDragStart={() => setIsDragging(true)} onDragEnd={onDragEnd}>
 			<div className="flex items-center justify-between px-4 mb-1">
-				<p className="text-[10px] font-semibold uppercase tracking-wider text-gray-600">Projects</p>
-				<button onClick={addFolder} title="New folder" className="text-gray-600 hover:text-gray-400 transition-colors">
-					<FolderPlus size={12} />
+				<p className="text-[10px] font-medium text-[#60607a]">Projects</p>
+				<button onClick={addFolder} title="New folder" className="text-[#60607a] hover:text-gray-400 transition-colors">
+					<Plus size={12} />
 				</button>
 			</div>
 
@@ -251,18 +251,19 @@ export function ProjectsSidebar({ projects, activeWorkspaceId, onSwitch }: Props
 											<div
 												ref={dp.innerRef}
 												{...dp.draggableProps}
-												className={`group flex items-center gap-1 py-1 pr-2 pl-2 text-xs text-gray-500 hover:text-gray-300 transition-colors
-                          ${snap.isDragging ? "opacity-60 bg-gray-900 rounded" : ""}`}
+												className={`group flex items-center gap-1.5 py-1.5 pr-2 pl-4 text-xs text-[#8888a0] hover:text-[#c0c0d0] transition-colors
+                          ${snap.isDragging ? "opacity-60 bg-[#1f1f28] rounded" : ""}`}
 											>
 												<span
 													{...dp.dragHandleProps}
-													className="shrink-0 text-gray-700 hover:text-gray-400 cursor-grab active:cursor-grabbing"
+													className="shrink-0 text-gray-700 hover:text-gray-400 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
 												>
-													<GripVertical size={12} />
+													<GripVertical size={11} />
 												</span>
-												<button onClick={() => toggleCollapse(item.folderId)} className="shrink-0">
-													{expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+												<button onClick={() => toggleCollapse(item.folderId)} className="shrink-0 text-[#60607a]">
+													{expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
 												</button>
+												<Folder size={12} className="shrink-0 text-[#60607a]" />
 												{editingId === item.folderId ? (
 													<input
 														ref={editRef}
@@ -277,7 +278,7 @@ export function ProjectsSidebar({ projects, activeWorkspaceId, onSwitch }: Props
 													/>
 												) : (
 													<span
-														className="flex-1 min-w-0 truncate font-medium"
+														className="flex-1 min-w-0 truncate"
 														onDoubleClick={() => startRename(item.folderId)}
 													>
 														{folder.name}
@@ -316,24 +317,29 @@ export function ProjectsSidebar({ projects, activeWorkspaceId, onSwitch }: Props
 										<div
 											ref={dp.innerRef}
 											{...dp.draggableProps}
-											className={`group flex items-center gap-1.5 py-1.5 pr-2 text-sm transition-colors rounded
-                        ${indent ? "pl-6" : "pl-2"}
-                        ${snap.isDragging ? "opacity-70 bg-gray-800 shadow-lg" : ""}
-                        ${isActive && !snap.isDragging ? "text-white bg-gray-800" : "text-gray-400 hover:text-gray-200 hover:bg-gray-900"}`}
+											className={`group flex items-center gap-1.5 py-[6px] pr-3 text-xs transition-colors
+                        ${indent ? "pl-9" : "pl-4"}
+                        ${snap.isDragging ? "opacity-70" : ""}
+                        ${isActive && !snap.isDragging
+                          ? "bg-[#1f1f28] border-l-2 border-[#7c6aff] text-[#f0f0f5]"
+                          : "text-[#8888a0] hover:text-[#c0c0d0] hover:bg-[#181820] rounded-sm"}`}
 										>
 											<span
 												{...dp.dragHandleProps}
-												className="shrink-0 text-gray-700 hover:text-gray-400 cursor-grab active:cursor-grabbing"
+												className="shrink-0 text-gray-700 hover:text-gray-400 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
 											>
-												<GripVertical size={12} />
+												<GripVertical size={11} />
 											</span>
 											<button
 												onClick={() => onSwitch(item.workspaceId)}
 												className="flex items-center gap-2 flex-1 min-w-0 text-left"
 											>
-												<span
-													className={`size-1.5 rounded-full shrink-0 ${isActive ? "bg-blue-400" : "bg-gray-700"}`}
-												/>
+												{isActive && (
+													<span
+														className="size-[6px] rounded-full shrink-0 bg-blue-400"
+														style={{ boxShadow: "0 0 4px rgba(59,130,246,0.5)" }}
+													/>
+												)}
 												<span className="truncate">{project.name}</span>
 											</button>
 										</div>
