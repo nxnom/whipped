@@ -724,15 +724,32 @@ export const appRouter = router({
 					return { diff: null, error: "No worktree — agent has not started yet" };
 				}
 
-				const result = spawnSync("git", ["diff", `${card.baseRef}...HEAD`, "--no-color", "-U3"], {
+				const committedResult = spawnSync("git", ["diff", `${card.baseRef}...HEAD`, "--no-color", "-U3"], {
 					cwd: worktreePath,
 					encoding: "utf-8",
 					maxBuffer: 4 * 1024 * 1024,
 				});
 
-				if (result.status !== 0 && result.stderr) {
-					return { diff: null, error: result.stderr.trim() };
+				if (committedResult.status !== 0 && committedResult.stderr) {
+					return { diff: null, error: committedResult.stderr.trim() };
 				}
+
+				// Also include staged and unstaged changes so the diff is accurate
+				// regardless of whether auto-commit is on or off.
+				const stagedResult = spawnSync("git", ["diff", "--cached", "--no-color", "-U3"], {
+					cwd: worktreePath,
+					encoding: "utf-8",
+					maxBuffer: 4 * 1024 * 1024,
+				});
+				const unstagedResult = spawnSync("git", ["diff", "--no-color", "-U3"], {
+					cwd: worktreePath,
+					encoding: "utf-8",
+					maxBuffer: 4 * 1024 * 1024,
+				});
+
+				const diff = [committedResult.stdout, stagedResult.stdout, unstagedResult.stdout]
+					.filter((s) => s?.trim())
+					.join("");
 
 				const behindResult = spawnSync("git", ["rev-list", "--count", `HEAD..${card.baseRef}`], {
 					cwd: worktreePath,
@@ -740,7 +757,7 @@ export const appRouter = router({
 				});
 				const baseBehindCount = parseInt(behindResult.stdout?.trim() ?? "0", 10) || 0;
 
-				return { diff: result.stdout ?? "", error: null, baseBehindCount };
+				return { diff, error: null, baseBehindCount };
 			}),
 	}),
 
