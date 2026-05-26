@@ -15,11 +15,11 @@ import {
 	Star,
 	Terminal,
 	Trash2,
+	Type,
 	Workflow as WorkflowIcon,
 	X,
 } from "lucide-react";
 import { useState } from "react";
-import { AddCustomAgentDialog } from "./AddCustomAgentDialog";
 import { ModelSelect } from "./ModelSelect";
 
 function slotTypeColor(type: string): string {
@@ -48,7 +48,6 @@ export function WorkflowEditorDialog({
 	const [localWorkflow, setLocalWorkflow] = useState<Workflow>(workflow);
 	const sortedSlots = [...localWorkflow.slots].sort((a, b) => a.order - b.order);
 	const [selectedSlotId, setSelectedSlotId] = useState<string>(sortedSlots[0]?.id ?? "");
-	const [addingCustom, setAddingCustom] = useState<"custom" | "orch" | null>(null);
 
 	const selectedSlot = localWorkflow.slots.find((s) => s.id === selectedSlotId);
 
@@ -76,25 +75,27 @@ export function WorkflowEditorDialog({
 	const hasCR = localWorkflow.slots.some((s) => s.type === "code_review");
 	const hasQA = localWorkflow.slots.some((s) => s.type === "qa");
 
-	const addBuiltinSlot = (type: "code_review" | "qa") => {
+	const addSlot = (type: "code_review" | "qa" | "custom" | "orch") => {
 		const maxOrder = localWorkflow.slots.reduce((m, s) => Math.max(m, s.order), 0);
-		const defaults = {
-			code_review: { id: "code_review", name: "Code Review" },
-			qa: { id: "qa", name: "QA" },
+		const defaults: Record<string, { id: string; name: string; enabled: boolean }> = {
+			code_review: { id: "code_review", name: "Code Review", enabled: true },
+			qa: { id: "qa", name: "QA", enabled: false },
+			custom: { id: `slot_custom_${Date.now()}`, name: "Custom Agent", enabled: true },
+			orch: { id: `slot_orch_${Date.now()}`, name: "Orch Agent", enabled: true },
 		};
-		const d = defaults[type];
+		const d = defaults[type]!;
 		const newSlot: WorkflowSlot = {
-			...d,
+			id: d.id,
+			name: d.name,
 			type,
 			agentBinary: defaultBinary,
 			order: maxOrder + 1,
-			enabled: type !== "qa",
+			enabled: d.enabled,
 			prompt: "",
 		};
 		const updated = [...localWorkflow.slots, newSlot];
 		setLocalWorkflow((prev) => ({ ...prev, slots: updated }));
 		setSelectedSlotId(newSlot.id);
-		if (!isNew) onUpdate({ ...localWorkflow, slots: updated });
 	};
 
 	return (
@@ -191,16 +192,16 @@ export function WorkflowEditorDialog({
 										)}
 									</MenuTrigger>
 									{!localWorkflow.forStory && !hasCR && (
-										<MenuItem onClick={() => addBuiltinSlot("code_review")}>Code Review</MenuItem>
+										<MenuItem onClick={() => addSlot("code_review")}>Code Review</MenuItem>
 									)}
 									{!localWorkflow.forStory && !hasQA && (
-										<MenuItem onClick={() => addBuiltinSlot("qa")}>QA</MenuItem>
+										<MenuItem onClick={() => addSlot("qa")}>QA</MenuItem>
 									)}
 									{!localWorkflow.forStory && (
-										<MenuItem onClick={() => setAddingCustom("custom")}>Custom Agent</MenuItem>
+										<MenuItem onClick={() => addSlot("custom")}>Custom Agent</MenuItem>
 									)}
 									{localWorkflow.forStory && (
-										<MenuItem onClick={() => setAddingCustom("orch")}>Orch Agent</MenuItem>
+										<MenuItem onClick={() => addSlot("orch")}>Orch Agent</MenuItem>
 									)}
 								</Menu>
 							</div>
@@ -329,6 +330,36 @@ export function WorkflowEditorDialog({
 								className="flex flex-col flex-1 overflow-y-auto"
 								style={{ padding: "16px 20px", gap: 16 }}
 							>
+								{/* Name — editable for custom/orch, read-only label for built-ins */}
+								<div className="flex flex-col" style={{ gap: 5 }}>
+									<span
+										className="text-[11px] font-medium"
+										style={{ color: "#60607a", letterSpacing: 0.3 }}
+									>
+										Name
+									</span>
+									<div
+										className="flex items-center gap-2"
+										style={{
+											background: "#0c0c0f",
+											border: "1px solid #2a2a35",
+											borderRadius: 6,
+											padding: "8px 12px",
+										}}
+									>
+										<Type size={13} style={{ color: "#60607a", flexShrink: 0 }} />
+										<input
+											value={selectedSlot.name}
+											onChange={(e) => updateSlot({ name: e.target.value })}
+											readOnly={selectedSlot.type !== "custom" && selectedSlot.type !== "orch"}
+											className="flex-1 bg-transparent outline-none text-[12px]"
+											style={{
+												color: (selectedSlot.type === "custom" || selectedSlot.type === "orch") ? "#c0c0d0" : "#60607a",
+												cursor: (selectedSlot.type === "custom" || selectedSlot.type === "orch") ? "text" : "default",
+											}}
+										/>
+									</div>
+								</div>
 								{/* Agent Binary */}
 								<div className="flex flex-col" style={{ gap: 5 }}>
 									<span
@@ -489,33 +520,6 @@ export function WorkflowEditorDialog({
 				</div>
 			</div>
 
-			{addingCustom !== null && (
-				<AddCustomAgentDialog
-					defaultBinary={defaultBinary}
-					title={addingCustom === "orch" ? "Add Orch Agent" : "Add Custom Agent"}
-					onAdd={(name, binary, model, effort, prompt) => {
-						const maxOrder = localWorkflow.slots.reduce((m, s) => Math.max(m, s.order), 0);
-						const slotType = addingCustom === "orch" ? "orch" : "custom";
-						const newSlot: WorkflowSlot = {
-							id: `slot_${slotType}_${Date.now()}`,
-							type: slotType,
-							name,
-							agentBinary: binary,
-							model,
-							effort,
-							order: maxOrder + 1,
-							enabled: true,
-							prompt,
-						};
-						const updated = [...localWorkflow.slots, newSlot];
-						setLocalWorkflow((prev) => ({ ...prev, slots: updated }));
-						setSelectedSlotId(newSlot.id);
-						if (!isNew) onUpdate({ ...localWorkflow, slots: updated });
-						setAddingCustom(null);
-					}}
-					onClose={() => setAddingCustom(null)}
-				/>
-			)}
 		</>
 	);
 }
