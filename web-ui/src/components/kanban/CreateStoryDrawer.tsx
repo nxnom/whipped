@@ -149,7 +149,7 @@ export function CreateStoryDrawer({
 	onRefresh,
 }: CreateStoryDrawerProps) {
 	const storyWorkflows = workflows.filter((w) => w.forStory);
-	const defaultStoryWorkflow = storyWorkflows[0];
+	const defaultStoryWorkflow = storyWorkflows.find((w) => w.isDefault) ?? storyWorkflows[0];
 
 	const [title, setTitle] = useState("");
 	const [description, setDescription] = useState("");

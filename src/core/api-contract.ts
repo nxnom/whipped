@@ -367,7 +367,7 @@ export const runtimeProjectConfigSchema = z.object({
 	jira: runtimeJiraConfigSchema.optional(),
 	worktreeSetup: runtimeWorktreeSetupSchema.optional(),
 	startCommand: z.string().default(""),
-	workflows: z.array(workflowSchema).default([DEFAULT_WORKFLOW, DEFAULT_STORY_WORKFLOW]),
+	workflows: z.array(workflowSchema).default([]),
 	secrets: z.array(runtimeProjectSecretSchema).default([]),
 	systemPrompt: z.string().optional(),
 	// Freeform instructions injected into the dev agent's prompt to shape PR
