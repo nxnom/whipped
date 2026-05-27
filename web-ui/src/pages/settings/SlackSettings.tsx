@@ -182,7 +182,6 @@ export function SlackSettings() {
 	const [createError, setCreateError] = useState<string | null>(null);
 	const [waitingForInstall, setWaitingForInstall] = useState(false);
 
-
 	useEffect(() => {
 		Promise.all([trpc.config.get.query(), trpc.slack.tunnelConfig.query()])
 			.then(([c, tunnel]) => {
@@ -323,7 +322,9 @@ export function SlackSettings() {
 							<div className="flex flex-col gap-0.5">
 								<span className="text-[13px] font-medium text-[#c0c0d0]">Enable Slack integration</span>
 								<span className="text-[11px] text-[#60607a]">
-									{config.slackEnabled ? "Active — notifications and replies are syncing." : "Paused — no messages will be sent or received."}
+									{config.slackEnabled
+										? "Active — notifications and replies are syncing."
+										: "Paused — no messages will be sent or received."}
 								</span>
 							</div>
 							<button

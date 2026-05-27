@@ -183,7 +183,9 @@ function makeMdComponents(): React.ComponentProps<typeof ReactMarkdown>["compone
 					{children}
 				</code>
 			) : (
-				<code className="bg-[#1a1a24] border border-[#2a2a38] rounded px-1 py-0.5 text-xs font-mono text-gray-200">{children}</code>
+				<code className="bg-[#1a1a24] border border-[#2a2a38] rounded px-1 py-0.5 text-xs font-mono text-gray-200">
+					{children}
+				</code>
 			);
 		},
 		pre: ({ children }) => <pre className="my-1 overflow-x-auto">{children}</pre>,

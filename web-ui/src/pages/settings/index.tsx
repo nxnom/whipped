@@ -36,13 +36,7 @@ const GLOBAL_NAV: Array<{ id: GlobalSection; label: string; icon: React.ReactNod
 	{ id: "slack", label: "Slack", icon: <Slack size={15} /> },
 ];
 
-function ProjectDropdown({
-	workspaceId,
-	onSwitch,
-}: {
-	workspaceId: string;
-	onSwitch: (id: string) => void;
-}) {
+function ProjectDropdown({ workspaceId, onSwitch }: { workspaceId: string; onSwitch: (id: string) => void }) {
 	const [open, setOpen] = useState(false);
 	const [workspaces, setWorkspaces] = useState<{ workspaceId: string; name: string; repoPath: string }[]>([]);
 	const ref = useRef<HTMLDivElement>(null);
@@ -169,10 +163,7 @@ export function SettingsPage() {
 				<div className="h-px bg-[#2a2a35]" />
 
 				{/* Project dropdown */}
-				<ProjectDropdown
-					workspaceId={workspaceId}
-					onSwitch={handleSwitchProject}
-				/>
+				<ProjectDropdown workspaceId={workspaceId} onSwitch={handleSwitchProject} />
 				<div className="h-px bg-[#2a2a35]" />
 
 				{/* PROJECT section */}

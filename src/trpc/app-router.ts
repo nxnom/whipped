@@ -1014,11 +1014,11 @@ export const appRouter = router({
 				const { existsSync } = await import("node:fs");
 				if (!existsSync(worktreePath)) return { diff: null, error: "No worktree" };
 
-				const result = spawnSync(
-					"git",
-					["show", commitHash, "--format=", "--patch", "--no-color", "-U3"],
-					{ cwd: worktreePath, encoding: "utf-8", maxBuffer: 4 * 1024 * 1024 },
-				);
+				const result = spawnSync("git", ["show", commitHash, "--format=", "--patch", "--no-color", "-U3"], {
+					cwd: worktreePath,
+					encoding: "utf-8",
+					maxBuffer: 4 * 1024 * 1024,
+				});
 
 				if (result.status !== 0) {
 					return { diff: null, error: result.stderr?.trim() ?? "Failed to get commit diff" };

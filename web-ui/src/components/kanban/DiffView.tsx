@@ -216,7 +216,10 @@ function FileTreeNode({
 				className="flex items-center gap-2 w-full text-left py-1 hover:bg-[#1a1a24] rounded text-[14px] text-gray-400 hover:text-gray-200 font-sans transition-colors"
 				style={{ paddingLeft: `${8 + depth * 14}px`, paddingRight: 8 }}
 			>
-				<File size={13} className={classNames("shrink-0", isNew ? "text-green-600" : isDeleted ? "text-red-600" : "text-gray-600")} />
+				<File
+					size={13}
+					className={classNames("shrink-0", isNew ? "text-green-600" : isDeleted ? "text-red-600" : "text-gray-600")}
+				/>
 				<span className="flex-1 truncate min-w-0">{node.name}</span>
 				{isNew && (
 					<span className="shrink-0 text-[10px] font-medium text-green-400 bg-green-400/10 px-1 rounded">new</span>
@@ -227,12 +230,14 @@ function FileTreeNode({
 				{!isNew && !isDeleted && (
 					<span className="shrink-0 font-mono text-[11px]">
 						{additions > 0 && <span className="text-green-600">+{additions}</span>}
-						{deletions > 0 && <span className="text-red-700">{additions > 0 ? " " : ""}-{deletions}</span>}
+						{deletions > 0 && (
+							<span className="text-red-700">
+								{additions > 0 ? " " : ""}-{deletions}
+							</span>
+						)}
 					</span>
 				)}
-				{isNew && additions > 0 && (
-					<span className="shrink-0 font-mono text-[11px] text-green-600">+{additions}</span>
-				)}
+				{isNew && additions > 0 && <span className="shrink-0 font-mono text-[11px] text-green-600">+{additions}</span>}
 				{isDeleted && deletions > 0 && (
 					<span className="shrink-0 font-mono text-[11px] text-red-600">-{deletions}</span>
 				)}
@@ -818,9 +823,7 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 											</span>
 										)}
 										{file.isDeleted && (
-											<span className="ml-2 text-[10px] text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded">
-												deleted
-											</span>
+											<span className="ml-2 text-[10px] text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded">deleted</span>
 										)}
 									</span>
 									{!file.isBinary && (
@@ -875,11 +878,7 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 												const linePending = pendingComments.filter((c) => c.lineKey === lineKey);
 
 												const rowBg =
-													line.type === "added"
-														? "bg-[#0f3321]"
-														: line.type === "removed"
-															? "bg-[#330f10]"
-															: "";
+													line.type === "added" ? "bg-[#0f3321]" : line.type === "removed" ? "bg-[#330f10]" : "";
 												const numBg =
 													line.type === "added"
 														? "bg-[#143d27]"
@@ -929,7 +928,12 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 															<div className="w-5 shrink-0 text-center py-0.5 select-none">
 																<span className={classNames("font-mono", signColor)}>{sign}</span>
 															</div>
-															<div className={classNames("flex-1 py-0.5 pr-7 whitespace-pre font-mono text-[12px]", textColor)}>
+															<div
+																className={classNames(
+																	"flex-1 py-0.5 pr-7 whitespace-pre font-mono text-[12px]",
+																	textColor,
+																)}
+															>
 																{line.content}
 															</div>
 															{/* Hover comment button */}
@@ -977,7 +981,6 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 					})}
 				</div>
 			</div>
-
 		</div>
 	);
 }
