@@ -12,6 +12,7 @@ import {
 	GitBranch,
 	GitMerge,
 	GitPullRequest,
+	Loader2,
 	Paperclip,
 	Pencil,
 	Play,
@@ -21,9 +22,11 @@ import {
 	X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { RunBar } from "@/components/RunBar";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { attachmentUrl, uploadAttachmentFile } from "@/runtime/attachments";
 import { trpc } from "@/runtime/trpc-client";
+import { useRunSession } from "@/stores/run-session-store";
 import { ChatComments } from "./ChatComments";
 import { DiffView } from "./DiffView";
 
@@ -192,6 +195,7 @@ export function CardDetailPanel({
 	onRefresh,
 	onDeleteCard,
 }: Props) {
+	const { session: runSession, start: startRun, stop: stopRun } = useRunSession(workspaceId);
 	const [activeStreamId, setActiveStreamId] = useState<string>(
 		() => card.terminalSessions?.at(-1)?.streamId ?? card.id,
 	);
@@ -481,32 +485,48 @@ export function CardDetailPanel({
 				{card.jiraKey && (
 					<span className="text-[10px] font-mono text-[#4a4a5a]">{card.jiraKey}</span>
 				)}
-				{externalUrl && (
-					<a
-						href={externalUrl}
-						target="_blank"
-						rel="noreferrer"
-						className="text-[#60607a] hover:text-gray-300 transition-colors"
-						title="Open external link"
-					>
-						<ExternalLink size={15} />
-					</a>
+				{externalUrl && !card.pr?.url && (
+          <>
+            <a
+              href={externalUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-[#60607a] hover:text-gray-300 transition-colors"
+              title="Open external link"
+            >
+              <ExternalLink size={15} />
+            </a>
+          <div className="w-px h-[18px] bg-[#2a2a35] shrink-0" />
+          </>
 				)}
-				<div className="w-px h-[18px] bg-[#2a2a35] shrink-0" />
 				{/* Action buttons */}
-				{isStory ? (
-					isRunning && (
-						<button onClick={handleStop} title="Stop agent" className="text-[#60607a] hover:text-red-400 transition-colors">
+				{runSession.status === "running" && runSession.cardId === card.id ? (
+					<Tooltip delayDuration={0} content="Stop" side="bottom" triggerAsChild>
+						<button
+							onClick={() => void stopRun()}
+							className="cursor-pointer text-[#60607a] hover:text-red-400 transition-colors"
+						>
 							<Square size={15} className="fill-current" />
 						</button>
-					)
-				) : isReadyForReview ? (
+					</Tooltip>
+				) : (
+					<Tooltip delayDuration={0} content={runSession.status === "running" ? "Another task is running" : "Run"} side="bottom" triggerAsChild>
+						<button
+							onClick={() => void startRun(card.id)}
+							disabled={runSession.status === "running"}
+							className="cursor-pointer text-[#60607a] hover:text-emerald-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+						>
+							<Play size={15} />
+						</button>
+					</Tooltip>
+				)}
+				{!isStory && isReadyForReview && (
 					<>
-						<Tooltip content={merging ? "Merging..." : `Merge into ${card.baseRef}`} side="bottom" triggerAsChild>
+						<Tooltip delayDuration={0} content={merging ? "Merging..." : `Merge into ${card.baseRef}`} side="bottom" triggerAsChild>
 							<button
 								onClick={handleCommitAndMerge}
 								disabled={merging || creatingPR}
-								className="text-[#60607a] hover:text-emerald-400 transition-colors disabled:opacity-40"
+								className="cursor-pointer text-[#60607a] hover:text-emerald-400 transition-colors disabled:opacity-40"
 							>
 								<GitMerge size={15} />
 							</button>
@@ -517,39 +537,33 @@ export function CardDetailPanel({
 								target="_blank"
 								rel="noreferrer"
 								title="Open Pull Request"
-								className="text-green-400 hover:text-green-300 transition-colors"
+								className="cursor-pointer text-green-400 hover:text-green-300 transition-colors"
 							>
 								<GitPullRequest size={15} />
 							</a>
 						) : (
-							<Tooltip content={creatingPR ? "Creating..." : `Create PR against ${card.baseRef}`} side="bottom" triggerAsChild>
+							<Tooltip delayDuration={0} content={creatingPR ? "Creating..." : `Create PR against ${card.baseRef}`} side="bottom" triggerAsChild>
 								<button
 									onClick={handleCommitAndPR}
 									disabled={merging || creatingPR}
-									className="text-[#60607a] hover:text-green-400 transition-colors disabled:opacity-40"
+									className="cursor-pointer text-[#60607a] hover:text-green-400 transition-colors disabled:opacity-40"
 								>
 									<GitPullRequest size={15} />
 								</button>
 							</Tooltip>
 						)}
 					</>
-				) : isRunning ? (
-					<button onClick={handleStop} title="Stop agent" className="text-[#60607a] hover:text-red-400 transition-colors">
-						<Square size={15} className="fill-current" />
-					</button>
-				) : (
-					<button onClick={handleStart} title="Start agent" className="text-[#60607a] hover:text-emerald-400 transition-colors">
-						<Play size={15} />
-					</button>
 				)}
 				<div className="w-px h-[18px] bg-[#2a2a35] shrink-0" />
-				<button
-					onClick={handleDelete}
-					className="text-[#60607a] hover:text-red-400 transition-colors"
-					title="Delete task"
-				>
-					<Trash2 size={15} />
-				</button>
+        <Tooltip delayDuration={0} content="Delete task" side="bottom" triggerAsChild>
+          <button
+            onClick={handleDelete}
+            className="cursor-pointer text-[#60607a] hover:text-red-400 transition-colors"
+            title="Delete task"
+          >
+            <Trash2 size={15} />
+          </button>
+        </Tooltip>
 			</div>
 
 			{/* ── Sub-header ── */}
@@ -663,23 +677,27 @@ export function CardDetailPanel({
 								const duration = slotDuration(session.startedAt, session.endedAt);
 								const isFocused = activeStreamId === session.streamId;
 								return (
-									<div key={session.streamId} className="flex items-stretch gap-0">
+									<div key={session.streamId} className={`flex items-stretch gap-0 group rounded transition-colors ${isFocused ? "bg-[#7c6aff]/8" : "hover:bg-white/[0.03]"}`}>
 										{/* Focus indicator */}
 										<div className={`w-0.5 shrink-0 rounded-full mr-2 self-stretch transition-colors ${isFocused ? "bg-[#7c6aff]" : "bg-transparent"}`} />
 										{/* Status icon + connector */}
 										<div className="flex flex-col items-center w-7 shrink-0">
-											<div className={`size-6 rounded-full flex items-center justify-center shrink-0 ${status === "running" ? "bg-[#3b82f6]/15" : "bg-transparent"}`}>
-												{status === "completed" && <CheckCircle2 size={14} className="text-[#22c55e]" />}
-												{status === "running" && (
-													<Play
-														size={14}
-														className="text-[#3b82f6] fill-current"
-														style={{ filter: "drop-shadow(0 0 6px #3b82f650)" }}
-													/>
-												)}
-												{status === "failed" && <Circle size={14} className="text-[#ef4444]" />}
-												{status === "stopped" && <Circle size={14} className="text-yellow-400" />}
-											</div>
+											{status === "running" ? (
+												<button
+													onClick={(e) => { e.stopPropagation(); handleStop(); }}
+													title="Stop agent"
+													className="size-6 rounded-full flex items-center justify-center shrink-0 bg-[#7c6aff]/15 group-hover:bg-red-400/10 transition-colors"
+												>
+													<Loader2 size={14} className="text-[#7c6aff] animate-spin group-hover:hidden" />
+													<Square size={12} className="hidden group-hover:block text-red-400 fill-current" />
+												</button>
+											) : (
+												<div className="size-6 flex items-center justify-center shrink-0">
+													{status === "completed" && <CheckCircle2 size={14} className="text-[#22c55e]" />}
+													{status === "failed" && <Circle size={14} className="text-[#ef4444]" />}
+													{status === "stopped" && <Circle size={14} className="text-yellow-400" />}
+												</div>
+											)}
 											{idx < visibleSessions.length - 1 && (
 												<div className={`w-0.5 flex-1 min-h-[12px] rounded-full mt-0.5 mb-0.5 ${status === "completed" ? "bg-[#22c55e]/40" : "bg-[#2a2a35]"}`} />
 											)}
@@ -690,13 +708,13 @@ export function CardDetailPanel({
 												setActiveStreamId(session.streamId);
 												setRightTab("terminal");
 											}}
-											className={`flex flex-col gap-0.5 pl-2 py-0.5 pb-3 flex-1 min-w-0 text-left cursor-pointer rounded transition-colors ${isFocused ? "bg-[#7c6aff]/8" : "hover:bg-white/[0.03]"}`}
+											className="flex flex-col gap-0.5 pl-2 py-0.5 pb-3 flex-1 min-w-0 text-left cursor-pointer"
 										>
-											<span className={`text-xs ${isFocused ? "font-semibold text-[#c4baff]" : status === "running" ? "font-semibold text-[#f0f0f5]" : status === "completed" ? "text-[#f0f0f5]" : "text-[#4a4a5a]"}`}>
+											<span className={`text-xs ${isFocused ? "text-[#c4baff]" : status === "running" ? "font-semibold text-[#f0f0f5]" : status === "completed" ? "text-[#f0f0f5]" : "text-[#4a4a5a]"}`}>
 												{slotName}
 											</span>
 											<span className="text-[10px] flex items-center gap-1.5">
-												{status === "running" && <span className={isFocused ? "text-[#a78bfa]" : "text-[#3b82f6]"}>Running</span>}
+												{status === "running" && <span className="text-[#a78bfa]">Running</span>}
 												{status === "completed" && <span className="text-[#22c55e]">Completed</span>}
 												{status !== "running" && status !== "completed" && <span className="text-[#4a4a5a]">—</span>}
 												{duration && (
@@ -938,6 +956,7 @@ export function CardDetailPanel({
 					<span className="text-[10px] text-[#4a4a5a]">Attempt {card.autoFixAttempts + 1}</span>
 				</div>
 			)}
+			<RunBar workspaceId={workspaceId} />
 		</div>
 	);
 }
