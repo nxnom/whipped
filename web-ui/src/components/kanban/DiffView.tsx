@@ -142,22 +142,39 @@ function fileElemId(path: string): string {
 
 function buildFileTree(files: DiffFile[]): TreeNode {
 	const root: TreeNode = { name: "", fullPath: "", isFile: false, children: [] };
-	for (const file of files) {
-		const path = displayPath(file);
-		const parts = path.includes(" → ") ? [path] : path.split("/");
+
+	function insertFile(dirParts: string[], name: string, fullPath: string, file: DiffFile) {
 		let node = root;
-		for (let i = 0; i < parts.length; i++) {
-			const part = parts[i]!;
-			const fullPath = parts.slice(0, i + 1).join("/");
-			let child = node.children.find((c) => c.fullPath === fullPath);
+		for (let i = 0; i < dirParts.length; i++) {
+			const part = dirParts[i]!;
+			const fp = dirParts.slice(0, i + 1).join("/");
+			let child = node.children.find((c) => c.fullPath === fp);
 			if (!child) {
-				const isFile = i === parts.length - 1;
-				child = { name: part, fullPath, isFile, file: isFile ? file : undefined, children: [] };
+				child = { name: part, fullPath: fp, isFile: false, children: [] };
 				node.children.push(child);
 			}
 			node = child;
 		}
+		node.children.push({ name, fullPath, isFile: true, file, children: [] });
 	}
+
+	for (const file of files) {
+		const path = displayPath(file);
+		if (path.includes(" → ")) {
+			// Rename: place under new path's directory, show "oldFile → newFile"
+			const [oldPath, newPath] = path.split(" → ") as [string, string];
+			const newParts = newPath.split("/");
+			const newFilename = newParts.pop()!;
+			const oldFilename = oldPath.split("/").pop()!;
+			const shortName = oldFilename === newFilename ? newFilename : `${oldFilename} → ${newFilename}`;
+			insertFile(newParts, shortName, path, file);
+		} else {
+			const parts = path.split("/");
+			const filename = parts.pop()!;
+			insertFile(parts, filename, path, file);
+		}
+	}
+
 	sortTree(root);
 	return root;
 }
@@ -190,6 +207,8 @@ function FileTreeNode({
 	if (node.isFile) {
 		const additions = node.file?.additions ?? 0;
 		const deletions = node.file?.deletions ?? 0;
+		const isNew = node.file?.isNew ?? false;
+		const isDeleted = node.file?.isDeleted ?? false;
 		return (
 			<button
 				onClick={() => onFileClick(node.fullPath)}
@@ -197,12 +216,26 @@ function FileTreeNode({
 				className="flex items-center gap-2 w-full text-left py-1 hover:bg-[#1a1a24] rounded text-[14px] text-gray-400 hover:text-gray-200 font-sans transition-colors"
 				style={{ paddingLeft: `${8 + depth * 14}px`, paddingRight: 8 }}
 			>
-				<File size={13} className="shrink-0 text-gray-600" />
-				<span className="flex-1 truncate">{node.name}</span>
-				<span className="shrink-0 font-mono text-[11px] ml-1">
-					{additions > 0 && <span className="text-green-600">+{additions}</span>}
-					{deletions > 0 && <span className="text-red-700">{additions > 0 ? " " : ""}-{deletions}</span>}
-				</span>
+				<File size={13} className={classNames("shrink-0", isNew ? "text-green-600" : isDeleted ? "text-red-600" : "text-gray-600")} />
+				<span className="flex-1 truncate min-w-0">{node.name}</span>
+				{isNew && (
+					<span className="shrink-0 text-[10px] font-medium text-green-400 bg-green-400/10 px-1 rounded">new</span>
+				)}
+				{isDeleted && (
+					<span className="shrink-0 text-[10px] font-medium text-red-400 bg-red-400/10 px-1 rounded">del</span>
+				)}
+				{!isNew && !isDeleted && (
+					<span className="shrink-0 font-mono text-[11px]">
+						{additions > 0 && <span className="text-green-600">+{additions}</span>}
+						{deletions > 0 && <span className="text-red-700">{additions > 0 ? " " : ""}-{deletions}</span>}
+					</span>
+				)}
+				{isNew && additions > 0 && (
+					<span className="shrink-0 font-mono text-[11px] text-green-600">+{additions}</span>
+				)}
+				{isDeleted && deletions > 0 && (
+					<span className="shrink-0 font-mono text-[11px] text-red-600">-{deletions}</span>
+				)}
 			</button>
 		);
 	}
