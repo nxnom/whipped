@@ -62,6 +62,7 @@ import {
 	updateCard,
 } from "../state/workspace-state.js";
 import { getCardBranch, getDefaultBranch, getWorktreePath, removeWorktreeAsync } from "../worktree/worktree-manager.js";
+import { slackNotifier } from "../slack/slack-notifier.js";
 
 // ─── GitHub image downloader ──────────────────────────────────────────────────
 // Finds GitHub user-attachment image URLs in comment text, downloads them,
@@ -598,6 +599,9 @@ export const appRouter = router({
 				const card = board.cards[cardId];
 
 				await Promise.all([deleteCard(workspaceId, cardId), clearCardSession(workspaceId, cardId)]);
+				if (card && card.columnId !== "done") {
+					void slackNotifier.notifyCardDeleted(card);
+				}
 				ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 				// Queue cleanup so it never blocks the event loop
@@ -1073,9 +1077,24 @@ export const appRouter = router({
 			try { await unlink(join(homedir(), ".cloudflared", "config.yml")); } catch { /* already gone */ }
 		}),
 		resetApp: publicProcedure.mutation(async () => {
-			// Only clear the bot token — everything else (app ID, credentials, oauth URL) is reusable
-			await updateGlobalConfig({ slackBotToken: undefined });
+			await updateGlobalConfig({
+				slackBotToken: undefined,
+				slackSigningSecret: undefined,
+				slackAppConfigToken: undefined,
+				slackClientId: undefined,
+				slackClientSecret: undefined,
+				slackAppId: undefined,
+				slackOauthAuthorizeUrl: undefined,
+				slackPublicUrl: undefined,
+				slackBotName: undefined,
+				slackInstallerUserId: undefined,
+			});
 		}),
+		updateSigningSecret: publicProcedure
+			.input(z.object({ signingSecret: z.string().min(1) }))
+			.mutation(async ({ input }) => {
+				await updateGlobalConfig({ slackSigningSecret: input.signingSecret });
+			}),
 		importCredentials: publicProcedure
 			.input(z.object({
 				slackAppId: z.string(),

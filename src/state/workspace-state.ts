@@ -593,6 +593,8 @@ export async function updateCard(
 			| "worktreePath"
 			| "branchName"
 			| "sharedWorktreeId"
+			| "slackMessageTs"
+			| "slackChannelId"
 		>
 	>,
 ): Promise<RuntimeBoardCard> {

@@ -11,14 +11,6 @@ function buildManifest(publicUrl: string, botName = "Overemployed") {
 		},
 		features: {
 			bot_user: { display_name: botName, always_online: true },
-			slash_commands: [
-				{
-					command: "/reopen",
-					url: `${publicUrl}/api/slack/commands`,
-					description: "Reopen a task from its thread",
-					should_escape: false,
-				},
-			],
 		},
 		oauth_config: {
 			redirect_urls: [`${publicUrl}/api/slack/oauth-callback`],
@@ -33,7 +25,8 @@ function buildManifest(publicUrl: string, botName = "Overemployed") {
 					"groups:write",
 					"groups:read",
 					"groups:history",
-					"commands",
+					"users:read",
+					"reactions:write",
 				],
 			},
 		},
@@ -138,7 +131,7 @@ export async function exchangeCodeForBotToken(
 	clientId: string,
 	clientSecret: string,
 	publicUrl: string,
-): Promise<string> {
+): Promise<{ botToken: string; installerUserId: string | null }> {
 	const params = new URLSearchParams({
 		code,
 		client_id: clientId,
@@ -151,13 +144,14 @@ export async function exchangeCodeForBotToken(
 		ok: boolean;
 		error?: string;
 		access_token?: string;
+		authed_user?: { id?: string };
 	};
 
 	if (!data.ok) {
 		throw new Error(data.error ?? "oauth.v2.access failed");
 	}
 
-	return data.access_token!;
+	return { botToken: data.access_token!, installerUserId: data.authed_user?.id ?? null };
 }
 
 export function getLocalCallbackUrl(): string {

@@ -6,8 +6,10 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import * as nodePty from "node-pty";
 import { WebSocketServer } from "ws";
 import { writeClaudeTaskHookSettings } from "../agents/agent-hooks.js";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { tunnelManager } from "../slack/cloudflare-tunnel.js";
 import { exchangeCodeForBotToken } from "../slack/slack-setup.js";
+import { slackNotifier } from "../slack/slack-notifier.js";
 import { ATTACHMENTS_DIR, DEFAULT_PORT, loadGlobalConfig } from "../config/runtime-config.js";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
@@ -25,6 +27,7 @@ import {
 	loadWorkspaceContext,
 	moveCard,
 	saveAttachment,
+	updateCard,
 } from "../state/workspace-state.js";
 import { type AppContext, appRouter, type RunSession } from "../trpc/app-router.js";
 import { RuntimeStateHub } from "./runtime-state-hub.js";
@@ -257,6 +260,8 @@ export async function createRuntimeServer(options: ServerOptions) {
 			poller.start();
 		}
 		poller.startPRPolling();
+
+		void slackNotifier.joinExistingChannels(workspaceId);
 	}
 
 	// Init all known workspaces on startup
@@ -302,14 +307,16 @@ export async function createRuntimeServer(options: ServerOptions) {
 					res.end("Slack app not configured");
 					return;
 				}
-				const botToken = await exchangeCodeForBotToken(
+				const { botToken, installerUserId } = await exchangeCodeForBotToken(
 					code,
 					config.slackClientId,
 					config.slackClientSecret,
 					config.slackPublicUrl,
 				);
+				const update: Record<string, unknown> = { slackBotToken: botToken };
+				if (installerUserId) update.slackInstallerUserId = installerUserId;
 				await import("../config/runtime-config.js").then((m) =>
-					m.updateGlobalConfig({ slackBotToken: botToken }),
+					m.updateGlobalConfig(update),
 				);
 				logger.info("[slack] Bot token saved via OAuth callback");
 				res.writeHead(200, { "Content-Type": "text/html" });
@@ -320,6 +327,134 @@ export async function createRuntimeServer(options: ServerOptions) {
 				res.end("OAuth failed");
 			}
 			return;
+		}
+
+		if (url.pathname === "/api/slack/events" || url.pathname === "/api/slack/commands") {
+			const body = await readBody(req);
+			const config = await loadGlobalConfig();
+			const signingSecret = config.slackSigningSecret;
+
+			if (signingSecret) {
+				const timestamp = String(req.headers["x-slack-request-timestamp"] ?? "");
+				const signature = String(req.headers["x-slack-signature"] ?? "");
+				if (!timestamp || !signature) {
+					logger.warn("[slack] Missing timestamp or signature headers");
+					res.writeHead(403, { "Content-Type": "text/plain" });
+					res.end("Forbidden");
+					return;
+				}
+				if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) {
+					logger.warn({ timestamp }, "[slack] Request timestamp too old");
+					res.writeHead(403, { "Content-Type": "text/plain" });
+					res.end("Forbidden");
+					return;
+				}
+				const sigBase = `v0:${timestamp}:${body.toString()}`;
+				const hmac = createHmac("sha256", signingSecret).update(sigBase).digest("hex");
+				const expected = Buffer.from(`v0=${hmac}`);
+				const actual = Buffer.from(signature);
+				const valid = expected.length === actual.length && timingSafeEqual(expected, actual);
+				if (!valid) {
+					logger.warn({ path: url.pathname, sigExpected: `v0=${hmac}`.slice(0, 16), sigActual: signature.slice(0, 16) }, "[slack] Signature mismatch");
+					res.writeHead(403, { "Content-Type": "text/plain" });
+					res.end("Forbidden");
+					return;
+				}
+			}
+
+			if (url.pathname === "/api/slack/events") {
+				const payload = JSON.parse(body.toString()) as {
+					type: string;
+					challenge?: string;
+					event?: { type: string; subtype?: string; text?: string; thread_ts?: string; ts?: string; bot_id?: string };
+				};
+
+				// URL verification must respond with the challenge synchronously
+				if (payload.type === "url_verification") {
+					res.writeHead(200, { "Content-Type": "application/json" });
+					res.end(JSON.stringify({ challenge: payload.challenge }));
+					return;
+				}
+
+				// Ack immediately; process async so we never hit Slack's 3s timeout
+				res.writeHead(200, { "Content-Type": "text/plain" });
+				res.end("ok");
+
+				void (async () => {
+					try {
+						const event = payload.event;
+
+						// Only handle real human messages in threads; skip bot messages, edits, and thread-root notifications
+						if (
+							event?.type === "message" &&
+							!event.bot_id &&
+							!event.subtype &&
+							event.thread_ts &&
+							event.ts !== event.thread_ts &&
+							event.text?.trim()
+						) {
+							const text = event.text.trim();
+							const found = await slackNotifier.findCardByThreadTs(event.thread_ts);
+							if (found) logger.info(`[slack] Thread reply → "${found.card.title}"`);
+							if (found) {
+								const { workspaceId, card } = found;
+								if (card.columnId === "done") {
+									await slackNotifier.replyToCard(card, "This ticket is completed and no longer accepts feedback.");
+								} else {
+									const updatedComments = [
+										...(card.reviewComments ?? []),
+										{
+											type: "human" as const,
+											actor: { type: "human" as const, id: "human" },
+											createdAt: Date.now(),
+											summary: text,
+											metadata: { fromSlack: true },
+										},
+									];
+									await updateCard(workspaceId, card.id, { reviewComments: updatedComments });
+									if (/\breopen\b/i.test(text)) {
+										await moveCard(workspaceId, card.id, "reopened");
+									}
+									stateHub.broadcastWorkspaceUpdate(workspaceId);
+								}
+							}
+						}
+					} catch (err) {
+						logger.error({ err }, "[slack] Event processing error");
+					}
+				})();
+				return;
+			}
+
+			if (url.pathname === "/api/slack/commands") {
+				const params = new URLSearchParams(body.toString());
+				const command = params.get("command");
+				const threadTs = params.get("thread_ts");
+
+				if (command === "/reopen" && threadTs) {
+					const found = await slackNotifier.findCardByThreadTs(threadTs);
+					if (!found) {
+						res.writeHead(200, { "Content-Type": "application/json" });
+						res.end(JSON.stringify({ response_type: "ephemeral", text: "No ticket found for this thread." }));
+						return;
+					}
+					const { workspaceId, card } = found;
+					if (card.columnId === "done") {
+						res.writeHead(200, { "Content-Type": "application/json" });
+						res.end(JSON.stringify({ response_type: "ephemeral", text: ":x: Cannot reopen — this ticket is already completed." }));
+						return;
+					}
+					await moveCard(workspaceId, card.id, "reopened");
+					stateHub.broadcastWorkspaceUpdate(workspaceId);
+					res.writeHead(200, { "Content-Type": "application/json" });
+					res.end(JSON.stringify({ response_type: "in_channel", text: `:arrows_counterclockwise: Ticket reopened: *${card.title}*` }));
+					return;
+				}
+
+				res.writeHead(200, { "Content-Type": "application/json" });
+				res.end(JSON.stringify({ response_type: "ephemeral", text: "Unknown command." }));
+				return;
+			}
 		}
 
 		if (url.pathname === "/api/hook") {

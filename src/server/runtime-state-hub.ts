@@ -1,6 +1,7 @@
 import type { WebSocket } from "ws";
 import type { RunSessionStatus, RuntimeStateEvent } from "../core/api-contract.js";
 import { loadWorkspaceState } from "../state/workspace-state.js";
+import { slackNotifier } from "../slack/slack-notifier.js";
 
 type WorkspaceId = string;
 type ClientId = string;
@@ -77,10 +78,10 @@ export class RuntimeStateHub {
 		const meta = this.workspaceMeta.get(workspaceId);
 		if (!meta) return;
 
-		// Load state async and broadcast
 		loadWorkspaceState(workspaceId, meta.repoPath)
 			.then((state) => {
 				this.broadcastToWorkspace(workspaceId, { type: "workspace_updated", state });
+				void slackNotifier.onWorkspaceUpdate(workspaceId, meta.repoPath);
 			})
 			.catch(() => {});
 	}

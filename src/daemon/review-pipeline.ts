@@ -279,7 +279,7 @@ async function runReviewSlot(
 	const nowFallback = Date.now();
 	const comment: RuntimeReviewComment = {
 		type: commentType,
-		actor: { type: "ai", id: slot.agentBinary },
+		actor: { type: "ai", id: slot.name },
 		status: status as RuntimeReviewComment["status"],
 		createdAt: nowFallback,
 		streamId,

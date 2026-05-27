@@ -292,6 +292,8 @@ export const runtimeBoardCardSchema = z.object({
 	worktreePath: z.string().optional(),
 	branchName: z.string().optional(),
 	sharedWorktreeId: z.string().optional(),
+	slackMessageTs: z.string().optional(),
+	slackChannelId: z.string().optional(),
 });
 export type RuntimeBoardCard = z.infer<typeof runtimeBoardCardSchema>;
 
@@ -332,6 +334,7 @@ export const runtimeGlobalConfigSchema = z.object({
 	slackOauthAuthorizeUrl: z.string().optional(),
 	slackPublicUrl: z.string().optional(),
 	slackBotName: z.string().default("Overemployed"),
+	slackInstallerUserId: z.string().optional(),
 	autoStartTunnel: z.boolean().default(false),
 	tunnelId: z.string().optional(),
 	tunnelDomain: z.string().optional(),

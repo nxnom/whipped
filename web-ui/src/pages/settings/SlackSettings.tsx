@@ -68,6 +68,88 @@ function Mono({ children }: { children: React.ReactNode }) {
 	return <span className="font-mono text-[11px]" style={{ color: "#a0a0c0" }}>{children}</span>;
 }
 
+function AdvancedCredentials({
+	config,
+	setConfig,
+	handleSaveToken,
+}: {
+	config: RuntimeGlobalConfig;
+	setConfig: (c: RuntimeGlobalConfig) => void;
+	handleSaveToken: () => void;
+}) {
+	const [signingSecret, setSigningSecret] = useState("");
+	const [saving, setSaving] = useState(false);
+
+	const handleSaveSigningSecret = async () => {
+		if (!signingSecret.trim()) return;
+		setSaving(true);
+		try {
+			await trpc.slack.updateSigningSecret.mutate({ signingSecret: signingSecret.trim() });
+			setSigningSecret("");
+			toast.success("Signing secret updated");
+		} catch {
+			toast.error("Failed to update signing secret");
+		} finally {
+			setSaving(false);
+		}
+	};
+
+	return (
+		<div className="flex flex-col gap-4 pl-4" style={{ borderLeft: "1px solid #2a2a35" }}>
+			<div className="flex flex-col gap-2">
+				<p className="text-[12px]" style={{ color: "#60607a" }}>Replace the bot token manually if needed.</p>
+				<div className="flex gap-3 items-center">
+					<div className="flex-1">
+						<SecretInput
+							value={config.slackBotToken ?? ""}
+							placeholder="xoxb-..."
+							onChange={(v) => setConfig({ ...config, slackBotToken: v || undefined })}
+						/>
+					</div>
+					<button
+						onClick={handleSaveToken}
+						className="px-4 py-2 rounded-lg text-[13px] font-medium shrink-0"
+						style={{ background: "#7c6aff", color: "#ffffff" }}
+					>
+						Save
+					</button>
+				</div>
+			</div>
+			<div className="flex flex-col gap-2">
+				<p className="text-[12px]" style={{ color: "#60607a" }}>
+					Update signing secret if webhooks return signature mismatch. Find it at{" "}
+					<a
+						href={`https://api.slack.com/apps/${config.slackAppId ?? ""}/general`}
+						target="_blank"
+						rel="noreferrer"
+						className="underline"
+						style={{ color: "#7c6aff" }}
+					>
+						api.slack.com/apps → App Credentials → Signing Secret
+					</a>.
+				</p>
+				<div className="flex gap-3 items-center">
+					<div className="flex-1">
+						<SecretInput
+							value={signingSecret}
+							placeholder="Paste new signing secret..."
+							onChange={setSigningSecret}
+						/>
+					</div>
+					<button
+						onClick={handleSaveSigningSecret}
+						disabled={!signingSecret.trim() || saving}
+						className="px-4 py-2 rounded-lg text-[13px] font-medium shrink-0 disabled:opacity-40"
+						style={{ background: "#7c6aff", color: "#ffffff" }}
+					>
+						{saving ? "Saving…" : "Save"}
+					</button>
+				</div>
+			</div>
+		</div>
+	);
+}
+
 export function SlackSettings() {
 	const navigate = useNavigate();
 	const { workspaceId } = useParams<{ workspaceId: string }>();
@@ -122,8 +204,9 @@ export function SlackSettings() {
 			await trpc.slack.resetApp.mutate();
 			const [updated, tunnel] = await Promise.all([trpc.config.get.query(), trpc.slack.tunnelConfig.query()]);
 			setConfig(updated);
-			setAppConfigToken(updated.slackAppConfigToken ?? "");
-			setPublicUrl(tunnel.domain ? `https://${tunnel.domain}` : (updated.slackPublicUrl ?? ""));
+			setAppConfigToken("");
+			setBotName("");
+			setPublicUrl(tunnel.domain ? `https://${tunnel.domain}` : "");
 			setShowSetup(true);
 			toast.success("Slack configuration cleared");
 		} catch {
@@ -371,7 +454,7 @@ export function SlackSettings() {
 									["Ticket changes status", "Thread reply: Status → In Progress / Done / Blocked"],
 									["PR opened or merged", "Thread reply with PR link"],
 									["You reply in thread", "Comment added to the ticket"],
-									["You send /reopen in thread", "Ticket moved to Reopened column"],
+									["You reply \"reopen\" in thread", "Ticket moved to Reopened column"],
 								].map(([event, result], i, arr) => (
 									<div
 										key={event}
@@ -398,25 +481,7 @@ export function SlackSettings() {
 								Advanced
 							</button>
 							{showAdvanced && (
-								<div className="flex flex-col gap-3 pl-4" style={{ borderLeft: "1px solid #2a2a35" }}>
-									<p className="text-[12px]" style={{ color: "#60607a" }}>Replace the bot token manually if needed.</p>
-									<div className="flex gap-3 items-center">
-										<div className="flex-1">
-											<SecretInput
-												value={config.slackBotToken ?? ""}
-												placeholder="xoxb-..."
-												onChange={(v) => setConfig({ ...config, slackBotToken: v || undefined })}
-											/>
-										</div>
-										<button
-											onClick={handleSaveToken}
-											className="px-4 py-2 rounded-lg text-[13px] font-medium shrink-0"
-											style={{ background: "#7c6aff", color: "#ffffff" }}
-										>
-											Save
-										</button>
-									</div>
-								</div>
+								<AdvancedCredentials config={config} setConfig={setConfig} handleSaveToken={handleSaveToken} />
 							)}
 						</div>
 					)}
