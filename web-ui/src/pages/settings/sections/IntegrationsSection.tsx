@@ -3,26 +3,17 @@ import { Download, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { toast } from "@geckoui/geckoui";
 import { trpc } from "@/runtime/trpc-client";
+import { classNames } from "@/utils/classNames";
 
 // ─── primitives ───────────────────────────────────────────────────────────────
 
-const fieldInputStyle: React.CSSProperties = {
-	flex: 1,
-	background: "#0c0c0f",
-	border: "1px solid #2a2a35",
-	borderRadius: 6,
-	padding: "8px 12px",
-	color: "#c0c0d0",
-	fontSize: 12,
-	outline: "none",
-};
+const fieldInputClassName =
+	"flex-1 bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-2 text-[#c0c0d0] text-[12px] outline-none";
 
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
 	return (
 		<div className="flex items-center gap-3">
-			<span className="text-[12px] font-medium shrink-0" style={{ width: 100, color: "#8888a0" }}>
-				{label}
-			</span>
+			<span className="text-[12px] font-medium shrink-0 w-[100px] text-[#8888a0]">{label}</span>
 			{children}
 		</div>
 	);
@@ -38,27 +29,33 @@ function TextInput({
 	placeholder?: string;
 }) {
 	return (
-		<input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={fieldInputStyle} />
+		<input
+			value={value}
+			onChange={(e) => onChange(e.target.value)}
+			placeholder={placeholder}
+			className={fieldInputClassName}
+		/>
 	);
 }
 
 function PasswordInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
 	const [revealed, setRevealed] = useState(false);
 	return (
-		<div className="flex items-center gap-2 flex-1" style={{ ...fieldInputStyle, padding: "8px 12px" }}>
+		<div className="flex items-center gap-2 flex-1 bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-2">
 			<input
 				type={revealed ? "text" : "password"}
 				value={value}
 				onChange={(e) => onChange(e.target.value)}
 				placeholder="••••••••••••••••"
-				className="flex-1 bg-transparent focus:outline-none font-mono text-[12px] min-w-0"
-				style={{ color: revealed ? "#c0c0d0" : "#60607a" }}
+				className={classNames(
+					"flex-1 bg-transparent focus:outline-none font-mono text-[12px] min-w-0",
+					revealed ? "text-[#c0c0d0]" : "text-[#60607a]",
+				)}
 			/>
 			<button
 				type="button"
 				onClick={() => setRevealed((v) => !v)}
-				className="shrink-0 hover:opacity-70 transition-opacity"
-				style={{ color: "#60607a" }}
+				className="shrink-0 hover:opacity-70 transition-opacity text-[#60607a]"
 			>
 				{revealed ? <EyeOff size={14} /> : <Eye size={14} />}
 			</button>
@@ -81,14 +78,10 @@ function CustomCheckbox({ checked, onChange }: { checked: boolean; onChange: (v:
 		<button
 			type="button"
 			onClick={() => onChange(!checked)}
-			className="shrink-0 flex items-center justify-center transition-colors"
-			style={{
-				width: 16,
-				height: 16,
-				borderRadius: 3,
-				background: checked ? "#7c6aff" : "transparent",
-				border: checked ? "none" : "1px solid #2a2a35",
-			}}
+			className={classNames(
+				"shrink-0 flex items-center justify-center transition-colors w-4 h-4 rounded-[3px]",
+				checked ? "bg-[#7c6aff] border-0" : "bg-transparent border border-[#2a2a35]",
+			)}
 		>
 			{checked && (
 				<svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -111,31 +104,16 @@ function TicketRow({
 	const { bg, color } = statusStyle(ticket.status);
 	return (
 		<div
-			className="flex items-center gap-[10px] cursor-pointer"
-			style={{
-				padding: "10px 14px",
-				background: selected ? "#7c6aff08" : "transparent",
-				borderBottom: "1px solid #1a1a1f",
-			}}
+			className="flex items-center gap-[10px] px-3.5 py-2.5 border-b border-[#1a1a1f] cursor-pointer"
+			style={{ background: selected ? "#7c6aff08" : "transparent" }}
 			onClick={onToggle}
 		>
 			<CustomCheckbox checked={selected} onChange={onToggle} />
-			<div
-				style={{
-					background: "#2563eb15",
-					borderRadius: 4,
-					padding: "2px 6px",
-					flexShrink: 0,
-				}}
-			>
-				<span className="font-mono text-[10px] font-semibold" style={{ color: "#2563eb" }}>
-					{ticket.key}
-				</span>
+			<div className="bg-[#2563eb15] rounded-[4px] px-1.5 py-[2px] shrink-0">
+				<span className="font-mono text-[10px] font-semibold text-[#2563eb]">{ticket.key}</span>
 			</div>
-			<span className="flex-1 text-[12px] truncate" style={{ color: "#c0c0d0" }}>
-				{ticket.summary}
-			</span>
-			<div style={{ background: bg, borderRadius: 4, padding: "2px 6px", flexShrink: 0 }}>
+			<span className="flex-1 text-[12px] truncate text-[#c0c0d0]">{ticket.summary}</span>
+			<div className="shrink-0 rounded-[4px] px-1.5 py-[2px]" style={{ background: bg }}>
 				<span className="text-[10px]" style={{ color }}>
 					{ticket.status}
 				</span>
@@ -213,68 +191,38 @@ export function IntegrationsSection({
 	return (
 		<div className="flex flex-col gap-6">
 			{/* Jira card */}
-			<div
-				style={{
-					background: "#141418",
-					border: "1px solid #2a2a35",
-					borderRadius: 10,
-				}}
-			>
+			<div className="bg-[#141418] border border-[#2a2a35] rounded-[10px]">
 				{/* Card header */}
-				<div className="flex items-center gap-3" style={{ padding: "16px 20px", borderBottom: "1px solid #2a2a35" }}>
+				<div className="flex items-center gap-3 px-5 py-4 border-b border-[#2a2a35]">
 					{/* Jira logo */}
-					<div
-						className="flex items-center justify-center shrink-0 text-[16px] font-bold"
-						style={{
-							width: 32,
-							height: 32,
-							background: "#2563eb15",
-							borderRadius: 8,
-							color: "#2563eb",
-							fontFamily: "Inter, sans-serif",
-						}}
-					>
+					<div className="flex items-center justify-center shrink-0 text-[16px] font-bold w-8 h-8 bg-[#2563eb15] rounded-lg text-[#2563eb]">
 						J
 					</div>
 
 					{/* Title */}
 					<div className="flex flex-col gap-0.5">
-						<span className="text-[15px] font-semibold" style={{ color: "#f0f0f5" }}>
-							Jira
-						</span>
-						<span className="text-[11px]" style={{ color: "#60607a" }}>
-							Import tickets from Jira projects
-						</span>
+						<span className="text-[15px] font-semibold text-[#f0f0f5]">Jira</span>
+						<span className="text-[11px] text-[#60607a]">Import tickets from Jira projects</span>
 					</div>
 
 					<div className="flex-1" />
 
 					{/* Connection status */}
 					{isConnected ? (
-						<div
-							className="flex items-center gap-1.5"
-							style={{ background: "#22c55e15", borderRadius: 10, padding: "3px 10px" }}
-						>
-							<div style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e" }} />
-							<span className="text-[10px] font-medium" style={{ color: "#22c55e" }}>
-								Connected
-							</span>
+						<div className="flex items-center gap-1.5 bg-[#22c55e15] rounded-[10px] px-2.5 py-[3px]">
+							<div className="w-1.5 h-1.5 rounded-full bg-[#22c55e]" />
+							<span className="text-[10px] font-medium text-[#22c55e]">Connected</span>
 						</div>
 					) : (
-						<div
-							className="flex items-center gap-1.5"
-							style={{ background: "#60607a20", borderRadius: 10, padding: "3px 10px" }}
-						>
-							<div style={{ width: 6, height: 6, borderRadius: "50%", background: "#60607a" }} />
-							<span className="text-[10px] font-medium" style={{ color: "#60607a" }}>
-								Not connected
-							</span>
+						<div className="flex items-center gap-1.5 bg-[#60607a20] rounded-[10px] px-2.5 py-[3px]">
+							<div className="w-1.5 h-1.5 rounded-full bg-[#60607a]" />
+							<span className="text-[10px] font-medium text-[#60607a]">Not connected</span>
 						</div>
 					)}
 				</div>
 
 				{/* Card body */}
-				<div className="flex flex-col gap-3.5" style={{ padding: 20 }}>
+				<div className="flex flex-col gap-3.5 p-5">
 					<FieldRow label="Host">
 						<TextInput
 							value={jira?.host ?? ""}
@@ -300,24 +248,16 @@ export function IntegrationsSection({
 						/>
 					</FieldRow>
 
-					<div style={{ height: 1, background: "#2a2a35" }} />
+					<div className="h-px bg-[#2a2a35]" />
 
 					{/* Import Tickets */}
 					<div className="flex items-center gap-3">
-						<span className="text-[13px] font-semibold" style={{ color: "#f0f0f5" }}>
-							Import Tickets
-						</span>
+						<span className="text-[13px] font-semibold text-[#f0f0f5]">Import Tickets</span>
 						<div className="flex-1" />
 						<button
 							onClick={fetchTickets}
 							disabled={fetching || !isConnected}
-							className="flex items-center gap-1.5 hover:opacity-80 transition-opacity disabled:opacity-40"
-							style={{
-								background: "#7c6aff",
-								borderRadius: 6,
-								padding: "7px 14px",
-								color: "#ffffff",
-							}}
+							className="flex items-center gap-1.5 hover:opacity-80 transition-opacity disabled:opacity-40 bg-[#7c6aff] rounded-md px-3.5 py-[7px] text-white"
 						>
 							<RefreshCw size={13} className={fetching ? "animate-spin" : ""} />
 							<span className="text-[12px] font-medium">Fetch Tickets</span>
@@ -327,14 +267,7 @@ export function IntegrationsSection({
 					{/* Ticket list */}
 					{tickets && tickets.length > 0 && (
 						<>
-							<div
-								style={{
-									background: "#0c0c0f",
-									border: "1px solid #2a2a35",
-									borderRadius: 6,
-									overflow: "hidden",
-								}}
-							>
+							<div className="bg-[#0c0c0f] border border-[#2a2a35] rounded-md overflow-hidden">
 								{tickets.map((t) => (
 									<TicketRow
 										key={t.key}
@@ -345,21 +278,11 @@ export function IntegrationsSection({
 								))}
 							</div>
 							<div className="flex items-center justify-end gap-2.5">
-								{selected.size > 0 && (
-									<span className="text-[12px]" style={{ color: "#60607a" }}>
-										{selected.size} selected
-									</span>
-								)}
+								{selected.size > 0 && <span className="text-[12px] text-[#60607a]">{selected.size} selected</span>}
 								<button
 									onClick={handleImport}
 									disabled={selected.size === 0 || importing}
-									className="flex items-center gap-1.5 hover:opacity-80 transition-opacity disabled:opacity-40"
-									style={{
-										background: "#7c6aff",
-										borderRadius: 6,
-										padding: "7px 14px",
-										color: "#ffffff",
-									}}
+									className="flex items-center gap-1.5 hover:opacity-80 transition-opacity disabled:opacity-40 bg-[#7c6aff] rounded-md px-3.5 py-[7px] text-white"
 								>
 									<Download size={13} />
 									<span className="text-[12px] font-medium">
@@ -371,9 +294,7 @@ export function IntegrationsSection({
 					)}
 
 					{tickets && tickets.length === 0 && (
-						<p className="text-[12px] text-center py-3" style={{ color: "#4a4a5a" }}>
-							No open tickets found
-						</p>
+						<p className="text-[12px] text-center py-3 text-[#4a4a5a]">No open tickets found</p>
 					)}
 				</div>
 			</div>
@@ -383,8 +304,7 @@ export function IntegrationsSection({
 				<button
 					onClick={onSave}
 					disabled={saving}
-					className="text-sm font-medium px-4 py-2 rounded-lg transition-opacity disabled:opacity-50"
-					style={{ background: "#7c6aff", color: "#ffffff" }}
+					className="text-sm font-medium px-4 py-2 rounded-lg transition-opacity disabled:opacity-50 bg-[#7c6aff] text-white"
 				>
 					{saving ? "Saving..." : "Save"}
 				</button>

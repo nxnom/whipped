@@ -1,5 +1,6 @@
 import { Draggable } from "@hello-pangea/dnd";
 import type { RuntimeBoardCard } from "@runtime-contract";
+import { classNames } from "@/utils/classNames";
 import {
 	ExternalLink,
 	FolderOpen,
@@ -106,12 +107,11 @@ export function KanbanCard({
 					ref={provided.innerRef}
 					{...provided.draggableProps}
 					{...provided.dragHandleProps}
-					className={`
-						border rounded-lg overflow-hidden select-none
-						transition-all duration-150
-						${isStory ? "bg-purple-950/30 hover:border-purple-700" : "bg-[#1a1a1f] hover:border-gray-600"}
-					group ${borderClass(snapshot.isDragging)}
-					`}
+					className={classNames(
+						"border rounded-lg overflow-hidden select-none transition-all duration-150 group",
+						isStory ? "bg-purple-950/30 hover:border-purple-700" : "bg-[#1a1a1f] hover:border-gray-600",
+						borderClass(snapshot.isDragging),
+					)}
 				>
 					<div onClick={onClick} className="p-3 cursor-pointer">
 						{/* Story header */}
@@ -123,7 +123,12 @@ export function KanbanCard({
 						)}
 
 						<div className="flex items-start justify-between gap-2">
-							<p className={`text-sm font-medium leading-snug flex-1 ${isStory ? "text-purple-100" : "text-gray-100"}`}>
+							<p
+								className={classNames(
+									"text-sm font-medium leading-snug flex-1",
+									isStory ? "text-purple-100" : "text-gray-100",
+								)}
+							>
 								{card.description?.split("\n")[0] ?? card.id}
 							</p>
 							<div className="flex items-center gap-1 shrink-0">
@@ -168,13 +173,18 @@ export function KanbanCard({
 								</span>
 							)}
 							{card.priority && (
-								<span className={`text-xs rounded px-1.5 py-0.5 font-medium ${PRIORITY_STYLES[card.priority]}`}>
+								<span
+									className={classNames("text-xs rounded px-1.5 py-0.5 font-medium", PRIORITY_STYLES[card.priority])}
+								>
 									{card.priority}
 								</span>
 							)}
 							{!isStory && deps.length > 0 && (
 								<span
-									className={`flex items-center gap-1 text-xs rounded px-1.5 py-0.5 font-medium ${allDepsMet ? "text-[#8888a0] bg-[#2a2a35]" : "text-orange-400 bg-orange-400/10"}`}
+									className={classNames(
+										"flex items-center gap-1 text-xs rounded px-1.5 py-0.5 font-medium",
+										allDepsMet ? "text-[#8888a0] bg-[#2a2a35]" : "text-orange-400 bg-orange-400/10",
+									)}
 								>
 									<Link2 size={10} />
 									{metDeps.length}/{deps.length}
@@ -189,17 +199,19 @@ export function KanbanCard({
 									};
 									return (
 										<span
-											className={`flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full ${ac.bg} ${ac.text}`}
+											className={classNames(
+												"flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full",
+												ac.bg,
+												ac.text,
+											)}
 										>
-											<span className={`size-[5px] rounded-full ${ac.dot}`} />
+											<span className={classNames("size-[5px] rounded-full", ac.dot)} />
 											{card.agentId}
 										</span>
 									);
 								})()}
 							{workflowName && (
-								<span
-									className={`flex items-center gap-1 text-xs rounded px-1.5 py-0.5 ${isStory ? "text-purple-400 bg-purple-400/10" : "text-purple-400 bg-purple-400/10"}`}
-								>
+								<span className="flex items-center gap-1 text-xs rounded px-1.5 py-0.5 text-purple-400 bg-purple-400/10">
 									<Workflow size={10} />
 									{workflowName}
 								</span>
@@ -244,7 +256,7 @@ export function KanbanCard({
 								</span>
 							)}
 							{isRunning && card.columnId !== "done" && (
-								<span className={`text-xs ml-auto ${sessionColor}`}>running</span>
+								<span className={classNames("text-xs ml-auto", sessionColor)}>running</span>
 							)}
 						</div>
 						{card.branchName && (
@@ -290,7 +302,12 @@ export function KanbanCard({
 									e.stopPropagation();
 									onToggleReady();
 								}}
-								className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs transition-colors cursor-pointer ${card.readyForDev ? "text-emerald-400 hover:text-gray-400 hover:bg-[#252530]" : "text-gray-500 hover:text-emerald-400 hover:bg-[#252530]"}`}
+								className={classNames(
+									"flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs transition-colors cursor-pointer",
+									card.readyForDev
+										? "text-emerald-400 hover:text-gray-400 hover:bg-[#252530]"
+										: "text-gray-500 hover:text-emerald-400 hover:bg-[#252530]",
+								)}
 								title={card.readyForDev ? "Unmark as ready" : "Mark as ready for agent"}
 							>
 								<Zap size={13} />

@@ -1,4 +1,5 @@
 import { Button, ConfirmDialog, Dialog, Input, Tooltip, toast } from "@geckoui/geckoui";
+import { classNames } from "@/utils/classNames";
 import type { RuntimeBoardCard, WorkflowSlot } from "@runtime-contract";
 import {
 	ArrowLeft,
@@ -191,7 +192,10 @@ function DescAttachment({ path, name, mimeType }: { path: string; name: string; 
 					alt={name}
 					onClick={() => setExpanded((v) => !v)}
 					title={expanded ? "Click to collapse" : name}
-					className={`rounded border border-[#2a2a35] cursor-pointer object-contain ${expanded ? "max-w-full max-h-64" : "h-16 w-16 object-cover"}`}
+					className={classNames(
+						"rounded border border-[#2a2a35] cursor-pointer object-contain",
+						expanded ? "max-w-full max-h-64" : "h-16 w-16 object-cover",
+					)}
 				/>
 			</div>
 		);
@@ -631,10 +635,15 @@ export function CardDetailPanel({
 			<div className="flex items-center gap-2 px-6 py-2 border-b border-[#2a2a35] bg-[#141418] shrink-0 flex-wrap">
 				{columnStatus && (
 					<span
-						className={`flex items-center gap-1.5 px-2.5 py-[3px] rounded-md text-[11px] font-medium border ${columnStatus.color} ${columnStatus.bg} ${columnStatus.border}`}
+						className={classNames(
+							"flex items-center gap-1.5 px-2.5 py-[3px] rounded-md text-[11px] font-medium border",
+							columnStatus.color,
+							columnStatus.bg,
+							columnStatus.border,
+						)}
 					>
 						<span
-							className={`size-[7px] rounded-full shrink-0 ${columnStatus.dotColor}`}
+							className={classNames("size-[7px] rounded-full shrink-0", columnStatus.dotColor)}
 							style={columnStatus.glow ? { boxShadow: `0 0 5px ${columnStatus.glow}` } : {}}
 						/>
 						{columnStatus.label}
@@ -642,17 +651,27 @@ export function CardDetailPanel({
 				)}
 				{priorityBadge && (
 					<span
-						className={`flex items-center gap-1.5 px-2.5 py-[3px] rounded-md text-[11px] font-medium border ${priorityBadge.color} ${priorityBadge.bg} ${priorityBadge.border}`}
+						className={classNames(
+							"flex items-center gap-1.5 px-2.5 py-[3px] rounded-md text-[11px] font-medium border",
+							priorityBadge.color,
+							priorityBadge.bg,
+							priorityBadge.border,
+						)}
 					>
-						<span className={`size-[7px] rounded-full shrink-0 ${priorityBadge.dotColor}`} />
+						<span className={classNames("size-[7px] rounded-full shrink-0", priorityBadge.dotColor)} />
 						{card.priority!.charAt(0).toUpperCase() + card.priority!.slice(1)}
 					</span>
 				)}
 				{agentBadge && (
 					<span
-						className={`flex items-center gap-1.5 px-2.5 py-[3px] rounded-md text-[11px] font-medium border ${agentBadge.color} ${agentBadge.bg} ${agentBadge.border}`}
+						className={classNames(
+							"flex items-center gap-1.5 px-2.5 py-[3px] rounded-md text-[11px] font-medium border",
+							agentBadge.color,
+							agentBadge.bg,
+							agentBadge.border,
+						)}
 					>
-						<span className={`size-[7px] rounded-full shrink-0 ${agentBadge.dotColor}`} />
+						<span className={classNames("size-[7px] rounded-full shrink-0", agentBadge.dotColor)} />
 						{agentBadge.label}
 					</span>
 				)}
@@ -700,9 +719,10 @@ export function CardDetailPanel({
 							<button
 								key={id}
 								onClick={() => setRightTab(id)}
-								className={`relative flex items-center gap-1.5 px-4 py-[11px] text-xs font-medium transition-colors ${
-									rightTab === id ? "text-[#f0f0f5]" : "text-[#4a4a5a] hover:text-[#8888a0]"
-								}`}
+								className={classNames(
+									"relative flex items-center gap-1.5 px-4 py-[11px] text-xs font-medium transition-colors",
+									rightTab === id ? "text-[#f0f0f5]" : "text-[#4a4a5a] hover:text-[#8888a0]",
+								)}
 							>
 								{Icon && <Icon size={11} />}
 								{label}
@@ -742,11 +762,19 @@ export function CardDetailPanel({
 
 				{/* ── Right sidebar ── */}
 				<div
-					className={`shrink-0 bg-[#141418] border-l border-[#2a2a35] flex flex-col overflow-hidden transition-all duration-200 ${sidebarCollapsed ? "w-12" : "w-80"}`}
+					className={classNames(
+						"shrink-0 bg-[#141418] border-l border-[#2a2a35] flex flex-col overflow-hidden transition-all duration-200",
+						sidebarCollapsed ? "w-12" : "w-80",
+					)}
 				>
 					{/* Workflow Pipeline */}
 					<div className="shrink-0">
-						<div className={`pt-3.5 pb-2 flex items-center ${sidebarCollapsed ? "justify-center px-0" : "px-[18px]"}`}>
+						<div
+							className={classNames(
+								"pt-3.5 pb-2 flex items-center",
+								sidebarCollapsed ? "justify-center px-0" : "px-[18px]",
+							)}
+						>
 							{!sidebarCollapsed && (
 								<span className="text-[11px] font-semibold text-[#8888a0] tracking-[0.3px] flex-1">
 									Workflow Pipeline
@@ -780,7 +808,14 @@ export function CardDetailPanel({
 															setActiveStreamId(session.streamId);
 															setRightTab("terminal");
 														}}
-														className={`size-7 rounded-full flex items-center justify-center cursor-pointer transition-colors ${status === "running" ? "bg-[#7c6aff]/15 group-hover:bg-red-400/10" : isFocused ? "bg-[#7c6aff]/15" : "hover:bg-white/[0.05]"}`}
+														className={classNames(
+															"size-7 rounded-full flex items-center justify-center cursor-pointer transition-colors",
+															status === "running"
+																? "bg-[#7c6aff]/15 group-hover:bg-red-400/10"
+																: isFocused
+																	? "bg-[#7c6aff]/15"
+																	: "hover:bg-white/[0.05]",
+														)}
 													>
 														{status === "completed" && <CheckCircle2 size={14} className="text-[#22c55e]" />}
 														{status === "running" && <Loader2 size={14} className="text-[#7c6aff] animate-spin" />}
@@ -790,7 +825,10 @@ export function CardDetailPanel({
 												</Tooltip>
 												{idx < visibleSessions.length - 1 && (
 													<div
-														className={`w-0.5 h-4 rounded-full ${status === "completed" ? "bg-[#22c55e]/40" : "bg-[#2a2a35]"}`}
+														className={classNames(
+															"w-0.5 h-4 rounded-full",
+															status === "completed" ? "bg-[#22c55e]/40" : "bg-[#2a2a35]",
+														)}
 													/>
 												)}
 											</div>
@@ -816,10 +854,16 @@ export function CardDetailPanel({
 										return (
 											<div
 												key={session.streamId}
-												className={`flex items-stretch gap-0 group rounded transition-colors ${isFocused ? "bg-[#7c6aff]/8" : "hover:bg-white/[0.03]"}`}
+												className={classNames(
+													"flex items-stretch gap-0 group rounded transition-colors",
+													isFocused ? "bg-[#7c6aff]/8" : "hover:bg-white/[0.03]",
+												)}
 											>
 												<div
-													className={`w-0.5 shrink-0 rounded-full mr-2 self-stretch transition-colors ${isFocused ? "bg-[#7c6aff]" : "bg-transparent"}`}
+													className={classNames(
+														"w-0.5 shrink-0 rounded-full mr-2 self-stretch transition-colors",
+														isFocused ? "bg-[#7c6aff]" : "bg-transparent",
+													)}
 												/>
 												<div className="flex flex-col items-center w-7 shrink-0">
 													{status === "running" ? (
@@ -843,7 +887,10 @@ export function CardDetailPanel({
 													)}
 													{idx < visibleSessions.length - 1 && (
 														<div
-															className={`w-0.5 flex-1 min-h-[12px] rounded-full mt-0.5 mb-0.5 ${status === "completed" ? "bg-[#22c55e]/40" : "bg-[#2a2a35]"}`}
+															className={classNames(
+																"w-0.5 flex-1 min-h-[12px] rounded-full mt-0.5 mb-0.5",
+																status === "completed" ? "bg-[#22c55e]/40" : "bg-[#2a2a35]",
+															)}
 														/>
 													)}
 												</div>
@@ -855,7 +902,16 @@ export function CardDetailPanel({
 													className="flex flex-col gap-0.5 pl-2 py-0.5 pb-3 flex-1 min-w-0 text-left cursor-pointer"
 												>
 													<span
-														className={`text-xs ${isFocused ? "text-[#c4baff]" : status === "running" ? "font-semibold text-[#f0f0f5]" : status === "completed" ? "text-[#f0f0f5]" : "text-[#4a4a5a]"}`}
+														className={classNames(
+															"text-xs",
+															isFocused
+																? "text-[#c4baff]"
+																: status === "running"
+																	? "font-semibold text-[#f0f0f5]"
+																	: status === "completed"
+																		? "text-[#f0f0f5]"
+																		: "text-[#4a4a5a]",
+														)}
 													>
 														{slotName}
 													</span>
@@ -896,7 +952,10 @@ export function CardDetailPanel({
 								{card.description && (
 									<div>
 										<p
-											className={`text-xs text-[#8888a0] whitespace-pre-wrap leading-relaxed ${descExpanded ? "" : "line-clamp-4"}`}
+											className={classNames(
+												"text-xs text-[#8888a0] whitespace-pre-wrap leading-relaxed",
+												descExpanded ? "" : "line-clamp-4",
+											)}
 										>
 											{card.description}
 										</p>
@@ -1007,7 +1066,10 @@ export function CardDetailPanel({
 															{dep.description?.split("\n")[0] ?? dep.id}
 														</span>
 														<span
-															className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${DEP_COL_BADGE[dep.columnId] ?? "text-gray-400 bg-gray-700"}`}
+															className={classNames(
+																"text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium",
+																DEP_COL_BADGE[dep.columnId] ?? "text-gray-400 bg-gray-700",
+															)}
 														>
 															{COLUMN_LABELS[dep.columnId] ?? dep.columnId}
 														</span>
@@ -1068,7 +1130,10 @@ export function CardDetailPanel({
 									</span>
 									<ChevronRight
 										size={14}
-										className={`text-[#4a4a5a] transition-transform duration-150 ${activityExpanded ? "rotate-90" : ""}`}
+										className={classNames(
+											"text-[#4a4a5a] transition-transform duration-150",
+											activityExpanded ? "rotate-90" : "",
+										)}
 									/>
 								</button>
 								{activityExpanded && (

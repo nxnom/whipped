@@ -7,13 +7,9 @@ import type { GlobalSection } from "./_shared";
 
 function PageHeader({ title, description }: { title: string; description: string }) {
 	return (
-		<div className="shrink-0 flex flex-col gap-1 px-10 py-6" style={{ borderBottom: "1px solid #2a2a35" }}>
-			<h1 className="text-xl font-semibold" style={{ color: "#f0f0f5" }}>
-				{title}
-			</h1>
-			<p className="text-[13px]" style={{ color: "#60607a" }}>
-				{description}
-			</p>
+		<div className="shrink-0 flex flex-col gap-1 px-10 py-6 border-b border-[#2a2a35]">
+			<h1 className="text-xl font-semibold text-[#f0f0f5]">{title}</h1>
+			<p className="text-[13px] text-[#60607a]">{description}</p>
 		</div>
 	);
 }
@@ -21,10 +17,8 @@ function PageHeader({ title, description }: { title: string; description: string
 function SectionDivider({ title }: { title: string }) {
 	return (
 		<div className="flex items-center gap-3">
-			<span className="text-[15px] font-semibold" style={{ color: "#f0f0f5" }}>
-				{title}
-			</span>
-			<div className="flex-1" style={{ height: 1, background: "#1a1a1f" }} />
+			<span className="text-[15px] font-semibold text-[#f0f0f5]">{title}</span>
+			<div className="flex-1 h-px bg-[#1a1a1f]" />
 		</div>
 	);
 }
@@ -33,12 +27,8 @@ function FieldRow({ label, description, children }: { label: string; description
 	return (
 		<div className="flex items-center gap-4">
 			<div className="flex-1 flex flex-col gap-0.5">
-				<span className="text-[13px] font-medium" style={{ color: "#c0c0d0" }}>
-					{label}
-				</span>
-				<span className="text-[11px]" style={{ color: "#60607a" }}>
-					{description}
-				</span>
+				<span className="text-[13px] font-medium text-[#c0c0d0]">{label}</span>
+				<span className="text-[11px] text-[#60607a]">{description}</span>
 			</div>
 			{children}
 		</div>
@@ -51,15 +41,7 @@ function NumberInput({ value, onChange }: { value: number; onChange: (v: number)
 			type="number"
 			value={value}
 			onChange={(e) => onChange(Number(e.target.value))}
-			className="text-center font-mono text-[12px] focus:outline-none focus:border-[#7c6aff]"
-			style={{
-				width: 80,
-				padding: "9px 12px",
-				background: "#0c0c0f",
-				border: "1px solid #2a2a35",
-				borderRadius: 6,
-				color: "#c0c0d0",
-			}}
+			className="w-20 text-center font-mono text-[12px] focus:outline-none focus:border-[#7c6aff] bg-[#0c0c0f] border border-[#2a2a35] rounded-md text-[#c0c0d0] px-3 py-[9px]"
 		/>
 	);
 }
@@ -79,19 +61,9 @@ function SelectInput({
 		<select
 			value={value}
 			onChange={(e) => onChange(e.target.value)}
-			className="font-mono text-[12px] focus:outline-none focus:border-[#7c6aff] cursor-pointer"
+			className="w-[240px] appearance-none bg-no-repeat bg-[right_12px_center] font-mono text-[12px] focus:outline-none focus:border-[#7c6aff] cursor-pointer text-[#c0c0d0] bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 pr-9 py-[9px]"
 			style={{
-				width: 240,
-				padding: "9px 12px",
-				background: "#0c0c0f",
-				border: "1px solid #2a2a35",
-				borderRadius: 6,
-				color: "#c0c0d0",
-				appearance: "none",
 				backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2360607a' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-				backgroundRepeat: "no-repeat",
-				backgroundPosition: "right 12px center",
-				paddingRight: 36,
 			}}
 		>
 			{placeholder && <option value="">{placeholder}</option>}
@@ -110,8 +82,7 @@ function SaveButton({ saving, onSave }: { saving: boolean; onSave: () => void })
 			<button
 				onClick={onSave}
 				disabled={saving}
-				className="text-sm font-medium px-4 py-2 rounded-lg transition-opacity disabled:opacity-50"
-				style={{ background: "#7c6aff", color: "#ffffff" }}
+				className="text-sm font-medium px-4 py-2 rounded-lg transition-opacity disabled:opacity-50 bg-[#7c6aff] text-white"
 			>
 				{saving ? "Saving..." : "Save"}
 			</button>
@@ -154,9 +125,7 @@ export function GlobalSettings({ section }: { section: GlobalSection }) {
 		return (
 			<div className="flex-1 flex flex-col">
 				<PageHeader title="Global Runtime Config" description="Settings that apply across all projects" />
-				<div className="flex items-center justify-center py-20 text-sm" style={{ color: "#60607a" }}>
-					Loading...
-				</div>
+				<div className="flex items-center justify-center py-20 text-sm text-[#60607a]">Loading...</div>
 			</div>
 		);
 	}

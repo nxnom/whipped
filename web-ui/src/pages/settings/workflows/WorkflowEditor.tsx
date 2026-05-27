@@ -8,6 +8,7 @@ import {
 } from "@hello-pangea/dnd";
 import type { RuntimeAgentId, Workflow, WorkflowSlot } from "@runtime-contract";
 import { GripVertical, Plus, Settings2, Trash2 } from "lucide-react";
+import { classNames } from "@/utils/classNames";
 
 export function WorkflowEditor({
 	workflow,
@@ -95,7 +96,10 @@ export function WorkflowEditor({
 											<div
 												ref={drag.innerRef}
 												{...drag.draggableProps}
-												className={`rounded-xl border transition-shadow ${snapshot.isDragging ? "border-purple-600 shadow-lg" : "border-purple-900/40"}`}
+												className={classNames(
+													"rounded-xl border transition-shadow",
+													snapshot.isDragging ? "border-purple-600 shadow-lg" : "border-purple-900/40",
+												)}
 											>
 												<SlotCard
 													slot={slot}
@@ -141,7 +145,10 @@ export function WorkflowEditor({
 										<div
 											ref={drag.innerRef}
 											{...drag.draggableProps}
-											className={`rounded-xl border transition-shadow ${snapshot.isDragging ? "border-gray-600 shadow-lg" : "border-gray-700"}`}
+											className={classNames(
+												"rounded-xl border transition-shadow",
+												snapshot.isDragging ? "border-gray-600 shadow-lg" : "border-gray-700",
+											)}
 										>
 											<SlotCard
 												slot={slot}

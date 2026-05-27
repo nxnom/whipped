@@ -2,6 +2,7 @@ import { Button, Checkbox, Input, toast } from "@geckoui/geckoui";
 import type { RuntimeJiraTicket, RuntimeProjectConfig } from "@runtime-contract";
 import { Download, RefreshCw } from "lucide-react";
 import { useState } from "react";
+import { classNames } from "@/utils/classNames";
 import { trpc } from "@/runtime/trpc-client";
 import { Field, SaveRow, SectionHeader } from "../_shared";
 
@@ -106,7 +107,7 @@ export function JiraSection({
 							onClick={handleFetchJira}
 							disabled={fetchingJira || !config.jira?.host}
 						>
-							<RefreshCw size={12} className={`mr-1.5 ${fetchingJira ? "animate-spin" : ""}`} />
+							<RefreshCw size={12} className={classNames("mr-1.5", fetchingJira ? "animate-spin" : "")} />
 							Fetch tickets
 						</Button>
 					</div>

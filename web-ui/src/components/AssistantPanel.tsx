@@ -3,6 +3,7 @@ import { Bot, Square, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { trpc } from "@/runtime/trpc-client";
+import { classNames } from "@/utils/classNames";
 
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 900;
@@ -102,7 +103,7 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 	const handleClose = () => onClose();
 
 	return (
-		<div className={`shrink-0 flex overflow-hidden ${open ? "" : "hidden"}`} style={{ width }}>
+		<div className={classNames("shrink-0 flex overflow-hidden", !open && "hidden")} style={{ width }}>
 			{/* Drag handle */}
 			<div
 				onMouseDown={onDragStart}

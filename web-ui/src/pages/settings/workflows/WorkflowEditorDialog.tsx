@@ -20,6 +20,7 @@ import {
 	X,
 } from "lucide-react";
 import { useState } from "react";
+import { classNames } from "@/utils/classNames";
 import { ModelSelect } from "./ModelSelect";
 
 function slotTypeColor(type: string): string {
@@ -101,86 +102,53 @@ export function WorkflowEditorDialog({
 
 	return (
 		<>
-			<div
-				className="fixed inset-0 z-50 flex items-center justify-center"
-				style={{ background: "rgba(0,0,0,0.7)" }}
-				onClick={onClose}
-			>
+			<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={onClose}>
 				<div
-					className="flex overflow-hidden"
-					style={{
-						background: "#141418",
-						borderRadius: 12,
-						border: "1px solid #2a2a35",
-						width: "87.5vw",
-						maxWidth: 1400,
-						height: "89.5vh",
-						maxHeight: 850,
-						boxShadow: "0 8px 40px 4px rgba(0,0,0,0.38)",
-					}}
+					className="flex overflow-hidden bg-[#141418] rounded-xl border border-[#2a2a35] w-[87.5vw] max-w-[1400px] h-[89.5vh] max-h-[850px] shadow-[0_8px_40px_4px_rgba(0,0,0,0.38)]"
 					onClick={(e) => e.stopPropagation()}
 				>
 					{/* Left panel */}
 					<div className="flex-1 flex flex-col overflow-hidden">
 						{/* Dialog header */}
-						<div
-							className="flex items-center gap-3 shrink-0"
-							style={{ padding: "16px 24px", borderBottom: "1px solid #2a2a35" }}
-						>
-							<WorkflowIcon size={18} style={{ color: "#7c6aff", flexShrink: 0 }} />
+						<div className="flex items-center gap-3 shrink-0 px-6 py-4 border-b border-[#2a2a35]">
+							<WorkflowIcon size={18} className="text-[#7c6aff] shrink-0" />
 							<input
 								value={localWorkflow.name}
 								onChange={(e) => setLocalWorkflow((prev) => ({ ...prev, name: e.target.value }))}
-								className="bg-transparent outline-none text-[17px] font-semibold min-w-0"
-								style={{ color: "#f0f0f5", flex: 1 }}
+								className="bg-transparent outline-none text-[17px] font-semibold min-w-0 flex-1 text-[#f0f0f5]"
 								placeholder="Workflow name"
 							/>
 							{localWorkflow.isDefault && (
-								<div
-									className="flex items-center gap-1 shrink-0"
-									style={{ background: "#eab30815", borderRadius: 4, padding: "2px 8px" }}
-								>
-									<Star size={10} style={{ color: "#eab308" }} />
-									<span className="text-[10px] font-medium" style={{ color: "#eab308" }}>
-										Default
-									</span>
+								<div className="flex items-center gap-1 shrink-0 bg-[#eab30815] rounded-[4px] px-2 py-[2px]">
+									<Star size={10} className="text-[#eab308]" />
+									<span className="text-[10px] font-medium text-[#eab308]">Default</span>
 								</div>
 							)}
-							<div className="shrink-0" style={{ background: "#3b82f615", borderRadius: 4, padding: "2px 8px" }}>
-								<span className="text-[10px] font-medium" style={{ color: "#3b82f6" }}>
+							<div className="shrink-0 bg-[#3b82f615] rounded-[4px] px-2 py-[2px]">
+								<span className="text-[10px] font-medium text-[#3b82f6]">
 									{localWorkflow.forStory ? "Story" : "Task"}
 								</span>
 							</div>
 							<button onClick={onClose} className="hover:opacity-70 transition-opacity shrink-0">
-								<X size={18} style={{ color: "#60607a" }} />
+								<X size={18} className="text-[#60607a]" />
 							</button>
 						</div>
 
 						{/* Pipeline section */}
-						<div className="shrink-0" style={{ padding: "16px 24px", borderBottom: "1px solid #2a2a35" }}>
+						<div className="shrink-0 px-6 py-4 border-b border-[#2a2a35]">
 							{/* Pipeline header */}
-							<div className="flex items-center gap-2" style={{ marginBottom: 12 }}>
-								<span className="text-[10px] font-semibold shrink-0" style={{ color: "#60607a", letterSpacing: 1 }}>
-									PIPELINE
-								</span>
-								<div style={{ flex: 1, height: 1, background: "#1a1a1f" }} />
+							<div className="flex items-center gap-2 mb-3">
+								<span className="text-[10px] font-semibold shrink-0 text-[#60607a] tracking-[1px]">PIPELINE</span>
+								<div className="flex-1 h-px bg-[#1a1a1f]" />
 								<Menu placement="bottom-end">
 									<MenuTrigger>
 										{({ toggleMenu }) => (
 											<button
 												onClick={toggleMenu}
-												className="flex items-center gap-1 hover:opacity-80 transition-opacity"
-												style={{
-													background: "transparent",
-													border: "1px solid #2a2a35",
-													borderRadius: 4,
-													padding: "3px 8px",
-												}}
+												className="flex items-center gap-1 hover:opacity-80 transition-opacity bg-transparent border border-[#2a2a35] rounded-[4px] px-2 py-[3px]"
 											>
-												<Plus size={11} style={{ color: "#60607a" }} />
-												<span className="text-[10px]" style={{ color: "#60607a" }}>
-													Add Slot
-												</span>
+												<Plus size={11} className="text-[#60607a]" />
+												<span className="text-[10px] text-[#60607a]">Add Slot</span>
 											</button>
 										)}
 									</MenuTrigger>
@@ -201,42 +169,38 @@ export function WorkflowEditorDialog({
 									return (
 										<div key={slot.id} className="flex items-center">
 											{idx > 0 && (
-												<div className="flex items-center justify-center" style={{ width: 32 }}>
-													<ArrowRight size={14} style={{ color: "#2a2a35" }} />
+												<div className="flex items-center justify-center w-8">
+													<ArrowRight size={14} className="text-[#2a2a35]" />
 												</div>
 											)}
 											<button
 												onClick={() => setSelectedSlotId(slot.id)}
-												className="flex items-center transition-colors"
-												style={{
-													background: isSelected ? "#7c6aff15" : "#1a1a1f",
-													borderRadius: 8,
-													padding: "8px 14px",
-													border: isSelected ? "2px solid #7c6aff" : "1px solid #2a2a35",
-													gap: 8,
-													opacity: isDisabled ? 0.4 : 1,
-												}}
+												className={classNames(
+													"flex items-center transition-colors rounded-lg px-3.5 py-2 gap-2",
+													isSelected
+														? "bg-[#7c6aff15] border-2 border-[#7c6aff]"
+														: "bg-[#1a1a1f] border border-[#2a2a35]",
+													isDisabled ? "opacity-40" : "",
+												)}
 											>
 												<div
-													className="flex items-center justify-center shrink-0"
-													style={{
-														width: 20,
-														height: 20,
-														borderRadius: 10,
-														background: isDisabled ? "#2a2a3525" : `${color}25`,
-													}}
+													className="flex items-center justify-center shrink-0 w-5 h-5 rounded-[10px]"
+													style={{ background: isDisabled ? "#2a2a3525" : `${color}25` }}
 												>
 													<span className="text-[9px] font-bold" style={{ color: isDisabled ? "#4a4a5a" : color }}>
 														{idx + 1}
 													</span>
 												</div>
 												<span
-													className="text-[12px]"
-													style={{
-														color: isSelected ? "#f0f0f5" : isDisabled ? "#4a4a5a" : "#8888a0",
-														fontWeight: isSelected ? 600 : 400,
-														textDecoration: isDisabled ? "line-through" : "none",
-													}}
+													className={classNames(
+														"text-[12px]",
+														isSelected
+															? "text-[#f0f0f5] font-semibold"
+															: isDisabled
+																? "text-[#4a4a5a]"
+																: "text-[#8888a0]",
+														isDisabled ? "line-through" : "",
+													)}
 												>
 													{slot.name}
 												</span>
@@ -245,81 +209,53 @@ export function WorkflowEditorDialog({
 									);
 								})}
 								{sortedSlots.length === 0 && (
-									<span className="text-[12px]" style={{ color: "#4a4a5a" }}>
-										No slots — add one above
-									</span>
+									<span className="text-[12px] text-[#4a4a5a]">No slots — add one above</span>
 								)}
 							</div>
 						</div>
 
 						{/* Slot instructions editor */}
 						{selectedSlot ? (
-							<div className="flex-1 flex flex-col overflow-hidden" style={{ padding: "20px 24px" }}>
+							<div className="flex-1 flex flex-col overflow-hidden px-6 py-5">
 								{/* Header */}
-								<div className="flex items-center gap-2 shrink-0" style={{ marginBottom: 12 }}>
-									<FileText size={14} style={{ color: slotTypeColor(selectedSlot.type), flexShrink: 0 }} />
-									<span className="text-[14px] font-semibold" style={{ color: "#f0f0f5" }}>
-										{selectedSlot.name} — Instructions
-									</span>
-									<div style={{ flex: 1 }} />
-									<span className="font-mono text-[10px]" style={{ color: "#60607a" }}>
+								<div className="flex items-center gap-2 shrink-0 mb-3">
+									<FileText size={14} className="shrink-0" style={{ color: slotTypeColor(selectedSlot.type) }} />
+									<span className="text-[14px] font-semibold text-[#f0f0f5]">{selectedSlot.name} — Instructions</span>
+									<div className="flex-1" />
+									<span className="font-mono text-[10px] text-[#60607a]">
 										{(selectedSlot.prompt ?? "").length} chars
 									</span>
 								</div>
 								{/* Textarea box */}
-								<div
-									className="flex-1 flex flex-col overflow-hidden"
-									style={{
-										background: "#0c0c0f",
-										border: "1px solid #2a2a35",
-										borderRadius: 8,
-										padding: "16px 20px",
-									}}
-								>
+								<div className="flex-1 flex flex-col overflow-hidden bg-[#0c0c0f] border border-[#2a2a35] rounded-lg p-5">
 									<textarea
 										value={selectedSlot.prompt ?? ""}
 										onChange={(e) => updateSlot({ prompt: e.target.value })}
 										placeholder="Describe what this agent should check or do..."
-										className="flex-1 bg-transparent resize-none outline-none font-mono text-[13px]"
-										style={{ color: "#c0c0d0", lineHeight: 1.6, width: "100%", minHeight: 0 }}
+										className="flex-1 bg-transparent resize-none outline-none font-mono text-[13px] text-[#c0c0d0] leading-relaxed w-full min-h-0"
 									/>
 								</div>
 							</div>
 						) : (
-							<div className="flex-1 flex items-center justify-center text-[13px]" style={{ color: "#4a4a5a" }}>
+							<div className="flex-1 flex items-center justify-center text-[13px] text-[#4a4a5a]">
 								Select a slot to edit its instructions
 							</div>
 						)}
 					</div>
 
 					{/* Right panel */}
-					<div
-						className="flex flex-col shrink-0 overflow-hidden"
-						style={{ width: 340, background: "#111115", borderLeft: "1px solid #2a2a35" }}
-					>
+					<div className="flex flex-col shrink-0 overflow-hidden w-[340px] bg-[#111115] border-l border-[#2a2a35]">
 						{/* Header */}
-						<div className="shrink-0" style={{ padding: "16px 20px", borderBottom: "1px solid #2a2a35" }}>
-							<span className="text-[13px] font-semibold" style={{ color: "#f0f0f5" }}>
-								Slot Configuration
-							</span>
+						<div className="shrink-0 px-5 py-4 border-b border-[#2a2a35]">
+							<span className="text-[13px] font-semibold text-[#f0f0f5]">Slot Configuration</span>
 						</div>
 						{selectedSlot ? (
-							<div className="flex flex-col flex-1 overflow-y-auto" style={{ padding: "16px 20px", gap: 16 }}>
-								{/* Name — editable for custom/orch, read-only label for built-ins */}
-								<div className="flex flex-col" style={{ gap: 5 }}>
-									<span className="text-[11px] font-medium" style={{ color: "#60607a", letterSpacing: 0.3 }}>
-										Name
-									</span>
-									<div
-										className="flex items-center gap-2"
-										style={{
-											background: "#0c0c0f",
-											border: "1px solid #2a2a35",
-											borderRadius: 6,
-											padding: "8px 12px",
-										}}
-									>
-										<Type size={13} style={{ color: "#60607a", flexShrink: 0 }} />
+							<div className="flex flex-col flex-1 overflow-y-auto p-5 gap-4">
+								{/* Name */}
+								<div className="flex flex-col gap-[5px]">
+									<span className="text-[11px] font-medium text-[#60607a] tracking-[0.3px]">Name</span>
+									<div className="flex items-center gap-2 bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-2">
+										<Type size={13} className="text-[#60607a] shrink-0" />
 										<input
 											value={selectedSlot.name}
 											onChange={(e) => updateSlot({ name: e.target.value })}
@@ -333,25 +269,14 @@ export function WorkflowEditorDialog({
 									</div>
 								</div>
 								{/* Agent Binary */}
-								<div className="flex flex-col" style={{ gap: 5 }}>
-									<span className="text-[11px] font-medium" style={{ color: "#60607a", letterSpacing: 0.3 }}>
-										Agent Binary
-									</span>
-									<div
-										className="flex items-center gap-2"
-										style={{
-											background: "#0c0c0f",
-											border: "1px solid #2a2a35",
-											borderRadius: 6,
-											padding: "8px 12px",
-										}}
-									>
-										<Terminal size={14} style={{ color: "#f59e0b", flexShrink: 0 }} />
+								<div className="flex flex-col gap-[5px]">
+									<span className="text-[11px] font-medium text-[#60607a] tracking-[0.3px]">Agent Binary</span>
+									<div className="flex items-center gap-2 bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-2">
+										<Terminal size={14} className="text-[#f59e0b] shrink-0" />
 										<select
 											value={selectedSlot.agentBinary}
 											onChange={(e) => updateSlot({ agentBinary: e.target.value as RuntimeAgentId, model: null })}
-											className="flex-1 bg-transparent outline-none text-[12px]"
-											style={{ color: "#c0c0d0" }}
+											className="flex-1 bg-transparent outline-none text-[12px] text-[#c0c0d0]"
 										>
 											{AGENT_BINARY_OPTIONS.map((o) => (
 												<option key={o.value} value={o.value}>
@@ -362,10 +287,8 @@ export function WorkflowEditorDialog({
 									</div>
 								</div>
 								{/* Model */}
-								<div className="flex flex-col" style={{ gap: 5 }}>
-									<span className="text-[11px] font-medium" style={{ color: "#60607a", letterSpacing: 0.3 }}>
-										Model
-									</span>
+								<div className="flex flex-col gap-[5px]">
+									<span className="text-[11px] font-medium text-[#60607a] tracking-[0.3px]">Model</span>
 									<ModelSelect
 										key={selectedSlot.agentBinary}
 										agentId={selectedSlot.agentBinary}
@@ -374,24 +297,13 @@ export function WorkflowEditorDialog({
 									/>
 								</div>
 								{/* Effort */}
-								<div className="flex flex-col" style={{ gap: 5 }}>
-									<span className="text-[11px] font-medium" style={{ color: "#60607a", letterSpacing: 0.3 }}>
-										Effort
-									</span>
-									<div
-										className="flex items-center"
-										style={{
-											background: "#0c0c0f",
-											border: "1px solid #2a2a35",
-											borderRadius: 6,
-											padding: "8px 12px",
-										}}
-									>
+								<div className="flex flex-col gap-[5px]">
+									<span className="text-[11px] font-medium text-[#60607a] tracking-[0.3px]">Effort</span>
+									<div className="flex items-center bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-2">
 										<select
 											value={selectedSlot.effort ?? ""}
 											onChange={(e) => updateSlot({ effort: (e.target.value as EffortLevel) || null })}
-											className="flex-1 bg-transparent outline-none text-[12px]"
-											style={{ color: "#c0c0d0" }}
+											className="flex-1 bg-transparent outline-none text-[12px] text-[#c0c0d0]"
 										>
 											<option value="">Default</option>
 											{EFFORT_OPTIONS.map((o) => (
@@ -404,69 +316,47 @@ export function WorkflowEditorDialog({
 								</div>
 								{selectedSlot.type !== "dev" && (
 									<>
-										<div style={{ height: 1, background: "#2a2a35", flexShrink: 0 }} />
+										<div className="h-px bg-[#2a2a35] shrink-0" />
 										{/* Enabled toggle */}
 										<div className="flex items-center">
-											<span className="text-[13px]" style={{ color: "#c0c0d0" }}>
-												Enabled
-											</span>
-											<div style={{ flex: 1 }} />
+											<span className="text-[13px] text-[#c0c0d0]">Enabled</span>
+											<div className="flex-1" />
 											<button
 												type="button"
 												onClick={() => updateSlot({ enabled: !selectedSlot.enabled })}
-												style={{
-													width: 36,
-													height: 20,
-													borderRadius: 10,
-													background: selectedSlot.enabled ? "#22c55e" : "#2a2a35",
-													padding: 2,
-													display: "flex",
-													alignItems: "center",
-													justifyContent: selectedSlot.enabled ? "flex-end" : "flex-start",
-													transition: "background 0.15s",
-													border: "none",
-													cursor: "pointer",
-												}}
+												className={classNames(
+													"w-9 h-5 rounded-[10px] p-0.5 flex items-center transition-colors",
+													selectedSlot.enabled ? "bg-[#22c55e] justify-end" : "bg-[#2a2a35] justify-start",
+												)}
 											>
-												<div style={{ width: 16, height: 16, borderRadius: "50%", background: "#ffffff" }} />
+												<div className="w-4 h-4 rounded-full bg-white" />
 											</button>
 										</div>
 									</>
 								)}
-								<div style={{ flex: 1 }} />
+								<div className="flex-1" />
 								{/* Delete + Save */}
 								<div className="flex items-center justify-end gap-2 shrink-0">
 									{selectedSlot.type !== "dev" && (
 										<button
 											onClick={handleDeleteSlot}
-											className="flex items-center gap-[5px] hover:opacity-80 transition-opacity"
-											style={{
-												background: "transparent",
-												border: "1px solid #ef444440",
-												borderRadius: 6,
-												padding: "8px 14px",
-											}}
+											className="flex items-center gap-[5px] hover:opacity-80 transition-opacity bg-transparent border border-[#ef444440] rounded-md px-3.5 py-2"
 										>
-											<Trash2 size={13} style={{ color: "#ef4444" }} />
-											<span className="text-[12px]" style={{ color: "#ef4444" }}>
-												Delete
-											</span>
+											<Trash2 size={13} className="text-[#ef4444]" />
+											<span className="text-[12px] text-[#ef4444]">Delete</span>
 										</button>
 									)}
 									<button
 										onClick={handleSave}
-										className="flex items-center gap-[5px] hover:opacity-80 transition-opacity"
-										style={{ background: "#7c6aff", borderRadius: 6, padding: "8px 16px" }}
+										className="flex items-center gap-[5px] hover:opacity-80 transition-opacity bg-[#7c6aff] rounded-md px-4 py-2"
 									>
-										<Check size={13} style={{ color: "#ffffff" }} />
-										<span className="text-[12px] font-medium" style={{ color: "#ffffff" }}>
-											{isNew ? "Create" : "Save"}
-										</span>
+										<Check size={13} className="text-white" />
+										<span className="text-[12px] font-medium text-white">{isNew ? "Create" : "Save"}</span>
 									</button>
 								</div>
 							</div>
 						) : (
-							<div className="flex-1 flex items-center justify-center text-[12px]" style={{ color: "#4a4a5a" }}>
+							<div className="flex-1 flex items-center justify-center text-[12px] text-[#4a4a5a]">
 								Select a slot to configure
 							</div>
 						)}

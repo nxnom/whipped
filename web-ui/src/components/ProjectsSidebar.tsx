@@ -3,6 +3,7 @@ import type { ProjectsLayout, RuntimeProject } from "@runtime-contract";
 import { ChevronDown, ChevronRight, Folder, Pencil, Trash2 } from "lucide-react";
 import React, { useEffect, useImperativeHandle, useRef, useState, useCallback } from "react";
 import { trpc } from "@/runtime/trpc-client";
+import { classNames } from "@/utils/classNames";
 
 function genId() {
 	return Math.random().toString(36).slice(2, 10);
@@ -290,35 +291,28 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(fu
 												{...dp.draggableProps}
 												{...dp.dragHandleProps}
 												onClick={() => toggleCollapse(item.folderId)}
-												className="group flex items-center cursor-pointer select-none"
+												className="group flex items-center gap-1.5 h-8 pl-2.5 pr-2 rounded-md my-px mx-1 cursor-pointer select-none transition-colors"
 												style={{
 													...dp.draggableProps.style,
-													gap: 6,
-													height: 32,
-													paddingLeft: 10,
-													paddingRight: 8,
 													background: snap.isDragging
 														? "#1f1f28"
 														: hoveredFolderId === item.folderId
 															? "#7c6aff15"
 															: "transparent",
-													borderRadius: 6,
-													margin: "1px 4px",
-													transition: "background 0.1s",
 												}}
 											>
 												{/* Chevron */}
-												<div
-													className="shrink-0 flex items-center justify-center"
-													style={{ width: 14, color: "#4a4a5a" }}
-												>
+												<div className="shrink-0 flex items-center justify-center w-3.5 text-[#4a4a5a]">
 													{expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
 												</div>
 
 												{/* Folder icon */}
 												<Folder
 													size={13}
-													style={{ color: hoveredFolderId === item.folderId ? "#7c6aff" : "#60607a", flexShrink: 0 }}
+													className={classNames(
+														"shrink-0",
+														hoveredFolderId === item.folderId ? "text-[#7c6aff]" : "text-[#60607a]",
+													)}
 												/>
 
 												{/* Name */}
@@ -333,16 +327,14 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(fu
 															if (e.key === "Enter") commitRename();
 															if (e.key === "Escape") setEditingId(null);
 														}}
-														className="flex-1 min-w-0 outline-none text-[11px] rounded px-1"
-														style={{ background: "#0c0c0f", border: "1px solid #3a3a55", color: "#f0f0f5" }}
+														className="flex-1 min-w-0 outline-none text-[11px] rounded px-1 bg-[#0c0c0f] border border-[#3a3a55] text-[#f0f0f5]"
 													/>
 												) : (
 													<span
-														className="flex-1 min-w-0 truncate text-[11px] font-medium"
-														style={{
-															color: hoveredFolderId === item.folderId ? "#c0c0d0" : "#8888a0",
-															letterSpacing: 0.2,
-														}}
+														className={classNames(
+															"flex-1 min-w-0 truncate text-[11px] font-medium tracking-[0.2px]",
+															hoveredFolderId === item.folderId ? "text-[#c0c0d0]" : "text-[#8888a0]",
+														)}
 														onDoubleClick={(e) => {
 															e.stopPropagation();
 															startRename(item.folderId);
@@ -359,8 +351,7 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(fu
 															e.stopPropagation();
 															startRename(item.folderId);
 														}}
-														className="flex items-center justify-center rounded hover:bg-[#2a2a35] transition-colors"
-														style={{ width: 20, height: 20, color: "#60607a" }}
+														className="flex items-center justify-center w-5 h-5 rounded hover:bg-[#2a2a35] transition-colors text-[#60607a]"
 														title="Rename"
 													>
 														<Pencil size={10} />
@@ -370,8 +361,7 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(fu
 															e.stopPropagation();
 															deleteFolder(item.folderId);
 														}}
-														className="flex items-center justify-center rounded hover:bg-[#ef444420] transition-colors"
-														style={{ width: 20, height: 20, color: "#60607a" }}
+														className="flex items-center justify-center w-5 h-5 rounded hover:bg-[#ef444420] transition-colors text-[#60607a]"
 														title="Delete"
 													>
 														<Trash2 size={10} />
@@ -397,23 +387,11 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(fu
 												ref={dp.innerRef}
 												{...dp.draggableProps}
 												{...dp.dragHandleProps}
-												style={{ paddingLeft: 40, paddingRight: 10, paddingTop: 3, paddingBottom: 3 }}
+												className="pl-10 pr-2.5 py-[3px]"
 											>
-												<div
-													style={{
-														height: 28,
-														border: "1px dashed #2a2a35",
-														borderRadius: 6,
-														display: "flex",
-														alignItems: "center",
-														paddingLeft: 10,
-														gap: 6,
-													}}
-												>
-													<div style={{ width: 4, height: 4, borderRadius: "50%", background: "#2a2a35" }} />
-													<span className="text-[10px]" style={{ color: "#3a3a45" }}>
-														Drop project here
-													</span>
+												<div className="h-7 border border-dashed border-[#2a2a35] rounded-md flex items-center pl-2.5 gap-1.5">
+													<div className="w-1 h-1 rounded-full bg-[#2a2a35]" />
+													<span className="text-[10px] text-[#3a3a45]">Drop project here</span>
 												</div>
 											</div>
 										)}
@@ -434,35 +412,30 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(fu
 											{...dp.draggableProps}
 											{...dp.dragHandleProps}
 											onClick={() => onSwitch(item.workspaceId)}
-											className={`flex items-center gap-2 cursor-pointer select-none transition-colors ${snap.isDragging ? "opacity-70" : isActive ? "" : "hover:bg-[#1a1a1f]"}`}
+											className={classNames(
+												"flex items-center gap-2 h-8 pr-3 my-px mx-1 rounded-md cursor-pointer select-none transition-colors",
+												indent ? "pl-10" : "pl-3",
+												snap.isDragging ? "opacity-70" : isActive ? "" : "hover:bg-[#1a1a1f]",
+											)}
 											style={{
 												...dp.draggableProps.style,
-												height: 32,
-												paddingLeft: indent ? 40 : 12,
-												paddingRight: 12,
-												margin: "1px 4px",
-												borderRadius: 6,
 												background: isActive && !snap.isDragging ? "#7c6aff18" : "transparent",
 												borderLeft: isActive && !snap.isDragging ? "2px solid #7c6aff" : "2px solid transparent",
 											}}
 										>
 											{/* Active dot */}
 											<div
-												style={{
-													width: 6,
-													height: 6,
-													borderRadius: "50%",
-													flexShrink: 0,
-													background: isActive ? "#7c6aff" : "#2a2a35",
-													boxShadow: isActive ? "0 0 6px #7c6aff80" : "none",
-												}}
+												className={classNames(
+													"w-1.5 h-1.5 rounded-full shrink-0",
+													isActive ? "bg-[#7c6aff]" : "bg-[#2a2a35]",
+												)}
+												style={isActive ? { boxShadow: "0 0 6px #7c6aff80" } : undefined}
 											/>
 											<span
-												className="truncate text-[12px]"
-												style={{
-													color: isActive ? "#f0f0f5" : "#8888a0",
-													fontWeight: isActive ? 500 : 400,
-												}}
+												className={classNames(
+													"truncate text-[12px]",
+													isActive ? "text-[#f0f0f5] font-medium" : "text-[#8888a0] font-normal",
+												)}
 											>
 												{project.name}
 											</span>

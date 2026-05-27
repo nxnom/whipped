@@ -1,5 +1,6 @@
 import { Input, Select, SelectOption, toast } from "@geckoui/geckoui";
 import type { RuntimeBoardCard, Workflow } from "@runtime-contract";
+import { classNames } from "@/utils/classNames";
 import {
 	GitBranch,
 	GripVertical,
@@ -366,7 +367,10 @@ function CreateSubtaskDialog({
 											<div className="flex items-center justify-between w-full gap-2 min-w-0">
 												<span className="truncate text-sm">{cDisplay}</span>
 												<span
-													className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700"}`}
+													className={classNames(
+														"text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium",
+														COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700",
+													)}
 												>
 													{COLUMN_LABEL[c.columnId] ?? c.columnId}
 												</span>
@@ -591,7 +595,10 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 												<div className="flex items-center justify-between w-full gap-2 min-w-0">
 													<span className="truncate text-sm">{cDisplay}</span>
 													<span
-														className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700"}`}
+														className={classNames(
+															"text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium",
+															COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700",
+														)}
 													>
 														{COLUMN_LABEL[c.columnId] ?? c.columnId}
 													</span>
@@ -889,7 +896,10 @@ export function CreateTaskDialog({
 								value={description}
 								onChange={(e) => setDescription(e.target.value)}
 								placeholder="Describe what the agent should do..."
-								className={`bg-transparent text-[15px] text-[#c0c0d0] placeholder-[#2a2a35] outline-none resize-none leading-[1.7] shrink-0 ${isTask ? "flex-1 min-h-0" : "h-36"}`}
+								className={classNames(
+									"bg-transparent text-[15px] text-[#c0c0d0] placeholder-[#2a2a35] outline-none resize-none leading-[1.7] shrink-0",
+									isTask ? "flex-1 min-h-0" : "h-36",
+								)}
 							/>
 
 							<ImagePicker pending={pendingImages} onChange={setPendingImages} />
@@ -1125,7 +1135,10 @@ export function CreateTaskDialog({
 														<div className="flex items-center justify-between w-full gap-2 min-w-0">
 															<span className="truncate text-sm">{cDisplay}</span>
 															<span
-																className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700"}`}
+																className={classNames(
+																	"text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium",
+																	COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700",
+																)}
 															>
 																{COLUMN_LABEL[c.columnId] ?? c.columnId}
 															</span>

@@ -1,6 +1,7 @@
 import { Input, Select, SelectOption } from "@geckoui/geckoui";
 import { MODEL_OPTIONS, type RuntimeAgentId } from "@runtime-contract";
 import { useEffect, useState } from "react";
+import { classNames } from "@/utils/classNames";
 import { trpc } from "@/runtime/trpc-client";
 
 export function ModelSelect({
@@ -75,7 +76,7 @@ export function ModelSelect({
 						className="flex items-center justify-center px-2 rounded border border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] disabled:opacity-50 transition-colors"
 					>
 						<svg
-							className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`}
+							className={classNames("w-4 h-4", isFetching ? "animate-spin" : "")}
 							fill="none"
 							viewBox="0 0 24 24"
 							stroke="currentColor"

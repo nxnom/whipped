@@ -2,6 +2,7 @@ import { Textarea } from "@geckoui/geckoui";
 import { BUILTIN_SECRET_KEYS, type RuntimeProjectSecret } from "@runtime-contract";
 import { Eye, EyeOff, X } from "lucide-react";
 import { useState } from "react";
+import { classNames } from "@/utils/classNames";
 import { SaveRow, SectionHeader } from "./_shared";
 
 function parseEnvText(text: string): RuntimeProjectSecret[] {
@@ -88,7 +89,10 @@ export function SecretsSection({
 					return (
 						<div
 							key={secret.key}
-							className={`flex items-center gap-2 px-3 py-2 ${i < allSecrets.length - 1 ? "border-b border-gray-800" : ""}`}
+							className={classNames(
+								"flex items-center gap-2 px-3 py-2",
+								i < allSecrets.length - 1 ? "border-b border-gray-800" : "",
+							)}
 						>
 							<div className="flex items-center gap-1.5 w-40 shrink-0">
 								<span className="text-xs font-mono text-gray-200 truncate">{secret.key}</span>

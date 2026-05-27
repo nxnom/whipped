@@ -2,6 +2,7 @@ import { Button } from "@geckoui/geckoui";
 import { AlertTriangle, ChevronDown, ChevronRight, MessageSquare, Plus, RefreshCw, Send, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
+import { classNames } from "@/utils/classNames";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -389,10 +390,14 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 											return (
 												<div key={li}>
 													{/* Line row */}
-													<div className={`group relative flex ${rowBg} hover:brightness-110`}>
+													<div className={classNames("group relative flex hover:brightness-110", rowBg)}>
 														{/* Single line number column */}
 														<div
-															className={`w-8 shrink-0 text-right pr-1.5 py-0.5 select-none ${numBg} ${numColor} border-r border-gray-800`}
+															className={classNames(
+																"w-8 shrink-0 text-right pr-1.5 py-0.5 select-none border-r border-gray-800",
+																numBg,
+																numColor,
+															)}
 														>
 															{line.newNum ?? line.oldNum ?? ""}
 														</div>
@@ -400,7 +405,9 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 														<div className="w-4 shrink-0 text-center py-0.5 select-none">
 															<span className={signColor}>{sign}</span>
 														</div>
-														<div className={`flex-1 py-0.5 pr-7 whitespace-pre ${textColor}`}>{line.content}</div>
+														<div className={classNames("flex-1 py-0.5 pr-7 whitespace-pre", textColor)}>
+															{line.content}
+														</div>
 														{/* Hover comment button */}
 														<button
 															onClick={() =>

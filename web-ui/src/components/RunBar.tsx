@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { RunTerminal } from "@/components/terminal/RunTerminal";
 import { trpc } from "@/runtime/trpc-client";
 import { useRunSession } from "@/stores/run-session-store";
+import { classNames } from "@/utils/classNames";
 
 interface RunBarProps {
 	workspaceId: string;
@@ -64,7 +65,14 @@ export function RunBar({ workspaceId }: RunBarProps) {
 				<div className="flex items-center gap-1.5 shrink-0">
 					{statusDot}
 					<span
-						className={`text-[11px] font-semibold ${session.status === "running" ? "text-blue-400" : session.status === "error" ? "text-red-400" : "text-gray-500"}`}
+						className={classNames(
+							"text-[11px] font-semibold",
+							session.status === "running"
+								? "text-blue-400"
+								: session.status === "error"
+									? "text-red-400"
+									: "text-gray-500",
+						)}
 					>
 						{statusLabel}
 					</span>
@@ -82,9 +90,13 @@ export function RunBar({ workspaceId }: RunBarProps) {
 						const ac = colors[cardAgentId] ?? { dot: "bg-gray-500", text: "text-gray-400", bg: "bg-gray-500/10" };
 						return (
 							<span
-								className={`flex items-center gap-1 text-[9px] font-medium px-2 py-1 rounded-full shrink-0 ${ac.bg} ${ac.text}`}
+								className={classNames(
+									"flex items-center gap-1 text-[9px] font-medium px-2 py-1 rounded-full shrink-0",
+									ac.bg,
+									ac.text,
+								)}
 							>
-								<span className={`size-[5px] rounded-full ${ac.dot}`} />
+								<span className={classNames("size-[5px] rounded-full", ac.dot)} />
 								{cardAgentId}
 							</span>
 						);

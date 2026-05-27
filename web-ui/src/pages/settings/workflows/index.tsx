@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
+import { classNames } from "@/utils/classNames";
 import { WorkflowEditorDialog } from "./WorkflowEditorDialog";
 
 function slotTypeColor(type: string): string {
@@ -38,105 +39,68 @@ function WorkflowCard({
 	const [hovered, setHovered] = useState(false);
 	return (
 		<div
-			className="cursor-pointer transition-all"
+			className="cursor-pointer transition-all bg-[#141418] border border-[#2a2a35] rounded-[10px]"
 			style={{
-				background: "#141418",
-				border: "1px solid #2a2a35",
 				borderLeft: workflow.isDefault ? "3px solid #7c6aff" : "1px solid #2a2a35",
-				borderRadius: 10,
 				opacity: hovered ? 0.9 : 1,
 			}}
 			onClick={onClick}
 			onMouseEnter={() => setHovered(true)}
 			onMouseLeave={() => setHovered(false)}
 		>
-			<div className="flex flex-col" style={{ padding: "16px 20px", gap: 12 }}>
+			<div className="flex flex-col px-5 py-4 gap-3">
 				{/* Header row */}
 				<div className="flex items-center gap-[10px]">
-					<WorkflowIcon size={15} style={{ color: "#7c6aff", flexShrink: 0 }} />
-					<span className="text-[13px] font-semibold" style={{ color: "#f0f0f5" }}>
-						{workflow.name}
-					</span>
+					<WorkflowIcon size={15} className="text-[#7c6aff] shrink-0" />
+					<span className="text-[13px] font-semibold text-[#f0f0f5]">{workflow.name}</span>
 					{workflow.isDefault && (
-						<div
-							className="flex items-center gap-1 shrink-0"
-							style={{ background: "#7c6aff18", borderRadius: 4, padding: "2px 7px" }}
-						>
-							<Star size={9} style={{ color: "#7c6aff" }} />
-							<span className="text-[10px] font-medium" style={{ color: "#7c6aff" }}>
-								Default
-							</span>
+						<div className="flex items-center gap-1 shrink-0 bg-[#7c6aff18] rounded-[4px] px-[7px] py-[2px]">
+							<Star size={9} className="text-[#7c6aff]" />
+							<span className="text-[10px] font-medium text-[#7c6aff]">Default</span>
 						</div>
 					)}
-					<div style={{ flex: 1 }} />
-					<span className="text-[11px]" style={{ color: "#4a4a5a" }}>
-						{workflow.slots.length} slots
-					</span>
+					<div className="flex-1" />
+					<span className="text-[11px] text-[#4a4a5a]">{workflow.slots.length} slots</span>
 					{hovered && !workflow.isDefault && (
 						<button
 							onClick={onSetDefault}
-							className="hover:opacity-80 transition-opacity shrink-0"
-							style={{ padding: "2px 4px" }}
+							className="hover:opacity-80 transition-opacity shrink-0 px-1 py-[2px]"
 							title="Set as default"
 						>
-							<Star size={13} style={{ color: "#7c6aff" }} />
+							<Star size={13} className="text-[#7c6aff]" />
 						</button>
 					)}
 					{hovered && (
 						<button
 							onClick={onDelete}
-							className="hover:opacity-80 transition-opacity shrink-0"
-							style={{ padding: "2px 4px" }}
+							className="hover:opacity-80 transition-opacity shrink-0 px-1 py-[2px]"
 							title="Delete workflow"
 						>
-							<Trash2 size={13} style={{ color: "#ef4444" }} />
+							<Trash2 size={13} className="text-[#ef4444]" />
 						</button>
 					)}
-					<ChevronRight size={15} style={{ color: "#3a3a45" }} />
+					<ChevronRight size={15} className="text-[#3a3a45]" />
 				</div>
 				{/* Slot pipeline */}
-				<div className="flex items-center flex-wrap" style={{ gap: 6 }}>
+				<div className="flex items-center flex-wrap gap-1.5">
 					{sortedSlots.map((slot, idx) => (
-						<div key={slot.id} className="flex items-center" style={{ gap: 6 }}>
-							{idx > 0 && <ArrowRight size={11} style={{ color: "#2a2a35" }} />}
+						<div key={slot.id} className="flex items-center gap-1.5">
+							{idx > 0 && <ArrowRight size={11} className="text-[#2a2a35]" />}
 							<div
-								className="flex items-center gap-[6px]"
-								style={{
-									background: "#0c0c0f",
-									border: "1px solid #222228",
-									borderRadius: 6,
-									padding: "5px 9px",
-									opacity: slot.enabled ? 1 : 0.35,
-								}}
+								className="flex items-center gap-[6px] bg-[#0c0c0f] border border-[#222228] rounded-md px-[9px] py-[5px]"
+								style={{ opacity: slot.enabled ? 1 : 0.35 }}
 							>
 								<div
-									style={{
-										width: 7,
-										height: 7,
-										borderRadius: "50%",
-										background: slot.enabled ? slotTypeColor(slot.type) : "#3a3a45",
-										flexShrink: 0,
-									}}
+									className="w-[7px] h-[7px] rounded-full shrink-0"
+									style={{ background: slot.enabled ? slotTypeColor(slot.type) : "#3a3a45" }}
 								/>
-								<span className="text-[11px] font-medium" style={{ color: "#c0c0d0" }}>
-									{slot.name}
-								</span>
-								<span className="font-mono text-[10px]" style={{ color: "#f59e0b80" }}>
-									{slot.agentBinary}
-								</span>
-								{slot.model && (
-									<span className="font-mono text-[10px]" style={{ color: "#3a3a45" }}>
-										{slot.model}
-									</span>
-								)}
+								<span className="text-[11px] font-medium text-[#c0c0d0]">{slot.name}</span>
+								<span className="font-mono text-[10px] text-[#f59e0b80]">{slot.agentBinary}</span>
+								{slot.model && <span className="font-mono text-[10px] text-[#3a3a45]">{slot.model}</span>}
 							</div>
 						</div>
 					))}
-					{sortedSlots.length === 0 && (
-						<span className="text-[11px]" style={{ color: "#3a3a45" }}>
-							No slots
-						</span>
-					)}
+					{sortedSlots.length === 0 && <span className="text-[11px] text-[#3a3a45]">No slots</span>}
 				</div>
 			</div>
 		</div>
@@ -261,95 +225,83 @@ export function WorkflowsSection({
 	return (
 		<div className="flex-1 flex flex-col overflow-hidden">
 			{/* Page header */}
-			<div style={{ padding: "24px 40px 0 40px" }}>
-				<div className="flex items-center" style={{ marginBottom: 4 }}>
-					<span className="text-[20px] font-semibold" style={{ color: "#f0f0f5" }}>
-						Workflows
-					</span>
-					<div style={{ flex: 1 }} />
+			<div className="px-10 pt-6">
+				<div className="flex items-center mb-1">
+					<span className="text-[20px] font-semibold text-[#f0f0f5]">Workflows</span>
+					<div className="flex-1" />
 					<input ref={importFileRef} type="file" accept=".json" className="hidden" onChange={handleImportFile} />
 					<button
 						onClick={handleAddWorkflow}
-						className="flex items-center gap-[6px] hover:opacity-80 transition-opacity"
-						style={{ background: "#7c6aff", borderRadius: 6, padding: "8px 14px" }}
+						className="flex items-center gap-1.5 hover:opacity-80 transition-opacity bg-[#7c6aff] rounded-md px-3.5 py-2"
 					>
-						<Plus size={14} style={{ color: "#ffffff" }} />
-						<span className="text-[12px] font-medium" style={{ color: "#ffffff" }}>
-							New Workflow
-						</span>
+						<Plus size={14} className="text-white" />
+						<span className="text-[12px] font-medium text-white">New Workflow</span>
 					</button>
 				</div>
-				<p className="text-[13px]" style={{ color: "#60607a" }}>
-					Define agent pipelines for tasks and stories
-				</p>
+				<p className="text-[13px] text-[#60607a]">Define agent pipelines for tasks and stories</p>
 			</div>
 
 			{/* Tab bar */}
-			<div className="flex shrink-0" style={{ padding: "0 40px", borderBottom: "1px solid #2a2a35" }}>
+			<div className="flex shrink-0 px-10 border-b border-[#2a2a35]">
 				<button
 					onClick={() => setActiveTab("task")}
-					className="flex items-center gap-[6px]"
-					style={{
-						padding: "12px 20px",
-						background: activeTab === "task" ? "#7c6aff08" : "transparent",
-						borderBottom: activeTab === "task" ? "2px solid #7c6aff" : "2px solid transparent",
-					}}
+					className={classNames(
+						"flex items-center gap-1.5 px-5 py-3 border-b-2",
+						activeTab === "task" ? "bg-[#7c6aff08] border-[#7c6aff]" : "bg-transparent border-transparent",
+					)}
 				>
-					<SquareCheckBig size={14} style={{ color: activeTab === "task" ? "#7c6aff" : "#60607a" }} />
+					<SquareCheckBig size={14} className={activeTab === "task" ? "text-[#7c6aff]" : "text-[#60607a]"} />
 					<span
-						className="text-[13px]"
-						style={{
-							color: activeTab === "task" ? "#f0f0f5" : "#8888a0",
-							fontWeight: activeTab === "task" ? 600 : 400,
-						}}
+						className={classNames(
+							"text-[13px]",
+							activeTab === "task" ? "text-[#f0f0f5] font-semibold" : "text-[#8888a0]",
+						)}
 					>
 						Task Workflows
 					</span>
 					<div
-						style={{
-							display: "flex",
-							alignItems: "center",
-							background: activeTab === "task" ? "#7c6aff20" : "#1a1a1f",
-							borderRadius: 999,
-							padding: "1px 7px",
-						}}
+						className={classNames(
+							"flex items-center rounded-full px-[7px] py-[1px]",
+							activeTab === "task" ? "bg-[#7c6aff20]" : "bg-[#1a1a1f]",
+						)}
 					>
-						<span className="text-[10px] font-semibold" style={{ color: activeTab === "task" ? "#7c6aff" : "#60607a" }}>
+						<span
+							className={classNames(
+								"text-[10px] font-semibold",
+								activeTab === "task" ? "text-[#7c6aff]" : "text-[#60607a]",
+							)}
+						>
 							{taskWorkflows.length}
 						</span>
 					</div>
 				</button>
 				<button
 					onClick={() => setActiveTab("story")}
-					className="flex items-center gap-[6px]"
-					style={{
-						padding: "12px 20px",
-						background: activeTab === "story" ? "#7c6aff08" : "transparent",
-						borderBottom: activeTab === "story" ? "2px solid #7c6aff" : "2px solid transparent",
-					}}
+					className={classNames(
+						"flex items-center gap-1.5 px-5 py-3 border-b-2",
+						activeTab === "story" ? "bg-[#7c6aff08] border-[#7c6aff]" : "bg-transparent border-transparent",
+					)}
 				>
-					<Layers size={14} style={{ color: activeTab === "story" ? "#7c6aff" : "#60607a" }} />
+					<Layers size={14} className={activeTab === "story" ? "text-[#7c6aff]" : "text-[#60607a]"} />
 					<span
-						className="text-[13px]"
-						style={{
-							color: activeTab === "story" ? "#f0f0f5" : "#8888a0",
-							fontWeight: activeTab === "story" ? 600 : 400,
-						}}
+						className={classNames(
+							"text-[13px]",
+							activeTab === "story" ? "text-[#f0f0f5] font-semibold" : "text-[#8888a0]",
+						)}
 					>
 						Story Workflows
 					</span>
 					<div
-						style={{
-							display: "flex",
-							alignItems: "center",
-							background: activeTab === "story" ? "#7c6aff20" : "#1a1a1f",
-							borderRadius: 999,
-							padding: "1px 7px",
-						}}
+						className={classNames(
+							"flex items-center rounded-full px-[7px] py-[1px]",
+							activeTab === "story" ? "bg-[#7c6aff20]" : "bg-[#1a1a1f]",
+						)}
 					>
 						<span
-							className="text-[10px] font-semibold"
-							style={{ color: activeTab === "story" ? "#7c6aff" : "#60607a" }}
+							className={classNames(
+								"text-[10px] font-semibold",
+								activeTab === "story" ? "text-[#7c6aff]" : "text-[#60607a]",
+							)}
 						>
 							{storyWorkflows.length}
 						</span>
@@ -358,7 +310,7 @@ export function WorkflowsSection({
 			</div>
 
 			{/* Workflow cards */}
-			<div className="flex-1 overflow-y-auto" style={{ padding: "20px 40px" }}>
+			<div className="flex-1 overflow-y-auto px-10 py-5">
 				<div className="flex flex-col gap-3">
 					{visibleWorkflows.map((wf) => (
 						<WorkflowCard
@@ -376,18 +328,15 @@ export function WorkflowsSection({
 						/>
 					))}
 					{visibleWorkflows.length === 0 && (
-						<div className="flex flex-col items-center justify-center py-16 gap-3" style={{ color: "#4a4a5a" }}>
-							<WorkflowIcon size={28} style={{ color: "#2a2a35" }} />
+						<div className="flex flex-col items-center justify-center py-16 gap-3 text-[#4a4a5a]">
+							<WorkflowIcon size={28} className="text-[#2a2a35]" />
 							<p className="text-[13px]">No workflows yet</p>
 							<button
 								onClick={handleAddWorkflow}
-								className="flex items-center gap-[6px] hover:opacity-80 transition-opacity"
-								style={{ background: "#7c6aff", borderRadius: 6, padding: "8px 14px" }}
+								className="flex items-center gap-1.5 hover:opacity-80 transition-opacity bg-[#7c6aff] rounded-md px-3.5 py-2"
 							>
-								<Plus size={13} style={{ color: "#ffffff" }} />
-								<span className="text-[12px] font-medium" style={{ color: "#ffffff" }}>
-									New Workflow
-								</span>
+								<Plus size={13} className="text-white" />
+								<span className="text-[12px] font-medium text-white">New Workflow</span>
 							</button>
 						</div>
 					)}

@@ -2,6 +2,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 import "@xterm/xterm/css/xterm.css";
+import { classNames } from "@/utils/classNames";
 
 interface TaskTerminalProps {
 	taskId: string;
@@ -94,5 +95,5 @@ export function TaskTerminal({ taskId, workspaceId, className }: TaskTerminalPro
 		};
 	}, [taskId, workspaceId]);
 
-	return <div ref={containerRef} className={className ?? "h-64"} style={{ overflow: "hidden" }} />;
+	return <div ref={containerRef} className={classNames(className ?? "h-64", "overflow-hidden")} />;
 }

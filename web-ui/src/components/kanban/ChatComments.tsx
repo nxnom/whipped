@@ -1,6 +1,7 @@
 import { Button } from "@geckoui/geckoui";
 import type { RuntimeBoardCard, RuntimeReviewComment, WorkflowSlot } from "@runtime-contract";
 import { Paperclip, Send, X } from "lucide-react";
+import { classNames } from "@/utils/classNames";
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
@@ -84,7 +85,9 @@ function AgentBadge({ comment }: { comment: RuntimeReviewComment }) {
 	// AI actor — color by model so the same model always looks the same
 	const className = MODEL_STYLE[actor.id] ?? "text-gray-400 bg-gray-700/50";
 	return (
-		<span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium ${className}`}>
+		<span
+			className={classNames("inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium", className)}
+		>
 			{actor.id}
 			{status === "pass" && <span className="text-green-400">✓</span>}
 			{status === "fail" && <span className="text-red-400">✗</span>}
@@ -105,7 +108,10 @@ function AttachmentItem({ path, name, mimeType }: { path: string; name: string; 
 				<img
 					src={attachmentUrl(path)}
 					alt={name}
-					className={`rounded border border-gray-700 cursor-pointer object-contain ${expanded ? "max-w-full max-h-96" : "max-h-24 max-w-48"}`}
+					className={classNames(
+						"rounded border border-gray-700 cursor-pointer object-contain",
+						expanded ? "max-w-full max-h-96" : "max-h-24 max-w-48",
+					)}
 					onClick={() => setExpanded((v) => !v)}
 					title={expanded ? "Click to collapse" : "Click to expand"}
 				/>
@@ -333,7 +339,10 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 									)}
 
 									<div
-										className={`group flex items-start gap-3 px-4 hover:bg-gray-900/40 ${showHeader ? "mt-3 pb-0.5" : "py-0.5"}`}
+										className={classNames(
+											"group flex items-start gap-3 px-4 hover:bg-gray-900/40",
+											showHeader ? "mt-3 pb-0.5" : "py-0.5",
+										)}
 									>
 										{/* Avatar column — always reserve space */}
 										<div className="w-8 shrink-0 mt-0.5">

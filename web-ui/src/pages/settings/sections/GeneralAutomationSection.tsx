@@ -6,10 +6,8 @@ import { SaveRow } from "../_shared";
 function SectionDivider({ title }: { title: string }) {
 	return (
 		<div className="flex items-center gap-3">
-			<span className="text-sm font-semibold" style={{ color: "#f0f0f5" }}>
-				{title}
-			</span>
-			<div className="flex-1" style={{ height: 1, background: "#2a2a35" }} />
+			<span className="text-sm font-semibold text-[#f0f0f5]">{title}</span>
+			<div className="flex-1 h-px bg-[#2a2a35]" />
 		</div>
 	);
 }
@@ -18,12 +16,8 @@ function FieldRow({ label, description, children }: { label: string; description
 	return (
 		<div className="flex items-center gap-4">
 			<div className="flex-1 flex flex-col gap-0.5">
-				<span className="text-[13px] font-medium" style={{ color: "#f0f0f5" }}>
-					{label}
-				</span>
-				<span className="text-[11px]" style={{ color: "#4a4a5a" }}>
-					{description}
-				</span>
+				<span className="text-[13px] font-medium text-[#f0f0f5]">{label}</span>
+				<span className="text-[11px] text-[#4a4a5a]">{description}</span>
 			</div>
 			{children}
 		</div>
@@ -48,15 +42,7 @@ function NumberInput({
 				onChange(v ? Math.max(0, Number(v)) : undefined);
 			}}
 			placeholder={placeholder ?? "Global"}
-			className="text-center font-mono text-[13px] font-medium focus:outline-none focus:border-[#7c6aff]"
-			style={{
-				width: 64,
-				height: 32,
-				background: "#1a1a1f",
-				border: "1px solid #2a2a35",
-				borderRadius: 6,
-				color: "#f0f0f5",
-			}}
+			className="w-16 h-8 text-center font-mono text-[13px] font-medium focus:outline-none focus:border-[#7c6aff] bg-[#1a1a1f] border border-[#2a2a35] rounded-md text-[#f0f0f5]"
 		/>
 	);
 }
@@ -118,7 +104,7 @@ export function GeneralAutomationSection({
 			<div className="flex flex-col gap-4">
 				<SectionDivider title="Git Defaults" />
 				<FieldRow label="Default base branch" description="Used when creating new tasks and stories.">
-					<div style={{ width: 160 }}>
+					<div className="w-40">
 						<BranchSelect
 							branches={branches}
 							value={config.defaultBaseBranch ?? ""}

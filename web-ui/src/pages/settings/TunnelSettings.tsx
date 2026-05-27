@@ -14,22 +14,16 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
+import { classNames } from "@/utils/classNames";
 
 function Mono({ children }: { children: React.ReactNode }) {
-	return (
-		<span className="font-mono text-[11px]" style={{ color: "#a0a0c0" }}>
-			{children}
-		</span>
-	);
+	return <span className="font-mono text-[11px] text-[#a0a0c0]">{children}</span>;
 }
 
 // biome-ignore lint/correctness/noUnusedVariables: planned UI component
 function CodeBlock({ children }: { children: string }) {
 	return (
-		<code
-			className="block px-3 py-2 rounded font-mono text-[11px]"
-			style={{ background: "#0c0c0f", border: "1px solid #2a2a35", color: "#a0a0c0" }}
-		>
+		<code className="block px-3 py-2 rounded font-mono text-[11px] bg-[#0c0c0f] border border-[#2a2a35] text-[#a0a0c0]">
 			{children}
 		</code>
 	);
@@ -44,16 +38,9 @@ function CopyBlock({ value }: { value: string }) {
 		setTimeout(() => setCopied(false), 2000);
 	};
 	return (
-		<div
-			className="flex items-center gap-2 px-3 py-2 rounded font-mono text-[11px]"
-			style={{ background: "#0c0c0f", border: "1px solid #2a2a35", color: "#a0a0c0" }}
-		>
+		<div className="flex items-center gap-2 px-3 py-2 rounded font-mono text-[11px] bg-[#0c0c0f] border border-[#2a2a35] text-[#a0a0c0]">
 			<span className="flex-1 truncate">{value}</span>
-			<button
-				onClick={handleCopy}
-				className="shrink-0 opacity-40 hover:opacity-80 transition-opacity"
-				style={{ color: "#c0c0d0" }}
-			>
+			<button onClick={handleCopy} className="shrink-0 opacity-40 hover:opacity-80 transition-opacity text-[#c0c0d0]">
 				{copied ? <Check size={12} /> : <Copy size={12} />}
 			</button>
 		</div>
@@ -63,15 +50,14 @@ function CopyBlock({ value }: { value: string }) {
 function StepBadge({ n, done, active }: { n: number; done: boolean; active: boolean }) {
 	return (
 		<div
-			className="shrink-0 flex items-center justify-center text-[11px] font-bold"
-			style={{
-				width: 24,
-				height: 24,
-				borderRadius: "50%",
-				background: done ? "#1a3a1a" : active ? "#1a1a2e" : "#1a1a1f",
-				border: `1px solid ${done ? "#2a6a2a" : active ? "#3a3aff60" : "#2a2a35"}`,
-				color: done ? "#4ade80" : active ? "#7c6aff" : "#4a4a5a",
-			}}
+			className={classNames(
+				"shrink-0 flex items-center justify-center text-[11px] font-bold w-6 h-6 rounded-full border",
+				done
+					? "bg-[#1a3a1a] border-[#2a6a2a] text-[#4ade80]"
+					: active
+						? "bg-[#1a1a2e] border-[#3a3aff60] text-[#7c6aff]"
+						: "bg-[#1a1a1f] border-[#2a2a35] text-[#4a4a5a]",
+			)}
 		>
 			{done ? <Check size={12} /> : n}
 		</div>
@@ -95,12 +81,14 @@ function StepRow({
 		<div className="flex gap-4">
 			<div className="flex flex-col items-center gap-1">
 				<StepBadge n={n} done={done} active={active} />
-				{children && <div className="flex-1 w-px" style={{ background: "#2a2a35", minHeight: 8 }} />}
+				{children && <div className="flex-1 w-px bg-[#2a2a35] min-h-2" />}
 			</div>
 			<div className="flex flex-col gap-3 flex-1 pb-6">
 				<p
-					className="text-[13px] font-medium leading-none pt-0.5"
-					style={{ color: active || done ? "#f0f0f5" : "#4a4a5a" }}
+					className={classNames(
+						"text-[13px] font-medium leading-none pt-0.5",
+						active || done ? "text-[#f0f0f5]" : "text-[#4a4a5a]",
+					)}
 				>
 					{title}
 				</p>
@@ -158,34 +146,27 @@ function TunnelControl() {
 	const isRunning = status === "running" || status === "starting";
 
 	return (
-		<div
-			className="flex items-center gap-3 px-4 py-3 rounded-lg"
-			style={{ background: "#0c0c0f", border: "1px solid #2a2a35" }}
-		>
+		<div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-[#0c0c0f] border border-[#2a2a35]">
 			<div className="flex items-center gap-2 flex-1 min-w-0">
 				{status === "starting" ? (
 					<Loader2 size={8} className="animate-spin shrink-0" style={{ color: style.dot }} />
 				) : (
-					<div className="shrink-0" style={{ width: 8, height: 8, borderRadius: "50%", background: style.dot }} />
+					<div className="shrink-0 w-2 h-2 rounded-full" style={{ background: style.dot }} />
 				)}
 				<span className="text-[13px]" style={{ color: style.text }}>
 					{style.label}
 				</span>
-				{state?.error && (
-					<span className="text-[11px] font-mono truncate" style={{ color: "#60607a" }}>
-						— {state.error}
-					</span>
-				)}
+				{state?.error && <span className="text-[11px] font-mono truncate text-[#60607a]">— {state.error}</span>}
 			</div>
 			<button
 				onClick={isRunning ? handleStop : handleStart}
 				disabled={acting}
-				className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[12px] font-medium transition-opacity disabled:opacity-50 hover:opacity-80 shrink-0"
-				style={{
-					background: isRunning ? "#2a1a1a" : "#1a2a1a",
-					border: `1px solid ${isRunning ? "#4a1a1a" : "#1a4a1a"}`,
-					color: isRunning ? "#f87171" : "#4ade80",
-				}}
+				className={classNames(
+					"flex items-center gap-1.5 px-3 py-1.5 rounded text-[12px] font-medium transition-opacity disabled:opacity-50 hover:opacity-80 shrink-0",
+					isRunning
+						? "bg-[#2a1a1a] border border-[#4a1a1a] text-[#f87171]"
+						: "bg-[#1a2a1a] border border-[#1a4a1a] text-[#4ade80]",
+				)}
 			>
 				{isRunning ? <Square size={11} /> : <Play size={11} />}
 				{isRunning ? "Stop" : "Start"}
@@ -199,7 +180,6 @@ export function TunnelSettings() {
 	const [saving, setSaving] = useState(false);
 	const [showSetup, setShowSetup] = useState(false);
 
-	// Setup wizard state
 	const [cloudflaredStatus, setCloudflaredStatus] = useState<{
 		installed: boolean;
 		version?: string;
@@ -329,14 +309,10 @@ export function TunnelSettings() {
 	if (!config) {
 		return (
 			<div className="flex-1 flex flex-col">
-				<div className="shrink-0 flex flex-col gap-1 px-10 py-6" style={{ borderBottom: "1px solid #2a2a35" }}>
-					<h1 className="text-xl font-semibold" style={{ color: "#f0f0f5" }}>
-						Tunnel
-					</h1>
+				<div className="shrink-0 flex flex-col gap-1 px-10 py-6 border-b border-[#2a2a35]">
+					<h1 className="text-xl font-semibold text-[#f0f0f5]">Tunnel</h1>
 				</div>
-				<div className="flex items-center justify-center py-20 text-sm" style={{ color: "#60607a" }}>
-					Loading...
-				</div>
+				<div className="flex items-center justify-center py-20 text-sm text-[#60607a]">Loading...</div>
 			</div>
 		);
 	}
@@ -347,11 +323,9 @@ export function TunnelSettings() {
 
 	return (
 		<div className="flex-1 flex flex-col overflow-hidden">
-			<div className="shrink-0 flex flex-col gap-1 px-10 py-6" style={{ borderBottom: "1px solid #2a2a35" }}>
-				<h1 className="text-xl font-semibold" style={{ color: "#f0f0f5" }}>
-					Tunnel
-				</h1>
-				<p className="text-[13px]" style={{ color: "#60607a" }}>
+			<div className="shrink-0 flex flex-col gap-1 px-10 py-6 border-b border-[#2a2a35]">
+				<h1 className="text-xl font-semibold text-[#f0f0f5]">Tunnel</h1>
+				<p className="text-[13px] text-[#60607a]">
 					Expose your local server publicly via Cloudflare Tunnel for incoming webhooks
 				</p>
 			</div>
@@ -359,18 +333,11 @@ export function TunnelSettings() {
 				<div className="flex flex-col gap-6">
 					{/* Status banner */}
 					{isConfigured && (
-						<div
-							className="flex items-center gap-3 px-4 py-3 rounded-lg"
-							style={{ background: "#0f1f0f", border: "1px solid #2a4a2a" }}
-						>
-							<CheckCircle2 size={16} style={{ color: "#4ade80" }} />
+						<div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-[#0f1f0f] border border-[#2a4a2a]">
+							<CheckCircle2 size={16} className="text-[#4ade80]" />
 							<div className="flex-1 flex flex-col gap-0.5">
-								<span className="text-[13px]" style={{ color: "#4ade80" }}>
-									Tunnel configured
-								</span>
-								<span className="text-[11px] font-mono" style={{ color: "#2a6a2a" }}>
-									{tunnelConfig?.domain}
-								</span>
+								<span className="text-[13px] text-[#4ade80]">Tunnel configured</span>
+								<span className="text-[11px] font-mono text-[#2a6a2a]">{tunnelConfig?.domain}</span>
 							</div>
 						</div>
 					)}
@@ -378,43 +345,29 @@ export function TunnelSettings() {
 					{/* Tunnel control */}
 					<div className="flex flex-col gap-4">
 						<div className="flex items-center gap-3">
-							<span className="text-[15px] font-semibold" style={{ color: "#f0f0f5" }}>
-								Cloudflare Tunnel
-							</span>
-							<div className="flex-1" style={{ height: 1, background: "#1a1a1f" }} />
+							<span className="text-[15px] font-semibold text-[#f0f0f5]">Cloudflare Tunnel</span>
+							<div className="flex-1 h-px bg-[#1a1a1f]" />
 						</div>
 						<div className="flex items-center justify-between">
 							<div className="flex flex-col gap-0.5">
-								<span className="text-[13px] font-medium" style={{ color: "#c0c0d0" }}>
-									Auto-start tunnel
-								</span>
-								<span className="text-[11px]" style={{ color: "#60607a" }}>
-									Start automatically when the server starts
-								</span>
+								<span className="text-[13px] font-medium text-[#c0c0d0]">Auto-start tunnel</span>
+								<span className="text-[11px] text-[#60607a]">Start automatically when the server starts</span>
 							</div>
 							<button
 								role="switch"
 								aria-checked={config.autoStartTunnel}
 								onClick={toggle}
 								disabled={saving}
-								className="relative shrink-0 transition-colors disabled:opacity-50"
-								style={{
-									width: 36,
-									height: 20,
-									borderRadius: 10,
-									background: config.autoStartTunnel ? "#7c6aff" : "#2a2a35",
-								}}
+								className={classNames(
+									"relative shrink-0 transition-colors disabled:opacity-50 w-9 h-5 rounded-[10px]",
+									config.autoStartTunnel ? "bg-[#7c6aff]" : "bg-[#2a2a35]",
+								)}
 							>
 								<span
-									className="absolute top-[3px] transition-transform"
-									style={{
-										width: 14,
-										height: 14,
-										borderRadius: "50%",
-										background: "#ffffff",
-										left: 3,
-										transform: config.autoStartTunnel ? "translateX(16px)" : "translateX(0)",
-									}}
+									className={classNames(
+										"absolute top-[3px] left-[3px] w-3.5 h-3.5 rounded-full bg-white transition-transform",
+										config.autoStartTunnel ? "translate-x-4" : "translate-x-0",
+									)}
 								/>
 							</button>
 						</div>
@@ -424,15 +377,12 @@ export function TunnelSettings() {
 					{/* Setup wizard */}
 					<div className="flex flex-col gap-0">
 						<div className="flex items-center gap-3">
-							<span className="text-[15px] font-semibold" style={{ color: "#f0f0f5" }}>
-								Setup
-							</span>
-							<div className="flex-1" style={{ height: 1, background: "#1a1a1f" }} />
+							<span className="text-[15px] font-semibold text-[#f0f0f5]">Setup</span>
+							<div className="flex-1 h-px bg-[#1a1a1f]" />
 							{isConfigured && (
 								<button
 									onClick={() => setShowSetup((v) => !v)}
-									className="text-[11px] transition-opacity hover:opacity-80 shrink-0"
-									style={{ color: "#4a4a5a" }}
+									className="text-[11px] transition-opacity hover:opacity-80 shrink-0 text-[#4a4a5a]"
 								>
 									{showSetup ? "Collapse" : "Reconfigure"}
 								</button>
@@ -442,12 +392,11 @@ export function TunnelSettings() {
 						{(!isConfigured || showSetup) && (
 							<div className="mt-5">
 								{isConfigured && showSetup && (
-									<div className="flex items-center gap-3 mb-5 pb-5" style={{ borderBottom: "1px solid #1a1a1f" }}>
+									<div className="flex items-center gap-3 mb-5 pb-5 border-b border-[#1a1a1f]">
 										<button
 											onClick={handleCreateTunnel}
 											disabled={!domain.trim() || creatingTunnel}
-											className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-40"
-											style={{ background: "#1a1a2e", border: "1px solid #3a3aff60", color: "#7c6aff" }}
+											className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-40 bg-[#1a1a2e] border border-[#3a3aff60] text-[#7c6aff]"
 										>
 											{creatingTunnel ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
 											Recreate Tunnel
@@ -455,8 +404,7 @@ export function TunnelSettings() {
 										<button
 											onClick={handleReset}
 											disabled={resetting}
-											className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-40"
-											style={{ background: "#1a1a1a", border: "1px solid #4a1a1a", color: "#f87171" }}
+											className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-40 bg-[#1a1a1a] border border-[#4a1a1a] text-[#f87171]"
 										>
 											{resetting ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
 											Reset & Start Over
@@ -470,8 +418,7 @@ export function TunnelSettings() {
 										href="https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/"
 										target="_blank"
 										rel="noreferrer"
-										className="self-start flex items-center gap-1.5 text-[12px] hover:opacity-80 transition-opacity"
-										style={{ color: "#7c6aff" }}
+										className="self-start flex items-center gap-1.5 text-[12px] hover:opacity-80 transition-opacity text-[#7c6aff]"
 									>
 										<ExternalLink size={12} />
 										Download cloudflared from Cloudflare
@@ -480,16 +427,17 @@ export function TunnelSettings() {
 										<button
 											onClick={checkInstall}
 											disabled={checkingInstall}
-											className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[12px] font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
-											style={{ background: "#1a1a2e", border: "1px solid #3a3aff40", color: "#7c6aff" }}
+											className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[12px] font-medium transition-opacity hover:opacity-80 disabled:opacity-50 bg-[#1a1a2e] border border-[#3a3aff40] text-[#7c6aff]"
 										>
 											{checkingInstall ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
 											Check installation
 										</button>
 										{cloudflaredStatus && (
 											<span
-												className="flex items-center gap-1 text-[12px]"
-												style={{ color: cloudflaredStatus.installed ? "#4ade80" : "#ef4444" }}
+												className={classNames(
+													"flex items-center gap-1 text-[12px]",
+													cloudflaredStatus.installed ? "text-[#4ade80]" : "text-[#ef4444]",
+												)}
 											>
 												{cloudflaredStatus.installed ? <Check size={12} /> : <X size={12} />}
 												{cloudflaredStatus.installed ? `Installed — ${cloudflaredStatus.version}` : "Not found"}
@@ -502,29 +450,27 @@ export function TunnelSettings() {
 								<StepRow n={2} title="Authenticate with Cloudflare" done={step2Done} active={step1Done}>
 									{step2Done ? (
 										<div className="flex items-center gap-2 text-[12px]">
-											<Check size={13} style={{ color: "#4ade80" }} />
-											<span style={{ color: "#4ade80" }}>
+											<Check size={13} className="text-[#4ade80]" />
+											<span className="text-[#4ade80]">
 												Already authenticated — <Mono>~/.cloudflared/cert.pem</Mono> found
 											</span>
 											<button
 												onClick={() => handleLogin(true)}
 												disabled={loggingIn}
-												className="ml-2 text-[11px] opacity-40 hover:opacity-70 transition-opacity disabled:opacity-20"
-												style={{ color: "#7c6aff" }}
+												className="ml-2 text-[11px] opacity-40 hover:opacity-70 transition-opacity disabled:opacity-20 text-[#7c6aff]"
 											>
 												{loggingIn ? "Opening…" : "Re-authenticate"}
 											</button>
 										</div>
 									) : (
 										<>
-											<p className="text-[12px]" style={{ color: "#60607a" }}>
+											<p className="text-[12px] text-[#60607a]">
 												Opens a browser window to log in to your Cloudflare account. Only needed once.
 											</p>
 											<button
 												onClick={() => handleLogin(false)}
 												disabled={loggingIn || !step1Done}
-												className="self-start flex items-center gap-2 px-3 py-1.5 rounded text-[12px] font-medium transition-opacity hover:opacity-80 disabled:opacity-40"
-												style={{ background: "#1a1a2e", border: "1px solid #3a3aff40", color: "#7c6aff" }}
+												className="self-start flex items-center gap-2 px-3 py-1.5 rounded text-[12px] font-medium transition-opacity hover:opacity-80 disabled:opacity-40 bg-[#1a1a2e] border border-[#3a3aff40] text-[#7c6aff]"
 											>
 												{loggingIn ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
 												{loggingIn ? "Waiting for login URL…" : "Login to Cloudflare"}
@@ -532,20 +478,17 @@ export function TunnelSettings() {
 											{loginUrl && (
 												<div className="flex flex-col gap-1.5">
 													{waitingForAuth && (
-														<div className="flex items-center gap-2 text-[12px]" style={{ color: "#facc15" }}>
+														<div className="flex items-center gap-2 text-[12px] text-[#facc15]">
 															<Loader2 size={12} className="animate-spin" />
 															Waiting for authentication in browser…
 														</div>
 													)}
-													<p className="text-[11px]" style={{ color: "#60607a" }}>
-														If the browser didn't open, click below:
-													</p>
+													<p className="text-[11px] text-[#60607a]">If the browser didn't open, click below:</p>
 													<a
 														href={loginUrl}
 														target="_blank"
 														rel="noreferrer"
-														className="flex items-center gap-1.5 text-[11px] font-mono hover:opacity-80 transition-opacity truncate"
-														style={{ color: "#7c6aff" }}
+														className="flex items-center gap-1.5 text-[11px] font-mono hover:opacity-80 transition-opacity truncate text-[#7c6aff]"
 													>
 														<ExternalLink size={10} />
 														{loginUrl}
@@ -560,44 +503,34 @@ export function TunnelSettings() {
 								<StepRow n={3} title="Create tunnel & config file" done={step3Done} active={step2Done}>
 									{step3Done ? (
 										<div className="flex flex-col gap-2">
-											<div className="flex items-center gap-2 text-[12px]" style={{ color: "#4ade80" }}>
+											<div className="flex items-center gap-2 text-[12px] text-[#4ade80]">
 												<Check size={13} />
 												Tunnel ID: <Mono>{tunnelConfig?.tunnelId}</Mono>
 											</div>
-											<div className="text-[12px]" style={{ color: "#60607a" }}>
+											<div className="text-[12px] text-[#60607a]">
 												Config written to <Mono>~/.cloudflared/config.yml</Mono>
 											</div>
 										</div>
 									) : (
 										<>
-											<p className="text-[12px]" style={{ color: "#60607a" }}>
+											<p className="text-[12px] text-[#60607a]">
 												Enter your public domain, then click Create — we'll run{" "}
 												<Mono>cloudflared tunnel create overemployed</Mono> and write{" "}
 												<Mono>~/.cloudflared/config.yml</Mono> automatically.
 											</p>
 											<div className="flex flex-col gap-1.5">
-												<label className="text-[11px] font-medium" style={{ color: "#8888a0" }}>
-													Your public domain
-												</label>
+												<label className="text-[11px] font-medium text-[#8888a0]">Your public domain</label>
 												<input
 													value={domain}
 													onChange={(e) => setDomain(e.target.value)}
 													placeholder="e.g. slack.yourdomain.com"
-													className="font-mono text-[12px] focus:outline-none focus:border-[#7c6aff]"
-													style={{
-														padding: "8px 12px",
-														background: "#0c0c0f",
-														border: "1px solid #2a2a35",
-														borderRadius: 6,
-														color: "#c0c0d0",
-													}}
+													className="font-mono text-[12px] focus:outline-none focus:border-[#7c6aff] px-3 py-2 bg-[#0c0c0f] border border-[#2a2a35] rounded-md text-[#c0c0d0]"
 												/>
 											</div>
 											<button
 												onClick={handleCreateTunnel}
 												disabled={!domain.trim() || creatingTunnel || !step2Done}
-												className="self-start flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-40"
-												style={{ background: "#7c6aff", color: "#ffffff" }}
+												className="self-start flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-40 bg-[#7c6aff] text-white"
 											>
 												{creatingTunnel ? <Loader2 size={14} className="animate-spin" /> : <ChevronRight size={14} />}
 												{creatingTunnel ? "Creating…" : "Create Tunnel"}
@@ -610,11 +543,11 @@ export function TunnelSettings() {
 								<StepRow n={4} title="DNS record" done={step3Done} active={step3Done}>
 									{step3Done && (
 										<div className="flex flex-col gap-1.5">
-											<div className="flex items-center gap-2 text-[12px]" style={{ color: "#4ade80" }}>
+											<div className="flex items-center gap-2 text-[12px] text-[#4ade80]">
 												<Check size={13} />
 												Auto-created via <Mono>cloudflared tunnel route dns</Mono>
 											</div>
-											<p className="text-[11px]" style={{ color: "#4a4a5a" }}>
+											<p className="text-[11px] text-[#4a4a5a]">
 												CNAME <Mono>{tunnelConfig?.domain}</Mono> →{" "}
 												<Mono>{tunnelConfig?.tunnelId}.cfargotunnel.com</Mono>
 											</p>
@@ -624,9 +557,9 @@ export function TunnelSettings() {
 
 								{/* Step 5: Auto-start */}
 								<StepRow n={5} title="Enable auto-start" done={config.autoStartTunnel} active={step3Done}>
-									<p className="text-[12px]" style={{ color: "#60607a" }}>
-										Toggle <span style={{ color: "#c0c0d0", fontWeight: 500 }}>Auto-start tunnel</span> above — the
-										tunnel starts automatically on every server start. No separate terminal needed.
+									<p className="text-[12px] text-[#60607a]">
+										Toggle <span className="text-[#c0c0d0] font-medium">Auto-start tunnel</span> above — the tunnel
+										starts automatically on every server start. No separate terminal needed.
 									</p>
 								</StepRow>
 							</div>

@@ -3,6 +3,7 @@ import { ClipboardPaste, Eye, EyeOff, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
 import { toast } from "@geckoui/geckoui";
+import { classNames } from "@/utils/classNames";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -26,25 +27,11 @@ function parseEnvText(text: string): RuntimeProjectSecret[] {
 
 // ─── shared primitives ────────────────────────────────────────────────────────
 
-const inputStyle: React.CSSProperties = {
-	background: "#0c0c0f",
-	border: "1px solid #2a2a35",
-	borderRadius: 6,
-	padding: "9px 12px",
-	color: "#c0c0d0",
-	fontFamily: "JetBrains Mono, monospace",
-	fontSize: 12,
-	outline: "none",
-	width: "100%",
-};
-
 function SectionDivider({ title }: { title: string }) {
 	return (
 		<div className="flex items-center gap-3">
-			<span className="text-[15px] font-semibold shrink-0" style={{ color: "#f0f0f5" }}>
-				{title}
-			</span>
-			<div className="flex-1" style={{ height: 1, background: "#1a1a1f" }} />
+			<span className="text-[15px] font-semibold shrink-0 text-[#f0f0f5]">{title}</span>
+			<div className="flex-1 h-px bg-[#1a1a1f]" />
 		</div>
 	);
 }
@@ -53,19 +40,22 @@ function MonoInput({
 	value,
 	onChange,
 	placeholder,
-	style,
+	className,
 }: {
 	value: string;
 	onChange: (v: string) => void;
 	placeholder?: string;
-	style?: React.CSSProperties;
+	className?: string;
 }) {
 	return (
 		<input
 			value={value}
 			onChange={(e) => onChange(e.target.value)}
 			placeholder={placeholder}
-			style={{ ...inputStyle, ...style }}
+			className={classNames(
+				"bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-[9px] text-[#c0c0d0] font-mono text-[12px] outline-none w-full",
+				className,
+			)}
 		/>
 	);
 }
@@ -74,15 +64,9 @@ function MonoInput({
 
 function LabelCol({ label, description }: { label: string; description?: string }) {
 	return (
-		<div className="flex flex-col gap-0.5 shrink-0" style={{ width: 160 }}>
-			<span className="text-[13px] font-medium" style={{ color: "#c0c0d0" }}>
-				{label}
-			</span>
-			{description && (
-				<span className="text-[11px]" style={{ color: "#60607a" }}>
-					{description}
-				</span>
-			)}
+		<div className="flex flex-col gap-0.5 shrink-0 w-40">
+			<span className="text-[13px] font-medium text-[#c0c0d0]">{label}</span>
+			{description && <span className="text-[11px] text-[#60607a]">{description}</span>}
 		</div>
 	);
 }
@@ -122,26 +106,11 @@ function FilesBox({
 	};
 
 	return (
-		<div
-			className="flex flex-col gap-1.5"
-			style={{
-				background: "#0c0c0f",
-				border: "1px solid #2a2a35",
-				borderRadius: 6,
-				padding: "8px 12px",
-				flex: 1,
-			}}
-		>
-			{rootFiles === null && (
-				<span className="text-[11px] py-1" style={{ color: "#4a4a5a" }}>
-					Scanning...
-				</span>
-			)}
+		<div className="flex flex-col gap-1.5 bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-2 flex-1">
+			{rootFiles === null && <span className="text-[11px] py-1 text-[#4a4a5a]">Scanning...</span>}
 
 			{rootFiles !== null && allFiles.length === 0 && (
-				<span className="text-[11px] py-1" style={{ color: "#4a4a5a" }}>
-					No gitignored files found in repo root
-				</span>
+				<span className="text-[11px] py-1 text-[#4a4a5a]">No gitignored files found in repo root</span>
 			)}
 
 			{allFiles.map((file) => {
@@ -150,17 +119,14 @@ function FilesBox({
 				return (
 					<label key={file} className="flex items-center gap-2 cursor-pointer group">
 						<CustomCheckbox checked={checked} onChange={(v) => toggle(file, v)} />
-						<span className="flex-1 text-[12px] font-mono" style={{ color: "#c0c0d0" }}>
-							{file}
-						</span>
+						<span className="flex-1 text-[12px] font-mono text-[#c0c0d0]">{file}</span>
 						{isManual && (
 							<button
 								onClick={(e) => {
 									e.preventDefault();
 									onChange(filesToCopy.filter((f) => f !== file));
 								}}
-								className="opacity-0 group-hover:opacity-100 transition-opacity"
-								style={{ color: "#60607a" }}
+								className="opacity-0 group-hover:opacity-100 transition-opacity text-[#60607a]"
 							>
 								<X size={11} />
 							</button>
@@ -172,13 +138,7 @@ function FilesBox({
 			{/* Add file row */}
 			<div className="flex items-center gap-2 pt-1">
 				<div
-					className="shrink-0 cursor-pointer"
-					style={{
-						width: 16,
-						height: 16,
-						border: "1px solid #2a2a35",
-						borderRadius: 3,
-					}}
+					className="shrink-0 cursor-pointer w-4 h-4 border border-[#2a2a35] rounded-[3px]"
 					onClick={() => addInputRef.current?.focus()}
 				/>
 				<input
@@ -187,8 +147,7 @@ function FilesBox({
 					onChange={(e) => setAddInput(e.target.value)}
 					onKeyDown={(e) => e.key === "Enter" && addManual()}
 					placeholder="Add file path..."
-					className="flex-1 bg-transparent text-[12px] font-mono focus:outline-none placeholder-[#60607a]"
-					style={{ color: "#c0c0d0" }}
+					className="flex-1 bg-transparent text-[12px] font-mono focus:outline-none placeholder-[#60607a] text-[#c0c0d0]"
 				/>
 			</div>
 		</div>
@@ -200,14 +159,10 @@ function CustomCheckbox({ checked, onChange }: { checked: boolean; onChange: (v:
 		<button
 			type="button"
 			onClick={() => onChange(!checked)}
-			className="shrink-0 flex items-center justify-center transition-colors"
-			style={{
-				width: 16,
-				height: 16,
-				borderRadius: 3,
-				background: checked ? "#7c6aff" : "transparent",
-				border: checked ? "none" : "1px solid #2a2a35",
-			}}
+			className={classNames(
+				"shrink-0 flex items-center justify-center transition-colors w-4 h-4 rounded-[3px]",
+				checked ? "bg-[#7c6aff] border-0" : "bg-transparent border border-[#2a2a35]",
+			)}
 		>
 			{checked && (
 				<svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -236,44 +191,26 @@ function SecretRow({
 	return (
 		<div className="flex items-center gap-3">
 			{/* Key */}
-			<div
-				className="shrink-0 flex items-center"
-				style={{
-					width: 200,
-					background: "#0c0c0f",
-					border: "1px solid #2a2a35",
-					borderRadius: 6,
-					padding: "9px 12px",
-				}}
-			>
-				<span className="text-[12px] font-mono truncate" style={{ color: "#c0c0d0" }}>
-					{secret.key}
-				</span>
+			<div className="shrink-0 flex items-center w-[200px] bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-[9px]">
+				<span className="text-[12px] font-mono truncate text-[#c0c0d0]">{secret.key}</span>
 			</div>
 
 			{/* Value */}
-			<div
-				className="flex-1 flex items-center gap-2"
-				style={{
-					background: "#0c0c0f",
-					border: "1px solid #2a2a35",
-					borderRadius: 6,
-					padding: "9px 12px",
-				}}
-			>
+			<div className="flex-1 flex items-center gap-2 bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-[9px]">
 				<input
 					type={revealed ? "text" : "password"}
 					value={secret.value}
 					onChange={(e) => onUpdate(e.target.value)}
 					placeholder="not set"
-					className="flex-1 bg-transparent text-[12px] font-mono focus:outline-none min-w-0"
-					style={{ color: revealed ? "#c0c0d0" : "#60607a" }}
+					className={classNames(
+						"flex-1 bg-transparent text-[12px] font-mono focus:outline-none min-w-0",
+						revealed ? "text-[#c0c0d0]" : "text-[#60607a]",
+					)}
 				/>
 				<button
 					type="button"
 					onClick={() => setRevealed((v) => !v)}
-					style={{ color: "#60607a" }}
-					className="shrink-0 hover:opacity-70 transition-opacity"
+					className="shrink-0 hover:opacity-70 transition-opacity text-[#60607a]"
 				>
 					{revealed ? <EyeOff size={14} /> : <Eye size={14} />}
 				</button>
@@ -281,24 +218,11 @@ function SecretRow({
 
 			{/* Badge or remove */}
 			{isBuiltin ? (
-				<div
-					className="shrink-0"
-					style={{
-						background: "#3b82f615",
-						borderRadius: 4,
-						padding: "2px 7px",
-					}}
-				>
-					<span className="text-[10px]" style={{ color: "#3b82f6" }}>
-						default
-					</span>
+				<div className="shrink-0 bg-[#3b82f615] rounded px-[7px] py-0.5">
+					<span className="text-[10px] text-[#3b82f6]">default</span>
 				</div>
 			) : (
-				<button
-					onClick={onRemove}
-					className="shrink-0 hover:opacity-70 transition-opacity"
-					style={{ color: "#60607a" }}
-				>
+				<button onClick={onRemove} className="shrink-0 hover:opacity-70 transition-opacity text-[#60607a]">
 					<X size={14} />
 				</button>
 			)}
@@ -322,23 +246,12 @@ function NewSecretRow({ onAdd }: { onAdd: (key: string) => void }) {
 				onChange={(e) => setKey(e.target.value)}
 				onKeyDown={(e) => e.key === "Enter" && submit()}
 				placeholder="SECRET_KEY"
-				style={{ ...inputStyle, width: 200, flexShrink: 0 }}
+				className="w-[200px] shrink-0 bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-[9px] text-[#c0c0d0] font-mono text-[12px] outline-none"
 			/>
-			<div
-				className="flex-1"
-				style={{
-					background: "#0c0c0f",
-					border: "1px solid #2a2a35",
-					borderRadius: 6,
-					padding: "9px 12px",
-					color: "#4a4a5a",
-					fontFamily: "JetBrains Mono, monospace",
-					fontSize: 12,
-				}}
-			>
+			<div className="flex-1 bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-[9px] text-[#4a4a5a] font-mono text-[12px]">
 				value after save
 			</div>
-			<button onClick={submit} className="shrink-0 hover:opacity-70 transition-opacity" style={{ color: "#7c6aff" }}>
+			<button onClick={submit} className="shrink-0 hover:opacity-70 transition-opacity text-[#7c6aff]">
 				<Plus size={14} />
 			</button>
 		</div>
@@ -418,7 +331,7 @@ export function EnvironmentSecretsSection({
 						value={setup.installCommand}
 						onChange={(v) => onUpdate({ ...config, worktreeSetup: { ...setup, installCommand: v } })}
 						placeholder="pnpm install --frozen-lockfile"
-						style={{ flex: 1 }}
+						className="flex-1"
 					/>
 				</div>
 
@@ -429,7 +342,7 @@ export function EnvironmentSecretsSection({
 						value={config.startCommand ?? ""}
 						onChange={(v) => onUpdate({ ...config, startCommand: v })}
 						placeholder="pnpm dev"
-						style={{ flex: 1 }}
+						className="flex-1"
 					/>
 				</div>
 
@@ -448,22 +361,13 @@ export function EnvironmentSecretsSection({
 			<div className="flex flex-col gap-4">
 				{/* Secrets header */}
 				<div className="flex items-center gap-2">
-					<span className="text-[15px] font-semibold shrink-0" style={{ color: "#f0f0f5" }}>
-						Secrets
-					</span>
-					<div className="flex-1" style={{ height: 1, background: "#1a1a1f" }} />
+					<span className="text-[15px] font-semibold shrink-0 text-[#f0f0f5]">Secrets</span>
+					<div className="flex-1 h-px bg-[#1a1a1f]" />
 
 					{/* Paste .env */}
 					<button
 						onClick={() => setPasteOpen((v) => !v)}
-						className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
-						style={{
-							border: "1px solid #2a2a35",
-							borderRadius: 5,
-							padding: "5px 10px",
-							background: "transparent",
-							color: "#8888a0",
-						}}
+						className="flex items-center gap-1.5 hover:opacity-80 transition-opacity border border-[#2a2a35] rounded-[5px] px-2.5 py-[5px] text-[#8888a0]"
 					>
 						<ClipboardPaste size={12} />
 						<span className="text-[11px]">Paste .env</span>
@@ -472,14 +376,7 @@ export function EnvironmentSecretsSection({
 					{/* Add Secret */}
 					<button
 						onClick={() => setAddingSecret(true)}
-						className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
-						style={{
-							border: "1px solid #7c6aff",
-							borderRadius: 5,
-							padding: "5px 10px",
-							background: "transparent",
-							color: "#7c6aff",
-						}}
+						className="flex items-center gap-1.5 hover:opacity-80 transition-opacity border border-[#7c6aff] rounded-[5px] px-2.5 py-[5px] text-[#7c6aff]"
 					>
 						<Plus size={12} />
 						<span className="text-[11px] font-medium">Add Secret</span>
@@ -494,15 +391,7 @@ export function EnvironmentSecretsSection({
 							onChange={(e) => setEnvText(e.target.value)}
 							placeholder={'GITHUB_TOKEN=ghp_xxx\nFIGMA_TOKEN="abc123"\n# comments ignored'}
 							rows={5}
-							className="font-mono text-[12px] focus:outline-none resize-none"
-							style={{
-								background: "#0c0c0f",
-								border: "1px solid #2a2a35",
-								borderRadius: 6,
-								padding: "9px 12px",
-								color: "#c0c0d0",
-								width: "100%",
-							}}
+							className="w-full font-mono text-[12px] focus:outline-none resize-none bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-[9px] text-[#c0c0d0]"
 						/>
 						<div className="flex justify-end gap-2">
 							<button
@@ -510,16 +399,14 @@ export function EnvironmentSecretsSection({
 									setPasteOpen(false);
 									setEnvText("");
 								}}
-								className="text-[12px] px-3 py-1.5 rounded-md hover:opacity-70 transition-opacity"
-								style={{ color: "#8888a0", border: "1px solid #2a2a35" }}
+								className="text-[12px] px-3 py-1.5 rounded-md hover:opacity-70 transition-opacity text-[#8888a0] border border-[#2a2a35]"
 							>
 								Cancel
 							</button>
 							<button
 								onClick={handlePasteApply}
 								disabled={!envText.trim()}
-								className="text-[12px] font-medium px-3 py-1.5 rounded-md transition-opacity disabled:opacity-40"
-								style={{ background: "#7c6aff", color: "#ffffff" }}
+								className="text-[12px] font-medium px-3 py-1.5 rounded-md transition-opacity disabled:opacity-40 bg-[#7c6aff] text-white"
 							>
 								Apply
 							</button>
@@ -547,8 +434,7 @@ export function EnvironmentSecretsSection({
 				<button
 					onClick={handleSaveAll}
 					disabled={saving}
-					className="text-sm font-medium px-4 py-2 rounded-lg transition-opacity disabled:opacity-50"
-					style={{ background: "#7c6aff", color: "#ffffff" }}
+					className="text-sm font-medium px-4 py-2 rounded-lg transition-opacity disabled:opacity-50 bg-[#7c6aff] text-white"
 				>
 					{saving ? "Saving..." : "Save"}
 				</button>

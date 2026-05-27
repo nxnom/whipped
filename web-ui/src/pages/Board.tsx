@@ -48,31 +48,24 @@ export function BoardPage({ onOpenAgent }: Props) {
 	return (
 		<div className="flex h-full overflow-hidden">
 			{/* Sidebar */}
-			<nav
-				className="shrink-0 flex flex-col"
-				style={{ width: 220, background: "#141418", borderRight: "1px solid #2a2a35" }}
-			>
+			<nav className="w-[220px] shrink-0 flex flex-col bg-[#141418] border-r border-[#2a2a35]">
 				{/* Logo header */}
-				<div className="flex items-center shrink-0" style={{ gap: 10, padding: "18px 16px" }}>
-					<div className="shrink-0" style={{ width: 24, height: 24, borderRadius: 6, background: "#7c6aff" }} />
-					<span className="text-[14px] font-bold" style={{ color: "#f0f0f5" }}>
-						Overemployed
-					</span>
+				<div className="flex items-center shrink-0 gap-2.5 px-4 py-[18px]">
+					<div className="shrink-0 w-6 h-6 rounded-md bg-[#7c6aff]" />
+					<span className="text-[14px] font-bold text-[#f0f0f5]">Overemployed</span>
 				</div>
 
-				<div style={{ height: 1, background: "#2a2a35", flexShrink: 0 }} />
+				<div className="h-px bg-[#2a2a35] shrink-0" />
 
 				{/* PROJECTS section header */}
-				<div className="flex items-center shrink-0" style={{ padding: "14px 16px 8px 16px" }}>
-					<span className="text-[10px] font-semibold" style={{ color: "#60607a", letterSpacing: 0.8 }}>
-						PROJECTS
-					</span>
-					<div style={{ flex: 1 }} />
+				<div className="flex items-center shrink-0 pt-[14px] px-4 pb-2">
+					<span className="text-[10px] font-semibold text-[#60607a] tracking-[0.8px]">PROJECTS</span>
+					<div className="flex-1" />
 					<Menu placement="bottom-end">
 						<MenuTrigger>
 							{({ toggleMenu }) => (
 								<button onClick={toggleMenu} className="hover:opacity-70 transition-opacity" title="Add">
-									<Plus size={14} style={{ color: "#60607a" }} />
+									<Plus size={14} className="text-[#60607a]" />
 								</button>
 							)}
 						</MenuTrigger>
@@ -99,36 +92,23 @@ export function BoardPage({ onOpenAgent }: Props) {
 							onSwitch={switchProject}
 						/>
 					) : (
-						<div className="flex items-center" style={{ gap: 8, padding: "20px 16px" }}>
-							<FolderOpen size={24} style={{ color: "#2a2a35" }} />
-							<span className="text-[12px]" style={{ color: "#60607a" }}>
-								No projects yet
-							</span>
+						<div className="flex items-center gap-2 py-5 px-4">
+							<FolderOpen size={24} className="text-[#2a2a35]" />
+							<span className="text-[12px] text-[#60607a]">No projects yet</span>
 						</div>
 					)}
 				</div>
 
 				{/* Global Settings */}
-				<div
-					style={{
-						borderTop: "1px solid #2a2a35",
-						padding: "12px 16px",
-						gap: 6,
-						display: "flex",
-						flexDirection: "column",
-					}}
-				>
+				<div className="border-t border-[#2a2a35] py-3 px-4 gap-1.5 flex flex-col">
 					<button
 						onClick={() => {
 							if (workspaceId) navigate(`/${encodeURIComponent(workspaceId)}/settings`);
 						}}
-						className="flex items-center hover:opacity-80 transition-opacity"
-						style={{ gap: 10, padding: "6px 2px" }}
+						className="flex items-center gap-2.5 py-1.5 px-0.5 hover:opacity-80 transition-opacity"
 					>
-						<Settings size={15} style={{ color: "#60607a" }} />
-						<span className="text-[12px]" style={{ color: "#8888a0" }}>
-							Global Settings
-						</span>
+						<Settings size={15} className="text-[#60607a]" />
+						<span className="text-[12px] text-[#8888a0]">Global Settings</span>
 					</button>
 				</div>
 			</nav>

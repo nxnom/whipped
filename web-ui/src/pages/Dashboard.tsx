@@ -1,6 +1,7 @@
 import { Button, Switch, toast } from "@geckoui/geckoui";
 import { Square, Terminal } from "lucide-react";
 import { useState } from "react";
+import { classNames } from "@/utils/classNames";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { trpc } from "@/runtime/trpc-client";
 import { useWorkspaceState } from "@/stores/board-store";
@@ -106,7 +107,10 @@ export function DashboardPage({ workspaceId }: Props) {
 													e.stopPropagation();
 													setExpandedTaskId(isExpanded ? null : taskId);
 												}}
-												className={`transition-colors ${isExpanded ? "text-blue-400" : "text-gray-500 hover:text-gray-300"}`}
+												className={classNames(
+													"transition-colors",
+													isExpanded ? "text-blue-400" : "text-gray-500 hover:text-gray-300",
+												)}
 												title="Toggle output"
 											>
 												<Terminal size={14} />
