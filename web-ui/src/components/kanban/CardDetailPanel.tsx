@@ -4,6 +4,7 @@ import {
 	ArrowLeft,
 	Check,
 	CheckCircle2,
+	ChevronLeft,
 	ChevronRight,
 	Circle,
 	Clock,
@@ -24,7 +25,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { RunBar } from "@/components/RunBar";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
-import { attachmentUrl, uploadAttachmentFile } from "@/runtime/attachments";
+import { attachmentUrl } from "@/runtime/attachments";
 import { trpc } from "@/runtime/trpc-client";
 import { useRunSession } from "@/stores/run-session-store";
 import { ChatComments } from "./ChatComments";
@@ -202,15 +203,16 @@ export function CardDetailPanel({
 	const [merging, setMerging] = useState(false);
 	const [creatingPR, setCreatingPR] = useState(false);
 	const [rightTab, setRightTab] = useState<RightTab>("terminal");
-	const [uploadingDesc, setUploadingDesc] = useState(false);
 	const [descExpanded, setDescExpanded] = useState(false);
 	const [editingBranch, setEditingBranch] = useState(false);
 	const [branchInput, setBranchInput] = useState("");
 	const [savingBranch, setSavingBranch] = useState(false);
 	const [elapsedSec, setElapsedSec] = useState(0);
 	const [activityExpanded, setActivityExpanded] = useState(false);
-	const descFileInputRef = useRef<HTMLInputElement>(null);
-
+	const [sidebarCollapsed, setSidebarCollapsedRaw] = useState(() => localStorage.getItem('detail-sidebar-collapsed') === 'true');
+	const setSidebarCollapsed = (fn: (v: boolean) => boolean) => {
+		setSidebarCollapsedRaw((v) => { const next = fn(v); localStorage.setItem('detail-sidebar-collapsed', String(next)); return next; });
+	};
 	const isStory = card.type === "story";
 	const isReadyForReview = card.columnId === "ready_for_review";
 
@@ -370,41 +372,6 @@ export function CardDetailPanel({
 		});
 	};
 
-	const handleDescriptionAttach = async (files: FileList) => {
-		const imageFiles = Array.from(files);
-		if (imageFiles.length === 0) return;
-		setUploadingDesc(true);
-		try {
-			const newAttachments = [];
-			for (const file of imageFiles) {
-				newAttachments.push(await uploadAttachmentFile(workspaceId, card.id, file));
-			}
-			const existing = card.descriptionAttachments ?? [];
-			await trpc.cards.update.mutate({
-				workspaceId,
-				cardId: card.id,
-				descriptionAttachments: [...existing, ...newAttachments],
-				revision: 0,
-			});
-			onRefresh();
-		} catch {
-			toast.error("Failed to upload image");
-		} finally {
-			setUploadingDesc(false);
-		}
-	};
-
-	const handleRemoveDescAttachment = async (idx: number) => {
-		const existing = card.descriptionAttachments ?? [];
-		await trpc.cards.update.mutate({
-			workspaceId,
-			cardId: card.id,
-			descriptionAttachments: existing.filter((_, i) => i !== idx),
-			revision: 0,
-		});
-		onRefresh();
-	};
-
 	const currentBranch = card.branchName ?? `task/${card.id}`;
 	const canEditBranch = !card.worktreePath;
 
@@ -486,19 +453,17 @@ export function CardDetailPanel({
 					<span className="text-[10px] font-mono text-[#4a4a5a]">{card.jiraKey}</span>
 				)}
 				{externalUrl && !card.pr?.url && (
-          <>
-            <a
-              href={externalUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-[#60607a] hover:text-gray-300 transition-colors"
-              title="Open external link"
-            >
-              <ExternalLink size={15} />
-            </a>
-          <div className="w-px h-[18px] bg-[#2a2a35] shrink-0" />
-          </>
+          <a
+            href={externalUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-[#60607a] hover:text-gray-300 transition-colors"
+            title="Open external link"
+          >
+            <ExternalLink size={15} />
+          </a>
 				)}
+        <div className="w-px h-[18px] bg-[#2a2a35] shrink-0" />
 				{/* Action buttons */}
 				{runSession.status === "running" && runSession.cardId === card.id ? (
 					<Tooltip delayDuration={0} content="Stop" side="bottom" triggerAsChild>
@@ -658,88 +623,113 @@ export function CardDetailPanel({
 				</div>
 
 				{/* ── Right sidebar ── */}
-				<div className="w-80 shrink-0 bg-[#141418] border-l border-[#2a2a35] flex flex-col overflow-hidden">
+				<div className={`shrink-0 bg-[#141418] border-l border-[#2a2a35] flex flex-col overflow-hidden transition-all duration-200 ${sidebarCollapsed ? "w-12" : "w-80"}`}>
 
 					{/* Workflow Pipeline */}
 					<div className="shrink-0">
-						<div className="px-[18px] pt-3.5 pb-2">
-							<span className="text-[11px] font-semibold text-[#8888a0] tracking-[0.3px]">Workflow Pipeline</span>
+						<div className={`pt-3.5 pb-2 flex items-center ${sidebarCollapsed ? "justify-center px-0" : "px-[18px]"}`}>
+							{!sidebarCollapsed && <span className="text-[11px] font-semibold text-[#8888a0] tracking-[0.3px] flex-1">Workflow Pipeline</span>}
+							<button
+								onClick={() => setSidebarCollapsed((v) => !v)}
+								className="text-[#4a4a5a] hover:text-[#8888a0] transition-colors"
+								title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+							>
+								{sidebarCollapsed ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+							</button>
 						</div>
-						<div className="flex flex-col px-[18px] pb-4">
-							{visibleSessions.length > 0 ? (() => {
-								return visibleSessions.map((session, idx) => {
-								const slotName = workflowSlots?.find(s => s.id === session.type)?.name ?? session.type;
-								const status = !session.endedAt
-									? "running"
-									: session.state === "failed" || session.state === "stopped"
-										? session.state
+						{sidebarCollapsed ? (
+							/* Collapsed: icon-only timeline centered */
+							<div className="flex flex-col items-center pb-4 gap-0">
+								{visibleSessions.length > 0 ? visibleSessions.map((session, idx) => {
+									const slotName = workflowSlots?.find(s => s.id === session.type)?.name ?? session.type;
+									const status = !session.endedAt ? "running"
+										: session.state === "failed" || session.state === "stopped" ? session.state
 										: "completed";
-								const duration = slotDuration(session.startedAt, session.endedAt);
-								const isFocused = activeStreamId === session.streamId;
-								return (
-									<div key={session.streamId} className={`flex items-stretch gap-0 group rounded transition-colors ${isFocused ? "bg-[#7c6aff]/8" : "hover:bg-white/[0.03]"}`}>
-										{/* Focus indicator */}
-										<div className={`w-0.5 shrink-0 rounded-full mr-2 self-stretch transition-colors ${isFocused ? "bg-[#7c6aff]" : "bg-transparent"}`} />
-										{/* Status icon + connector */}
-										<div className="flex flex-col items-center w-7 shrink-0">
-											{status === "running" ? (
+									const isFocused = activeStreamId === session.streamId;
+									return (
+										<div key={session.streamId} className="flex flex-col items-center">
+											<Tooltip content={slotName} side="left" triggerAsChild>
 												<button
-													onClick={(e) => { e.stopPropagation(); handleStop(); }}
-													title="Stop agent"
-													className="size-6 rounded-full flex items-center justify-center shrink-0 bg-[#7c6aff]/15 group-hover:bg-red-400/10 transition-colors"
+													onClick={() => { setActiveStreamId(session.streamId); setRightTab("terminal"); }}
+													className={`size-7 rounded-full flex items-center justify-center cursor-pointer transition-colors ${status === "running" ? "bg-[#7c6aff]/15 group-hover:bg-red-400/10" : isFocused ? "bg-[#7c6aff]/15" : "hover:bg-white/[0.05]"}`}
 												>
-													<Loader2 size={14} className="text-[#7c6aff] animate-spin group-hover:hidden" />
-													<Square size={12} className="hidden group-hover:block text-red-400 fill-current" />
-												</button>
-											) : (
-												<div className="size-6 flex items-center justify-center shrink-0">
 													{status === "completed" && <CheckCircle2 size={14} className="text-[#22c55e]" />}
+													{status === "running" && <Loader2 size={14} className="text-[#7c6aff] animate-spin" />}
 													{status === "failed" && <Circle size={14} className="text-[#ef4444]" />}
 													{status === "stopped" && <Circle size={14} className="text-yellow-400" />}
-												</div>
-											)}
+												</button>
+											</Tooltip>
 											{idx < visibleSessions.length - 1 && (
-												<div className={`w-0.5 flex-1 min-h-[12px] rounded-full mt-0.5 mb-0.5 ${status === "completed" ? "bg-[#22c55e]/40" : "bg-[#2a2a35]"}`} />
+												<div className={`w-0.5 h-4 rounded-full ${status === "completed" ? "bg-[#22c55e]/40" : "bg-[#2a2a35]"}`} />
 											)}
 										</div>
-										{/* Info */}
-										<button
-											onClick={() => {
-												setActiveStreamId(session.streamId);
-												setRightTab("terminal");
-											}}
-											className="flex flex-col gap-0.5 pl-2 py-0.5 pb-3 flex-1 min-w-0 text-left cursor-pointer"
-										>
-											<span className={`text-xs ${isFocused ? "text-[#c4baff]" : status === "running" ? "font-semibold text-[#f0f0f5]" : status === "completed" ? "text-[#f0f0f5]" : "text-[#4a4a5a]"}`}>
-												{slotName}
-											</span>
-											<span className="text-[10px] flex items-center gap-1.5">
-												{status === "running" && <span className="text-[#a78bfa]">Running</span>}
-												{status === "completed" && <span className="text-[#22c55e]">Completed</span>}
-												{status !== "running" && status !== "completed" && <span className="text-[#4a4a5a]">—</span>}
-												{duration && (
-													<>
-														<span className="text-[#4a4a5a]">·</span>
-														<span className="text-[#4a4a5a] font-mono">{duration}</span>
-													</>
+									);
+								}) : <div className="size-2 rounded-full bg-[#2a2a35] mt-1" />}
+							</div>
+						) : (
+							/* Expanded: full rows */
+							<div className="flex flex-col px-[18px] pb-4 max-h-72 overflow-y-auto">
+								{visibleSessions.length > 0 ? visibleSessions.map((session, idx) => {
+									const slotName = workflowSlots?.find(s => s.id === session.type)?.name ?? session.type;
+									const status = !session.endedAt ? "running"
+										: session.state === "failed" || session.state === "stopped" ? session.state
+										: "completed";
+									const duration = slotDuration(session.startedAt, session.endedAt);
+									const isFocused = activeStreamId === session.streamId;
+									return (
+										<div key={session.streamId} className={`flex items-stretch gap-0 group rounded transition-colors ${isFocused ? "bg-[#7c6aff]/8" : "hover:bg-white/[0.03]"}`}>
+											<div className={`w-0.5 shrink-0 rounded-full mr-2 self-stretch transition-colors ${isFocused ? "bg-[#7c6aff]" : "bg-transparent"}`} />
+											<div className="flex flex-col items-center w-7 shrink-0">
+												{status === "running" ? (
+													<button
+														onClick={(e) => { e.stopPropagation(); handleStop(); }}
+														title="Stop agent"
+														className="size-6 rounded-full flex items-center justify-center shrink-0 bg-[#7c6aff]/15 group-hover:bg-red-400/10 transition-colors"
+													>
+														<Loader2 size={14} className="text-[#7c6aff] animate-spin group-hover:hidden" />
+														<Square size={12} className="hidden group-hover:block text-red-400 fill-current" />
+													</button>
+												) : (
+													<div className="size-6 flex items-center justify-center shrink-0">
+														{status === "completed" && <CheckCircle2 size={14} className="text-[#22c55e]" />}
+														{status === "failed" && <Circle size={14} className="text-[#ef4444]" />}
+														{status === "stopped" && <Circle size={14} className="text-yellow-400" />}
+													</div>
 												)}
-											</span>
-										</button>
-									</div>
-								);
-								});
-							})() : (
-								<p className="text-xs text-[#4a4a5a] pb-2">Not started yet</p>
-							)}
+												{idx < visibleSessions.length - 1 && (
+													<div className={`w-0.5 flex-1 min-h-[12px] rounded-full mt-0.5 mb-0.5 ${status === "completed" ? "bg-[#22c55e]/40" : "bg-[#2a2a35]"}`} />
+												)}
+											</div>
+											<button
+												onClick={() => { setActiveStreamId(session.streamId); setRightTab("terminal"); }}
+												className="flex flex-col gap-0.5 pl-2 py-0.5 pb-3 flex-1 min-w-0 text-left cursor-pointer"
+											>
+												<span className={`text-xs ${isFocused ? "text-[#c4baff]" : status === "running" ? "font-semibold text-[#f0f0f5]" : status === "completed" ? "text-[#f0f0f5]" : "text-[#4a4a5a]"}`}>
+													{slotName}
+												</span>
+												<span className="text-[10px] flex items-center gap-1.5">
+													{status === "running" && <span className="text-[#a78bfa]">Running</span>}
+													{status === "completed" && <span className="text-[#22c55e]">Completed</span>}
+													{status !== "running" && status !== "completed" && <span className="text-[#4a4a5a]">—</span>}
+													{duration && (<><span className="text-[#4a4a5a]">·</span><span className="text-[#4a4a5a] font-mono">{duration}</span></>)}
+												</span>
+											</button>
+										</div>
+									);
+								}) : (
+									<p className="text-xs text-[#4a4a5a] pb-2">Not started yet</p>
+								)}
+							</div>
+						)}
+					</div>
+
+					{!sidebarCollapsed && <>
+						<div className="h-px bg-[#2a2a35] shrink-0" />
+
+						{/* Details */}
+						<div className="px-[18px] pt-3.5 pb-2 shrink-0">
+							<span className="text-[11px] font-semibold text-[#8888a0] tracking-[0.3px]">Details</span>
 						</div>
-					</div>
-
-					<div className="h-px bg-[#2a2a35] shrink-0" />
-
-					{/* Details */}
-					<div className="px-[18px] pt-3.5 pb-2 shrink-0">
-						<span className="text-[11px] font-semibold text-[#8888a0] tracking-[0.3px]">Details</span>
-					</div>
 					<div className="flex-1 min-h-0 overflow-y-auto px-[18px] pb-4 flex flex-col gap-3">
 						{/* Description */}
 						{card.description && (
@@ -758,68 +748,31 @@ export function CardDetailPanel({
 							</div>
 						)}
 
-						{/* Description attachments */}
-						<div>
-							<input
-								ref={descFileInputRef}
-								type="file"
-								accept="*/*"
-								multiple
-								className="hidden"
-								onChange={(e) => {
-									if (e.target.files) void handleDescriptionAttach(e.target.files);
-									e.target.value = "";
-								}}
-							/>
-							{(card.descriptionAttachments?.length ?? 0) > 0 &&
-								(() => {
-									const isImg = (att: { mimeType?: string; name: string }) =>
-										(att.mimeType ?? "").startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(att.name);
-									const indexed = (card.descriptionAttachments ?? []).map((att, idx) => ({ att, idx }));
-									const imgs = indexed.filter(({ att }) => isImg(att));
-									const files = indexed.filter(({ att }) => !isImg(att));
-									const RemoveBtn = ({ idx }: { idx: number }) => (
-										<button
-											onClick={() => void handleRemoveDescAttachment(idx)}
-											className="absolute -top-1 -right-1 size-4 rounded-full bg-[#1a1a1f] border border-[#2a2a35] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-										>
-											<X size={10} className="text-gray-300" />
-										</button>
-									);
-									return (
-										<div className="flex flex-col gap-1.5 mb-2">
-											{imgs.length > 0 && (
-												<div className="flex flex-wrap gap-2">
-													{imgs.map(({ att, idx }) => (
-														<div key={idx} className="relative group">
-															<DescAttachment path={att.path} name={att.name} mimeType={att.mimeType} />
-															<RemoveBtn idx={idx} />
-														</div>
-													))}
-												</div>
-											)}
-											{files.length > 0 && (
-												<div className="flex flex-wrap gap-1.5">
-													{files.map(({ att, idx }) => (
-														<div key={idx} className="relative group inline-flex">
-															<DescAttachment path={att.path} name={att.name} mimeType={att.mimeType} />
-															<RemoveBtn idx={idx} />
-														</div>
-													))}
-												</div>
-											)}
+						{/* Description attachments — read-only */}
+						{(card.descriptionAttachments?.length ?? 0) > 0 && (() => {
+							const isImg = (att: { mimeType?: string; name: string }) =>
+								(att.mimeType ?? "").startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(att.name);
+							const imgs = (card.descriptionAttachments ?? []).filter(isImg);
+							const files = (card.descriptionAttachments ?? []).filter((a) => !isImg(a));
+							return (
+								<div className="flex flex-col gap-1.5">
+									{imgs.length > 0 && (
+										<div className="flex flex-wrap gap-2">
+											{imgs.map((att, idx) => (
+												<DescAttachment key={idx} path={att.path} name={att.name} mimeType={att.mimeType} />
+											))}
 										</div>
-									);
-								})()}
-							<button
-								onClick={() => descFileInputRef.current?.click()}
-								disabled={uploadingDesc}
-								className="flex items-center gap-1.5 text-xs text-[#4a4a5a] hover:text-[#8888a0] transition-colors disabled:opacity-50"
-							>
-								<Paperclip size={12} />
-								{uploadingDesc ? "Uploading…" : "Attach file"}
-							</button>
-						</div>
+									)}
+									{files.length > 0 && (
+										<div className="flex flex-wrap gap-1.5">
+											{files.map((att, idx) => (
+												<DescAttachment key={idx} path={att.path} name={att.name} mimeType={att.mimeType} />
+											))}
+										</div>
+									)}
+								</div>
+							);
+						})()}
 
 						{/* Branch */}
 						{card.baseRef && (
@@ -947,6 +900,7 @@ export function CardDetailPanel({
 							</div>
 						)}
 					</div>
+				</>}
 				</div>
 			</div>
 
