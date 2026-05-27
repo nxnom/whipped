@@ -323,6 +323,8 @@ export const runtimeGlobalConfigSchema = z.object({
 	pollingIntervalSeconds: z.number().int().positive().default(30),
 	prPollingIntervalSeconds: z.number().int().positive().default(60),
 	terminalApp: z.string().optional(),
+	slackBotToken: z.string().optional(),
+	slackSigningSecret: z.string().optional(),
 });
 export type RuntimeGlobalConfig = z.infer<typeof runtimeGlobalConfigSchema>;
 
