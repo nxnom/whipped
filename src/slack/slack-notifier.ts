@@ -42,6 +42,15 @@ class SlackNotifier {
 			if (!this.initialized.has(workspaceId)) {
 				this.prevCards.set(workspaceId, structuredClone(cards));
 				this.initialized.add(workspaceId);
+				// Post messages for any cards that were created before the first processUpdate ran
+				const initClient = new SlackClient(config.slackBotToken);
+				const initProjectName = await this.getProjectName(workspaceId, repoPath);
+				const initInstallerUserId = config.slackInstallerUserId;
+				for (const card of Object.values(cards)) {
+					if (!card.slackMessageTs) {
+						await this.handleCardCreated(workspaceId, card, initProjectName, initInstallerUserId, initClient);
+					}
+				}
 				return;
 			}
 
