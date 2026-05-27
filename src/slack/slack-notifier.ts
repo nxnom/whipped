@@ -255,6 +255,7 @@ class SlackNotifier {
 			const client = new SlackClient(config.slackBotToken);
 			await client.updateMessage(card.slackChannelId, card.slackMessageTs, cardMessage(card, true));
 			await client.addReaction(card.slackChannelId, card.slackMessageTs, "wastebasket");
+			await client.postMessage(card.slackChannelId, "*Ticket deleted*", card.slackMessageTs);
 		} catch (err) {
 			logger.error({ err }, "[slack-notifier] notifyCardDeleted failed");
 		}
