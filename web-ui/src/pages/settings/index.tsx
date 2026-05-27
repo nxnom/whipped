@@ -38,13 +38,9 @@ const GLOBAL_NAV: Array<{ id: GlobalSection; label: string; icon: React.ReactNod
 
 function ProjectDropdown({
 	workspaceId,
-	projectName,
-	shortPath,
 	onSwitch,
 }: {
 	workspaceId: string;
-	projectName: string;
-	shortPath: string;
 	onSwitch: (id: string) => void;
 }) {
 	const [open, setOpen] = useState(false);
@@ -56,7 +52,7 @@ function ProjectDropdown({
 			.query()
 			.then(setWorkspaces)
 			.catch(() => {});
-	}, []);
+	}, [workspaceId]);
 
 	useEffect(() => {
 		if (!open) return;
@@ -67,6 +63,12 @@ function ProjectDropdown({
 		return () => document.removeEventListener("mousedown", handler);
 	}, [open]);
 
+	const currentWs = workspaces.find((ws) => ws.workspaceId === workspaceId);
+	const displayName = currentWs
+		? currentWs.name || currentWs.repoPath.split("/").filter(Boolean).at(-1) || workspaceId
+		: workspaceId;
+	const displayPath = currentWs ? currentWs.repoPath.replace(/^\/Users\/[^/]+/, "~") : "";
+
 	return (
 		<div ref={ref} className="relative">
 			<button
@@ -75,8 +77,8 @@ function ProjectDropdown({
 			>
 				<FolderGit2 size={14} className="mt-px shrink-0 text-[#60607a]" />
 				<div className="flex-1 min-w-0">
-					<p className="text-[12px] font-medium truncate text-[#c0c0d0]">{projectName}</p>
-					{shortPath && <p className="text-[10px] truncate mt-0.5 font-mono text-[#4a4a5a]">{shortPath}</p>}
+					<p className="text-[12px] font-medium truncate text-[#c0c0d0]">{displayName}</p>
+					{displayPath && <p className="text-[10px] truncate mt-0.5 font-mono text-[#4a4a5a]">{displayPath}</p>}
 				</div>
 				<ChevronDown
 					size={13}
@@ -144,10 +146,6 @@ export function SettingsPage() {
 	const { state: wsState } = useWorkspaceState(workspaceId ?? "");
 	if (!workspaceId) return null;
 
-	const repoPath = wsState?.repoPath ?? "";
-	const projectName = wsState?.projectConfig.name || repoPath.split("/").filter(Boolean).at(-1) || workspaceId;
-	const shortPath = repoPath.replace(/^\/Users\/[^/]+/, "~");
-
 	const handleSelect = (s: SettingsSection) => {
 		navigate(`/${encodeURIComponent(workspaceId)}/settings/${s}`);
 	};
@@ -173,8 +171,6 @@ export function SettingsPage() {
 				{/* Project dropdown */}
 				<ProjectDropdown
 					workspaceId={workspaceId}
-					projectName={projectName}
-					shortPath={shortPath}
 					onSwitch={handleSwitchProject}
 				/>
 				<div className="h-px bg-[#2a2a35]" />
