@@ -137,7 +137,7 @@ function displayPath(file: DiffFile): string {
 }
 
 function fileElemId(path: string): string {
-	return "diff-file-" + path.replace(/[^a-z0-9]/gi, "_");
+	return `diff-file-${path.replace(/[^a-z0-9]/gi, "_")}`;
 }
 
 function buildFileTree(files: DiffFile[]): TreeNode {

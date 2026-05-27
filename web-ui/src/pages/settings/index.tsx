@@ -137,7 +137,7 @@ export function SettingsPage() {
 	const { workspaceId, section: sectionParam } = useParams<{ workspaceId: string; section: string }>();
 	const section = (sectionParam as SettingsSection | undefined) ?? "general-automation";
 	const isProject = PROJECT_SECTIONS.has(section);
-	const { state: wsState } = useWorkspaceState(workspaceId ?? "");
+	useWorkspaceState(workspaceId ?? "");
 	if (!workspaceId) return null;
 
 	const handleSelect = (s: SettingsSection) => {
