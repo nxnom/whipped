@@ -591,7 +591,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 		logger.warn("[server] Failed to write claude hook settings:", err);
 	});
 
-	tunnelManager.start();
+	if (_globalConfig.autoStartTunnel) tunnelManager.start();
 
 	return {
 		url: `http://${host}:${port}`,

@@ -325,6 +325,7 @@ export const runtimeGlobalConfigSchema = z.object({
 	terminalApp: z.string().optional(),
 	slackBotToken: z.string().optional(),
 	slackSigningSecret: z.string().optional(),
+	autoStartTunnel: z.boolean().default(false),
 });
 export type RuntimeGlobalConfig = z.infer<typeof runtimeGlobalConfigSchema>;
 

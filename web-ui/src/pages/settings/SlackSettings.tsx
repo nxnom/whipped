@@ -1,6 +1,6 @@
 import { toast } from "@geckoui/geckoui";
 import type { RuntimeGlobalConfig } from "@runtime-contract";
-import { AlertCircle, Check, Copy, Eye, EyeOff, ExternalLink, Loader2, Square, Play } from "lucide-react";
+import { AlertCircle, Check, Copy, Eye, EyeOff, ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
 
@@ -90,90 +90,6 @@ function CodeBlock({ children }: { children: string }) {
 		>
 			{children}
 		</code>
-	);
-}
-
-type TunnelStatus = "stopped" | "starting" | "running" | "error";
-
-const TUNNEL_STATUS_STYLES: Record<TunnelStatus, { dot: string; text: string; label: string }> = {
-	stopped:  { dot: "#60607a", text: "#60607a",  label: "Tunnel stopped" },
-	starting: { dot: "#facc15", text: "#facc15",  label: "Tunnel starting…" },
-	running:  { dot: "#4ade80", text: "#4ade80",  label: "Tunnel running" },
-	error:    { dot: "#ef4444", text: "#ef4444",  label: "Tunnel error" },
-};
-
-function TunnelControl() {
-	const [state, setState] = useState<{ status: TunnelStatus; error?: string } | null>(null);
-	const [acting, setActing] = useState(false);
-
-	const refetch = () => {
-		trpc.slack.tunnelStatus.query().then(setState).catch(() => {});
-	};
-
-	useEffect(() => {
-		refetch();
-		const id = setInterval(refetch, 3000);
-		return () => clearInterval(id);
-	}, []);
-
-	const handleStart = async () => {
-		setActing(true);
-		try {
-			const next = await trpc.slack.startTunnel.mutate();
-			setState(next);
-		} finally {
-			setActing(false);
-		}
-	};
-
-	const handleStop = async () => {
-		setActing(true);
-		try {
-			const next = await trpc.slack.stopTunnel.mutate();
-			setState(next);
-		} finally {
-			setActing(false);
-		}
-	};
-
-	const status = (state?.status ?? "stopped") as TunnelStatus;
-	const style = TUNNEL_STATUS_STYLES[status];
-	const isRunning = status === "running" || status === "starting";
-
-	return (
-		<div
-			className="flex items-center gap-3 px-4 py-3 rounded-lg"
-			style={{ background: "#0c0c0f", border: "1px solid #2a2a35" }}
-		>
-			<div className="flex items-center gap-2 flex-1">
-				{status === "starting" ? (
-					<Loader2 size={8} className="animate-spin shrink-0" style={{ color: style.dot }} />
-				) : (
-					<div className="shrink-0" style={{ width: 8, height: 8, borderRadius: "50%", background: style.dot }} />
-				)}
-				<span className="text-[13px]" style={{ color: style.text }}>
-					{style.label}
-				</span>
-				{state?.error && (
-					<span className="text-[11px] font-mono truncate" style={{ color: "#60607a" }}>
-						— {state.error}
-					</span>
-				)}
-			</div>
-			<button
-				onClick={isRunning ? handleStop : handleStart}
-				disabled={acting}
-				className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[12px] font-medium transition-opacity disabled:opacity-50 hover:opacity-80"
-				style={{
-					background: isRunning ? "#2a1a1a" : "#1a2a1a",
-					border: `1px solid ${isRunning ? "#4a1a1a" : "#1a4a1a"}`,
-					color: isRunning ? "#f87171" : "#4ade80",
-				}}
-			>
-				{isRunning ? <Square size={11} /> : <Play size={11} />}
-				{isRunning ? "Stop" : "Start"}
-			</button>
-		</div>
 	);
 }
 
@@ -433,15 +349,6 @@ export function SlackSettings() {
 						<span className="text-[13px]" style={{ color: isConfigured ? "#4ade80" : "#facc15" }}>
 							{isConfigured ? "Connected — bot token and signing secret configured" : "Not configured — follow the setup guide below then paste your credentials"}
 						</span>
-					</div>
-
-					{/* Tunnel */}
-					<div className="flex flex-col gap-3">
-						<SectionDivider title="Cloudflare Tunnel" />
-						<p className="text-[12px]" style={{ color: "#60607a" }}>
-							Starts automatically with the server. Use this to manually control it.
-						</p>
-						<TunnelControl />
 					</div>
 
 					{/* Credentials */}
