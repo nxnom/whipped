@@ -158,7 +158,18 @@ function buildFileTree(files: DiffFile[]): TreeNode {
 			node = child;
 		}
 	}
+	sortTree(root);
 	return root;
+}
+
+function sortTree(node: TreeNode): void {
+	node.children.sort((a, b) => {
+		if (a.isFile !== b.isFile) return a.isFile ? 1 : -1;
+		return a.name.localeCompare(b.name);
+	});
+	for (const child of node.children) {
+		if (!child.isFile) sortTree(child);
+	}
 }
 
 // ── File Tree Sidebar ─────────────────────────────────────────────────────────
