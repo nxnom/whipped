@@ -8,6 +8,69 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { RunBar } from "@/components/RunBar";
 import { BoardPage } from "@/pages/Board";
 import { SettingsPage } from "@/pages/settings";
+import { trpc } from "@/runtime/trpc-client";
+
+function HomeRoute({ onAddProject }: { onAddProject: () => void }) {
+	const navigate = useNavigate();
+	const [ready, setReady] = useState(false);
+
+	useEffect(() => {
+		trpc.projects.list
+			.query()
+			.then((list) => {
+				if (list.length > 0) {
+					navigate(`/${encodeURIComponent(list[0]!.workspaceId)}/board`, { replace: true });
+				} else {
+					setReady(true);
+				}
+			})
+			.catch(() => setReady(true));
+	}, []);
+
+	if (!ready) return null;
+
+	return (
+		<div className="flex-1 flex flex-col items-center justify-center gap-6">
+			<div className="flex items-center justify-center w-20 h-20 rounded-full bg-[#7c6aff10]">
+				<Cpu size={36} className="text-[#7c6aff]" />
+			</div>
+			<div className="flex flex-col items-center gap-2">
+				<span className="text-[24px] font-semibold text-[#f0f0f5]">No project open</span>
+				<span className="text-[14px] text-[#60607a]">Add a repository to start running autonomous AI agents</span>
+			</div>
+			<button
+				onClick={onAddProject}
+				className="flex items-center gap-2 bg-[#7c6aff] rounded-lg py-3 px-6 hover:opacity-80 transition-opacity"
+			>
+				<Plus size={16} className="text-white" />
+				<span className="text-[14px] font-semibold text-white">Add Project</span>
+			</button>
+			<div className="flex items-center gap-1.5">
+				<span className="text-[12px] text-[#60607a]">or press</span>
+				<div className="bg-[#1a1a1f] border border-[#2a2a35] rounded px-1.5 py-0.5">
+					<span className="text-[#8888a0] font-mono text-[11px]">⌘ N</span>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+function NotFoundPage() {
+	const navigate = useNavigate();
+	return (
+		<div className="flex-1 flex flex-col items-center justify-center gap-4">
+			<span className="text-[72px] font-bold text-[#2a2a35]">404</span>
+			<span className="text-[20px] font-semibold text-[#f0f0f5]">Page not found</span>
+			<span className="text-[14px] text-[#60607a]">The page you're looking for doesn't exist.</span>
+			<button
+				onClick={() => navigate("/", { replace: true })}
+				className="mt-2 text-[14px] text-[#7c6aff] hover:underline"
+			>
+				Go home
+			</button>
+		</div>
+	);
+}
 
 export default function App() {
 	const navigate = useNavigate();
@@ -28,38 +91,6 @@ export default function App() {
 		return () => window.removeEventListener("keydown", handler);
 	}, []);
 
-	const noProjectState = (
-		<div className="flex-1 flex flex-col items-center justify-center gap-6">
-			{/* CPU icon */}
-			<div className="flex items-center justify-center w-20 h-20 rounded-full bg-[#7c6aff10]">
-				<Cpu size={36} className="text-[#7c6aff]" />
-			</div>
-
-			{/* Text block */}
-			<div className="flex flex-col items-center gap-2">
-				<span className="text-[24px] font-semibold text-[#f0f0f5]">No project open</span>
-				<span className="text-[14px] text-[#60607a]">Add a repository to start running autonomous AI agents</span>
-			</div>
-
-			{/* Add Project button */}
-			<button
-				onClick={() => setShowAddProject(true)}
-				className="flex items-center gap-2 bg-[#7c6aff] rounded-lg py-3 px-6 hover:opacity-80 transition-opacity"
-			>
-				<Plus size={16} className="text-white" />
-				<span className="text-[14px] font-semibold text-white">Add Project</span>
-			</button>
-
-			{/* Keyboard shortcut hint */}
-			<div className="flex items-center gap-1.5">
-				<span className="text-[12px] text-[#60607a]">or press</span>
-				<div className="bg-[#1a1a1f] border border-[#2a2a35] rounded px-1.5 py-0.5">
-					<span className="text-[#8888a0] font-mono text-[11px]">⌘ N</span>
-				</div>
-			</div>
-		</div>
-	);
-
 	return (
 		<>
 			<div className="dark flex h-screen bg-[#0f0f10] text-gray-100 overflow-hidden">
@@ -78,7 +109,8 @@ export default function App() {
 									/>
 									<Route path="/:workspaceId/settings" element={<SettingsPage />} />
 									<Route path="/:workspaceId/settings/:section" element={<SettingsPage />} />
-									<Route path="*" element={noProjectState} />
+									<Route path="/" element={<HomeRoute onAddProject={() => setShowAddProject(true)} />} />
+									<Route path="*" element={<NotFoundPage />} />
 								</Routes>
 							</ErrorBoundary>
 						</div>
