@@ -25,7 +25,7 @@ export function RunBar({ workspaceId }: RunBarProps) {
 			.query({ workspaceId })
 			.then((s) => {
 				const card = s.board.cards[session.cardId!];
-				setCardTitle((card?.description?.split("\n")[0]) ?? session.cardId!);
+				setCardTitle(card?.description?.split("\n")[0] ?? session.cardId!);
 				setCardAgentId(card?.agentId ?? null);
 			})
 			.catch(() => setCardTitle(session.cardId));
@@ -63,27 +63,32 @@ export function RunBar({ workspaceId }: RunBarProps) {
 			<div className="flex items-center gap-2.5 px-5 py-2">
 				<div className="flex items-center gap-1.5 shrink-0">
 					{statusDot}
-					<span className={`text-[11px] font-semibold ${session.status === "running" ? "text-blue-400" : session.status === "error" ? "text-red-400" : "text-gray-500"}`}>
+					<span
+						className={`text-[11px] font-semibold ${session.status === "running" ? "text-blue-400" : session.status === "error" ? "text-red-400" : "text-gray-500"}`}
+					>
 						{statusLabel}
 					</span>
 				</div>
 				<div className="w-px h-4 bg-[#2a2a35] shrink-0" />
 				<span className="text-[11px] font-medium text-[#f0f0f5] truncate flex-1 min-w-0">{title}</span>
-				{cardAgentId && (() => {
-					const colors: Record<string, { dot: string; text: string; bg: string }> = {
-						claude: { dot: "bg-[#7c6aff]", text: "text-[#7c6aff]", bg: "bg-[#7c6aff]/10" },
-						codex: { dot: "bg-[#22c55e]", text: "text-[#22c55e]", bg: "bg-[#22c55e]/10" },
-						cursor: { dot: "bg-[#3b82f6]", text: "text-[#3b82f6]", bg: "bg-[#3b82f6]/10" },
-						opencode: { dot: "bg-[#f97316]", text: "text-[#f97316]", bg: "bg-[#f97316]/10" },
-					};
-					const ac = colors[cardAgentId] ?? { dot: "bg-gray-500", text: "text-gray-400", bg: "bg-gray-500/10" };
-					return (
-						<span className={`flex items-center gap-1 text-[9px] font-medium px-2 py-1 rounded-full shrink-0 ${ac.bg} ${ac.text}`}>
-							<span className={`size-[5px] rounded-full ${ac.dot}`} />
-							{cardAgentId}
-						</span>
-					);
-				})()}
+				{cardAgentId &&
+					(() => {
+						const colors: Record<string, { dot: string; text: string; bg: string }> = {
+							claude: { dot: "bg-[#7c6aff]", text: "text-[#7c6aff]", bg: "bg-[#7c6aff]/10" },
+							codex: { dot: "bg-[#22c55e]", text: "text-[#22c55e]", bg: "bg-[#22c55e]/10" },
+							cursor: { dot: "bg-[#3b82f6]", text: "text-[#3b82f6]", bg: "bg-[#3b82f6]/10" },
+							opencode: { dot: "bg-[#f97316]", text: "text-[#f97316]", bg: "bg-[#f97316]/10" },
+						};
+						const ac = colors[cardAgentId] ?? { dot: "bg-gray-500", text: "text-gray-400", bg: "bg-gray-500/10" };
+						return (
+							<span
+								className={`flex items-center gap-1 text-[9px] font-medium px-2 py-1 rounded-full shrink-0 ${ac.bg} ${ac.text}`}
+							>
+								<span className={`size-[5px] rounded-full ${ac.dot}`} />
+								{cardAgentId}
+							</span>
+						);
+					})()}
 				{session.status === "error" && session.errorMessage && (
 					<span className="text-[11px] text-red-400 truncate max-w-xs shrink-0">{session.errorMessage}</span>
 				)}

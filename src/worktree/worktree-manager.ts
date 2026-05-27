@@ -100,7 +100,10 @@ export function createWorktree(
 				// local is ahead of remote (e.g. from local merges) — nothing to do
 			} else {
 				// diverged — merge remote in, abort on conflict
-				const mergeResult = git(["merge", "--no-ff", "-m", `Merge remote origin/${baseRef}`, `origin/${baseRef}`], repoPath);
+				const mergeResult = git(
+					["merge", "--no-ff", "-m", `Merge remote origin/${baseRef}`, `origin/${baseRef}`],
+					repoPath,
+				);
 				if (!mergeResult.ok) {
 					git(["merge", "--abort"], repoPath);
 					logger.warn(`[worktree:create] Could not merge origin/${baseRef} into local — proceeding with local state`);
@@ -116,7 +119,9 @@ export function createWorktree(
 	if (branchExists) {
 		logger.info(`[worktree:create] Running: git worktree add ${worktreePath} ${branch}`);
 		const r = git(["worktree", "add", worktreePath, branch], repoPath);
-		logger.info(`[worktree:create] git worktree add result: ok=${r.ok} stdout=${JSON.stringify(r.stdout)} stderr=${JSON.stringify(r.stderr)}`);
+		logger.info(
+			`[worktree:create] git worktree add result: ok=${r.ok} stdout=${JSON.stringify(r.stdout)} stderr=${JSON.stringify(r.stderr)}`,
+		);
 		if (!r.ok) {
 			// Parse which worktree currently holds this branch
 			const conflictMatch = r.stderr.match(/already used by worktree at '([^']+)'/);
@@ -144,7 +149,9 @@ export function createWorktree(
 	} else {
 		logger.info(`[worktree:create] Running: git worktree add -b ${branch} ${worktreePath} ${baseRef}`);
 		const r = git(["worktree", "add", "-b", branch, worktreePath, baseRef], repoPath);
-		logger.info(`[worktree:create] git worktree add -b result: ok=${r.ok} stdout=${JSON.stringify(r.stdout)} stderr=${JSON.stringify(r.stderr)}`);
+		logger.info(
+			`[worktree:create] git worktree add -b result: ok=${r.ok} stdout=${JSON.stringify(r.stdout)} stderr=${JSON.stringify(r.stderr)}`,
+		);
 		if (!r.ok) throw new Error(`Failed to create worktree branch ${branch} at ${worktreePath}`);
 	}
 

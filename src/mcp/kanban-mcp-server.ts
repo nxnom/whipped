@@ -134,7 +134,9 @@ Creates all subtasks first, then the story card that depends on them. The story 
 		inputSchema: {
 			description: z
 				.string()
-				.describe("Story description — what this story accomplishes as a whole, including acceptance criteria. The first line serves as the story title."),
+				.describe(
+					"Story description — what this story accomplishes as a whole, including acceptance criteria. The first line serves as the story title.",
+				),
 			priority: z.enum(["urgent", "high", "medium", "low"]).optional().describe("Story priority"),
 			workflowId: z
 				.string()
@@ -157,7 +159,9 @@ Creates all subtasks first, then the story card that depends on them. The story 
 							.describe(
 								"Short label to reference this subtask from other subtasks' dependsOn in this batch (e.g. 'auth', 'db-schema'). Not stored — only used for wiring up intra-batch deps.",
 							),
-						description: z.string().describe("Subtask description with acceptance criteria. The first line serves as the subtask title."),
+						description: z
+							.string()
+							.describe("Subtask description with acceptance criteria. The first line serves as the subtask title."),
 						priority: z.enum(["urgent", "high", "medium", "low"]).optional().describe("Subtask priority"),
 						workflowId: z
 							.string()
@@ -214,7 +218,11 @@ Creates all subtasks first, then the story card that depends on them. The story 
 				}
 			}
 			if (subtask.tempId) tempIdToRealId.set(subtask.tempId, card.id);
-			createdSubtasks.push({ realId: card.id, descFirst: subtask.description.split("\n")[0] ?? "", rawDeps: subtask.dependsOn ?? [] });
+			createdSubtasks.push({
+				realId: card.id,
+				descFirst: subtask.description.split("\n")[0] ?? "",
+				rawDeps: subtask.dependsOn ?? [],
+			});
 		}
 
 		// Pass 2: wire up any intra-batch tempId deps that are now resolvable
@@ -267,7 +275,8 @@ Creates all subtasks first, then the story card that depends on them. The story 
 
 		const storyDisplay = description.split("\n")[0]?.slice(0, 80) ?? storyCard.id;
 		const lines = [`Created story [${storyCard.id}] "${storyDisplay}" with ${subtaskIds.length} subtask(s):`];
-		for (const { realId, descFirst } of createdSubtasks) lines.push(`  Subtask [${realId}] "${descFirst.slice(0, 80)}"`);
+		for (const { realId, descFirst } of createdSubtasks)
+			lines.push(`  Subtask [${realId}] "${descFirst.slice(0, 80)}"`);
 		lines.push(`The story will trigger its orchestrator workflow once all subtasks complete.`);
 		return { content: [{ type: "text", text: lines.join("\n") }] };
 	},
@@ -278,7 +287,9 @@ server.registerTool(
 	{
 		description: "Create a new task card on the Kanban board.",
 		inputSchema: {
-			description: z.string().describe("Full task description including acceptance criteria. The first line serves as the display title."),
+			description: z
+				.string()
+				.describe("Full task description including acceptance criteria. The first line serves as the display title."),
 			type: z
 				.enum(["task", "story", "subtask"])
 				.optional()
@@ -313,17 +324,7 @@ server.registerTool(
 				),
 		},
 	},
-	async ({
-		description,
-		type,
-		priority,
-		readyForDev,
-		columnId,
-		dependsOn,
-		workflowId,
-		attachments,
-		branchName,
-	}) => {
+	async ({ description, type, priority, readyForDev, columnId, dependsOn, workflowId, attachments, branchName }) => {
 		// For non-story cards with a single primary dependency, inherit the dep's shared
 		// worktree so the whole chain works in one directory.
 		let sharedWorktreeId: string | undefined;
@@ -387,8 +388,7 @@ server.registerTool(
 server.registerTool(
 	"kanban_update_card",
 	{
-		description:
-			"Update a card's description, priority, dependencies, workflow, readyForDev flag, or attachments.",
+		description: "Update a card's description, priority, dependencies, workflow, readyForDev flag, or attachments.",
 		inputSchema: {
 			cardId: z.string().describe("The card ID"),
 			description: z.string().optional().describe("New description"),
@@ -648,7 +648,11 @@ server.registerTool(
 		}>("workspace.state", { workspaceId });
 		const card = state.board.cards[cardId];
 		if (!card) {
-			return { content: [{ type: "text", text: `Card ${cardId} not found on the board. Use kanban_get_board to list valid card IDs.` }] };
+			return {
+				content: [
+					{ type: "text", text: `Card ${cardId} not found on the board. Use kanban_get_board to list valid card IDs.` },
+				],
+			};
 		}
 		const pr = card.pr;
 		if (!pr || (!pr.url && !pr.title && !pr.description)) {
@@ -707,7 +711,9 @@ server.registerTool(
 		const custom = config.gitInstructions?.trim() ? config.gitInstructions : null;
 		const effective = custom ?? DEFAULT_GIT_INSTRUCTIONS;
 		const lines: string[] = [];
-		lines.push(custom ? "## Custom git instructions (project override)" : "## Custom git instructions: (none — using default)");
+		lines.push(
+			custom ? "## Custom git instructions (project override)" : "## Custom git instructions: (none — using default)",
+		);
 		if (custom) lines.push(custom);
 		lines.push("");
 		lines.push("## Default git instructions");
@@ -741,7 +747,9 @@ server.registerTool(
 			content: [
 				{
 					type: "text",
-					text: result.cleared ? "Custom git instructions cleared — using default." : "Custom git instructions updated.",
+					text: result.cleared
+						? "Custom git instructions cleared — using default."
+						: "Custom git instructions updated.",
 				},
 			],
 		};
@@ -795,8 +803,8 @@ server.registerTool(
 		inputSchema: {},
 	},
 	async () => {
-		const taskId = process.env["OVEREMPLOYED_HOOK_TASK_ID"];
-		const wsId = process.env["OVEREMPLOYED_HOOK_WORKSPACE_ID"];
+		const taskId = process.env.OVEREMPLOYED_HOOK_TASK_ID;
+		const wsId = process.env.OVEREMPLOYED_HOOK_WORKSPACE_ID;
 		if (taskId && wsId) {
 			await fetch(
 				`${serverUrl}/api/hook?event=stop&taskId=${encodeURIComponent(taskId)}&workspaceId=${encodeURIComponent(wsId)}`,

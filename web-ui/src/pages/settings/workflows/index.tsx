@@ -1,7 +1,16 @@
 import { ConfirmDialog, toast } from "@geckoui/geckoui";
 import type { RuntimeAgentId, Workflow } from "@runtime-contract";
 import { workflowSchema } from "@runtime-contract";
-import { ArrowRight, ChevronRight, Layers, Plus, SquareCheckBig, Star, Trash2, Workflow as WorkflowIcon } from "lucide-react";
+import {
+	ArrowRight,
+	ChevronRight,
+	Layers,
+	Plus,
+	SquareCheckBig,
+	Star,
+	Trash2,
+	Workflow as WorkflowIcon,
+} from "lucide-react";
 import { useRef, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
 import { WorkflowEditorDialog } from "./WorkflowEditorDialog";
@@ -155,7 +164,7 @@ export function WorkflowsSection({
 	const importFileRef = useRef<HTMLInputElement>(null);
 
 	const visibleWorkflows = activeTab === "task" ? taskWorkflows : storyWorkflows;
-	const openWorkflow = openWorkflowId ? workflows.find((w) => w.id === openWorkflowId) ?? null : null;
+	const openWorkflow = openWorkflowId ? (workflows.find((w) => w.id === openWorkflowId) ?? null) : null;
 
 	const deleteWorkflow = (workflowId: string) => {
 		const wf = workflows.find((w) => w.id === workflowId);
@@ -207,7 +216,17 @@ export function WorkflowsSection({
 			isDefault: isStory ? storyWorkflows.length === 0 : taskWorkflows.length === 0,
 			forStory: isStory,
 			slots: isStory
-				? [{ id: "orch", type: "orch", name: "Orchestrator", agentBinary: defaultBinary, order: 0, enabled: true, prompt: "" }]
+				? [
+						{
+							id: "orch",
+							type: "orch",
+							name: "Orchestrator",
+							agentBinary: defaultBinary,
+							order: 0,
+							enabled: true,
+							prompt: "",
+						},
+					]
 				: [{ id: "dev", type: "dev", name: "Dev", agentBinary: defaultBinary, order: 0, enabled: true, prompt: "" }],
 		};
 		setDraftWorkflow(newWf);
@@ -266,10 +285,7 @@ export function WorkflowsSection({
 			</div>
 
 			{/* Tab bar */}
-			<div
-				className="flex shrink-0"
-				style={{ padding: "0 40px", borderBottom: "1px solid #2a2a35" }}
-			>
+			<div className="flex shrink-0" style={{ padding: "0 40px", borderBottom: "1px solid #2a2a35" }}>
 				<button
 					onClick={() => setActiveTab("task")}
 					className="flex items-center gap-[6px]"
@@ -298,10 +314,7 @@ export function WorkflowsSection({
 							padding: "1px 7px",
 						}}
 					>
-						<span
-							className="text-[10px] font-semibold"
-							style={{ color: activeTab === "task" ? "#7c6aff" : "#60607a" }}
-						>
+						<span className="text-[10px] font-semibold" style={{ color: activeTab === "task" ? "#7c6aff" : "#60607a" }}>
 							{taskWorkflows.length}
 						</span>
 					</div>
@@ -349,24 +362,21 @@ export function WorkflowsSection({
 				<div className="flex flex-col gap-3">
 					{visibleWorkflows.map((wf) => (
 						<WorkflowCard
-						key={wf.id}
-						workflow={wf}
-						onClick={() => setOpenWorkflowId(wf.id)}
-						onDelete={(e) => {
-							e.stopPropagation();
-							deleteWorkflow(wf.id);
-						}}
-						onSetDefault={(e) => {
-							e.stopPropagation();
-							handleSetDefault(wf.id);
-						}}
-					/>
+							key={wf.id}
+							workflow={wf}
+							onClick={() => setOpenWorkflowId(wf.id)}
+							onDelete={(e) => {
+								e.stopPropagation();
+								deleteWorkflow(wf.id);
+							}}
+							onSetDefault={(e) => {
+								e.stopPropagation();
+								handleSetDefault(wf.id);
+							}}
+						/>
 					))}
 					{visibleWorkflows.length === 0 && (
-						<div
-							className="flex flex-col items-center justify-center py-16 gap-3"
-							style={{ color: "#4a4a5a" }}
-						>
+						<div className="flex flex-col items-center justify-center py-16 gap-3" style={{ color: "#4a4a5a" }}>
 							<WorkflowIcon size={28} style={{ color: "#2a2a35" }} />
 							<p className="text-[13px]">No workflows yet</p>
 							<button

@@ -3,14 +3,11 @@ import type { RuntimeGlobalConfig } from "@runtime-contract";
 import { AGENT_BINARY_OPTIONS } from "@runtime-contract";
 import { useEffect, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
-import { type GlobalSection } from "./_shared";
+import type { GlobalSection } from "./_shared";
 
 function PageHeader({ title, description }: { title: string; description: string }) {
 	return (
-		<div
-			className="shrink-0 flex flex-col gap-1 px-10 py-6"
-			style={{ borderBottom: "1px solid #2a2a35" }}
-		>
+		<div className="shrink-0 flex flex-col gap-1 px-10 py-6" style={{ borderBottom: "1px solid #2a2a35" }}>
 			<h1 className="text-xl font-semibold" style={{ color: "#f0f0f5" }}>
 				{title}
 			</h1>
@@ -32,15 +29,7 @@ function SectionDivider({ title }: { title: string }) {
 	);
 }
 
-function FieldRow({
-	label,
-	description,
-	children,
-}: {
-	label: string;
-	description: string;
-	children: React.ReactNode;
-}) {
+function FieldRow({ label, description, children }: { label: string; description: string; children: React.ReactNode }) {
 	return (
 		<div className="flex items-center gap-4">
 			<div className="flex-1 flex flex-col gap-0.5">
@@ -56,13 +45,7 @@ function FieldRow({
 	);
 }
 
-function NumberInput({
-	value,
-	onChange,
-}: {
-	value: number;
-	onChange: (v: number) => void;
-}) {
+function NumberInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
 	return (
 		<input
 			type="number"
@@ -111,9 +94,7 @@ function SelectInput({
 				paddingRight: 36,
 			}}
 		>
-			{placeholder && (
-				<option value="">{placeholder}</option>
-			)}
+			{placeholder && <option value="">{placeholder}</option>}
 			{options.map((o) => (
 				<option key={o.value} value={o.value}>
 					{o.label}
@@ -138,6 +119,7 @@ function SaveButton({ saving, onSave }: { saving: boolean; onSave: () => void })
 	);
 }
 
+// biome-ignore lint/correctness/noUnusedFunctionParameters: required by caller interface
 export function GlobalSettings({ section }: { section: GlobalSection }) {
 	const [config, setConfig] = useState<RuntimeGlobalConfig | null>(null);
 	const [saving, setSaving] = useState(false);
@@ -216,10 +198,7 @@ export function GlobalSettings({ section }: { section: GlobalSection }) {
 							/>
 						</FieldRow>
 						<FieldRow label="Max Parallel QA" description="Concurrent QA slot runs">
-							<NumberInput
-								value={config.maxParallelQA}
-								onChange={(v) => setConfig({ ...config, maxParallelQA: v })}
-							/>
+							<NumberInput value={config.maxParallelQA} onChange={(v) => setConfig({ ...config, maxParallelQA: v })} />
 						</FieldRow>
 						<FieldRow label="Max Auto-Fix Attempts" description="Retries before marking blocked">
 							<NumberInput

@@ -317,11 +317,11 @@ function NewSecretRow({ onAdd }: { onAdd: (key: string) => void }) {
 	return (
 		<div className="flex items-center gap-3">
 			<input
+				autoFocus
 				value={key}
 				onChange={(e) => setKey(e.target.value)}
 				onKeyDown={(e) => e.key === "Enter" && submit()}
 				placeholder="SECRET_KEY"
-				autoFocus
 				style={{ ...inputStyle, width: 200, flexShrink: 0 }}
 			/>
 			<div
@@ -338,11 +338,7 @@ function NewSecretRow({ onAdd }: { onAdd: (key: string) => void }) {
 			>
 				value after save
 			</div>
-			<button
-				onClick={submit}
-				className="shrink-0 hover:opacity-70 transition-opacity"
-				style={{ color: "#7c6aff" }}
-			>
+			<button onClick={submit} className="shrink-0 hover:opacity-70 transition-opacity" style={{ color: "#7c6aff" }}>
 				<Plus size={14} />
 			</button>
 		</div>
@@ -356,6 +352,7 @@ export function EnvironmentSecretsSection({
 	config,
 	saving,
 	onUpdate,
+	// biome-ignore lint/correctness/noUnusedFunctionParameters: required by caller interface
 	onSave,
 	onSaveSecrets,
 }: {
@@ -509,7 +506,10 @@ export function EnvironmentSecretsSection({
 						/>
 						<div className="flex justify-end gap-2">
 							<button
-								onClick={() => { setPasteOpen(false); setEnvText(""); }}
+								onClick={() => {
+									setPasteOpen(false);
+									setEnvText("");
+								}}
 								className="text-[12px] px-3 py-1.5 rounded-md hover:opacity-70 transition-opacity"
 								style={{ color: "#8888a0", border: "1px solid #2a2a35" }}
 							>

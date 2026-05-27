@@ -117,8 +117,10 @@ export interface ProjectsSidebarHandle {
 	addFolder: () => void;
 }
 
-export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(
-	function ProjectsSidebar({ projects, activeWorkspaceId, onSwitch }, ref) {
+export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(function ProjectsSidebar(
+	{ projects, activeWorkspaceId, onSwitch },
+	ref,
+) {
 	const [layout, setLayout] = useState<ProjectsLayout>({ version: 1, topLevel: [], folders: {} });
 	const [isDragging, setIsDragging] = useState(false);
 	const [hoveredFolderId, setHoveredFolderId] = useState<string | null>(null);
@@ -212,14 +214,20 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(
 
 	// ── Drag and drop ─────────────────────────────────────────────────────────
 
-	const onDragUpdate = useCallback((update: import("@hello-pangea/dnd").DragUpdate) => {
-		if (!update.destination) { setHoveredFolderId(null); return; }
-		const flat = buildFlat(layout, true, true);
-		// Simulate source removal so destination index is accurate
-		flat.splice(update.source.index, 1);
-		const folderId = folderAtDest(flat, update.destination.index);
-		setHoveredFolderId(folderId);
-	}, [layout]);
+	const onDragUpdate = useCallback(
+		(update: import("@hello-pangea/dnd").DragUpdate) => {
+			if (!update.destination) {
+				setHoveredFolderId(null);
+				return;
+			}
+			const flat = buildFlat(layout, true, true);
+			// Simulate source removal so destination index is accurate
+			flat.splice(update.source.index, 1);
+			const folderId = folderAtDest(flat, update.destination.index);
+			setHoveredFolderId(folderId);
+		},
+		[layout],
+	);
 
 	const onDragEnd = (result: DropResult) => {
 		setIsDragging(false);
@@ -300,12 +308,18 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(
 												}}
 											>
 												{/* Chevron */}
-												<div className="shrink-0 flex items-center justify-center" style={{ width: 14, color: "#4a4a5a" }}>
+												<div
+													className="shrink-0 flex items-center justify-center"
+													style={{ width: 14, color: "#4a4a5a" }}
+												>
 													{expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
 												</div>
 
 												{/* Folder icon */}
-												<Folder size={13} style={{ color: hoveredFolderId === item.folderId ? "#7c6aff" : "#60607a", flexShrink: 0 }} />
+												<Folder
+													size={13}
+													style={{ color: hoveredFolderId === item.folderId ? "#7c6aff" : "#60607a", flexShrink: 0 }}
+												/>
 
 												{/* Name */}
 												{editingId === item.folderId ? (
@@ -325,8 +339,14 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(
 												) : (
 													<span
 														className="flex-1 min-w-0 truncate text-[11px] font-medium"
-														style={{ color: hoveredFolderId === item.folderId ? "#c0c0d0" : "#8888a0", letterSpacing: 0.2 }}
-														onDoubleClick={(e) => { e.stopPropagation(); startRename(item.folderId); }}
+														style={{
+															color: hoveredFolderId === item.folderId ? "#c0c0d0" : "#8888a0",
+															letterSpacing: 0.2,
+														}}
+														onDoubleClick={(e) => {
+															e.stopPropagation();
+															startRename(item.folderId);
+														}}
 													>
 														{folder.name}
 													</span>
@@ -335,7 +355,10 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(
 												{/* Actions */}
 												<span className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
 													<button
-														onClick={(e) => { e.stopPropagation(); startRename(item.folderId); }}
+														onClick={(e) => {
+															e.stopPropagation();
+															startRename(item.folderId);
+														}}
 														className="flex items-center justify-center rounded hover:bg-[#2a2a35] transition-colors"
 														style={{ width: 20, height: 20, color: "#60607a" }}
 														title="Rename"
@@ -343,7 +366,10 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(
 														<Pencil size={10} />
 													</button>
 													<button
-														onClick={(e) => { e.stopPropagation(); deleteFolder(item.folderId); }}
+														onClick={(e) => {
+															e.stopPropagation();
+															deleteFolder(item.folderId);
+														}}
 														className="flex items-center justify-center rounded hover:bg-[#ef444420] transition-colors"
 														style={{ width: 20, height: 20, color: "#60607a" }}
 														title="Delete"
@@ -360,7 +386,12 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(
 							// Empty folder drop zone
 							if (item.kind === "empty-folder-slot") {
 								return (
-									<Draggable key={`slot:${item.folderId}`} draggableId={`slot:${item.folderId}`} index={index} isDragDisabled>
+									<Draggable
+										key={`slot:${item.folderId}`}
+										draggableId={`slot:${item.folderId}`}
+										index={index}
+										isDragDisabled
+									>
 										{(dp) => (
 											<div
 												ref={dp.innerRef}
@@ -416,14 +447,16 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(
 											}}
 										>
 											{/* Active dot */}
-											<div style={{
-												width: 6,
-												height: 6,
-												borderRadius: "50%",
-												flexShrink: 0,
-												background: isActive ? "#7c6aff" : "#2a2a35",
-												boxShadow: isActive ? "0 0 6px #7c6aff80" : "none",
-											}} />
+											<div
+												style={{
+													width: 6,
+													height: 6,
+													borderRadius: "50%",
+													flexShrink: 0,
+													background: isActive ? "#7c6aff" : "#2a2a35",
+													boxShadow: isActive ? "0 0 6px #7c6aff80" : "none",
+												}}
+											/>
 											<span
 												className="truncate text-[12px]"
 												style={{
@@ -445,4 +478,3 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(
 		</DragDropContext>
 	);
 });
-

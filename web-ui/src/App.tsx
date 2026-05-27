@@ -29,10 +29,7 @@ export default function App() {
 	}, []);
 
 	const noProjectState = (
-		<div
-			className="flex-1 flex flex-col items-center justify-center"
-			style={{ gap: 24 }}
-		>
+		<div className="flex-1 flex flex-col items-center justify-center" style={{ gap: 24 }}>
 			{/* CPU icon */}
 			<div
 				className="flex items-center justify-center"
@@ -76,9 +73,7 @@ export default function App() {
 						padding: "2px 6px",
 					}}
 				>
-					<span style={{ color: "#8888a0", fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}>
-						⌘ N
-					</span>
+					<span style={{ color: "#8888a0", fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}>⌘ N</span>
 				</div>
 			</div>
 		</div>

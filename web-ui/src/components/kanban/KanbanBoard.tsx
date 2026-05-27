@@ -1,18 +1,11 @@
-import { Button, ConfirmDialog, Input, Select, SelectOption, Switch, Textarea, toast } from "@geckoui/geckoui";
+import { ConfirmDialog, toast } from "@geckoui/geckoui";
 import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
-import type {
-	RuntimeBoardCard,
-	RuntimeBoardColumnId,
-	RuntimeWorkspaceStateResponse,
-	Workflow,
-} from "@runtime-contract";
-import { ChevronDown, GitBranch, Layers, MessageSquare, Paperclip, Play, Plus, Settings, Square, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import type { RuntimeBoardCard, RuntimeBoardColumnId, RuntimeWorkspaceStateResponse } from "@runtime-contract";
+import { ChevronDown, GitBranch, Layers, MessageSquare, Play, Plus, Settings, Square } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { BranchSelect } from "@/components/BranchSelect";
 import { trpc } from "@/runtime/trpc-client";
 import { useRunSession } from "@/stores/run-session-store";
-import { deriveBranchName } from "@/utils/branch";
 import { CardDetailPanel } from "./CardDetailPanel";
 import { CreateTaskDialog, EditTaskDialog } from "./CreateTaskDialog";
 import { KanbanColumn } from "./KanbanColumn";
@@ -26,7 +19,14 @@ interface KanbanBoardProps {
 	projectName?: string;
 }
 
-export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, onOpenAgent, projectName }: KanbanBoardProps) {
+export function KanbanBoard({
+	state,
+	onRefresh,
+	onDeleteCard,
+	onOpenSettings,
+	onOpenAgent,
+	projectName,
+}: KanbanBoardProps) {
 	const navigate = useNavigate();
 	const { workspaceId: urlWorkspaceId, cardId: detailCardId } = useParams<{ workspaceId: string; cardId?: string }>();
 	const workspaceId = urlWorkspaceId!;
@@ -116,7 +116,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
 		setEditDialogCard(card);
 	};
 
-	const handleMoveAllToReady = () => {
+	const _handleMoveAllToReady = () => {
 		const todoColumn = state.board.columns.find((c) => c.id === "todo");
 		const todoCards = (todoColumn?.taskIds ?? []).map((id) => state.board.cards[id]).filter((c) => c && !c.readyForDev);
 		if (todoCards.length === 0) {
@@ -184,14 +184,20 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
 				)}
 				<div className="flex-1" />
 				<button
-					onClick={() => { setCreateDialogMode("story"); setCreateDialogOpen(true); }}
+					onClick={() => {
+						setCreateDialogMode("story");
+						setCreateDialogOpen(true);
+					}}
 					className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#1a1a1f] border border-[#2a2a35] text-xs text-gray-500 hover:border-[#3a3a48] transition-colors"
 				>
 					<Layers size={12} />
 					New Story
 				</button>
 				<button
-					onClick={() => { setCreateDialogMode("task"); setCreateDialogOpen(true); }}
+					onClick={() => {
+						setCreateDialogMode("task");
+						setCreateDialogOpen(true);
+					}}
 					className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#1a1a1f] border border-[#2a2a35] text-xs text-gray-500 hover:border-[#3a3a48] transition-colors"
 				>
 					<Plus size={12} />
@@ -246,7 +252,10 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
 										onCardToggleReady={handleToggleReady}
 										onCardRun={handleRun}
 										onCardStop={handleStop}
-										onAddCard={() => { setCreateDialogMode("task"); setCreateDialogOpen(true); }}
+										onAddCard={() => {
+											setCreateDialogMode("task");
+											setCreateDialogOpen(true);
+										}}
 									/>
 								</div>
 							);
@@ -295,499 +304,6 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
 					onClose={() => setEditDialogCard(null)}
 				/>
 			)}
-		</div>
-	);
-}
-
-const COLUMN_BADGE: Record<string, string> = {
-	todo: "text-gray-400 bg-gray-700",
-	in_progress: "text-blue-400 bg-blue-400/10",
-	reopened: "text-orange-400 bg-orange-400/10",
-	ready_for_review: "text-green-400 bg-green-400/10",
-	blocked: "text-red-400 bg-red-400/10",
-	done: "text-emerald-400 bg-emerald-400/10",
-};
-
-const COLUMN_LABEL: Record<string, string> = {
-	todo: "Todo",
-	in_progress: "In Progress",
-	reopened: "Reopened",
-	ready_for_review: "Ready for Review",
-	blocked: "Blocked",
-	done: "Done",
-};
-
-interface PendingImage {
-	dataUrl: string | null;
-	file: File;
-}
-
-async function uploadImages(workspaceId: string, cardId: string, images: PendingImage[]) {
-	const { uploadAttachmentFile } = await import("@/runtime/attachments");
-	const results = [];
-	for (const img of images) results.push(await uploadAttachmentFile(workspaceId, cardId, img.file));
-	return results;
-}
-
-function ImagePicker({ pending, onChange }: { pending: PendingImage[]; onChange: (imgs: PendingImage[]) => void }) {
-	const ref = useRef<HTMLInputElement>(null);
-	const addFiles = (files: FileList | File[]) => {
-		Array.from(files).forEach((file) => {
-			if (file.type.startsWith("image/")) {
-				const reader = new FileReader();
-				reader.onload = (ev) => onChange([...pending, { dataUrl: ev.target?.result as string, file }]);
-				reader.readAsDataURL(file);
-			} else {
-				onChange([...pending, { dataUrl: null, file }]);
-			}
-		});
-	};
-	return (
-		<div>
-			<input
-				ref={ref}
-				type="file"
-				accept="*/*"
-				multiple
-				className="hidden"
-				onChange={(e) => {
-					if (e.target.files) addFiles(e.target.files);
-					e.target.value = "";
-				}}
-			/>
-			{pending.length > 0 && (
-				<div className="flex flex-wrap gap-2 mb-2 mt-1">
-					{pending.map((img, i) => (
-						<div key={i} className="relative group">
-							{img.dataUrl ? (
-								<img
-									src={img.dataUrl}
-									alt={img.file.name}
-									className="h-14 w-14 object-cover rounded border border-gray-700"
-								/>
-							) : (
-								<div className="h-14 w-14 flex flex-col items-center justify-center rounded border border-gray-700 bg-gray-800 gap-1">
-									<Paperclip size={14} className="text-gray-400" />
-									<span className="text-[9px] text-gray-400 truncate w-12 text-center px-1">{img.file.name}</span>
-								</div>
-							)}
-							<button
-								type="button"
-								onClick={() => onChange(pending.filter((_, j) => j !== i))}
-								className="absolute -top-1 -right-1 size-4 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-							>
-								<X size={9} className="text-gray-300" />
-							</button>
-						</div>
-					))}
-				</div>
-			)}
-			<button
-				type="button"
-				onClick={() => ref.current?.click()}
-				className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-400 transition-colors mt-1"
-			>
-				<Paperclip size={12} /> Attach file
-			</button>
-		</div>
-	);
-}
-
-function CreateCardContent({
-	workspaceId,
-	allCards,
-	workflows,
-	dismiss,
-	onRefresh,
-	navigate,
-}: {
-	workspaceId: string;
-	allCards: Record<string, RuntimeBoardCard>;
-	workflows: Workflow[];
-	dismiss: () => void;
-	onRefresh: () => void;
-	navigate: (path: string) => void;
-}) {
-	const taskWorkflows = workflows.filter((w) => !w.forStory);
-	const defaultWorkflow = taskWorkflows.find((w) => w.isDefault) ?? taskWorkflows[0];
-	const [description, setDescription] = useState("");
-	const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
-	const [priority, setPriority] = useState<string>("");
-	const [readyForDev, setReadyForDev] = useState(true);
-	const [dependsOn, setDependsOn] = useState<string[]>([]);
-	const [baseRef, setBaseRef] = useState<string>("");
-	const [workflowId, setWorkflowId] = useState<string>(defaultWorkflow?.id ?? "");
-	const [branches, setBranches] = useState<string[]>([]);
-	const [branchName, setBranchName] = useState<string>("");
-	const [branchNameEdited, setBranchNameEdited] = useState(false);
-	const [loading, setLoading] = useState(false);
-
-	useEffect(() => {
-		trpc.cards.listBranches
-			.query({ workspaceId })
-			.then(({ branches: b, defaultBranch }) => {
-				setBranches(b);
-				setBaseRef(defaultBranch);
-			})
-			.catch(() => {});
-	}, [workspaceId]);
-
-	const handleCreate = async () => {
-		if (!description.trim()) return;
-		setLoading(true);
-		try {
-			const card = await trpc.cards.create.mutate({
-				workspaceId,
-				description: description.trim(),
-				priority: (priority as "urgent" | "high" | "medium" | "low" | undefined) || undefined,
-				readyForDev: readyForDev || undefined,
-				dependsOn: dependsOn.length > 0 ? dependsOn : undefined,
-				baseRef: baseRef || undefined,
-				workflowId: workflowId || undefined,
-				branchName: branchName.trim() || undefined,
-			});
-			if (pendingImages.length > 0) {
-				const uploaded = await uploadImages(workspaceId, card.id, pendingImages);
-				await trpc.cards.update.mutate({ workspaceId, cardId: card.id, descriptionAttachments: uploaded, revision: 0 });
-			}
-			dismiss();
-			onRefresh();
-		} catch {
-			toast.error("Failed to create task");
-		} finally {
-			setLoading(false);
-		}
-	};
-
-	return (
-		<div>
-			<h3 className="text-base font-semibold text-gray-100 mb-4">New Task</h3>
-
-			<div className="space-y-3">
-				<div>
-					<label className="text-xs text-gray-400 block mb-1">Description <span className="text-gray-600">(first line is the display title)</span></label>
-					<Textarea
-						autoFocus
-						value={description}
-						onChange={(e) => {
-							const v = e.target.value;
-							setDescription(v);
-							if (!branchNameEdited) {
-								setBranchName(deriveBranchName(v.split("\n")[0] ?? ""));
-							}
-						}}
-						onPaste={(e) => {
-							const files = Array.from(e.clipboardData.files);
-							if (files.length) {
-								e.preventDefault();
-								files.forEach((file) => {
-									if (file.type.startsWith("image/")) {
-										const r = new FileReader();
-										r.onload = (ev) => setPendingImages((p) => [...p, { dataUrl: ev.target?.result as string, file }]);
-										r.readAsDataURL(file);
-									} else {
-										setPendingImages((p) => [...p, { dataUrl: null, file }]);
-									}
-								});
-							}
-						}}
-						placeholder="First line is the task title. Add details below..."
-						rows={4}
-					/>
-					<ImagePicker pending={pendingImages} onChange={setPendingImages} />
-				</div>
-				<div>
-					<label className="text-xs text-gray-400 block mb-1">Branch Name</label>
-					<Input
-						value={branchName}
-						onChange={(e) => {
-							setBranchName(e.target.value);
-							setBranchNameEdited(true);
-						}}
-						placeholder="feat/auto-generated-from-description"
-					/>
-				</div>
-				<div className="grid grid-cols-2 gap-3">
-					<div>
-						<label className="text-xs text-gray-400 block mb-1">Base Branch</label>
-						<BranchSelect branches={branches} value={baseRef} onChange={setBaseRef} />
-					</div>
-					<div>
-						<label className="text-xs text-gray-400 block mb-1">Workflow</label>
-						{taskWorkflows.length === 0 ? (
-							<button
-								className="text-xs text-amber-500 hover:text-amber-400 underline underline-offset-2 text-left transition-colors"
-								onClick={() => { dismiss(); navigate(`/${encodeURIComponent(workspaceId)}/settings/workflows`); }}
-							>
-								No workflows — create one in Settings
-							</button>
-						) : (
-							<Select value={workflowId} onChange={(v) => setWorkflowId(v as string)} placeholder="Default">
-								{taskWorkflows.map((w) => (
-									<SelectOption key={w.id} value={w.id} label={w.name + (w.isDefault ? " (default)" : "")} />
-								))}
-							</Select>
-						)}
-					</div>
-				</div>
-				<div>
-					<label className="text-xs text-gray-400 block mb-1">Priority</label>
-					<Select value={priority} onChange={(v) => setPriority(v as string)} placeholder="No priority" clearable>
-						<SelectOption value="urgent" label="Urgent" />
-						<SelectOption value="high" label="High" />
-						<SelectOption value="medium" label="Medium" />
-						<SelectOption value="low" label="Low" />
-					</Select>
-				</div>
-				<div>
-					<label className="text-xs text-gray-400 block mb-1">Depends on</label>
-					<Select multiple value={dependsOn} onChange={(v) => setDependsOn(v)} placeholder="None" filterable clearable>
-						{Object.values(allCards)
-							.filter((c) => c.columnId !== "done")
-							.map((c) => {
-								const cDisplay = c.description?.split("\n")[0] ?? c.id;
-								return (
-									<SelectOption
-										key={c.id}
-										value={c.id}
-										label={cDisplay}
-										hideCheckIcon
-										className={({ selected }) => (selected ? "bg-gray-700" : "")}
-									>
-										<div className="flex items-center justify-between w-full gap-2 min-w-0">
-											<span className="truncate text-sm">{cDisplay}</span>
-											<span
-												className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700"}`}
-											>
-												{COLUMN_LABEL[c.columnId] ?? c.columnId}
-											</span>
-										</div>
-									</SelectOption>
-								);
-							})}
-					</Select>
-				</div>
-				<div className="flex items-center justify-between py-1">
-					<div>
-						<label className="text-xs text-gray-400 block">Ready for agent</label>
-						<p className="text-xs text-gray-600">Agent will pick this up automatically when autonomous mode is on</p>
-					</div>
-					<Switch checked={readyForDev} onChange={setReadyForDev} />
-				</div>
-			</div>
-
-			<div className="flex gap-2 mt-5 justify-end">
-				<Button variant="ghost" onClick={dismiss}>
-					Cancel
-				</Button>
-				<Button onClick={handleCreate} disabled={!description.trim() || loading || taskWorkflows.length === 0}>
-					{loading ? "Creating..." : "Create"}
-				</Button>
-			</div>
-		</div>
-	);
-}
-
-function EditCardContent({
-	workspaceId,
-	card,
-	allCards,
-	workflows,
-	dismiss,
-	onRefresh,
-}: {
-	workspaceId: string;
-	card: RuntimeBoardCard;
-	allCards: Record<string, RuntimeBoardCard>;
-	workflows: Workflow[];
-	dismiss: () => void;
-	onRefresh: () => void;
-}) {
-	const isStory = card.type === "story";
-	const isSubtask = card.type === "subtask";
-
-	const canEditBranch = !isStory && !card.worktreePath;
-
-	const [description, setDescription] = useState(card.description);
-	const [existingAttachments, setExistingAttachments] = useState(card.descriptionAttachments ?? []);
-	const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
-	const [priority, setPriority] = useState<string>(card.priority ?? "");
-	const [dependsOn, setDependsOn] = useState<string[]>(card.dependsOn ?? []);
-	const [workflowId, setWorkflowId] = useState<string>(card.workflowId ?? "");
-	const [branchName, setBranchName] = useState<string>(card.branchName ?? "");
-	const [branchNameEdited, setBranchNameEdited] = useState(!!card.branchName);
-	const [loading, setLoading] = useState(false);
-
-	// Stories use story workflows; tasks/subtasks use task workflows
-	const availableWorkflows = isStory ? workflows.filter((w) => w.forStory) : workflows.filter((w) => !w.forStory);
-
-	// For subtasks: exclude story cards from dependsOn options (avoids circular deps)
-	// For stories: the dependsOn list IS the subtasks — don't show in edit to avoid confusion
-	const depsCardPool = Object.values(allCards).filter((c) => {
-		if (c.id === card.id || c.columnId === "done") return false;
-		if (isSubtask) return c.type !== "story";
-		return true;
-	});
-
-	const handleSave = async () => {
-		if (!description?.trim()) return;
-		setLoading(true);
-		try {
-			const newUploads = pendingImages.length > 0 ? await uploadImages(workspaceId, card.id, pendingImages) : [];
-			await trpc.cards.update.mutate({
-				workspaceId,
-				cardId: card.id,
-				description,
-				descriptionAttachments: [...existingAttachments, ...newUploads],
-				priority: (priority as "urgent" | "high" | "medium" | "low" | undefined) || undefined,
-				dependsOn: isStory ? undefined : dependsOn,
-				workflowId: workflowId || undefined,
-				branchName: canEditBranch ? branchName.trim() || undefined : undefined,
-				revision: 0,
-			});
-			dismiss();
-			onRefresh();
-		} catch {
-			toast.error(`Failed to update ${isStory ? "story" : isSubtask ? "subtask" : "task"}`);
-		} finally {
-			setLoading(false);
-		}
-	};
-
-	const dialogTitle = isStory ? "Edit Story" : isSubtask ? "Edit Subtask" : "Edit Task";
-
-	return (
-		<div>
-			<h3 className="text-base font-semibold text-gray-100 mb-4">{dialogTitle}</h3>
-
-			<div className="space-y-3">
-				<div>
-					<label className="text-xs text-gray-400 block mb-1">Description <span className="text-gray-600">(first line is the display title)</span></label>
-					<Textarea
-						autoFocus
-						value={description}
-						onChange={(e) => {
-							const v = e.target.value;
-							setDescription(v);
-							if (canEditBranch && !branchNameEdited) {
-								setBranchName(deriveBranchName(v.split("\n")[0] ?? ""));
-							}
-						}}
-						onPaste={(e) => {
-							const files = Array.from(e.clipboardData.files);
-							if (files.length) {
-								e.preventDefault();
-								files.forEach((file) => {
-									if (file.type.startsWith("image/")) {
-										const r = new FileReader();
-										r.onload = (ev) => setPendingImages((p) => [...p, { dataUrl: ev.target?.result as string, file }]);
-										r.readAsDataURL(file);
-									} else {
-										setPendingImages((p) => [...p, { dataUrl: null, file }]);
-									}
-								});
-							}
-						}}
-						rows={4}
-					/>
-					{existingAttachments.length > 0 && (
-						<div className="flex flex-wrap gap-1.5 mt-1">
-							{existingAttachments.map((att, i) => (
-								<span
-									key={i}
-									className="inline-flex items-center gap-1 text-[11px] text-gray-400 bg-gray-800 border border-gray-700 rounded px-1.5 py-0.5"
-								>
-									<Paperclip size={10} className="shrink-0" /> {att.name}
-									<button
-										type="button"
-										onClick={() => setExistingAttachments((a) => a.filter((_, j) => j !== i))}
-										className="text-gray-600 hover:text-red-400 transition-colors"
-									>
-										<X size={9} />
-									</button>
-								</span>
-							))}
-						</div>
-					)}
-					<ImagePicker pending={pendingImages} onChange={setPendingImages} />
-				</div>
-				{canEditBranch && (
-					<div>
-						<label className="text-xs text-gray-400 block mb-1">Branch Name</label>
-						<Input
-							value={branchName}
-							onChange={(e) => {
-								setBranchName(e.target.value);
-								setBranchNameEdited(true);
-							}}
-							placeholder="feat/auto-generated-from-description"
-						/>
-					</div>
-				)}
-				<div className="grid grid-cols-2 gap-3">
-					<div>
-						<label className="text-xs text-gray-400 block mb-1">Priority</label>
-						<Select value={priority} onChange={(v) => setPriority(v as string)} placeholder="No priority" clearable>
-							<SelectOption value="urgent" label="Urgent" />
-							<SelectOption value="high" label="High" />
-							<SelectOption value="medium" label="Medium" />
-							<SelectOption value="low" label="Low" />
-						</Select>
-					</div>
-					<div>
-						<label className="text-xs text-gray-400 block mb-1">{isStory ? "Orch Workflow" : "Workflow"}</label>
-						<Select value={workflowId} onChange={(v) => setWorkflowId(v as string)} placeholder="Default">
-							{availableWorkflows.map((w) => (
-								<SelectOption key={w.id} value={w.id} label={w.name + (w.isDefault ? " (default)" : "")} />
-							))}
-						</Select>
-					</div>
-				</div>
-				{!isStory && (
-					<div>
-						<label className="text-xs text-gray-400 block mb-1">Depends on</label>
-						<Select
-							multiple
-							value={dependsOn}
-							onChange={(v) => setDependsOn(v as string[])}
-							placeholder="None"
-							filterable
-							clearable
-						>
-							{depsCardPool.map((c) => {
-								const cDisplay = c.description?.split("\n")[0] ?? c.id;
-								return (
-								<SelectOption
-									key={c.id}
-									value={c.id}
-									label={cDisplay}
-									hideCheckIcon
-									className={({ selected }: { selected: boolean }) => (selected ? "bg-gray-700" : "")}
-								>
-									<div className="flex items-center justify-between w-full gap-2 min-w-0">
-										<span className="truncate text-sm">{cDisplay}</span>
-										<span
-											className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700"}`}
-										>
-											{COLUMN_LABEL[c.columnId] ?? c.columnId}
-										</span>
-									</div>
-								</SelectOption>
-								);
-							})}
-						</Select>
-					</div>
-				)}
-			</div>
-
-			<div className="flex gap-2 mt-5 justify-end">
-				<Button variant="ghost" onClick={dismiss}>
-					Cancel
-				</Button>
-				<Button onClick={handleSave} disabled={!description?.trim() || loading}>
-					{loading ? "Saving..." : "Save"}
-				</Button>
-			</div>
 		</div>
 	);
 }

@@ -53,7 +53,9 @@ async function cleanupStaleTasks(workspaceId: string, hub: RuntimeStateHub): Pro
 	for (const taskId of taskIds) {
 		const card = board.cards[taskId];
 		if (!card) continue;
-		logger.info(`[server] Cleanup stale in-progress task "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" → todo`);
+		logger.info(
+			`[server] Cleanup stale in-progress task "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" → todo`,
+		);
 		await moveCard(workspaceId, taskId, "todo");
 		await appendActivityLog(workspaceId, taskId, "Server stopped — task interrupted, moved back to Todo");
 	}
@@ -183,7 +185,9 @@ export async function createRuntimeServer(options: ServerOptions) {
 		function startReview(card: RuntimeBoardCard): void {
 			if (activeReviews.has(card.id)) return;
 			activeReviews.add(card.id);
-			logger.info(`[server] Starting review pipeline for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`);
+			logger.info(
+				`[server] Starting review pipeline for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`,
+			);
 
 			(async () => {
 				const latestConfig = await loadGlobalConfig(); // reload fresh each review
@@ -217,7 +221,12 @@ export async function createRuntimeServer(options: ServerOptions) {
 					registerLiveProcess: scheduler.registerLiveProcess.bind(scheduler),
 				});
 			})()
-				.catch((err) => logger.error({ err }, `[server] Review pipeline error for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}":`))
+				.catch((err) =>
+					logger.error(
+						{ err },
+						`[server] Review pipeline error for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}":`,
+					),
+				)
 				.finally(() => activeReviews.delete(card.id));
 		}
 
@@ -315,12 +324,12 @@ export async function createRuntimeServer(options: ServerOptions) {
 				);
 				const update: Record<string, unknown> = { slackBotToken: botToken };
 				if (installerUserId) update.slackInstallerUserId = installerUserId;
-				await import("../config/runtime-config.js").then((m) =>
-					m.updateGlobalConfig(update),
-				);
+				await import("../config/runtime-config.js").then((m) => m.updateGlobalConfig(update));
 				logger.info("[slack] Bot token saved via OAuth callback");
 				res.writeHead(200, { "Content-Type": "text/html" });
-				res.end(`<!DOCTYPE html><html><head><title>Slack Connected</title></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0f0f10;color:#f0f0f5"><div style="text-align:center"><div style="font-size:48px;margin-bottom:16px">✓</div><h2 style="margin:0 0 8px">Slack connected!</h2><p style="color:#60607a;margin:0">You can close this tab and return to the app.</p></div></body></html>`);
+				res.end(
+					`<!DOCTYPE html><html><head><title>Slack Connected</title></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0f0f10;color:#f0f0f5"><div style="text-align:center"><div style="font-size:48px;margin-bottom:16px">✓</div><h2 style="margin:0 0 8px">Slack connected!</h2><p style="color:#60607a;margin:0">You can close this tab and return to the app.</p></div></body></html>`,
+				);
 			} catch (err) {
 				logger.error({ err }, "[slack] OAuth callback failed");
 				res.writeHead(500, { "Content-Type": "text/plain" });
@@ -355,7 +364,10 @@ export async function createRuntimeServer(options: ServerOptions) {
 				const actual = Buffer.from(signature);
 				const valid = expected.length === actual.length && timingSafeEqual(expected, actual);
 				if (!valid) {
-					logger.warn({ path: url.pathname, sigExpected: `v0=${hmac}`.slice(0, 16), sigActual: signature.slice(0, 16) }, "[slack] Signature mismatch");
+					logger.warn(
+						{ path: url.pathname, sigExpected: `v0=${hmac}`.slice(0, 16), sigActual: signature.slice(0, 16) },
+						"[slack] Signature mismatch",
+					);
 					res.writeHead(403, { "Content-Type": "text/plain" });
 					res.end("Forbidden");
 					return;
@@ -395,7 +407,10 @@ export async function createRuntimeServer(options: ServerOptions) {
 						) {
 							const text = event.text.trim();
 							const found = await slackNotifier.findCardByThreadTs(event.thread_ts);
-							if (found) logger.info(`[slack] Thread reply → "${found.card.description?.split("\n")[0]?.slice(0, 60) ?? found.card.id}"`);
+							if (found)
+								logger.info(
+									`[slack] Thread reply → "${found.card.description?.split("\n")[0]?.slice(0, 60) ?? found.card.id}"`,
+								);
 							if (found) {
 								const { workspaceId, card } = found;
 								if (card.columnId === "done") {
@@ -441,13 +456,23 @@ export async function createRuntimeServer(options: ServerOptions) {
 					const { workspaceId, card } = found;
 					if (card.columnId === "done") {
 						res.writeHead(200, { "Content-Type": "application/json" });
-						res.end(JSON.stringify({ response_type: "ephemeral", text: ":x: Cannot reopen — this ticket is already completed." }));
+						res.end(
+							JSON.stringify({
+								response_type: "ephemeral",
+								text: ":x: Cannot reopen — this ticket is already completed.",
+							}),
+						);
 						return;
 					}
 					await moveCard(workspaceId, card.id, "reopened");
 					stateHub.broadcastWorkspaceUpdate(workspaceId);
 					res.writeHead(200, { "Content-Type": "application/json" });
-					res.end(JSON.stringify({ response_type: "in_channel", text: `:arrows_counterclockwise: Ticket reopened: *${card.description?.split("\n")[0]?.slice(0, 80) ?? card.id}*` }));
+					res.end(
+						JSON.stringify({
+							response_type: "in_channel",
+							text: `:arrows_counterclockwise: Ticket reopened: *${card.description?.split("\n")[0]?.slice(0, 80) ?? card.id}*`,
+						}),
+					);
 					return;
 				}
 

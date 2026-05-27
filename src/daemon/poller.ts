@@ -50,7 +50,9 @@ async function syncMainRepoAfterPRMerge(
 			stdio: ["ignore", "pipe", "pipe"],
 		});
 		if (mergeResult.status === 0) {
-			logger.info(`[poller] Synced main repo after PR merge (fast-forward) for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`);
+			logger.info(
+				`[poller] Synced main repo after PR merge (fast-forward) for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`,
+			);
 			return;
 		}
 
@@ -67,11 +69,16 @@ async function syncMainRepoAfterPRMerge(
 		);
 		await scheduler.startConflictResolution(card, repoPath, conflictedFiles, async (success) => {
 			if (!success) spawnSync("git", ["merge", "--abort"], { cwd: repoPath, stdio: "ignore" });
-			logger.info(`[poller] Conflict resolution ${success ? "succeeded" : "failed"} for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`);
+			logger.info(
+				`[poller] Conflict resolution ${success ? "succeeded" : "failed"} for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`,
+			);
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
 		});
 	} catch (err) {
-		logger.error({ err }, `[poller] syncMainRepoAfterPRMerge failed for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}":`);
+		logger.error(
+			{ err },
+			`[poller] syncMainRepoAfterPRMerge failed for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}":`,
+		);
 	}
 }
 
@@ -132,7 +139,10 @@ async function resolvePRConflicts(
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
 		});
 	} catch (err) {
-		logger.error({ err }, `[poller] resolvePRConflicts failed for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}":`);
+		logger.error(
+			{ err },
+			`[poller] resolvePRConflicts failed for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}":`,
+		);
 	}
 }
 
@@ -294,7 +304,9 @@ export class BoardPoller {
 
 			const info = await fetchPRInfo(prUrlForPoll, githubToken);
 			if (!info) {
-				logger.warn(`[poller] Could not fetch PR info for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" (${prUrlForPoll})`);
+				logger.warn(
+					`[poller] Could not fetch PR info for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" (${prUrlForPoll})`,
+				);
 				continue;
 			}
 
@@ -325,8 +337,7 @@ export class BoardPoller {
 					...cleanedComments,
 					...(await Promise.all(
 						readyEntries.map(async (e) => {
-							const fetchHtml =
-								githubToken ? () => fetchCommentBodyHtml(prUrlForPoll, e.id, githubToken) : undefined;
+							const fetchHtml = githubToken ? () => fetchCommentBodyHtml(prUrlForPoll, e.id, githubToken) : undefined;
 							return {
 								type: "human" as const,
 								actor: { type: "external" as const, id: e.author, source: "github" },
@@ -339,7 +350,9 @@ export class BoardPoller {
 				const newIds = [...seenIds, ...readyEntries.map((e) => e.id)];
 				await updateCard(workspaceId, taskId, { reviewComments: newComments, githubCommentIds: newIds });
 				if (readyEntries.length > 0) {
-					logger.info(`[poller] ${readyEntries.length} new comment(s) from GitHub PR for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`);
+					logger.info(
+						`[poller] ${readyEntries.length} new comment(s) from GitHub PR for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`,
+					);
 					await appendActivityLog(workspaceId, taskId, `${readyEntries.length} new comment(s) imported from GitHub PR`);
 				}
 				updated = true;
@@ -358,9 +371,7 @@ export class BoardPoller {
 				// Cards with sharedWorktreeId don't own a worktree — skip cleanup entirely.
 				if (!card.sharedWorktreeId) {
 					const boardAfterDone = await loadBoard(workspaceId);
-					const hasDependents = Object.values(boardAfterDone.cards).some((c) =>
-						c.dependsOn.includes(taskId),
-					);
+					const hasDependents = Object.values(boardAfterDone.cards).some((c) => c.dependsOn.includes(taskId));
 					if (!hasDependents) {
 						cleanupWorktree(taskId, repoPath, card.branchName);
 					}
@@ -368,14 +379,18 @@ export class BoardPoller {
 				void syncMainRepoAfterPRMerge(repoPath, card.baseRef, card, workspaceId, scheduler, stateHub);
 				updated = true;
 			} else if (info.state === "CLOSED") {
-				logger.info(`[poller] PR closed without merging for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" → Blocked`);
+				logger.info(
+					`[poller] PR closed without merging for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" → Blocked`,
+				);
 				await moveCard(workspaceId, taskId, "blocked");
 				await clearCardSession(workspaceId, taskId);
 				await appendActivityLog(workspaceId, taskId, "PR closed without merging → Blocked");
 				updated = true;
 			} else if (info.mergeable === "CONFLICTING") {
 				if (!card.terminalSessions?.some((ts) => !ts.endedAt)) {
-					logger.info(`[poller] PR has merge conflicts for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" → resolving`);
+					logger.info(
+						`[poller] PR has merge conflicts for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" → resolving`,
+					);
 					void resolvePRConflicts(repoPath, card, workspaceId, scheduler, stateHub);
 					updated = true;
 				}

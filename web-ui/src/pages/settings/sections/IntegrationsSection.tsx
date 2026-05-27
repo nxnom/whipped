@@ -38,12 +38,7 @@ function TextInput({
 	placeholder?: string;
 }) {
 	return (
-		<input
-			value={value}
-			onChange={(e) => onChange(e.target.value)}
-			placeholder={placeholder}
-			style={fieldInputStyle}
-		/>
+		<input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={fieldInputStyle} />
 	);
 }
 
@@ -226,10 +221,7 @@ export function IntegrationsSection({
 				}}
 			>
 				{/* Card header */}
-				<div
-					className="flex items-center gap-3"
-					style={{ padding: "16px 20px", borderBottom: "1px solid #2a2a35" }}
-				>
+				<div className="flex items-center gap-3" style={{ padding: "16px 20px", borderBottom: "1px solid #2a2a35" }}>
 					{/* Jira logo */}
 					<div
 						className="flex items-center justify-center shrink-0 text-[16px] font-bold"

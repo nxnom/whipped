@@ -106,7 +106,9 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 		.find((ts) => ts.type === "dev");
 	const sessionStartedAt = lastDevTs?.startedAt ?? 0;
 
-	logger.info(`[review] Starting review pipeline for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" (${card.id})${isResume ? " — resuming" : ""}`);
+	logger.info(
+		`[review] Starting review pipeline for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" (${card.id})${isResume ? " — resuming" : ""}`,
+	);
 	await appendActivityLog(workspaceId, card.id, "AI review started");
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 
@@ -127,7 +129,9 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 					!(lastSlotComment.issues?.some((i) => i.severity === "blocking") ?? false)
 				: false;
 			if (alreadyPassed) {
-				logger.info(`[review] ${slot.name} already passed for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" — skipping`);
+				logger.info(
+					`[review] ${slot.name} already passed for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" — skipping`,
+				);
 				await appendActivityLog(workspaceId, card.id, `${slot.name}: already passed — skipping`);
 				stateHub.broadcastWorkspaceUpdate(workspaceId);
 				continue;
@@ -157,7 +161,9 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 			result = await runReviewSlot(slot, card, streamId, options, customPrompt);
 		}
 
-		logger.info(`[review] ${slot.name} ${result.passed ? "PASSED" : "FAILED"} for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`);
+		logger.info(
+			`[review] ${slot.name} ${result.passed ? "PASSED" : "FAILED"} for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`,
+		);
 
 		if (!result.passed) {
 			await appendActivityLog(workspaceId, card.id, `${slot.name}: FAIL`);
@@ -211,7 +217,7 @@ async function runReviewSlot(
 	// Tell it to call the task_complete MCP tool explicitly when done.
 	const systemPrompt =
 		slot.agentBinary === "cursor"
-			? rawSystemPrompt + "\n\nAfter calling `kanban_add_comment`, call the `task_complete` MCP tool to signal that you are done."
+			? `${rawSystemPrompt}\n\nAfter calling \`kanban_add_comment\`, call the \`task_complete\` MCP tool to signal that you are done.`
 			: rawSystemPrompt;
 	const triggerWord = getSlotTriggerWord(slot.type);
 
@@ -236,7 +242,9 @@ async function runReviewSlot(
 		).catch(() => {});
 	}
 	const startTime = Date.now();
-	logger.info(`[review:${streamId}] Spawning ${slot.name} agent (${slot.agentBinary}) for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`);
+	logger.info(
+		`[review:${streamId}] Spawning ${slot.name} agent (${slot.agentBinary}) for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`,
+	);
 	const secretsEnv = buildSecretsEnv(options.secrets);
 	const output = await runAgentOnce(
 		slot.agentBinary,
@@ -317,7 +325,9 @@ async function handleReviewFailure(card: RuntimeBoardCard, options: ReviewPipeli
 		// Orch failure: scan for subtasks that the orch left a fail comment on and reopen them.
 		// The orch only needs to add comments — we handle the card moves server-side so a missed
 		// kanban_move_card call can't leave a subtask stuck without a transition.
-		logger.info(`[review] Orch review failed for story "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" → reopening flagged subtasks`);
+		logger.info(
+			`[review] Orch review failed for story "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" → reopening flagged subtasks`,
+		);
 		const orchBoard = await loadBoard(workspaceId);
 		const subtaskIds = card.dependsOn ?? [];
 		const orchFailedAt = Date.now();
@@ -335,9 +345,14 @@ async function handleReviewFailure(card: RuntimeBoardCard, options: ReviewPipeli
 		if (reopenedCount === 0) {
 			// Orch failed but didn't comment on any subtask — propagate the story-level orch comment
 			// down to each subtask so the dev agent has instructions when it picks the card up.
-			logger.warn(`[review] Orch failed for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" but no subtask orch-fail comments found — propagating story comment to all subtasks`);
+			logger.warn(
+				`[review] Orch failed for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" but no subtask orch-fail comments found — propagating story comment to all subtasks`,
+			);
 			const reloadedStory = orchBoard.cards[card.id];
-			const storyOrchComment = reloadedStory?.reviewComments?.slice().reverse().find((c) => c.type === "orch" && c.status === "fail");
+			const storyOrchComment = reloadedStory?.reviewComments
+				?.slice()
+				.reverse()
+				.find((c) => c.type === "orch" && c.status === "fail");
 			for (const subtaskId of subtaskIds) {
 				const subtask = orchBoard.cards[subtaskId];
 				if (!subtask || subtask.columnId === "blocked") continue;
@@ -695,9 +710,7 @@ export function buildDevAgentSystemPrompt(
 		(card.descriptionAttachments?.length ?? 0) > 0
 			? `\n\n**Attached files** (use the Read tool to view each one):\n${card.descriptionAttachments?.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
 			: "";
-	parts.push(
-		`## Task\n\n${card.description ?? ""}${descAttachNote}${statSection}${context.text}`,
-	);
+	parts.push(`## Task\n\n${card.description ?? ""}${descAttachNote}${statSection}${context.text}`);
 
 	if (parentCards.length > 0) {
 		const parentSummaries = parentCards
@@ -784,7 +797,17 @@ function buildReviewSlotSystemPrompt(
 		case "qa":
 			return buildQASystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets, systemPrompt);
 		case "orch":
-			return buildOrchSystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets, systemPrompt, autoCommit);
+			return buildOrchSystemPrompt(
+				slot,
+				card,
+				stat,
+				fullDiff,
+				customPrompt,
+				priorContext,
+				secrets,
+				systemPrompt,
+				autoCommit,
+			);
 		default:
 			return buildCustomSystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets, systemPrompt);
 	}
@@ -1088,7 +1111,9 @@ export async function runParentReopenCascade(
 	const parentBranch = getCardBranch(parentCard);
 	const systemPrompt = buildCascadeSystemPrompt(parentCard, parentBranch, childCards);
 
-	logger.info(`[cascade] Spawning cascade agent for parent "${parentCard.description?.split("\n")[0]?.slice(0, 60) ?? parentCard.id}" (${childCards.length} children)`);
+	logger.info(
+		`[cascade] Spawning cascade agent for parent "${parentCard.description?.split("\n")[0]?.slice(0, 60) ?? parentCard.id}" (${childCards.length} children)`,
+	);
 
 	await appendTerminalSession(workspaceId, parentCard.id, {
 		streamId,
@@ -1115,7 +1140,9 @@ export async function runParentReopenCascade(
 	);
 
 	await endTerminalSession(workspaceId, parentCard.id, streamId, Date.now(), "completed");
-	logger.info(`[cascade] Cascade agent done for parent "${parentCard.description?.split("\n")[0]?.slice(0, 60) ?? parentCard.id}"`);
+	logger.info(
+		`[cascade] Cascade agent done for parent "${parentCard.description?.split("\n")[0]?.slice(0, 60) ?? parentCard.id}"`,
+	);
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 	// Recursively cascade on any children that were reset to todo
@@ -1123,7 +1150,9 @@ export async function runParentReopenCascade(
 		const afterBoard = await loadBoard(workspaceId);
 		const resetChildren = childCards.filter((child) => afterBoard.cards[child.id]?.columnId === "todo");
 		for (const child of resetChildren) {
-			logger.info(`[cascade] Recursing into reset child "${child.description?.split("\n")[0]?.slice(0, 60) ?? child.id}"`);
+			logger.info(
+				`[cascade] Recursing into reset child "${child.description?.split("\n")[0]?.slice(0, 60) ?? child.id}"`,
+			);
 			await options.onChildReset(child);
 		}
 	}

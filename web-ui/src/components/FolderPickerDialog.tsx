@@ -129,15 +129,22 @@ export function FolderPickerDialog({ initialPath, onSelect, onClose }: Props) {
 										background: isSelected ? "#7c6aff12" : "transparent",
 									}}
 									onClick={() => handleRowClick(dir.path)}
-									onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#1a1a1f"; }}
-									onMouseLeave={(e) => { e.currentTarget.style.background = isSelected ? "#7c6aff12" : "transparent"; }}
+									onMouseEnter={(e) => {
+										if (!isSelected) e.currentTarget.style.background = "#1a1a1f";
+									}}
+									onMouseLeave={(e) => {
+										e.currentTarget.style.background = isSelected ? "#7c6aff12" : "transparent";
+									}}
 								>
 									<Folder size={13} style={{ color: isSelected ? "#7c6aff" : "#60607a", flexShrink: 0 }} />
 									<span className="flex-1 truncate text-[13px]" style={{ color: isSelected ? "#f0f0f5" : "#c0c0d0" }}>
 										{dir.name}
 									</span>
 									<button
-										onClick={(e) => { e.stopPropagation(); navigate(dir.path); }}
+										onClick={(e) => {
+											e.stopPropagation();
+											navigate(dir.path);
+										}}
 										className="hover:opacity-70 transition-opacity shrink-0 p-1"
 										title="Open folder"
 									>
@@ -153,7 +160,10 @@ export function FolderPickerDialog({ initialPath, onSelect, onClose }: Props) {
 					className="flex items-center shrink-0"
 					style={{ gap: 8, padding: "12px 20px", borderTop: "1px solid #2a2a35" }}
 				>
-					<span className="flex-1 text-[11px] truncate" style={{ color: "#4a4a5a", fontFamily: "JetBrains Mono, monospace" }}>
+					<span
+						className="flex-1 text-[11px] truncate"
+						style={{ color: "#4a4a5a", fontFamily: "JetBrains Mono, monospace" }}
+					>
 						{selected ?? listing?.current ?? ""}
 					</span>
 					<button

@@ -54,10 +54,7 @@ export function BoardPage({ onOpenAgent }: Props) {
 			>
 				{/* Logo header */}
 				<div className="flex items-center shrink-0" style={{ gap: 10, padding: "18px 16px" }}>
-					<div
-						className="shrink-0"
-						style={{ width: 24, height: 24, borderRadius: 6, background: "#7c6aff" }}
-					/>
+					<div className="shrink-0" style={{ width: 24, height: 24, borderRadius: 6, background: "#7c6aff" }} />
 					<span className="text-[14px] font-bold" style={{ color: "#f0f0f5" }}>
 						Overemployed
 					</span>
@@ -95,12 +92,14 @@ export function BoardPage({ onOpenAgent }: Props) {
 				{/* Project list */}
 				<div className="flex-1 overflow-y-auto">
 					{projects.length > 0 ? (
-						<ProjectsSidebar ref={sidebarRef} projects={projects} activeWorkspaceId={workspaceId ?? null} onSwitch={switchProject} />
+						<ProjectsSidebar
+							ref={sidebarRef}
+							projects={projects}
+							activeWorkspaceId={workspaceId ?? null}
+							onSwitch={switchProject}
+						/>
 					) : (
-						<div
-							className="flex items-center"
-							style={{ gap: 8, padding: "20px 16px" }}
-						>
+						<div className="flex items-center" style={{ gap: 8, padding: "20px 16px" }}>
 							<FolderOpen size={24} style={{ color: "#2a2a35" }} />
 							<span className="text-[12px]" style={{ color: "#60607a" }}>
 								No projects yet
@@ -110,9 +109,19 @@ export function BoardPage({ onOpenAgent }: Props) {
 				</div>
 
 				{/* Global Settings */}
-				<div style={{ borderTop: "1px solid #2a2a35", padding: "12px 16px", gap: 6, display: "flex", flexDirection: "column" }}>
+				<div
+					style={{
+						borderTop: "1px solid #2a2a35",
+						padding: "12px 16px",
+						gap: 6,
+						display: "flex",
+						flexDirection: "column",
+					}}
+				>
 					<button
-						onClick={() => { if (workspaceId) navigate(`/${encodeURIComponent(workspaceId)}/settings`); }}
+						onClick={() => {
+							if (workspaceId) navigate(`/${encodeURIComponent(workspaceId)}/settings`);
+						}}
 						className="flex items-center hover:opacity-80 transition-opacity"
 						style={{ gap: 10, padding: "6px 2px" }}
 					>

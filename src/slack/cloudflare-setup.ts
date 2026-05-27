@@ -31,7 +31,11 @@ export async function openCloudflaredLogin(force = false): Promise<{ alreadyLogg
 	const alreadyLoggedIn = await checkCloudflaredAuth();
 	if (alreadyLoggedIn && !force) return { alreadyLoggedIn: true };
 	if (force) {
-		try { await unlink(join(CLOUDFLARED_DIR, "cert.pem")); } catch { /* already gone */ }
+		try {
+			await unlink(join(CLOUDFLARED_DIR, "cert.pem"));
+		} catch {
+			/* already gone */
+		}
 	}
 
 	return new Promise((resolve) => {
@@ -58,11 +62,18 @@ export async function openCloudflaredLogin(force = false): Promise<{ alreadyLogg
 
 		proc.stdout.on("data", tryFindUrl);
 		proc.stderr.on("data", tryFindUrl);
-		proc.on("error", () => { resolved = true; resolve({ alreadyLoggedIn: false }); });
+		proc.on("error", () => {
+			resolved = true;
+			resolve({ alreadyLoggedIn: false });
+		});
 
 		// After 15s give up waiting for URL
 		setTimeout(() => {
-			if (!resolved) { resolved = true; proc.unref(); resolve({ alreadyLoggedIn: false }); }
+			if (!resolved) {
+				resolved = true;
+				proc.unref();
+				resolve({ alreadyLoggedIn: false });
+			}
 		}, 15000);
 	});
 }

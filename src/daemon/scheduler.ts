@@ -45,7 +45,13 @@ import {
 	saveTerminalBuffer,
 	updateCard,
 } from "../state/workspace-state.js";
-import { createWorktree, getCardBranch, getEffectiveWorktreeId, getWorktreePath, titleToBranch } from "../worktree/worktree-manager.js";
+import {
+	createWorktree,
+	getCardBranch,
+	getEffectiveWorktreeId,
+	getWorktreePath,
+	titleToBranch,
+} from "../worktree/worktree-manager.js";
 import {
 	buildDevAgentSystemPrompt,
 	buildSecretsEnv,
@@ -258,14 +264,18 @@ export class TaskScheduler {
 		// Guard: check agent binary is available before spawning
 		const available = getAvailableAgents().map((a) => a.id);
 		if (!available.includes(agentId)) {
-			logger.error(`[scheduler] Agent "${agentId}" not found in PATH — blocking task "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`);
+			logger.error(
+				`[scheduler] Agent "${agentId}" not found in PATH — blocking task "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`,
+			);
 			await moveCard(workspaceId, taskId, "blocked");
 			await appendActivityLog(workspaceId, taskId, `Agent "${agentId}" not found in PATH — moved to Blocked`);
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
 			return;
 		}
 
-		logger.info(`[scheduler] Starting task ${taskId} "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" with agent ${agentId}`);
+		logger.info(
+			`[scheduler] Starting task ${taskId} "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" with agent ${agentId}`,
+		);
 
 		// Auto-derive sharedWorktreeId for single-dep cards that don't have it set.
 		// Covers cards created from the frontend or before this feature was added.
@@ -276,7 +286,9 @@ export class TaskScheduler {
 				const inheritedId = dep.sharedWorktreeId ?? dep.id;
 				await updateCard(workspaceId, taskId, { sharedWorktreeId: inheritedId });
 				card = { ...card, sharedWorktreeId: inheritedId };
-				logger.info(`[scheduler] Auto-set sharedWorktreeId=${inheritedId} for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`);
+				logger.info(
+					`[scheduler] Auto-set sharedWorktreeId=${inheritedId} for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`,
+				);
 			}
 		}
 
@@ -286,7 +298,9 @@ export class TaskScheduler {
 
 		// Sibling lock: prevent two cards from running concurrently in the same shared worktree.
 		if (hasSharedWorktree && this.runningSharedWorktrees.has(effectiveWorktreeId)) {
-			logger.info(`[scheduler] Shared worktree ${effectiveWorktreeId} busy — deferring "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`);
+			logger.info(
+				`[scheduler] Shared worktree ${effectiveWorktreeId} busy — deferring "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`,
+			);
 			return;
 		}
 		if (hasSharedWorktree) this.runningSharedWorktrees.add(effectiveWorktreeId);
@@ -319,19 +333,13 @@ export class TaskScheduler {
 			}
 			if (hasSharedWorktree) {
 				siblingCards = Object.values(board.cards).filter(
-					(c) =>
-						c.sharedWorktreeId === card.sharedWorktreeId &&
-						c.id !== card.id &&
-						c.columnId === "ready_for_review",
+					(c) => c.sharedWorktreeId === card.sharedWorktreeId && c.id !== card.id && c.columnId === "ready_for_review",
 				);
 			}
 		} else if (hasSharedWorktree) {
 			const board = await loadBoard(workspaceId);
 			siblingCards = Object.values(board.cards).filter(
-				(c) =>
-					c.sharedWorktreeId === card.sharedWorktreeId &&
-					c.id !== card.id &&
-					c.columnId === "ready_for_review",
+				(c) => c.sharedWorktreeId === card.sharedWorktreeId && c.id !== card.id && c.columnId === "ready_for_review",
 			);
 		}
 
@@ -361,12 +369,7 @@ export class TaskScheduler {
 			`[scheduler] Resume check for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}": lastTsState=${lastTs?.state} devPassedInThisSession=${devPassedInThisSession} lastDevComment=${lastDevComment?.status} lastDevTsStart=${lastDevTs?.startedAt} devCreatedAt=${lastDevComment?.createdAt}`,
 		);
 		if (lastTs?.state === "killed" && devPassedInThisSession) {
-			createWorktree(
-				effectiveWorktreeId,
-				repoPath,
-				card.baseRef,
-				hasSharedWorktree ? undefined : card.branchName,
-			);
+			createWorktree(effectiveWorktreeId, repoPath, card.baseRef, hasSharedWorktree ? undefined : card.branchName);
 			if (hasSharedWorktree) this.runningSharedWorktrees.delete(effectiveWorktreeId);
 			await moveCard(workspaceId, taskId, "in_progress");
 			await appendActivityLog(workspaceId, taskId, "Dev already completed — resuming AI review from last killed step");
@@ -409,7 +412,9 @@ export class TaskScheduler {
 				hasSharedWorktree ? sharedBranchName : card.branchName,
 			);
 		} catch (err) {
-			logger.error(`[scheduler] Failed to create worktree for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}": ${String(err)}`);
+			logger.error(
+				`[scheduler] Failed to create worktree for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}": ${String(err)}`,
+			);
 			if (hasSharedWorktree) this.runningSharedWorktrees.delete(effectiveWorktreeId);
 			await moveCard(workspaceId, taskId, "blocked");
 			await appendActivityLog(workspaceId, taskId, `Failed to create worktree: ${String(err)}`);
@@ -511,7 +516,12 @@ export class TaskScheduler {
 					appendSystemPrompt: devSystemPromptResult.text,
 				}).catch(() => {});
 			} else if (agentId === "cursor") {
-				const mcpSpec = buildOveremployedMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId, agentId);
+				const mcpSpec = buildOveremployedMcpServerSpec(
+					getMcpServerPath(),
+					this.options.serverUrl,
+					workspaceId,
+					agentId,
+				);
 				await writeCursorConfigFiles(taskId, getServerPort(this.options.serverUrl), mcpSpec).catch(() => {});
 			}
 

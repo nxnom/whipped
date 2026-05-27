@@ -3,7 +3,7 @@ import type { RuntimeAgentId, RuntimeProjectConfig, RuntimeProjectSecret } from 
 import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
 import { useWorkspaceState } from "@/stores/board-store";
-import { type ProjectSection } from "./_shared";
+import type { ProjectSection } from "./_shared";
 import { WorkflowsSection } from "./workflows";
 import { EnvironmentSecretsSection } from "./EnvironmentSecretsSection";
 import { GeneralAutomationSection } from "./sections/GeneralAutomationSection";
@@ -12,10 +12,7 @@ import { IntegrationsSection } from "./sections/IntegrationsSection";
 
 function PageHeader({ title, description }: { title: string; description: string }) {
 	return (
-		<div
-			className="shrink-0 flex flex-col gap-1 px-10 py-6"
-			style={{ borderBottom: "1px solid #2a2a35" }}
-		>
+		<div className="shrink-0 flex flex-col gap-1 px-10 py-6" style={{ borderBottom: "1px solid #2a2a35" }}>
 			<h1 className="text-xl font-semibold" style={{ color: "#f0f0f5" }}>
 				{title}
 			</h1>
@@ -131,7 +128,6 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 			toast.success("Secrets saved");
 		} catch {
 			toast.error("Failed to save secrets");
-
 		} finally {
 			setSaving(false);
 		}

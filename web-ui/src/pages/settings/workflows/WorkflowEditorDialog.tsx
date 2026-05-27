@@ -34,6 +34,7 @@ export function WorkflowEditorDialog({
 	workflow,
 	defaultBinary,
 	isNew = false,
+	// biome-ignore lint/correctness/noUnusedFunctionParameters: required by caller interface
 	onUpdate,
 	onSave,
 	onClose,
@@ -129,9 +130,7 @@ export function WorkflowEditorDialog({
 							<WorkflowIcon size={18} style={{ color: "#7c6aff", flexShrink: 0 }} />
 							<input
 								value={localWorkflow.name}
-								onChange={(e) =>
-									setLocalWorkflow((prev) => ({ ...prev, name: e.target.value }))
-								}
+								onChange={(e) => setLocalWorkflow((prev) => ({ ...prev, name: e.target.value }))}
 								className="bg-transparent outline-none text-[17px] font-semibold min-w-0"
 								style={{ color: "#f0f0f5", flex: 1 }}
 								placeholder="Workflow name"
@@ -147,10 +146,7 @@ export function WorkflowEditorDialog({
 									</span>
 								</div>
 							)}
-							<div
-								className="shrink-0"
-								style={{ background: "#3b82f615", borderRadius: 4, padding: "2px 8px" }}
-							>
+							<div className="shrink-0" style={{ background: "#3b82f615", borderRadius: 4, padding: "2px 8px" }}>
 								<span className="text-[10px] font-medium" style={{ color: "#3b82f6" }}>
 									{localWorkflow.forStory ? "Story" : "Task"}
 								</span>
@@ -164,10 +160,7 @@ export function WorkflowEditorDialog({
 						<div className="shrink-0" style={{ padding: "16px 24px", borderBottom: "1px solid #2a2a35" }}>
 							{/* Pipeline header */}
 							<div className="flex items-center gap-2" style={{ marginBottom: 12 }}>
-								<span
-									className="text-[10px] font-semibold shrink-0"
-									style={{ color: "#60607a", letterSpacing: 1 }}
-								>
+								<span className="text-[10px] font-semibold shrink-0" style={{ color: "#60607a", letterSpacing: 1 }}>
 									PIPELINE
 								</span>
 								<div style={{ flex: 1, height: 1, background: "#1a1a1f" }} />
@@ -194,15 +187,9 @@ export function WorkflowEditorDialog({
 									{!localWorkflow.forStory && !hasCR && (
 										<MenuItem onClick={() => addSlot("code_review")}>Code Review</MenuItem>
 									)}
-									{!localWorkflow.forStory && !hasQA && (
-										<MenuItem onClick={() => addSlot("qa")}>QA</MenuItem>
-									)}
-									{!localWorkflow.forStory && (
-										<MenuItem onClick={() => addSlot("custom")}>Custom Agent</MenuItem>
-									)}
-									{localWorkflow.forStory && (
-										<MenuItem onClick={() => addSlot("orch")}>Orch Agent</MenuItem>
-									)}
+									{!localWorkflow.forStory && !hasQA && <MenuItem onClick={() => addSlot("qa")}>QA</MenuItem>}
+									{!localWorkflow.forStory && <MenuItem onClick={() => addSlot("custom")}>Custom Agent</MenuItem>}
+									{localWorkflow.forStory && <MenuItem onClick={() => addSlot("orch")}>Orch Agent</MenuItem>}
 								</Menu>
 							</div>
 							{/* Slot pills */}
@@ -239,10 +226,7 @@ export function WorkflowEditorDialog({
 														background: isDisabled ? "#2a2a3525" : `${color}25`,
 													}}
 												>
-													<span
-														className="text-[9px] font-bold"
-														style={{ color: isDisabled ? "#4a4a5a" : color }}
-													>
+													<span className="text-[9px] font-bold" style={{ color: isDisabled ? "#4a4a5a" : color }}>
 														{idx + 1}
 													</span>
 												</div>
@@ -273,10 +257,7 @@ export function WorkflowEditorDialog({
 							<div className="flex-1 flex flex-col overflow-hidden" style={{ padding: "20px 24px" }}>
 								{/* Header */}
 								<div className="flex items-center gap-2 shrink-0" style={{ marginBottom: 12 }}>
-									<FileText
-										size={14}
-										style={{ color: slotTypeColor(selectedSlot.type), flexShrink: 0 }}
-									/>
+									<FileText size={14} style={{ color: slotTypeColor(selectedSlot.type), flexShrink: 0 }} />
 									<span className="text-[14px] font-semibold" style={{ color: "#f0f0f5" }}>
 										{selectedSlot.name} — Instructions
 									</span>
@@ -305,10 +286,7 @@ export function WorkflowEditorDialog({
 								</div>
 							</div>
 						) : (
-							<div
-								className="flex-1 flex items-center justify-center text-[13px]"
-								style={{ color: "#4a4a5a" }}
-							>
+							<div className="flex-1 flex items-center justify-center text-[13px]" style={{ color: "#4a4a5a" }}>
 								Select a slot to edit its instructions
 							</div>
 						)}
@@ -326,16 +304,10 @@ export function WorkflowEditorDialog({
 							</span>
 						</div>
 						{selectedSlot ? (
-							<div
-								className="flex flex-col flex-1 overflow-y-auto"
-								style={{ padding: "16px 20px", gap: 16 }}
-							>
+							<div className="flex flex-col flex-1 overflow-y-auto" style={{ padding: "16px 20px", gap: 16 }}>
 								{/* Name — editable for custom/orch, read-only label for built-ins */}
 								<div className="flex flex-col" style={{ gap: 5 }}>
-									<span
-										className="text-[11px] font-medium"
-										style={{ color: "#60607a", letterSpacing: 0.3 }}
-									>
+									<span className="text-[11px] font-medium" style={{ color: "#60607a", letterSpacing: 0.3 }}>
 										Name
 									</span>
 									<div
@@ -354,18 +326,15 @@ export function WorkflowEditorDialog({
 											readOnly={selectedSlot.type !== "custom" && selectedSlot.type !== "orch"}
 											className="flex-1 bg-transparent outline-none text-[12px]"
 											style={{
-												color: (selectedSlot.type === "custom" || selectedSlot.type === "orch") ? "#c0c0d0" : "#60607a",
-												cursor: (selectedSlot.type === "custom" || selectedSlot.type === "orch") ? "text" : "default",
+												color: selectedSlot.type === "custom" || selectedSlot.type === "orch" ? "#c0c0d0" : "#60607a",
+												cursor: selectedSlot.type === "custom" || selectedSlot.type === "orch" ? "text" : "default",
 											}}
 										/>
 									</div>
 								</div>
 								{/* Agent Binary */}
 								<div className="flex flex-col" style={{ gap: 5 }}>
-									<span
-										className="text-[11px] font-medium"
-										style={{ color: "#60607a", letterSpacing: 0.3 }}
-									>
+									<span className="text-[11px] font-medium" style={{ color: "#60607a", letterSpacing: 0.3 }}>
 										Agent Binary
 									</span>
 									<div
@@ -380,9 +349,7 @@ export function WorkflowEditorDialog({
 										<Terminal size={14} style={{ color: "#f59e0b", flexShrink: 0 }} />
 										<select
 											value={selectedSlot.agentBinary}
-											onChange={(e) =>
-												updateSlot({ agentBinary: e.target.value as RuntimeAgentId, model: null })
-											}
+											onChange={(e) => updateSlot({ agentBinary: e.target.value as RuntimeAgentId, model: null })}
 											className="flex-1 bg-transparent outline-none text-[12px]"
 											style={{ color: "#c0c0d0" }}
 										>
@@ -396,10 +363,7 @@ export function WorkflowEditorDialog({
 								</div>
 								{/* Model */}
 								<div className="flex flex-col" style={{ gap: 5 }}>
-									<span
-										className="text-[11px] font-medium"
-										style={{ color: "#60607a", letterSpacing: 0.3 }}
-									>
+									<span className="text-[11px] font-medium" style={{ color: "#60607a", letterSpacing: 0.3 }}>
 										Model
 									</span>
 									<ModelSelect
@@ -411,10 +375,7 @@ export function WorkflowEditorDialog({
 								</div>
 								{/* Effort */}
 								<div className="flex flex-col" style={{ gap: 5 }}>
-									<span
-										className="text-[11px] font-medium"
-										style={{ color: "#60607a", letterSpacing: 0.3 }}
-									>
+									<span className="text-[11px] font-medium" style={{ color: "#60607a", letterSpacing: 0.3 }}>
 										Effort
 									</span>
 									<div
@@ -428,9 +389,7 @@ export function WorkflowEditorDialog({
 									>
 										<select
 											value={selectedSlot.effort ?? ""}
-											onChange={(e) =>
-												updateSlot({ effort: (e.target.value as EffortLevel) || null })
-											}
+											onChange={(e) => updateSlot({ effort: (e.target.value as EffortLevel) || null })}
 											className="flex-1 bg-transparent outline-none text-[12px]"
 											style={{ color: "#c0c0d0" }}
 										>
@@ -469,9 +428,7 @@ export function WorkflowEditorDialog({
 													cursor: "pointer",
 												}}
 											>
-												<div
-													style={{ width: 16, height: 16, borderRadius: "50%", background: "#ffffff" }}
-												/>
+												<div style={{ width: 16, height: 16, borderRadius: "50%", background: "#ffffff" }} />
 											</button>
 										</div>
 									</>
@@ -509,17 +466,13 @@ export function WorkflowEditorDialog({
 								</div>
 							</div>
 						) : (
-							<div
-								className="flex-1 flex items-center justify-center text-[12px]"
-								style={{ color: "#4a4a5a" }}
-							>
+							<div className="flex-1 flex items-center justify-center text-[12px]" style={{ color: "#4a4a5a" }}>
 								Select a slot to configure
 							</div>
 						)}
 					</div>
 				</div>
 			</div>
-
 		</>
 	);
 }

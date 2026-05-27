@@ -57,8 +57,10 @@ export function HistoryPage({ workspaceId }: Props) {
 									<div className="flex items-start justify-between gap-3">
 										<div className="flex-1 min-w-0">
 											<p className="text-sm text-gray-200 font-medium">{card.description?.split("\n")[0] ?? card.id}</p>
-											{card.description && card.description.includes("\n") && (
-												<p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{card.description.split("\n").slice(1).join("\n").trim()}</p>
+											{card.description?.includes("\n") && (
+												<p className="text-xs text-gray-500 mt-0.5 line-clamp-1">
+													{card.description.split("\n").slice(1).join("\n").trim()}
+												</p>
 											)}
 										</div>
 

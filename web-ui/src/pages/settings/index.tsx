@@ -19,11 +19,7 @@ import { GlobalSettings } from "./GlobalSettings";
 import { ProjectSettings } from "./ProjectSettings";
 import { SlackSettings } from "./SlackSettings";
 import { TunnelSettings } from "./TunnelSettings";
-import {
-	type GlobalSection,
-	type ProjectSection,
-	type SettingsSection,
-} from "./_shared";
+import type { GlobalSection, ProjectSection, SettingsSection } from "./_shared";
 
 const PROJECT_NAV: Array<{ id: ProjectSection; label: string; icon: React.ReactNode }> = [
 	{ id: "general-automation", label: "General & Automation", icon: <SlidersHorizontal size={15} /> },
@@ -55,7 +51,10 @@ function ProjectDropdown({
 	const ref = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
-		trpc.projects.list.query().then(setWorkspaces).catch(() => {});
+		trpc.projects.list
+			.query()
+			.then(setWorkspaces)
+			.catch(() => {});
 	}, []);
 
 	useEffect(() => {
@@ -117,16 +116,9 @@ function ProjectDropdown({
 								className="flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-[#2a2a35]"
 								style={{ background: isCurrent ? "#7c6aff12" : "transparent" }}
 							>
-								<FolderGit2
-									size={13}
-									className="shrink-0 mt-px"
-									style={{ color: isCurrent ? "#7c6aff" : "#60607a" }}
-								/>
+								<FolderGit2 size={13} className="shrink-0 mt-px" style={{ color: isCurrent ? "#7c6aff" : "#60607a" }} />
 								<div className="flex-1 min-w-0">
-									<p
-										className="text-[12px] font-medium truncate"
-										style={{ color: isCurrent ? "#f0f0f5" : "#c0c0d0" }}
-									>
+									<p className="text-[12px] font-medium truncate" style={{ color: isCurrent ? "#f0f0f5" : "#c0c0d0" }}>
 										{name}
 									</p>
 									{path && (
@@ -213,20 +205,12 @@ export function SettingsPage() {
 
 				{/* PROJECT section */}
 				<div className="px-[18px] pt-[14px] pb-[6px]">
-					<span
-						className="text-[10px] font-medium uppercase"
-						style={{ color: "#4a4a5a", letterSpacing: 1 }}
-					>
+					<span className="text-[10px] font-medium uppercase" style={{ color: "#4a4a5a", letterSpacing: 1 }}>
 						PROJECT
 					</span>
 				</div>
 				{PROJECT_NAV.map((item) => (
-					<NavItem
-						key={item.id}
-						item={item}
-						active={section === item.id}
-						onSelect={handleSelect}
-					/>
+					<NavItem key={item.id} item={item} active={section === item.id} onSelect={handleSelect} />
 				))}
 
 				<div className="flex-1" />
@@ -234,20 +218,12 @@ export function SettingsPage() {
 				{/* GLOBAL section */}
 				<div style={{ borderTop: "1px solid #2a2a35" }}>
 					<div className="px-[18px] pt-[14px] pb-[6px]">
-						<span
-							className="text-[10px] font-medium uppercase"
-							style={{ color: "#4a4a5a", letterSpacing: 1 }}
-						>
+						<span className="text-[10px] font-medium uppercase" style={{ color: "#4a4a5a", letterSpacing: 1 }}>
 							GLOBAL
 						</span>
 					</div>
 					{GLOBAL_NAV.map((item) => (
-						<NavItem
-							key={item.id}
-							item={item}
-							active={section === item.id}
-							onSelect={handleSelect}
-						/>
+						<NavItem key={item.id} item={item} active={section === item.id} onSelect={handleSelect} />
 					))}
 					<div className="h-4" />
 				</div>
@@ -289,12 +265,8 @@ function NavItem({
 				borderLeft: active ? "2px solid #7c6aff" : "2px solid transparent",
 			}}
 		>
-			<span style={{ color: active ? "#7c6aff" : "#60607a", display: "flex", alignItems: "center" }}>
-				{item.icon}
-			</span>
-			<span style={{ color: active ? "#f0f0f5" : "#8888a0", fontWeight: active ? 500 : 400 }}>
-				{item.label}
-			</span>
+			<span style={{ color: active ? "#7c6aff" : "#60607a", display: "flex", alignItems: "center" }}>{item.icon}</span>
+			<span style={{ color: active ? "#f0f0f5" : "#8888a0", fontWeight: active ? 500 : 400 }}>{item.label}</span>
 		</button>
 	);
 }

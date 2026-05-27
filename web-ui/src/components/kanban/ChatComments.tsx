@@ -236,7 +236,10 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 		const subtaskEntries: CommentEntry[] = (card.dependsOn ?? []).flatMap((depId) => {
 			const dep = allCards?.[depId];
 			if (!dep) return [];
-			return (dep.reviewComments ?? []).map((c) => ({ comment: c, sourceCardTitle: dep.description?.split("\n")[0] ?? dep.id }));
+			return (dep.reviewComments ?? []).map((c) => ({
+				comment: c,
+				sourceCardTitle: dep.description?.split("\n")[0] ?? dep.id,
+			}));
 		});
 		return [...storyEntries, ...subtaskEntries].sort((a, b) => a.comment.createdAt - b.comment.createdAt);
 	}, [isStory, card.reviewComments, card.dependsOn, allCards]);

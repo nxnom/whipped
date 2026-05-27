@@ -14,15 +14,7 @@ function SectionDivider({ title }: { title: string }) {
 	);
 }
 
-function FieldRow({
-	label,
-	description,
-	children,
-}: {
-	label: string;
-	description: string;
-	children: React.ReactNode;
-}) {
+function FieldRow({ label, description, children }: { label: string; description: string; children: React.ReactNode }) {
 	return (
 		<div className="flex items-center gap-4">
 			<div className="flex-1 flex flex-col gap-0.5">
@@ -91,61 +83,30 @@ export function GeneralAutomationSection({
 			{/* Automation */}
 			<div className="flex flex-col gap-4">
 				<SectionDivider title="Automation" />
-				<FieldRow
-					label="Autonomous mode"
-					description="Automatically pick up Ready and Reopened tasks when idle."
-				>
-					<Switch
-						checked={config.autonomousModeEnabled}
-						onChange={onToggleAutonomous}
-						disabled={togglingAutonomous}
-					/>
+				<FieldRow label="Autonomous mode" description="Automatically pick up Ready and Reopened tasks when idle.">
+					<Switch checked={config.autonomousModeEnabled} onChange={onToggleAutonomous} disabled={togglingAutonomous} />
 				</FieldRow>
-				<FieldRow
-					label="Auto PR"
-					description="Push branch and open PR when all reviews pass."
-				>
-					<Switch
-						checked={config.autoPR ?? false}
-						onChange={(v) => onUpdate({ ...config, autoPR: v })}
-					/>
+				<FieldRow label="Auto PR" description="Push branch and open PR when all reviews pass.">
+					<Switch checked={config.autoPR ?? false} onChange={(v) => onUpdate({ ...config, autoPR: v })} />
 				</FieldRow>
-				<FieldRow
-					label="Auto commit"
-					description="Commit pending changes automatically when merging or creating a PR."
-				>
-					<Switch
-						checked={config.autoCommit ?? true}
-						onChange={(v) => onUpdate({ ...config, autoCommit: v })}
-					/>
+				<FieldRow label="Auto commit" description="Commit pending changes automatically when merging or creating a PR.">
+					<Switch checked={config.autoCommit ?? true} onChange={(v) => onUpdate({ ...config, autoCommit: v })} />
 				</FieldRow>
 			</div>
 
 			{/* Runtime */}
 			<div className="flex flex-col gap-4">
 				<SectionDivider title="Runtime" />
-				<FieldRow
-					label="Max parallel tasks"
-					description="Maximum tasks in progress at once. Overrides global default."
-				>
-					<NumberInput
-						value={config.maxParallelTasks}
-						onChange={(v) => onUpdate({ ...config, maxParallelTasks: v })}
-					/>
+				<FieldRow label="Max parallel tasks" description="Maximum tasks in progress at once. Overrides global default.">
+					<NumberInput value={config.maxParallelTasks} onChange={(v) => onUpdate({ ...config, maxParallelTasks: v })} />
 				</FieldRow>
-				<FieldRow
-					label="Max auto-fix attempts"
-					description="Times an agent retries after a failing review."
-				>
+				<FieldRow label="Max auto-fix attempts" description="Times an agent retries after a failing review.">
 					<NumberInput
 						value={config.maxAutoFixAttempts}
 						onChange={(v) => onUpdate({ ...config, maxAutoFixAttempts: v })}
 					/>
 				</FieldRow>
-				<FieldRow
-					label="Polling interval (s)"
-					description="Seconds between status checks."
-				>
+				<FieldRow label="Polling interval (s)" description="Seconds between status checks.">
 					<NumberInput
 						value={config.pollingIntervalSeconds}
 						onChange={(v) => onUpdate({ ...config, pollingIntervalSeconds: v })}
@@ -156,10 +117,7 @@ export function GeneralAutomationSection({
 			{/* Git Defaults */}
 			<div className="flex flex-col gap-4">
 				<SectionDivider title="Git Defaults" />
-				<FieldRow
-					label="Default base branch"
-					description="Used when creating new tasks and stories."
-				>
+				<FieldRow label="Default base branch" description="Used when creating new tasks and stories.">
 					<div style={{ width: 160 }}>
 						<BranchSelect
 							branches={branches}

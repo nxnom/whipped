@@ -156,13 +156,19 @@ export function AddProjectDialog({ onClose, onAdded }: Props) {
 									border: step === "configure" ? "none" : "1px solid #2a2a35",
 								}}
 							>
-								<span className="text-[11px] font-semibold" style={{ color: step === "configure" ? "#ffffff" : "#60607a" }}>
+								<span
+									className="text-[11px] font-semibold"
+									style={{ color: step === "configure" ? "#ffffff" : "#60607a" }}
+								>
 									2
 								</span>
 							</div>
 							<span
 								className="text-[12px]"
-								style={{ color: step === "configure" ? "#f0f0f5" : "#60607a", fontWeight: step === "configure" ? 600 : 400 }}
+								style={{
+									color: step === "configure" ? "#f0f0f5" : "#60607a",
+									fontWeight: step === "configure" ? 600 : 400,
+								}}
 							>
 								Configure
 							</span>
@@ -234,106 +240,111 @@ function SelectStep({
 	return (
 		<div className="flex-1 flex flex-col min-h-0">
 			{/* Scrollable body */}
-			<div className="flex-1 overflow-y-auto" style={{ padding: 24, gap: 16, display: "flex", flexDirection: "column" }}>
-			{/* Repository Path label */}
-			<span className="text-[13px] font-medium shrink-0" style={{ color: "#c0c0d0" }}>
-				Repository Path
-			</span>
+			<div
+				className="flex-1 overflow-y-auto"
+				style={{ padding: 24, gap: 16, display: "flex", flexDirection: "column" }}
+			>
+				{/* Repository Path label */}
+				<span className="text-[13px] font-medium shrink-0" style={{ color: "#c0c0d0" }}>
+					Repository Path
+				</span>
 
-			{/* Path input row */}
-			<div className="flex shrink-0" style={{ gap: 8 }}>
-				<div
-					className="flex items-center flex-1 min-w-0"
-					style={{
-						background: "#0c0c0f",
-						border: "1px solid #2a2a35",
-						borderRadius: 6,
-						padding: "10px 14px",
-						gap: 8,
-					}}
-				>
-					<Folder size={14} style={{ color: "#60607a", flexShrink: 0 }} />
-					<input
-						value={repoPath}
-						onChange={(e) => onPathChange(e.target.value)}
-						onKeyDown={(e) => e.key === "Enter" && pathStatus === "valid" && onNext()}
-						placeholder="/Users/dev/projects/my-app"
-						className="flex-1 bg-transparent outline-none min-w-0"
-						style={{ color: "#c0c0d0", fontFamily: "JetBrains Mono, monospace", fontSize: 12 }}
-					/>
-					{pathStatus === "checking" && <Loader2 size={12} className="animate-spin shrink-0" style={{ color: "#60607a" }} />}
+				{/* Path input row */}
+				<div className="flex shrink-0" style={{ gap: 8 }}>
+					<div
+						className="flex items-center flex-1 min-w-0"
+						style={{
+							background: "#0c0c0f",
+							border: "1px solid #2a2a35",
+							borderRadius: 6,
+							padding: "10px 14px",
+							gap: 8,
+						}}
+					>
+						<Folder size={14} style={{ color: "#60607a", flexShrink: 0 }} />
+						<input
+							value={repoPath}
+							onChange={(e) => onPathChange(e.target.value)}
+							onKeyDown={(e) => e.key === "Enter" && pathStatus === "valid" && onNext()}
+							placeholder="/Users/dev/projects/my-app"
+							className="flex-1 bg-transparent outline-none min-w-0"
+							style={{ color: "#c0c0d0", fontFamily: "JetBrains Mono, monospace", fontSize: 12 }}
+						/>
+						{pathStatus === "checking" && (
+							<Loader2 size={12} className="animate-spin shrink-0" style={{ color: "#60607a" }} />
+						)}
+					</div>
+					<button
+						onClick={onBrowse}
+						className="shrink-0 hover:opacity-80 transition-opacity"
+						style={{ padding: "10px 14px", border: "1px solid #2a2a35", borderRadius: 6 }}
+					>
+						<span className="text-[12px]" style={{ color: "#8888a0" }}>
+							Browse
+						</span>
+					</button>
 				</div>
-				<button
-					onClick={onBrowse}
-					className="shrink-0 hover:opacity-80 transition-opacity"
-					style={{ padding: "10px 14px", border: "1px solid #2a2a35", borderRadius: 6 }}
-				>
-					<span className="text-[12px]" style={{ color: "#8888a0" }}>
-						Browse
-					</span>
-				</button>
-			</div>
 
-			{/* Status row */}
-			<div className="flex items-center shrink-0" style={{ gap: 6, minHeight: 20 }}>
+				{/* Status row */}
+				<div className="flex items-center shrink-0" style={{ gap: 6, minHeight: 20 }}>
+					{pathStatus === "valid" && (
+						<>
+							<CheckCircle2 size={14} style={{ color: "#22c55e", flexShrink: 0 }} />
+							<span className="text-[12px]" style={{ color: "#22c55e" }}>
+								Valid git repository
+							</span>
+						</>
+					)}
+					{pathStatus === "invalid" && (
+						<>
+							<AlertCircle size={14} style={{ color: "#ef4444", flexShrink: 0 }} />
+							<span className="text-[12px]" style={{ color: "#ef4444" }}>
+								{pathError ?? "Invalid path"}
+							</span>
+						</>
+					)}
+				</div>
+
+				{/* Divider */}
+				<div style={{ height: 1, background: "#1a1a1f", flexShrink: 0 }} />
+
+				{/* Repo info card */}
 				{pathStatus === "valid" && (
-					<>
-						<CheckCircle2 size={14} style={{ color: "#22c55e", flexShrink: 0 }} />
-						<span className="text-[12px]" style={{ color: "#22c55e" }}>
-							Valid git repository
-						</span>
-					</>
+					<div
+						className="shrink-0 flex flex-col"
+						style={{
+							background: "#0c0c0f",
+							border: "1px solid #2a2a35",
+							borderRadius: 8,
+							padding: "14px 16px",
+							gap: 10,
+						}}
+					>
+						<InfoRow label="Name" value={repoInfo.name ?? "—"} mono={false} />
+						<InfoRow label="Branch" value={repoInfo.branch ?? "—"} mono />
+						<InfoRow label="Remote" value={repoInfo.remote ?? "—"} mono />
+					</div>
 				)}
-				{pathStatus === "invalid" && (
-					<>
-						<AlertCircle size={14} style={{ color: "#ef4444", flexShrink: 0 }} />
-						<span className="text-[12px]" style={{ color: "#ef4444" }}>
-							{pathError ?? "Invalid path"}
-						</span>
-					</>
+				{pathStatus !== "valid" && (
+					<div
+						className="shrink-0 flex flex-col"
+						style={{
+							background: "#0c0c0f",
+							border: "1px solid #2a2a35",
+							borderRadius: 8,
+							padding: "14px 16px",
+							gap: 10,
+							opacity: 0.4,
+						}}
+					>
+						<InfoRow label="Name" value="—" mono={false} />
+						<InfoRow label="Branch" value="—" mono />
+						<InfoRow label="Remote" value="—" mono />
+					</div>
 				)}
-			</div>
 
-			{/* Divider */}
-			<div style={{ height: 1, background: "#1a1a1f", flexShrink: 0 }} />
-
-			{/* Repo info card */}
-			{pathStatus === "valid" && (
-				<div
-					className="shrink-0 flex flex-col"
-					style={{
-						background: "#0c0c0f",
-						border: "1px solid #2a2a35",
-						borderRadius: 8,
-						padding: "14px 16px",
-						gap: 10,
-					}}
-				>
-					<InfoRow label="Name" value={repoInfo.name ?? "—"} mono={false} />
-					<InfoRow label="Branch" value={repoInfo.branch ?? "—"} mono />
-					<InfoRow label="Remote" value={repoInfo.remote ?? "—"} mono />
-				</div>
-			)}
-			{pathStatus !== "valid" && (
-				<div
-					className="shrink-0 flex flex-col"
-					style={{
-						background: "#0c0c0f",
-						border: "1px solid #2a2a35",
-						borderRadius: 8,
-						padding: "14px 16px",
-						gap: 10,
-						opacity: 0.4,
-					}}
-				>
-					<InfoRow label="Name" value="—" mono={false} />
-					<InfoRow label="Branch" value="—" mono />
-					<InfoRow label="Remote" value="—" mono />
-				</div>
-			)}
-
-			{/* Spacer */}
-			<div style={{ flex: 1 }} />
+				{/* Spacer */}
+				<div style={{ flex: 1 }} />
 			</div>
 
 			{/* Pinned footer */}
@@ -414,11 +425,13 @@ function ConfigureStep({
 	return (
 		<div className="flex-1 flex flex-col min-h-0">
 			{/* Scrollable body */}
-			<div className="flex-1 overflow-y-auto" style={{ padding: 24, gap: 20, display: "flex", flexDirection: "column" }}>
+			<div
+				className="flex-1 overflow-y-auto"
+				style={{ padding: 24, gap: 20, display: "flex", flexDirection: "column" }}
+			>
 				<div>
 					<span className="text-[15px] font-semibold" style={{ color: "#f0f0f5" }}>
-						Configure{" "}
-						<span style={{ color: "#7c6aff" }}>{folderName}</span>
+						Configure <span style={{ color: "#7c6aff" }}>{folderName}</span>
 					</span>
 					<p className="text-[12px] mt-1" style={{ color: "#60607a", fontFamily: "JetBrains Mono, monospace" }}>
 						{repoPath}

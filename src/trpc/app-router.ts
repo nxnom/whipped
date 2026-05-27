@@ -71,7 +71,10 @@ import { slackNotifier } from "../slack/slack-notifier.js";
 // All worktree removals run serially in this queue so they never block the
 // event loop (each step uses async I/O) and never contend on the git lock.
 // Returns all card IDs in the same story group: the shared worktree owner + all its subtasks.
-function getStoryGroupCardIds(cardId: string, cards: Record<string, import("../core/api-contract.js").RuntimeBoardCard>): string[] {
+function getStoryGroupCardIds(
+	cardId: string,
+	cards: Record<string, import("../core/api-contract.js").RuntimeBoardCard>,
+): string[] {
 	const card = cards[cardId];
 	if (!card) return [cardId];
 	const ownerId = card.sharedWorktreeId ?? cardId;
@@ -142,11 +145,13 @@ export const appRouter = router({
 		}),
 
 		checkPath: publicProcedure.input(z.object({ repoPath: z.string() })).query(async ({ input }) => {
-			if (!input.repoPath.trim()) return { valid: false, isGitRepo: false, error: null, name: null, branch: null, remote: null };
+			if (!input.repoPath.trim())
+				return { valid: false, isGitRepo: false, error: null, name: null, branch: null, remote: null };
 			const { statSync } = await import("node:fs");
 			try {
 				const stat = statSync(input.repoPath);
-				if (!stat.isDirectory()) return { valid: false, isGitRepo: false, error: "Not a directory", name: null, branch: null, remote: null };
+				if (!stat.isDirectory())
+					return { valid: false, isGitRepo: false, error: "Not a directory", name: null, branch: null, remote: null };
 			} catch {
 				return { valid: false, isGitRepo: false, error: "Path does not exist", name: null, branch: null, remote: null };
 			}
@@ -156,13 +161,34 @@ export const appRouter = router({
 				stdio: ["ignore", "pipe", "pipe"],
 			});
 			const isGitRepo = r.status === 0;
-			if (!isGitRepo) return { valid: false, isGitRepo: false, error: "Not a git repository", name: null, branch: null, remote: null };
-			const branchR = spawnSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: input.repoPath, encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] });
-			const remoteR = spawnSync("git", ["remote", "get-url", "origin"], { cwd: input.repoPath, encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] });
+			if (!isGitRepo)
+				return {
+					valid: false,
+					isGitRepo: false,
+					error: "Not a git repository",
+					name: null,
+					branch: null,
+					remote: null,
+				};
+			const branchR = spawnSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+				cwd: input.repoPath,
+				encoding: "utf-8",
+				stdio: ["ignore", "pipe", "pipe"],
+			});
+			const remoteR = spawnSync("git", ["remote", "get-url", "origin"], {
+				cwd: input.repoPath,
+				encoding: "utf-8",
+				stdio: ["ignore", "pipe", "pipe"],
+			});
 			const name = input.repoPath.split("/").filter(Boolean).at(-1) ?? null;
 			const branch = branchR.status === 0 ? branchR.stdout.trim() : null;
 			const rawRemote = remoteR.status === 0 ? remoteR.stdout.trim() : null;
-			const remote = rawRemote ? rawRemote.replace(/^https?:\/\//, "").replace(/^git@([^:]+):/, "$1/").replace(/\.git$/, "") : null;
+			const remote = rawRemote
+				? rawRemote
+						.replace(/^https?:\/\//, "")
+						.replace(/^git@([^:]+):/, "$1/")
+						.replace(/\.git$/, "")
+				: null;
 			return { valid: true, isGitRepo: true, error: null, name, branch, remote };
 		}),
 
@@ -355,7 +381,9 @@ export const appRouter = router({
 					ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 					return card;
 				} catch (err) {
-					logger.error(`[cards.create] Error creating card: ${String(err)}\nInput: ${JSON.stringify(input)}\nStack: ${err instanceof Error ? err.stack : ""}`);
+					logger.error(
+						`[cards.create] Error creating card: ${String(err)}\nInput: ${JSON.stringify(input)}\nStack: ${err instanceof Error ? err.stack : ""}`,
+					);
 					throw err;
 				}
 			}),
@@ -529,7 +557,11 @@ export const appRouter = router({
 					const ownerCard = prBoard.cards[card.sharedWorktreeId ?? cardId];
 					const devSummary =
 						[...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev")?.summary ?? card.description;
-					const prTitle = ownerCard?.pr?.title ?? card.pr?.title ?? (ownerCard ?? card).description?.split("\n")[0]?.slice(0, 72) ?? cardId;
+					const prTitle =
+						ownerCard?.pr?.title ??
+						card.pr?.title ??
+						(ownerCard ?? card).description?.split("\n")[0]?.slice(0, 72) ??
+						cardId;
 					const prDescription = ownerCard?.pr?.description ?? card.pr?.description ?? devSummary;
 
 					try {
@@ -561,7 +593,9 @@ export const appRouter = router({
 					ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 					return card;
 				} catch (err) {
-					logger.error(`[cards.update] Error updating card ${cardId}: ${String(err)}\nUpdate: ${JSON.stringify(update)}\nStack: ${err instanceof Error ? err.stack : ""}`);
+					logger.error(
+						`[cards.update] Error updating card ${cardId}: ${String(err)}\nUpdate: ${JSON.stringify(update)}\nStack: ${err instanceof Error ? err.stack : ""}`,
+					);
 					throw err;
 				}
 			}),
@@ -618,14 +652,14 @@ export const appRouter = router({
 						}
 					}
 					if (!card?.sharedWorktreeId) {
-							const cleanupBoard = await loadBoard(workspaceId).catch(() => null);
-							const hasDependents = cleanupBoard
-								? Object.values(cleanupBoard.cards).some((c) => c.dependsOn.includes(cardId))
-								: false;
-							if (!hasDependents) {
-								await removeWorktreeAsync(cardId, ws.repoPath, card?.branchName);
-							}
+						const cleanupBoard = await loadBoard(workspaceId).catch(() => null);
+						const hasDependents = cleanupBoard
+							? Object.values(cleanupBoard.cards).some((c) => c.dependsOn.includes(cardId))
+							: false;
+						if (!hasDependents) {
+							await removeWorktreeAsync(cardId, ws.repoPath, card?.branchName);
 						}
+					}
 				});
 
 				return { ok: true };
@@ -845,7 +879,7 @@ export const appRouter = router({
 						try {
 							const content = readFileSync(`${worktreePath}/${file}`, "utf-8");
 							const lines = content.split("\n");
-							const addedLines = lines.map((l, i) => `+${l}`).join("\n");
+							const addedLines = lines.map((l, _i) => `+${l}`).join("\n");
 							const hunkHeader = `@@ -0,0 +1,${lines.length} @@`;
 							return `diff --git a/${file} b/${file}\nnew file mode 100644\n--- /dev/null\n+++ b/${file}\n${hunkHeader}\n${addedLines}`;
 						} catch {
@@ -1008,21 +1042,19 @@ export const appRouter = router({
 				return { ok: true };
 			}),
 
-		startBase: publicProcedure
-			.input(z.object({ workspaceId: z.string() }))
-			.mutation(async ({ ctx, input }) => {
-				const ws = await ctx.ensureWorkspace(input.workspaceId);
-				const projectConfig = await loadProjectConfig(input.workspaceId);
-				const command = projectConfig.startCommand?.trim();
-				if (!command) {
-					throw new TRPCError({
-						code: "PRECONDITION_FAILED",
-						message: "No start command configured. Add one in Settings → Environment.",
-					});
-				}
-				ctx.startRun(input.workspaceId, null, command, ws.repoPath);
-				return { ok: true };
-			}),
+		startBase: publicProcedure.input(z.object({ workspaceId: z.string() })).mutation(async ({ ctx, input }) => {
+			const ws = await ctx.ensureWorkspace(input.workspaceId);
+			const projectConfig = await loadProjectConfig(input.workspaceId);
+			const command = projectConfig.startCommand?.trim();
+			if (!command) {
+				throw new TRPCError({
+					code: "PRECONDITION_FAILED",
+					message: "No start command configured. Add one in Settings → Environment.",
+				});
+			}
+			ctx.startRun(input.workspaceId, null, command, ws.repoPath);
+			return { ok: true };
+		}),
 
 		stop: publicProcedure.input(z.object({ workspaceId: z.string() })).mutation(({ ctx, input }) => {
 			ctx.stopRun(input.workspaceId);
@@ -1039,17 +1071,15 @@ export const appRouter = router({
 		cloudflaredLogin: publicProcedure
 			.input(z.object({ force: z.boolean().default(false) }))
 			.mutation(({ input }) => openCloudflaredLogin(input.force)),
-		createTunnel: publicProcedure
-			.input(z.object({ domain: z.string() }))
-			.mutation(async ({ input }) => {
-				const config = await loadGlobalConfig();
-				const name = config.tunnelName ?? "overemployed";
-				const { tunnelId } = await createTunnel(name);
-				await writeTunnelConfig(tunnelId, name, input.domain);
-				await routeDns(name, input.domain);
-				await updateGlobalConfig({ tunnelId, tunnelDomain: input.domain });
-				return { tunnelId };
-			}),
+		createTunnel: publicProcedure.input(z.object({ domain: z.string() })).mutation(async ({ input }) => {
+			const config = await loadGlobalConfig();
+			const name = config.tunnelName ?? "overemployed";
+			const { tunnelId } = await createTunnel(name);
+			await writeTunnelConfig(tunnelId, name, input.domain);
+			await routeDns(name, input.domain);
+			await updateGlobalConfig({ tunnelId, tunnelDomain: input.domain });
+			return { tunnelId };
+		}),
 		tunnelConfig: publicProcedure.query(async () => {
 			const [config, fileConfig] = await Promise.all([loadGlobalConfig(), readTunnelConfig()]);
 			return {
@@ -1074,7 +1104,11 @@ export const appRouter = router({
 			const { unlink } = await import("node:fs/promises");
 			const { homedir } = await import("node:os");
 			const { join } = await import("node:path");
-			try { await unlink(join(homedir(), ".cloudflared", "config.yml")); } catch { /* already gone */ }
+			try {
+				await unlink(join(homedir(), ".cloudflared", "config.yml"));
+			} catch {
+				/* already gone */
+			}
 		}),
 		resetApp: publicProcedure.mutation(async () => {
 			await updateGlobalConfig({
@@ -1096,27 +1130,33 @@ export const appRouter = router({
 				await updateGlobalConfig({ slackSigningSecret: input.signingSecret });
 			}),
 		importCredentials: publicProcedure
-			.input(z.object({
-				slackAppId: z.string(),
-				slackClientId: z.string(),
-				slackClientSecret: z.string(),
-				slackSigningSecret: z.string(),
-				slackOauthAuthorizeUrl: z.string(),
-				slackPublicUrl: z.string(),
-			}))
+			.input(
+				z.object({
+					slackAppId: z.string(),
+					slackClientId: z.string(),
+					slackClientSecret: z.string(),
+					slackSigningSecret: z.string(),
+					slackOauthAuthorizeUrl: z.string(),
+					slackPublicUrl: z.string(),
+				}),
+			)
 			.mutation(async ({ input }) => {
 				await updateGlobalConfig(input);
 			}),
 		createApp: publicProcedure
-			.input(z.object({ appConfigToken: z.string(), publicUrl: z.string(), botName: z.string().default("Overemployed") }))
+			.input(
+				z.object({ appConfigToken: z.string(), publicUrl: z.string(), botName: z.string().default("Overemployed") }),
+			)
 			.mutation(async ({ input }) => {
 				const existing = await loadGlobalConfig();
 				const app = await createSlackApp(input.appConfigToken, input.publicUrl, existing.slackAppId, input.botName);
 				const clientId = app.clientId || existing.slackClientId || "";
-				const scopes = "channels:manage,channels:join,channels:read,channels:history,chat:write,chat:write.public,groups:write,groups:read,groups:history,commands";
-				const oauthAuthorizeUrl = app.oauthAuthorizeUrl
-					|| existing.slackOauthAuthorizeUrl
-					|| (clientId ? `https://slack.com/oauth/v2/authorize?client_id=${clientId}&scope=${scopes}` : "");
+				const scopes =
+					"channels:manage,channels:join,channels:read,channels:history,chat:write,chat:write.public,groups:write,groups:read,groups:history,commands";
+				const oauthAuthorizeUrl =
+					app.oauthAuthorizeUrl ||
+					existing.slackOauthAuthorizeUrl ||
+					(clientId ? `https://slack.com/oauth/v2/authorize?client_id=${clientId}&scope=${scopes}` : "");
 				await updateGlobalConfig({
 					slackAppConfigToken: input.appConfigToken,
 					slackAppId: app.appId,

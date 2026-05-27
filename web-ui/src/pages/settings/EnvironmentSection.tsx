@@ -163,8 +163,8 @@ export function EnvironmentSection({
 					inputClassName="font-mono text-xs"
 				/>
 				<p className="text-xs text-gray-500 mt-1">
-					Command to run when you press ▶ on a ticket. Runs in the ticket's worktree (or repo root if no worktree
-					exists yet).
+					Command to run when you press ▶ on a ticket. Runs in the ticket's worktree (or repo root if no worktree exists
+					yet).
 				</p>
 			</Field>
 

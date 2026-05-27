@@ -62,10 +62,12 @@ export class SlackClient {
 		while (true) {
 			const body: Record<string, unknown> = { types: "public_channel", limit: 200, exclude_archived: true };
 			if (cursor) body.cursor = cursor;
-			const data = await this.call<SlackApiResponse & {
-				channels: Array<{ id: string; name: string }>;
-				response_metadata?: { next_cursor?: string };
-			}>("conversations.list", body);
+			const data = await this.call<
+				SlackApiResponse & {
+					channels: Array<{ id: string; name: string }>;
+					response_metadata?: { next_cursor?: string };
+				}
+			>("conversations.list", body);
 
 			const found = data.channels.find((c) => c.name === name);
 			if (found) return found.id;
@@ -81,19 +83,24 @@ export class SlackClient {
 			await this.call("conversations.join", { channel: channelId });
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
-			if (msg.includes("channel_not_found") || msg.includes("already_in_channel") || msg.includes("method_not_supported_for_channel_type")) return;
+			if (
+				msg.includes("channel_not_found") ||
+				msg.includes("already_in_channel") ||
+				msg.includes("method_not_supported_for_channel_type")
+			)
+				return;
 			logger.warn({ err }, "[slack] conversations.join failed");
 		}
 	}
 
 	async getHumanUserIds(): Promise<string[]> {
 		try {
-			const data = await this.call<SlackApiResponse & {
-				members: Array<{ id: string; is_bot: boolean; deleted: boolean; name: string }>;
-			}>("users.list", { limit: 200 });
-			return data.members
-				.filter((m) => !m.is_bot && !m.deleted && m.id !== "USLACKBOT")
-				.map((m) => m.id);
+			const data = await this.call<
+				SlackApiResponse & {
+					members: Array<{ id: string; is_bot: boolean; deleted: boolean; name: string }>;
+				}
+			>("users.list", { limit: 200 });
+			return data.members.filter((m) => !m.is_bot && !m.deleted && m.id !== "USLACKBOT").map((m) => m.id);
 		} catch {
 			return [];
 		}
@@ -119,5 +126,4 @@ export class SlackClient {
 			}
 		}
 	}
-
 }

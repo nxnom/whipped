@@ -1,7 +1,6 @@
 import { Draggable } from "@hello-pangea/dnd";
 import type { RuntimeBoardCard } from "@runtime-contract";
 import {
-	Bot,
 	ExternalLink,
 	FolderOpen,
 	GitBranch,
@@ -73,7 +72,7 @@ export function KanbanCard({
 	onStop,
 }: KanbanCardProps) {
 	const isRunning = card.terminalSessions?.some((ts) => !ts.endedAt) ?? false;
-	const agentLabel = card.agentId ? AGENT_LABELS[card.agentId] : null;
+	const _agentLabel = card.agentId ? AGENT_LABELS[card.agentId] : null;
 	const lastTs = card.terminalSessions?.at(-1);
 	const sessionState = isRunning ? "running" : lastTs?.state;
 	const sessionColor = sessionState ? (SESSION_STATE_COLORS[sessionState] ?? "text-gray-400") : null;
@@ -90,7 +89,10 @@ export function KanbanCard({
 	const borderClass = (snapshot_isDragging: boolean) => {
 		if (snapshot_isDragging) return "border-blue-500 shadow-lg shadow-blue-500/20 rotate-1";
 		if (isStory) return "border-purple-800";
-		if ((card.columnId === "in_progress" || card.columnId === "reopened" || card.columnId === "ready_for_review") && isRunning) {
+		if (
+			(card.columnId === "in_progress" || card.columnId === "reopened" || card.columnId === "ready_for_review") &&
+			isRunning
+		) {
 			return "border-[#3b82f6] shadow-[0_0_10px_rgba(59,130,246,0.15)]";
 		}
 		if (card.columnId === "todo" && card.readyForDev) return "border-emerald-500/50";
@@ -129,8 +131,10 @@ export function KanbanCard({
 							</div>
 						</div>
 
-						{card.description && card.description.includes("\n") && (
-							<p className="mt-1.5 text-xs text-gray-400 line-clamp-2">{card.description.split("\n").slice(1).join("\n").trim()}</p>
+						{card.description?.includes("\n") && (
+							<p className="mt-1.5 text-xs text-gray-400 line-clamp-2">
+								{card.description.split("\n").slice(1).join("\n").trim()}
+							</p>
 						)}
 
 						{/* Story progress bar */}
@@ -176,15 +180,22 @@ export function KanbanCard({
 									{metDeps.length}/{deps.length}
 								</span>
 							)}
-							{card.agentId && (() => {
-								const ac = AGENT_COLORS[card.agentId!] ?? { dot: "bg-gray-500", text: "text-gray-400", bg: "bg-gray-500/10" };
-								return (
-									<span className={`flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full ${ac.bg} ${ac.text}`}>
-										<span className={`size-[5px] rounded-full ${ac.dot}`} />
-										{card.agentId}
-									</span>
-								);
-							})()}
+							{card.agentId &&
+								(() => {
+									const ac = AGENT_COLORS[card.agentId!] ?? {
+										dot: "bg-gray-500",
+										text: "text-gray-400",
+										bg: "bg-gray-500/10",
+									};
+									return (
+										<span
+											className={`flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full ${ac.bg} ${ac.text}`}
+										>
+											<span className={`size-[5px] rounded-full ${ac.dot}`} />
+											{card.agentId}
+										</span>
+									);
+								})()}
 							{workflowName && (
 								<span
 									className={`flex items-center gap-1 text-xs rounded px-1.5 py-0.5 ${isStory ? "text-purple-400 bg-purple-400/10" : "text-purple-400 bg-purple-400/10"}`}

@@ -37,15 +37,23 @@ export async function isWorktreeDirty(worktreePath: string): Promise<boolean> {
 		encoding: "utf-8",
 	}).catch(() => null);
 	const dirty = !!statusResult?.stdout?.trim();
-	logger.info(`[git:isWorktreeDirty] path=${worktreePath} dirty=${dirty} output=${JSON.stringify(statusResult?.stdout?.trim())}`);
+	logger.info(
+		`[git:isWorktreeDirty] path=${worktreePath} dirty=${dirty} output=${JSON.stringify(statusResult?.stdout?.trim())}`,
+	);
 	return dirty;
 }
 
 export async function commitWorktree(worktreePath: string, message: string): Promise<void> {
 	logger.info(`[git:commitWorktree] Staging all changes in ${worktreePath}`);
-	const addResult = await execFileAsync("git", ["add", "-A"], { cwd: worktreePath }).catch((err) => { logger.error(`[git:commitWorktree] git add -A failed: ${String(err)}`); return null; });
+	const _addResult = await execFileAsync("git", ["add", "-A"], { cwd: worktreePath }).catch((err) => {
+		logger.error(`[git:commitWorktree] git add -A failed: ${String(err)}`);
+		return null;
+	});
 	logger.info(`[git:commitWorktree] git add -A done. Committing with message: "${message}"`);
-	const commitResult = await execFileAsync("git", ["commit", "-m", message], { cwd: worktreePath }).catch((err) => { logger.error(`[git:commitWorktree] git commit failed: ${String(err)}`); return null; });
+	const commitResult = await execFileAsync("git", ["commit", "-m", message], { cwd: worktreePath }).catch((err) => {
+		logger.error(`[git:commitWorktree] git commit failed: ${String(err)}`);
+		return null;
+	});
 	logger.info(`[git:commitWorktree] git commit done. stdout=${JSON.stringify((commitResult as any)?.stdout?.trim())}`);
 }
 
@@ -117,11 +125,12 @@ export function abortMerge(repoPath: string): void {
 // Plain git push — works for any remote (GitHub, GitLab, Bitbucket, SSH, etc.)
 // Auth is handled by the user's git credential store or SSH key.
 export async function pushBranch(worktreePath: string, branch: string): Promise<void> {
-	await execFileAsync("git", ["push", "-u", "--force-with-lease", "origin", branch], { cwd: worktreePath, encoding: "utf-8" }).catch(
-		(err: { stderr?: string }) => {
-			throw new Error(`Failed to push: ${(err.stderr ?? String(err)).trim()}`);
-		},
-	);
+	await execFileAsync("git", ["push", "-u", "--force-with-lease", "origin", branch], {
+		cwd: worktreePath,
+		encoding: "utf-8",
+	}).catch((err: { stderr?: string }) => {
+		throw new Error(`Failed to push: ${(err.stderr ?? String(err)).trim()}`);
+	});
 }
 
 // Creates a GitHub PR via the REST API. Requires GITHUB_TOKEN and a GitHub remote.

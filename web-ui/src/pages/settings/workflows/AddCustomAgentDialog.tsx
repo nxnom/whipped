@@ -12,7 +12,13 @@ export function AddCustomAgentDialog({
 }: {
 	defaultBinary: RuntimeAgentId;
 	title?: string;
-	onAdd: (name: string, binary: RuntimeAgentId, model: string | null, effort: EffortLevel | null, prompt: string) => void;
+	onAdd: (
+		name: string,
+		binary: RuntimeAgentId,
+		model: string | null,
+		effort: EffortLevel | null,
+		prompt: string,
+	) => void;
 	onClose: () => void;
 }) {
 	const [name, setName] = useState("");

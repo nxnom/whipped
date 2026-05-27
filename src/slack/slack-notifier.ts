@@ -5,7 +5,12 @@ import { loadBoard, loadProjectConfig, updateCard } from "../state/workspace-sta
 import { SlackClient } from "./slack-client.js";
 
 function sanitizeChannelName(name: string): string {
-	return `oe-${name.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 75)}`;
+	return `oe-${name
+		.toLowerCase()
+		.replace(/[^a-z0-9]/g, "-")
+		.replace(/-+/g, "-")
+		.replace(/^-|-$/g, "")
+		.slice(0, 75)}`;
 }
 
 function cardMessage(card: RuntimeBoardCard, done = false): string {
@@ -13,7 +18,6 @@ function cardMessage(card: RuntimeBoardCard, done = false): string {
 	const snippet = desc.length > 300 ? `${desc.slice(0, 300)}…` : desc;
 	return done ? `~${snippet}~` : snippet;
 }
-
 
 class SlackNotifier {
 	private initialized = new Set<string>();
@@ -23,9 +27,11 @@ class SlackNotifier {
 
 	onWorkspaceUpdate(workspaceId: string, repoPath: string): void {
 		const prev = this.updateQueues.get(workspaceId) ?? Promise.resolve();
-		const next = prev.then(() => this.processUpdate(workspaceId, repoPath)).catch((err) => {
-			logger.error({ err }, "[slack-notifier] onWorkspaceUpdate queue error");
-		});
+		const next = prev
+			.then(() => this.processUpdate(workspaceId, repoPath))
+			.catch((err) => {
+				logger.error({ err }, "[slack-notifier] onWorkspaceUpdate queue error");
+			});
 		this.updateQueues.set(workspaceId, next);
 	}
 
@@ -64,7 +70,15 @@ class SlackNotifier {
 						await this.handleCardCreated(workspaceId, card, projectName, installerUserId, client);
 					} else {
 						if (prevCard.columnId !== card.columnId) {
-							await this.handleColumnChanged(workspaceId, card, prevCard.columnId, card.columnId, projectName, installerUserId, client);
+							await this.handleColumnChanged(
+								workspaceId,
+								card,
+								prevCard.columnId,
+								card.columnId,
+								projectName,
+								installerUserId,
+								client,
+							);
 						}
 						const prevCount = prevCard.reviewComments?.length ?? 0;
 						const newComments = (card.reviewComments ?? []).slice(prevCount);
@@ -132,7 +146,12 @@ class SlackNotifier {
 		return null;
 	}
 
-	private async getOrCreateChannel(workspaceId: string, projectName: string, installerUserId: string | undefined, client: SlackClient): Promise<string> {
+	private async getOrCreateChannel(
+		workspaceId: string,
+		projectName: string,
+		installerUserId: string | undefined,
+		client: SlackClient,
+	): Promise<string> {
 		const name = sanitizeChannelName(projectName);
 		const cacheKey = `${workspaceId}:${name}`;
 		const cached = this.channelCache.get(cacheKey);
@@ -214,7 +233,6 @@ class SlackNotifier {
 			await client.updateMessage(ch, ts, cardMessage(card, false));
 			await client.postMessage(ch, `:arrows_counterclockwise: *Reopened*`, ts);
 		}
-
 	}
 
 	private async getActorLabel(workspaceId: string, comment: RuntimeReviewComment): Promise<string> {
@@ -225,7 +243,9 @@ class SlackNotifier {
 				const slot = (workflow.slots ?? []).find((s) => s.id === comment.type || s.type === comment.type);
 				if (slot?.name) return `*[${slot.name}]*`;
 			}
-		} catch { /* fall through */ }
+		} catch {
+			/* fall through */
+		}
 		return `*[${comment.actor.id}]*`;
 	}
 

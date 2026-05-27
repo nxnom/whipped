@@ -1,17 +1,33 @@
 import { Input, Select, SelectOption, toast } from "@geckoui/geckoui";
 import type { RuntimeBoardCard, Workflow } from "@runtime-contract";
 import {
-	GitBranch, GripVertical, ListTree, Monitor, Paperclip,
-	Plus, Sparkles, Workflow as WorkflowIcon, X,
+	GitBranch,
+	GripVertical,
+	ListTree,
+	Monitor,
+	Paperclip,
+	Plus,
+	Sparkles,
+	Workflow as WorkflowIcon,
+	X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
 import { deriveBranchName } from "@/utils/branch";
-import type { SubtaskDraft } from "./CreateStoryDrawer";
-
 interface PendingImage {
 	dataUrl: string | null;
 	file: File;
+}
+
+export interface SubtaskDraft {
+	tempId: string;
+	description: string;
+	priority: string;
+	baseRef: string;
+	workflowId: string;
+	branchName: string;
+	dependsOn: string[];
+	pendingImages: PendingImage[];
 }
 
 async function uploadImages(workspaceId: string, cardId: string, images: PendingImage[]) {
@@ -55,11 +71,25 @@ function ImagePicker({ pending, onChange }: { pending: PendingImage[]; onChange:
 	if (pending.length === 0) return null;
 	return (
 		<div className="flex flex-wrap gap-2 mt-2 shrink-0">
-			<input ref={ref} type="file" accept="*/*" multiple className="hidden" onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }} />
+			<input
+				ref={ref}
+				type="file"
+				accept="*/*"
+				multiple
+				className="hidden"
+				onChange={(e) => {
+					if (e.target.files) addFiles(e.target.files);
+					e.target.value = "";
+				}}
+			/>
 			{pending.map((img, i) => (
 				<div key={i} className="relative group">
 					{img.dataUrl ? (
-						<img src={img.dataUrl} alt={img.file.name} className="h-12 w-12 object-cover rounded border border-[#2a2a35]" />
+						<img
+							src={img.dataUrl}
+							alt={img.file.name}
+							className="h-12 w-12 object-cover rounded border border-[#2a2a35]"
+						/>
 					) : (
 						<div className="h-12 w-12 flex flex-col items-center justify-center rounded border border-[#2a2a35] bg-[#1a1a1f] gap-1">
 							<Paperclip size={12} className="text-[#60607a]" />
@@ -81,9 +111,9 @@ function ImagePicker({ pending, onChange }: { pending: PendingImage[]; onChange:
 
 const PRIORITY_OPTIONS = [
 	{ value: "urgent", label: "Urgent", dot: "#ef4444", bg: "#ef444415", text: "#ef4444", border: "#ef444440" },
-	{ value: "high",   label: "High",   dot: "#f97316", bg: "#f9731615", text: "#f97316", border: "#f9731640" },
+	{ value: "high", label: "High", dot: "#f97316", bg: "#f9731615", text: "#f97316", border: "#f9731640" },
 	{ value: "medium", label: "Medium", dot: "#eab308", bg: "#eab30815", text: "#eab308", border: "#eab30840" },
-	{ value: "low",    label: "Low",    dot: "#94a3b8",  bg: "#94a3b820", text: "#94a3b8",  border: "#94a3b850" },
+	{ value: "low", label: "Low", dot: "#94a3b8", bg: "#94a3b820", text: "#94a3b8", border: "#94a3b850" },
 ] as const;
 
 const COLUMN_BADGE: Record<string, string> = {
@@ -194,19 +224,25 @@ function CreateSubtaskDialog({
 		<div className="fixed inset-0 z-[60] flex items-center justify-center">
 			<div className="absolute inset-0 bg-black/50" onClick={onClose} />
 			<div className="relative flex h-[850px] max-h-[calc(100vh-80px)] w-[1400px] max-w-[calc(100vw-80px)] rounded-xl bg-[#141418] border border-[#2a2a35] shadow-[0_8px_40px_4px_#00000060] overflow-hidden">
-
 				{/* ── Left panel ── */}
-				<div className="flex flex-col flex-1 overflow-hidden" onPaste={(e) => addFilesFromClipboard(e, setPendingImages)}>
+				<div
+					className="flex flex-col flex-1 overflow-hidden"
+					onPaste={(e) => addFilesFromClipboard(e, setPendingImages)}
+				>
 					<div className="flex items-center gap-3 px-6 py-3.5 border-b border-[#2a2a35] shrink-0">
-						<span className="text-[15px] font-semibold text-[#f0f0f5]">{isEditing ? "Edit Subtask" : "New Subtask"}</span>
+						<span className="text-[15px] font-semibold text-[#f0f0f5]">
+							{isEditing ? "Edit Subtask" : "New Subtask"}
+						</span>
 						<div className="flex-1" />
 						<button onClick={onClose} className="text-[#60607a] hover:text-[#f0f0f5] transition-colors">
 							<X size={18} />
 						</button>
 					</div>
 
-
-					<div className="flex flex-col flex-1 min-h-0 px-8 py-4 gap-2" onPaste={(e) => addFilesFromClipboard(e, setPendingImages)}>
+					<div
+						className="flex flex-col flex-1 min-h-0 px-8 py-4 gap-2"
+						onPaste={(e) => addFilesFromClipboard(e, setPendingImages)}
+					>
 						<textarea
 							autoFocus
 							value={description}
@@ -237,7 +273,11 @@ function CreateSubtaskDialog({
 					<div className="flex-1 min-h-0 overflow-y-auto px-[18px] py-4 flex flex-col gap-5">
 						<div className="flex flex-col gap-2">
 							<span className="text-[11px] font-medium text-[#60607a]">Workflow</span>
-							<Select value={workflowId} onChange={(v) => setWorkflowId(v as string)} prefix={<WorkflowIcon size={14} className="text-[#8888a0]" />}>
+							<Select
+								value={workflowId}
+								onChange={(v) => setWorkflowId(v as string)}
+								prefix={<WorkflowIcon size={14} className="text-[#8888a0]" />}
+							>
 								{taskWorkflows.map((w) => (
 									<SelectOption key={w.id} value={w.id} label={w.name + (w.isDefault ? " (default)" : "")} />
 								))}
@@ -254,9 +294,11 @@ function CreateSubtaskDialog({
 											key={opt.value}
 											onClick={() => setPriority(active ? "" : opt.value)}
 											className="flex items-center gap-1 px-2.5 py-1.5 rounded text-[11px] border transition-colors"
-											style={active
-												? { background: opt.bg, color: opt.text, borderColor: opt.border, fontWeight: 500 }
-												: { background: "#1a1a1f", color: "#60607a", borderColor: "#2a2a35" }}
+											style={
+												active
+													? { background: opt.bg, color: opt.text, borderColor: opt.border, fontWeight: 500 }
+													: { background: "#1a1a1f", color: "#60607a", borderColor: "#2a2a35" }
+											}
 										>
 											<span className="size-1.5 rounded-full shrink-0" style={{ background: opt.dot }} />
 											{opt.label}
@@ -270,7 +312,10 @@ function CreateSubtaskDialog({
 							<span className="text-[11px] font-medium text-[#60607a]">Branch Name (optional)</span>
 							<Input
 								value={branchName}
-								onChange={(e) => { setBranchName(e.target.value); setBranchNameEdited(true); }}
+								onChange={(e) => {
+									setBranchName(e.target.value);
+									setBranchNameEdited(true);
+								}}
 								placeholder="auto-generated from description"
 								prefix={<GitBranch size={13} className="text-[#4a4a5a]" />}
 							/>
@@ -278,36 +323,55 @@ function CreateSubtaskDialog({
 
 						<div className="flex flex-col gap-2">
 							<span className="text-[11px] font-medium text-[#60607a]">Base Branch</span>
-							<Select value={baseRef} onChange={(v) => setBaseRef(v as string)} placeholder="main" filterable prefix={<GitBranch size={13} className="text-[#8888a0]" />}>
-								{branches.map((b) => <SelectOption key={b} value={b} label={b} />)}
+							<Select
+								value={baseRef}
+								onChange={(v) => setBaseRef(v as string)}
+								placeholder="main"
+								filterable
+								prefix={<GitBranch size={13} className="text-[#8888a0]" />}
+							>
+								{branches.map((b) => (
+									<SelectOption key={b} value={b} label={b} />
+								))}
 							</Select>
 						</div>
 
 						<div className="flex flex-col gap-2">
 							<span className="text-[11px] font-medium text-[#60607a]">Dependencies</span>
-							<Select multiple value={dependsOn} onChange={(v) => setDependsOn(v)} placeholder="None" filterable clearable>
+							<Select
+								multiple
+								value={dependsOn}
+								onChange={(v) => setDependsOn(v)}
+								placeholder="None"
+								filterable
+								clearable
+							>
 								{otherDrafts.map((draft) => {
 									const draftDisplay = draft.description?.split("\n")[0] || draft.tempId;
 									return (
-									<SelectOption key={draft.tempId} value={draft.tempId} label={draftDisplay} hideCheckIcon>
-										<div className="flex items-center justify-between w-full gap-2 min-w-0">
-											<span className="truncate text-sm">{draftDisplay}</span>
-											<span className="text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium text-[#a78bfa] bg-[#a78bfa10]">this story</span>
-										</div>
-									</SelectOption>
+										<SelectOption key={draft.tempId} value={draft.tempId} label={draftDisplay} hideCheckIcon>
+											<div className="flex items-center justify-between w-full gap-2 min-w-0">
+												<span className="truncate text-sm">{draftDisplay}</span>
+												<span className="text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium text-[#a78bfa] bg-[#a78bfa10]">
+													this story
+												</span>
+											</div>
+										</SelectOption>
 									);
 								})}
 								{boardCardPool.map((c) => {
 									const cDisplay = c.description?.split("\n")[0] ?? c.id;
 									return (
-									<SelectOption key={c.id} value={c.id} label={cDisplay} hideCheckIcon>
-										<div className="flex items-center justify-between w-full gap-2 min-w-0">
-											<span className="truncate text-sm">{cDisplay}</span>
-											<span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700"}`}>
-												{COLUMN_LABEL[c.columnId] ?? c.columnId}
-											</span>
-										</div>
-									</SelectOption>
+										<SelectOption key={c.id} value={c.id} label={cDisplay} hideCheckIcon>
+											<div className="flex items-center justify-between w-full gap-2 min-w-0">
+												<span className="truncate text-sm">{cDisplay}</span>
+												<span
+													className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700"}`}
+												>
+													{COLUMN_LABEL[c.columnId] ?? c.columnId}
+												</span>
+											</div>
+										</SelectOption>
 									);
 								})}
 							</Select>
@@ -396,9 +460,11 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 		<div className="fixed inset-0 z-50 flex items-center justify-center">
 			<div className="absolute inset-0 bg-black/70" onClick={onClose} />
 			<div className="relative flex h-[850px] max-h-[calc(100vh-80px)] w-[1400px] max-w-[calc(100vw-80px)] rounded-xl bg-[#141418] border border-[#2a2a35] shadow-[0_8px_40px_4px_#00000060] overflow-hidden">
-
 				{/* ── Left panel ── */}
-				<div className="flex flex-col flex-1 overflow-hidden" onPaste={(e) => addFilesFromClipboard(e, setPendingImages)}>
+				<div
+					className="flex flex-col flex-1 overflow-hidden"
+					onPaste={(e) => addFilesFromClipboard(e, setPendingImages)}
+				>
 					<div className="flex items-center gap-3 px-6 py-3.5 border-b border-[#2a2a35] shrink-0">
 						<span className="text-[15px] font-semibold text-[#f0f0f5]">{dialogTitle}</span>
 						<div className="flex-1" />
@@ -424,7 +490,10 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 						{existingAttachments.length > 0 && (
 							<div className="flex flex-wrap gap-1.5 shrink-0">
 								{existingAttachments.map((att, i) => (
-									<span key={i} className="inline-flex items-center gap-1 text-[11px] text-[#8888a0] bg-[#1a1a1f] border border-[#2a2a35] rounded px-1.5 py-0.5">
+									<span
+										key={i}
+										className="inline-flex items-center gap-1 text-[11px] text-[#8888a0] bg-[#1a1a1f] border border-[#2a2a35] rounded px-1.5 py-0.5"
+									>
 										<Paperclip size={10} className="shrink-0" /> {att.name}
 										<button
 											type="button"
@@ -454,8 +523,14 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 					</div>
 					<div className="flex-1 min-h-0 overflow-y-auto px-[18px] py-4 flex flex-col gap-5">
 						<div className="flex flex-col gap-2">
-							<span className="text-[11px] font-medium text-[#60607a]">{isStory ? "Orchestrator Workflow" : "Workflow"}</span>
-							<Select value={workflowId} onChange={(v) => setWorkflowId(v as string)} prefix={<WorkflowIcon size={14} className="text-[#8888a0]" />}>
+							<span className="text-[11px] font-medium text-[#60607a]">
+								{isStory ? "Orchestrator Workflow" : "Workflow"}
+							</span>
+							<Select
+								value={workflowId}
+								onChange={(v) => setWorkflowId(v as string)}
+								prefix={<WorkflowIcon size={14} className="text-[#8888a0]" />}
+							>
 								{availableWorkflows.map((w) => (
 									<SelectOption key={w.id} value={w.id} label={w.name + (w.isDefault ? " (default)" : "")} />
 								))}
@@ -471,9 +546,11 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 											key={opt.value}
 											onClick={() => setPriority(active ? "" : opt.value)}
 											className="flex items-center gap-1 px-2.5 py-1.5 rounded text-[11px] border transition-colors"
-											style={active
-												? { background: opt.bg, color: opt.text, borderColor: opt.border, fontWeight: 500 }
-												: { background: "#1a1a1f", color: "#60607a", borderColor: "#2a2a35" }}
+											style={
+												active
+													? { background: opt.bg, color: opt.text, borderColor: opt.border, fontWeight: 500 }
+													: { background: "#1a1a1f", color: "#60607a", borderColor: "#2a2a35" }
+											}
 										>
 											<span className="size-1.5 rounded-full shrink-0" style={{ background: opt.dot }} />
 											{opt.label}
@@ -487,7 +564,10 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 								<span className="text-[11px] font-medium text-[#60607a]">Branch Name (optional)</span>
 								<Input
 									value={branchName}
-									onChange={(e) => { setBranchName(e.target.value); setBranchNameEdited(true); }}
+									onChange={(e) => {
+										setBranchName(e.target.value);
+										setBranchNameEdited(true);
+									}}
 									placeholder="auto-generated from description"
 									prefix={<GitBranch size={13} className="text-[#4a4a5a]" />}
 								/>
@@ -496,14 +576,23 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 						{!isStory && (
 							<div className="flex flex-col gap-2">
 								<span className="text-[11px] font-medium text-[#60607a]">Dependencies</span>
-								<Select multiple value={dependsOn} onChange={(v) => setDependsOn(v)} placeholder="None" filterable clearable>
+								<Select
+									multiple
+									value={dependsOn}
+									onChange={(v) => setDependsOn(v)}
+									placeholder="None"
+									filterable
+									clearable
+								>
 									{depsCardPool.map((c) => {
 										const cDisplay = c.description?.split("\n")[0] ?? c.id;
 										return (
 											<SelectOption key={c.id} value={c.id} label={cDisplay} hideCheckIcon>
 												<div className="flex items-center justify-between w-full gap-2 min-w-0">
 													<span className="truncate text-sm">{cDisplay}</span>
-													<span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700"}`}>
+													<span
+														className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700"}`}
+													>
 														{COLUMN_LABEL[c.columnId] ?? c.columnId}
 													</span>
 												</div>
@@ -671,7 +760,13 @@ export function CreateTaskDialog({
 			for (const subtask of subtasks) {
 				const existingDeps = subtask.dependsOn.filter((dep) => !subtasks.some((s) => s.tempId === dep));
 				const subtaskDisplay = subtask.description?.split("\n")[0] || subtask.tempId;
-				console.log(`[CreateStory] Creating subtask "${subtaskDisplay}"`, { workflowId: subtask.workflowId, baseRef: subtask.baseRef || baseRef, branchName: subtask.branchName, priority: subtask.priority, existingDeps });
+				console.log(`[CreateStory] Creating subtask "${subtaskDisplay}"`, {
+					workflowId: subtask.workflowId,
+					baseRef: subtask.baseRef || baseRef,
+					branchName: subtask.branchName,
+					priority: subtask.priority,
+					existingDeps,
+				});
 				const card = await trpc.cards.create.mutate({
 					workspaceId,
 					description: subtask.description.trim(),
@@ -685,7 +780,12 @@ export function CreateTaskDialog({
 				});
 				if (subtask.pendingImages.length > 0) {
 					const uploaded = await uploadImages(workspaceId, card.id, subtask.pendingImages);
-					await trpc.cards.update.mutate({ workspaceId, cardId: card.id, descriptionAttachments: uploaded, revision: 0 });
+					await trpc.cards.update.mutate({
+						workspaceId,
+						cardId: card.id,
+						descriptionAttachments: uploaded,
+						revision: 0,
+					});
 				}
 				console.log(`[CreateStory] Subtask "${subtaskDisplay}" created with id: ${card.id}`);
 				tempIdToRealId.set(subtask.tempId, card.id);
@@ -704,7 +804,10 @@ export function CreateTaskDialog({
 				});
 			}
 			console.log("[CreateStory] All subtasks created. tempId→realId map:", Object.fromEntries(tempIdToRealId));
-			console.log("[CreateStory] Creating story card with subtask deps:", created.map((c) => c.realId));
+			console.log(
+				"[CreateStory] Creating story card with subtask deps:",
+				created.map((c) => c.realId),
+			);
 			const storyCard = await trpc.cards.create.mutate({
 				workspaceId,
 				description: description.trim(),
@@ -716,7 +819,12 @@ export function CreateTaskDialog({
 			});
 			if (pendingImages.length > 0) {
 				const uploaded = await uploadImages(workspaceId, storyCard.id, pendingImages);
-				await trpc.cards.update.mutate({ workspaceId, cardId: storyCard.id, descriptionAttachments: uploaded, revision: 0 });
+				await trpc.cards.update.mutate({
+					workspaceId,
+					cardId: storyCard.id,
+					descriptionAttachments: uploaded,
+					revision: 0,
+				});
 			}
 			// Pass 3: wire sharedWorktreeId on all subtasks so they share the story's worktree
 			for (const { realId } of created) {
@@ -750,10 +858,11 @@ export function CreateTaskDialog({
 
 				{/* Dialog */}
 				<div className="relative flex h-[850px] max-h-[calc(100vh-80px)] w-[1400px] max-w-[calc(100vw-80px)] rounded-xl bg-[#141418] border border-[#2a2a35] shadow-[0_8px_40px_4px_#00000060] overflow-hidden">
-
 					{/* ── Left panel ── */}
-					<div className="flex flex-col flex-1 overflow-hidden" onPaste={(e) => addFilesFromClipboard(e, setPendingImages)}>
-
+					<div
+						className="flex flex-col flex-1 overflow-hidden"
+						onPaste={(e) => addFilesFromClipboard(e, setPendingImages)}
+					>
 						{/* Header */}
 						<div className="flex items-center gap-3 px-6 py-3.5 border-b border-[#2a2a35] shrink-0">
 							<span className="text-[15px] font-semibold text-[#f0f0f5]">{isTask ? "New Task" : "New Story"}</span>
@@ -765,7 +874,6 @@ export function CreateTaskDialog({
 
 						{/* Editor area */}
 						<div className="flex flex-col flex-1 min-h-0 px-8 py-4 gap-2">
-
 							{/* Story: objective label */}
 							{!isTask && (
 								<div className="flex items-center gap-1.5 shrink-0">
@@ -805,7 +913,10 @@ export function CreateTaskDialog({
 											Generate
 										</button>
 										<button
-											onClick={() => { setEditingTempId(null); setSubtaskDialogOpen(true); }}
+											onClick={() => {
+												setEditingTempId(null);
+												setSubtaskDialogOpen(true);
+											}}
 											className="flex items-center gap-1 px-2.5 py-1 rounded border border-[#2a2a35] text-[11px] text-[#60607a] hover:text-[#f0f0f5] hover:border-[#3a3a48] transition-colors"
 										>
 											<Plus size={12} />
@@ -816,7 +927,10 @@ export function CreateTaskDialog({
 									<div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-2">
 										{subtasks.length === 0 && (
 											<div
-												onClick={() => { setEditingTempId(null); setSubtaskDialogOpen(true); }}
+												onClick={() => {
+													setEditingTempId(null);
+													setSubtaskDialogOpen(true);
+												}}
 												className="border border-dashed border-[#2a2a35] rounded-lg p-5 flex flex-col items-center gap-2 cursor-pointer hover:border-[#3a3a48] hover:bg-white/[0.02] transition-colors"
 											>
 												<Plus size={16} className="text-[#4a4a5a]" />
@@ -826,20 +940,30 @@ export function CreateTaskDialog({
 										{subtasks.map((subtask, i) => {
 											const depLabels = subtask.dependsOn.map((dep) => {
 												const draft = subtasks.find((s) => s.tempId === dep);
-												return draft ? `#${subtasks.indexOf(draft) + 1}` : (allCards[dep]?.description?.split("\n")[0] ?? dep);
+												return draft
+													? `#${subtasks.indexOf(draft) + 1}`
+													: (allCards[dep]?.description?.split("\n")[0] ?? dep);
 											});
 											const priorityOpt = PRIORITY_OPTIONS.find((p) => p.value === subtask.priority);
 											return (
 												<button
 													key={subtask.tempId}
-													onClick={() => { setEditingTempId(subtask.tempId); setSubtaskDialogOpen(true); }}
+													onClick={() => {
+														setEditingTempId(subtask.tempId);
+														setSubtaskDialogOpen(true);
+													}}
 													className="flex items-center gap-2.5 bg-[#1a1a1f] border border-[#2a2a35] rounded-md px-2.5 py-2 text-left hover:border-[#3a3a48] transition-colors group w-full"
 												>
 													<GripVertical size={12} className="text-[#2a2a35] shrink-0" />
 													<span className="text-[10px] text-[#4a4a5a] font-mono shrink-0 w-4">{i + 1}</span>
-													<span className="flex-1 min-w-0 text-xs text-[#f0f0f5] truncate">{subtask.description?.split("\n")[0] ?? subtask.tempId}</span>
+													<span className="flex-1 min-w-0 text-xs text-[#f0f0f5] truncate">
+														{subtask.description?.split("\n")[0] ?? subtask.tempId}
+													</span>
 													{priorityOpt && (
-														<span className="shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded-full" style={{ color: priorityOpt.text, background: priorityOpt.bg }}>
+														<span
+															className="shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded-full"
+															style={{ color: priorityOpt.text, background: priorityOpt.bg }}
+														>
 															{priorityOpt.label}
 														</span>
 													)}
@@ -849,7 +973,10 @@ export function CreateTaskDialog({
 														</span>
 													)}
 													<span
-														onClick={(e) => { e.stopPropagation(); setSubtasks((prev) => prev.filter((s) => s.tempId !== subtask.tempId)); }}
+														onClick={(e) => {
+															e.stopPropagation();
+															setSubtasks((prev) => prev.filter((s) => s.tempId !== subtask.tempId));
+														}}
 														className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-[#4a4a5a] hover:text-[#ef4444] p-0.5"
 													>
 														<X size={12} />
@@ -879,7 +1006,6 @@ export function CreateTaskDialog({
 
 					{/* ── Right sidebar ── */}
 					<div className="w-80 shrink-0 bg-[#111115] border-l border-[#2a2a35] flex flex-col overflow-hidden">
-
 						{/* Config header */}
 						<div className="px-[18px] py-3.5 border-b border-[#2a2a35] shrink-0">
 							<span className="text-xs font-semibold text-[#8888a0]">Configuration</span>
@@ -887,14 +1013,18 @@ export function CreateTaskDialog({
 
 						{/* Config fields */}
 						<div className="flex-1 min-h-0 overflow-y-auto px-[18px] py-4 flex flex-col gap-5">
-
 							{/* Workflow */}
 							<div className="flex flex-col gap-2">
-								<span className="text-[11px] font-medium text-[#60607a]">{isTask ? "Workflow" : "Orchestrator Workflow"}</span>
+								<span className="text-[11px] font-medium text-[#60607a]">
+									{isTask ? "Workflow" : "Orchestrator Workflow"}
+								</span>
 								{activeWorkflows.length === 0 ? (
 									<button
 										className="text-[11px] text-amber-500 hover:text-amber-400 underline text-left transition-colors"
-										onClick={() => { handleClose(); navigate(`/${encodeURIComponent(workspaceId)}/settings/workflows`); }}
+										onClick={() => {
+											handleClose();
+											navigate(`/${encodeURIComponent(workspaceId)}/settings/workflows`);
+										}}
 									>
 										No workflows — create one in Settings
 									</button>
@@ -922,9 +1052,11 @@ export function CreateTaskDialog({
 												key={opt.value}
 												onClick={() => setPriority(active ? "" : opt.value)}
 												className="flex items-center gap-1 px-2.5 py-1.5 rounded text-[11px] border transition-colors"
-												style={active
-													? { background: opt.bg, color: opt.text, borderColor: opt.border, fontWeight: 500 }
-													: { background: "#1a1a1f", color: "#60607a", borderColor: "#2a2a35" }}
+												style={
+													active
+														? { background: opt.bg, color: opt.text, borderColor: opt.border, fontWeight: 500 }
+														: { background: "#1a1a1f", color: "#60607a", borderColor: "#2a2a35" }
+												}
 											>
 												<span className="size-1.5 rounded-full shrink-0" style={{ background: opt.dot }} />
 												{opt.label}
@@ -940,7 +1072,10 @@ export function CreateTaskDialog({
 									<span className="text-[11px] font-medium text-[#60607a]">Branch Name (optional)</span>
 									<Input
 										value={branchName}
-										onChange={(e) => { setBranchName(e.target.value); setBranchNameEdited(true); }}
+										onChange={(e) => {
+											setBranchName(e.target.value);
+											setBranchNameEdited(true);
+										}}
 										placeholder="auto-generated from description"
 										prefix={<GitBranch size={13} className="text-[#4a4a5a]" />}
 									/>
@@ -967,27 +1102,36 @@ export function CreateTaskDialog({
 							{isTask && (
 								<div className="flex flex-col gap-2">
 									<span className="text-[11px] font-medium text-[#60607a]">Dependencies</span>
-									<Select multiple value={dependsOn} onChange={(v) => setDependsOn(v)} placeholder="None" filterable clearable>
+									<Select
+										multiple
+										value={dependsOn}
+										onChange={(v) => setDependsOn(v)}
+										placeholder="None"
+										filterable
+										clearable
+									>
 										{Object.values(allCards)
 											.filter((c) => c.columnId !== "done")
 											.map((c) => {
 												const cDisplay = c.description?.split("\n")[0] ?? c.id;
 												return (
-												<SelectOption
-													key={c.id}
-													value={c.id}
-													label={cDisplay}
-													hideCheckIcon
-													className={({ selected }) => (selected ? "bg-gray-700" : "")}
-												>
-													<div className="flex items-center justify-between w-full gap-2 min-w-0">
-														<span className="truncate text-sm">{cDisplay}</span>
-														<span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700"}`}>
-															{COLUMN_LABEL[c.columnId] ?? c.columnId}
-														</span>
-													</div>
-												</SelectOption>
-											);
+													<SelectOption
+														key={c.id}
+														value={c.id}
+														label={cDisplay}
+														hideCheckIcon
+														className={({ selected }) => (selected ? "bg-gray-700" : "")}
+													>
+														<div className="flex items-center justify-between w-full gap-2 min-w-0">
+															<span className="truncate text-sm">{cDisplay}</span>
+															<span
+																className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700"}`}
+															>
+																{COLUMN_LABEL[c.columnId] ?? c.columnId}
+															</span>
+														</div>
+													</SelectOption>
+												);
 											})}
 									</Select>
 								</div>
@@ -1011,7 +1155,9 @@ export function CreateTaskDialog({
 							<div className="flex-1" />
 							<button
 								onClick={isTask ? handleCreateTask : handleCreateStory}
-								disabled={loading || !description.trim() || (!isTask && subtasks.length === 0) || activeWorkflows.length === 0}
+								disabled={
+									loading || !description.trim() || (!isTask && subtasks.length === 0) || activeWorkflows.length === 0
+								}
 								className="flex items-center gap-1.5 px-5 py-2 rounded-md text-xs font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
 								style={{ background: accentColor }}
 							>
@@ -1027,11 +1173,18 @@ export function CreateTaskDialog({
 			{!isTask && (
 				<CreateSubtaskDialog
 					open={subtaskDialogOpen}
-					onClose={() => { setSubtaskDialogOpen(false); setEditingTempId(null); }}
+					onClose={() => {
+						setSubtaskDialogOpen(false);
+						setEditingTempId(null);
+					}}
 					onSave={(subtask) => {
 						setSubtasks((prev) => {
 							const idx = prev.findIndex((s) => s.tempId === subtask.tempId);
-							if (idx >= 0) { const next = [...prev]; next[idx] = subtask; return next; }
+							if (idx >= 0) {
+								const next = [...prev];
+								next[idx] = subtask;
+								return next;
+							}
 							return [...prev, subtask];
 						});
 						setSubtaskDialogOpen(false);

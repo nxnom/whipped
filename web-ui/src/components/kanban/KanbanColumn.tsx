@@ -48,13 +48,11 @@ export function KanbanColumn({
 			<div className="flex items-center gap-1.5 px-2.5 py-2 shrink-0">
 				<span className={`size-2 rounded-full shrink-0 ${COLUMN_DOT_COLORS[column.id] ?? "bg-gray-500"}`} />
 				<span className="text-xs font-medium text-[#8888a0]">{column.title}</span>
-				<span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#2a2a35] text-gray-500 font-medium">{cards.length}</span>
+				<span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#2a2a35] text-gray-500 font-medium">
+					{cards.length}
+				</span>
 				<div className="flex-1" />
-				<button
-					onClick={onAddCard}
-					className="text-gray-600 hover:text-gray-400 transition-colors"
-					title="Add task"
-				>
+				<button onClick={onAddCard} className="text-gray-600 hover:text-gray-400 transition-colors" title="Add task">
 					<Plus size={13} />
 				</button>
 			</div>
