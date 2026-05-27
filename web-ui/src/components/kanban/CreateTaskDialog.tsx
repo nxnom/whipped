@@ -134,7 +134,6 @@ function CreateSubtaskDialog({
 	const taskWorkflows = workflows.filter((w) => !w.forStory);
 	const defaultWorkflow = taskWorkflows.find((w) => w.isDefault) ?? taskWorkflows[0];
 
-	const [title, setTitle] = useState("");
 	const [description, setDescription] = useState("");
 	const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
 	const [priority, setPriority] = useState("");
@@ -147,7 +146,6 @@ function CreateSubtaskDialog({
 	useEffect(() => {
 		if (!open) return;
 		if (editingSubtask) {
-			setTitle(editingSubtask.title);
 			setDescription(editingSubtask.description);
 			setPendingImages(editingSubtask.pendingImages);
 			setPriority(editingSubtask.priority);
@@ -157,7 +155,6 @@ function CreateSubtaskDialog({
 			setBranchName(editingSubtask.branchName || "");
 			setBranchNameEdited(!!editingSubtask.branchName);
 		} else {
-			setTitle("");
 			setDescription("");
 			setPendingImages([]);
 			setPriority("");
@@ -169,11 +166,14 @@ function CreateSubtaskDialog({
 		}
 	}, [open, editingSubtask]);
 
+	useEffect(() => {
+		if (!branchNameEdited) setBranchName(deriveBranchName(description.split("\n")[0] ?? ""));
+	}, [description, branchNameEdited]);
+
 	const handleSave = () => {
-		if (!title.trim()) return;
+		if (!description.trim()) return;
 		onSave({
 			tempId: editingSubtask?.tempId ?? `draft-${Date.now()}-${Math.random()}`,
-			title: title.trim(),
 			description,
 			pendingImages,
 			priority,
@@ -205,23 +205,10 @@ function CreateSubtaskDialog({
 						</button>
 					</div>
 
-					<div className="px-8 pt-6 shrink-0">
-						<input
-							autoFocus
-							value={title}
-							onChange={(e) => {
-								const v = e.target.value;
-								setTitle(v);
-								if (!branchNameEdited) setBranchName(deriveBranchName(v));
-							}}
-							onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) handleSave(); }}
-							placeholder="Subtask title"
-							className="w-full bg-transparent text-[28px] font-semibold text-[#f0f0f5] placeholder-[#2a2a35] outline-none"
-						/>
-					</div>
 
 					<div className="flex flex-col flex-1 min-h-0 px-8 py-4 gap-2" onPaste={(e) => addFilesFromClipboard(e, setPendingImages)}>
 						<textarea
+							autoFocus
 							value={description}
 							onChange={(e) => setDescription(e.target.value)}
 							placeholder="Describe what the agent should do..."
@@ -284,7 +271,7 @@ function CreateSubtaskDialog({
 							<Input
 								value={branchName}
 								onChange={(e) => { setBranchName(e.target.value); setBranchNameEdited(true); }}
-								placeholder="auto-generated from title"
+								placeholder="auto-generated from description"
 								prefix={<GitBranch size={13} className="text-[#4a4a5a]" />}
 							/>
 						</div>
@@ -299,24 +286,30 @@ function CreateSubtaskDialog({
 						<div className="flex flex-col gap-2">
 							<span className="text-[11px] font-medium text-[#60607a]">Dependencies</span>
 							<Select multiple value={dependsOn} onChange={(v) => setDependsOn(v)} placeholder="None" filterable clearable>
-								{otherDrafts.map((draft) => (
-									<SelectOption key={draft.tempId} value={draft.tempId} label={draft.title} hideCheckIcon>
+								{otherDrafts.map((draft) => {
+									const draftDisplay = draft.description?.split("\n")[0] || draft.tempId;
+									return (
+									<SelectOption key={draft.tempId} value={draft.tempId} label={draftDisplay} hideCheckIcon>
 										<div className="flex items-center justify-between w-full gap-2 min-w-0">
-											<span className="truncate text-sm">{draft.title}</span>
+											<span className="truncate text-sm">{draftDisplay}</span>
 											<span className="text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium text-[#a78bfa] bg-[#a78bfa10]">this story</span>
 										</div>
 									</SelectOption>
-								))}
-								{boardCardPool.map((c) => (
-									<SelectOption key={c.id} value={c.id} label={c.title} hideCheckIcon>
+									);
+								})}
+								{boardCardPool.map((c) => {
+									const cDisplay = c.description?.split("\n")[0] ?? c.id;
+									return (
+									<SelectOption key={c.id} value={c.id} label={cDisplay} hideCheckIcon>
 										<div className="flex items-center justify-between w-full gap-2 min-w-0">
-											<span className="truncate text-sm">{c.title}</span>
+											<span className="truncate text-sm">{cDisplay}</span>
 											<span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700"}`}>
 												{COLUMN_LABEL[c.columnId] ?? c.columnId}
 											</span>
 										</div>
 									</SelectOption>
-								))}
+									);
+								})}
 							</Select>
 						</div>
 					</div>
@@ -325,7 +318,7 @@ function CreateSubtaskDialog({
 						<div className="flex-1" />
 						<button
 							onClick={handleSave}
-							disabled={!title.trim()}
+							disabled={!description.trim()}
 							className="flex items-center gap-1.5 px-5 py-2 rounded-md text-xs font-semibold text-white bg-[#7c6aff] disabled:opacity-40 disabled:cursor-not-allowed"
 						>
 							<Plus size={14} />
@@ -367,7 +360,6 @@ export function CreateTaskDialog({
 	const defaultStoryWorkflow = storyWorkflows.find((w) => w.isDefault) ?? storyWorkflows[0];
 
 	const [mode, setMode] = useState<Mode>(initialMode);
-	const [title, setTitle] = useState("");
 	const [description, setDescription] = useState("");
 	const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
 	const [priority, setPriority] = useState("");
@@ -404,8 +396,11 @@ export function CreateTaskDialog({
 		if (open) setMode(initialMode);
 	}, [open, initialMode]);
 
+	useEffect(() => {
+		if (!branchNameEdited) setBranchName(deriveBranchName(description.split("\n")[0] ?? ""));
+	}, [description, branchNameEdited]);
+
 	const handleClose = () => {
-		setTitle("");
 		setDescription("");
 		setPendingImages([]);
 		setPriority("");
@@ -422,7 +417,7 @@ export function CreateTaskDialog({
 	};
 
 	const handleCreateTask = async () => {
-		if (!title.trim()) return;
+		if (!description.trim()) return;
 		setLoading(true);
 		try {
 			// Inherit shared worktree from the single dep if present
@@ -433,8 +428,7 @@ export function CreateTaskDialog({
 			}
 			const card = await trpc.cards.create.mutate({
 				workspaceId,
-				title: title.trim(),
-				description,
+				description: description.trim(),
 				priority: (priority as "urgent" | "high" | "medium" | "low") || undefined,
 				readyForDev: readyForDev || undefined,
 				dependsOn: dependsOn.length > 0 ? dependsOn : undefined,
@@ -457,10 +451,9 @@ export function CreateTaskDialog({
 	};
 
 	const handleCreateStory = async () => {
-		if (!title.trim() || subtasks.length === 0) return;
+		if (!description.trim() || subtasks.length === 0) return;
 		setLoading(true);
 		console.log("[CreateStory] Starting story creation");
-		console.log("[CreateStory] Story title:", title.trim());
 		console.log("[CreateStory] Story description:", description);
 		console.log("[CreateStory] Story priority:", priority);
 		console.log("[CreateStory] Base ref:", baseRef);
@@ -472,11 +465,11 @@ export function CreateTaskDialog({
 			const created: Array<{ realId: string; rawDeps: string[] }> = [];
 			for (const subtask of subtasks) {
 				const existingDeps = subtask.dependsOn.filter((dep) => !subtasks.some((s) => s.tempId === dep));
-				console.log(`[CreateStory] Creating subtask "${subtask.title}"`, { workflowId: subtask.workflowId, baseRef: subtask.baseRef || baseRef, branchName: subtask.branchName, priority: subtask.priority, existingDeps });
+				const subtaskDisplay = subtask.description?.split("\n")[0] || subtask.tempId;
+				console.log(`[CreateStory] Creating subtask "${subtaskDisplay}"`, { workflowId: subtask.workflowId, baseRef: subtask.baseRef || baseRef, branchName: subtask.branchName, priority: subtask.priority, existingDeps });
 				const card = await trpc.cards.create.mutate({
 					workspaceId,
-					title: subtask.title.trim(),
-					description: subtask.description,
+					description: subtask.description.trim(),
 					type: "subtask",
 					priority: (subtask.priority as "urgent" | "high" | "medium" | "low") || undefined,
 					baseRef: subtask.baseRef || baseRef || undefined,
@@ -489,7 +482,7 @@ export function CreateTaskDialog({
 					const uploaded = await uploadImages(workspaceId, card.id, subtask.pendingImages);
 					await trpc.cards.update.mutate({ workspaceId, cardId: card.id, descriptionAttachments: uploaded, revision: 0 });
 				}
-				console.log(`[CreateStory] Subtask "${subtask.title}" created with id: ${card.id}`);
+				console.log(`[CreateStory] Subtask "${subtaskDisplay}" created with id: ${card.id}`);
 				tempIdToRealId.set(subtask.tempId, card.id);
 				created.push({ realId: card.id, rawDeps: subtask.dependsOn });
 			}
@@ -509,8 +502,7 @@ export function CreateTaskDialog({
 			console.log("[CreateStory] Creating story card with subtask deps:", created.map((c) => c.realId));
 			const storyCard = await trpc.cards.create.mutate({
 				workspaceId,
-				title: title.trim(),
-				description,
+				description: description.trim(),
 				type: "story",
 				priority: (priority as "urgent" | "high" | "medium" | "low") || undefined,
 				baseRef: baseRef || undefined,
@@ -566,22 +558,6 @@ export function CreateTaskDialog({
 							</button>
 						</div>
 
-						{/* Title */}
-						<div className="px-8 pt-6 shrink-0">
-							<input
-								autoFocus
-								value={title}
-								onChange={(e) => {
-									const v = e.target.value;
-									setTitle(v);
-									if (isTask && !branchNameEdited) setBranchName(deriveBranchName(v));
-								}}
-								onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && isTask) handleCreateTask(); }}
-								placeholder={isTask ? "Task title" : "Story title"}
-								className="w-full bg-transparent text-[28px] font-semibold text-[#f0f0f5] placeholder-[#2a2a35] outline-none"
-							/>
-						</div>
-
 						{/* Editor area */}
 						<div className="flex flex-col flex-1 min-h-0 px-8 py-4 gap-2">
 
@@ -596,6 +572,7 @@ export function CreateTaskDialog({
 
 							{/* Description */}
 							<textarea
+								autoFocus
 								value={description}
 								onChange={(e) => setDescription(e.target.value)}
 								placeholder="Describe what the agent should do..."
@@ -644,7 +621,7 @@ export function CreateTaskDialog({
 										{subtasks.map((subtask, i) => {
 											const depLabels = subtask.dependsOn.map((dep) => {
 												const draft = subtasks.find((s) => s.tempId === dep);
-												return draft ? `#${subtasks.indexOf(draft) + 1}` : (allCards[dep]?.title ?? dep);
+												return draft ? `#${subtasks.indexOf(draft) + 1}` : (allCards[dep]?.description?.split("\n")[0] ?? dep);
 											});
 											const priorityOpt = PRIORITY_OPTIONS.find((p) => p.value === subtask.priority);
 											return (
@@ -655,7 +632,7 @@ export function CreateTaskDialog({
 												>
 													<GripVertical size={12} className="text-[#2a2a35] shrink-0" />
 													<span className="text-[10px] text-[#4a4a5a] font-mono shrink-0 w-4">{i + 1}</span>
-													<span className="flex-1 min-w-0 text-xs text-[#f0f0f5] truncate">{subtask.title}</span>
+													<span className="flex-1 min-w-0 text-xs text-[#f0f0f5] truncate">{subtask.description?.split("\n")[0] ?? subtask.tempId}</span>
 													{priorityOpt && (
 														<span className="shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded-full" style={{ color: priorityOpt.text, background: priorityOpt.bg }}>
 															{priorityOpt.label}
@@ -759,7 +736,7 @@ export function CreateTaskDialog({
 									<Input
 										value={branchName}
 										onChange={(e) => { setBranchName(e.target.value); setBranchNameEdited(true); }}
-										placeholder="auto-generated from title"
+										placeholder="auto-generated from description"
 										prefix={<GitBranch size={13} className="text-[#4a4a5a]" />}
 									/>
 								</div>
@@ -788,22 +765,25 @@ export function CreateTaskDialog({
 									<Select multiple value={dependsOn} onChange={(v) => setDependsOn(v)} placeholder="None" filterable clearable>
 										{Object.values(allCards)
 											.filter((c) => c.columnId !== "done")
-											.map((c) => (
+											.map((c) => {
+												const cDisplay = c.description?.split("\n")[0] ?? c.id;
+												return (
 												<SelectOption
 													key={c.id}
 													value={c.id}
-													label={c.title}
+													label={cDisplay}
 													hideCheckIcon
 													className={({ selected }) => (selected ? "bg-gray-700" : "")}
 												>
 													<div className="flex items-center justify-between w-full gap-2 min-w-0">
-														<span className="truncate text-sm">{c.title}</span>
+														<span className="truncate text-sm">{cDisplay}</span>
 														<span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700"}`}>
 															{COLUMN_LABEL[c.columnId] ?? c.columnId}
 														</span>
 													</div>
 												</SelectOption>
-											))}
+											);
+											})}
 									</Select>
 								</div>
 							)}
@@ -826,7 +806,7 @@ export function CreateTaskDialog({
 							<div className="flex-1" />
 							<button
 								onClick={isTask ? handleCreateTask : handleCreateStory}
-								disabled={loading || !title.trim() || (!isTask && subtasks.length === 0) || activeWorkflows.length === 0}
+								disabled={loading || !description.trim() || (!isTask && subtasks.length === 0) || activeWorkflows.length === 0}
 								className="flex items-center gap-1.5 px-5 py-2 rounded-md text-xs font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
 								style={{ background: accentColor }}
 							>

@@ -66,7 +66,7 @@ export function CardQuickViewDialog({ card, workspaceId, onClose, onOpenDetail, 
 				<div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b border-gray-800">
 					<div className="flex-1 min-w-0">
 						<p className="text-xs text-gray-500 mb-1">{COLUMN_LABELS[card.columnId] ?? card.columnId}</p>
-						<h2 className="text-base font-semibold text-gray-100 leading-snug">{card.title}</h2>
+						<h2 className="text-base font-semibold text-gray-100 leading-snug">{card.description?.split("\n")[0] ?? card.id}</h2>
 					</div>
 					<div className="flex items-center gap-1 shrink-0">
 						<button

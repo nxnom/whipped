@@ -258,14 +258,14 @@ export class TaskScheduler {
 		// Guard: check agent binary is available before spawning
 		const available = getAvailableAgents().map((a) => a.id);
 		if (!available.includes(agentId)) {
-			logger.error(`[scheduler] Agent "${agentId}" not found in PATH — blocking task "${card.title}"`);
+			logger.error(`[scheduler] Agent "${agentId}" not found in PATH — blocking task "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`);
 			await moveCard(workspaceId, taskId, "blocked");
 			await appendActivityLog(workspaceId, taskId, `Agent "${agentId}" not found in PATH — moved to Blocked`);
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
 			return;
 		}
 
-		logger.info(`[scheduler] Starting task ${taskId} "${card.title}" with agent ${agentId}`);
+		logger.info(`[scheduler] Starting task ${taskId} "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" with agent ${agentId}`);
 
 		// Auto-derive sharedWorktreeId for single-dep cards that don't have it set.
 		// Covers cards created from the frontend or before this feature was added.
@@ -276,7 +276,7 @@ export class TaskScheduler {
 				const inheritedId = dep.sharedWorktreeId ?? dep.id;
 				await updateCard(workspaceId, taskId, { sharedWorktreeId: inheritedId });
 				card = { ...card, sharedWorktreeId: inheritedId };
-				logger.info(`[scheduler] Auto-set sharedWorktreeId=${inheritedId} for "${card.title}"`);
+				logger.info(`[scheduler] Auto-set sharedWorktreeId=${inheritedId} for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`);
 			}
 		}
 
@@ -286,7 +286,7 @@ export class TaskScheduler {
 
 		// Sibling lock: prevent two cards from running concurrently in the same shared worktree.
 		if (hasSharedWorktree && this.runningSharedWorktrees.has(effectiveWorktreeId)) {
-			logger.info(`[scheduler] Shared worktree ${effectiveWorktreeId} busy — deferring "${card.title}"`);
+			logger.info(`[scheduler] Shared worktree ${effectiveWorktreeId} busy — deferring "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`);
 			return;
 		}
 		if (hasSharedWorktree) this.runningSharedWorktrees.add(effectiveWorktreeId);
@@ -309,7 +309,7 @@ export class TaskScheduler {
 				await appendActivityLog(
 					workspaceId,
 					taskId,
-					`Blocked: dependency "${depCard?.title ?? unmetDep}" is not yet in Ready for Review`,
+					`Blocked: dependency "${depCard ? (depCard.description?.split("\n")[0]?.slice(0, 60) ?? depCard.id) : unmetDep}" is not yet in Ready for Review`,
 				);
 				stateHub.broadcastWorkspaceUpdate(workspaceId);
 				return;
@@ -358,7 +358,7 @@ export class TaskScheduler {
 			lastDevComment?.status === "pass" && lastDevTs !== undefined && lastDevComment.createdAt >= lastDevTs.startedAt;
 		const lastTs = card.terminalSessions?.at(-1);
 		logger.info(
-			`[scheduler] Resume check for "${card.title}": lastTsState=${lastTs?.state} devPassedInThisSession=${devPassedInThisSession} lastDevComment=${lastDevComment?.status} lastDevTsStart=${lastDevTs?.startedAt} devCreatedAt=${lastDevComment?.createdAt}`,
+			`[scheduler] Resume check for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}": lastTsState=${lastTs?.state} devPassedInThisSession=${devPassedInThisSession} lastDevComment=${lastDevComment?.status} lastDevTsStart=${lastDevTs?.startedAt} devCreatedAt=${lastDevComment?.createdAt}`,
 		);
 		if (lastTs?.state === "killed" && devPassedInThisSession) {
 			createWorktree(
@@ -390,7 +390,7 @@ export class TaskScheduler {
 				if (ownerCard.branchName) {
 					sharedBranchName = ownerCard.branchName;
 				} else {
-					sharedBranchName = titleToBranch(ownerCard.title);
+					sharedBranchName = titleToBranch(ownerCard.description?.split("\n")[0]?.slice(0, 72) ?? ownerCard.id);
 					await updateCard(workspaceId, card.sharedWorktreeId!, { branchName: sharedBranchName });
 					logger.info(`[scheduler] Derived and saved shared branch name: ${sharedBranchName}`);
 				}
@@ -409,7 +409,7 @@ export class TaskScheduler {
 				hasSharedWorktree ? sharedBranchName : card.branchName,
 			);
 		} catch (err) {
-			logger.error(`[scheduler] Failed to create worktree for "${card.title}": ${String(err)}`);
+			logger.error(`[scheduler] Failed to create worktree for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}": ${String(err)}`);
 			if (hasSharedWorktree) this.runningSharedWorktrees.delete(effectiveWorktreeId);
 			await moveCard(workspaceId, taskId, "blocked");
 			await appendActivityLog(workspaceId, taskId, `Failed to create worktree: ${String(err)}`);
@@ -780,7 +780,7 @@ export class TaskScheduler {
 		if (childCards.length === 0) return;
 
 		logger.info(
-			`[scheduler] triggerParentReopenCascade: ${childCards.length} children for parent "${parentCard.title}"`,
+			`[scheduler] triggerParentReopenCascade: ${childCards.length} children for parent "${parentCard.description?.split("\n")[0]?.slice(0, 60) ?? parentCard.id}"`,
 		);
 
 		const projectConfig = await loadProjectConfig(workspaceId);
@@ -920,7 +920,7 @@ export class TaskScheduler {
 					const taskBranch = getCardBranch(card);
 					const hookConfig2 = await loadProjectConfig(workspaceId);
 					if (!hookConfig2.autoCommit) {
-						const commitMsg = card.pr?.title ?? card.title;
+						const commitMsg = card.pr?.title ?? card.description?.split("\n")[0]?.slice(0, 72) ?? card.id;
 						await commitIfDirty(worktreePath, commitMsg).catch((err) =>
 							logger.warn(`[scheduler] commitIfDirty before push failed for ${taskId}: ${String(err)}`),
 						);
@@ -1105,7 +1105,7 @@ You are a conversational project assistant. You can discuss the project, help pl
 - \`kanban_create_card\` — create a single task card (type: "task" by default; also accepts "story" or "subtask")
 - \`kanban_create_story\` — create a story with all its subtasks in one call (preferred for stories)
 - \`kanban_move_card\` — move a card to a different column
-- \`kanban_update_card\` — update a card's title, description, priority, or dependencies
+- \`kanban_update_card\` — update a card's description, priority, or dependencies
 - \`kanban_delete_card\` — delete a card
 - \`kanban_add_comment\` — record a comment on a card
 
@@ -1168,11 +1168,11 @@ function buildConflictResolutionPrompt(
 	conflictedFiles: string[],
 	gitInstructions: string,
 ): string {
-	const descriptionSection = card.description?.trim() ? `\nTask description:\n${card.description.trim()}\n` : "";
 	return `Resolve the git merge conflicts in this repository.
 
-Task being merged: "${card.title}"
-${descriptionSection}
+Task being merged:
+${card.description?.trim() ?? ""}
+
 Conflicted files:
 ${conflictedFiles.map((f) => `- ${f}`).join("\n")}
 

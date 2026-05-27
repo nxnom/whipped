@@ -267,7 +267,6 @@ export type RuntimePrMeta = z.infer<typeof runtimePrMetaSchema>;
 
 export const runtimeBoardCardSchema = z.object({
 	id: z.string(),
-	title: z.string(),
 	description: z.string(),
 	descriptionAttachments: z.array(reviewAttachmentSchema).optional().default([]),
 	columnId: runtimeBoardColumnIdSchema,
@@ -417,7 +416,6 @@ export type RuntimeWorkspaceStateSaveRequest = z.infer<typeof runtimeWorkspaceSt
 // ─── Card mutations ──────────────────────────────────────────────────────────
 
 export const runtimeCardCreateRequestSchema = z.object({
-	title: z.string().min(1),
 	description: z.string(),
 	type: cardTypeSchema.optional(),
 	agentId: runtimeAgentIdSchema.optional(),
@@ -446,7 +444,6 @@ export type RuntimeCardMoveRequest = z.infer<typeof runtimeCardMoveRequestSchema
 
 export const runtimeCardUpdateRequestSchema = z.object({
 	cardId: z.string(),
-	title: z.string().min(1).optional(),
 	description: z.string().optional(),
 	descriptionAttachments: z.array(reviewAttachmentSchema).optional(),
 	type: cardTypeSchema.optional(),

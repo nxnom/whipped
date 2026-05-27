@@ -106,7 +106,7 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 		.find((ts) => ts.type === "dev");
 	const sessionStartedAt = lastDevTs?.startedAt ?? 0;
 
-	logger.info(`[review] Starting review pipeline for "${card.title}" (${card.id})${isResume ? " — resuming" : ""}`);
+	logger.info(`[review] Starting review pipeline for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" (${card.id})${isResume ? " — resuming" : ""}`);
 	await appendActivityLog(workspaceId, card.id, "AI review started");
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 
@@ -127,7 +127,7 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 					!(lastSlotComment.issues?.some((i) => i.severity === "blocking") ?? false)
 				: false;
 			if (alreadyPassed) {
-				logger.info(`[review] ${slot.name} already passed for "${card.title}" — skipping`);
+				logger.info(`[review] ${slot.name} already passed for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" — skipping`);
 				await appendActivityLog(workspaceId, card.id, `${slot.name}: already passed — skipping`);
 				stateHub.broadcastWorkspaceUpdate(workspaceId);
 				continue;
@@ -157,7 +157,7 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 			result = await runReviewSlot(slot, card, streamId, options, customPrompt);
 		}
 
-		logger.info(`[review] ${slot.name} ${result.passed ? "PASSED" : "FAILED"} for "${card.title}"`);
+		logger.info(`[review] ${slot.name} ${result.passed ? "PASSED" : "FAILED"} for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`);
 
 		if (!result.passed) {
 			await appendActivityLog(workspaceId, card.id, `${slot.name}: FAIL`);
@@ -236,7 +236,7 @@ async function runReviewSlot(
 		).catch(() => {});
 	}
 	const startTime = Date.now();
-	logger.info(`[review:${streamId}] Spawning ${slot.name} agent (${slot.agentBinary}) for "${card.title}"`);
+	logger.info(`[review:${streamId}] Spawning ${slot.name} agent (${slot.agentBinary}) for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`);
 	const secretsEnv = buildSecretsEnv(options.secrets);
 	const output = await runAgentOnce(
 		slot.agentBinary,
@@ -317,7 +317,7 @@ async function handleReviewFailure(card: RuntimeBoardCard, options: ReviewPipeli
 		// Orch failure: scan for subtasks that the orch left a fail comment on and reopen them.
 		// The orch only needs to add comments — we handle the card moves server-side so a missed
 		// kanban_move_card call can't leave a subtask stuck without a transition.
-		logger.info(`[review] Orch review failed for story "${card.title}" → reopening flagged subtasks`);
+		logger.info(`[review] Orch review failed for story "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" → reopening flagged subtasks`);
 		const orchBoard = await loadBoard(workspaceId);
 		const subtaskIds = card.dependsOn ?? [];
 		const orchFailedAt = Date.now();
@@ -335,7 +335,7 @@ async function handleReviewFailure(card: RuntimeBoardCard, options: ReviewPipeli
 		if (reopenedCount === 0) {
 			// Orch failed but didn't comment on any subtask — propagate the story-level orch comment
 			// down to each subtask so the dev agent has instructions when it picks the card up.
-			logger.warn(`[review] Orch failed for "${card.title}" but no subtask orch-fail comments found — propagating story comment to all subtasks`);
+			logger.warn(`[review] Orch failed for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" but no subtask orch-fail comments found — propagating story comment to all subtasks`);
 			const reloadedStory = orchBoard.cards[card.id];
 			const storyOrchComment = reloadedStory?.reviewComments?.slice().reverse().find((c) => c.type === "orch" && c.status === "fail");
 			for (const subtaskId of subtaskIds) {
@@ -349,7 +349,7 @@ async function handleReviewFailure(card: RuntimeBoardCard, options: ReviewPipeli
 							{
 								...storyOrchComment,
 								createdAt: Date.now(),
-								summary: `[From orchestrator review of story "${card.title}"]\n\n${storyOrchComment.summary}`,
+								summary: `[From orchestrator review of story "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"]\n\n${storyOrchComment.summary}`,
 							},
 						],
 					});
@@ -370,7 +370,7 @@ async function handleReviewFailure(card: RuntimeBoardCard, options: ReviewPipeli
 	const destination = newAttempts >= maxAutoFixAttempts ? "blocked" : "reopened";
 
 	logger.info(
-		`[review] Review failed for "${card.title}" (attempt ${newAttempts}/${maxAutoFixAttempts}) → ${destination}`,
+		`[review] Review failed for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" (attempt ${newAttempts}/${maxAutoFixAttempts}) → ${destination}`,
 	);
 	await updateCard(workspaceId, card.id, { autoFixAttempts: newAttempts });
 	await moveCard(workspaceId, card.id, destination);
@@ -399,18 +399,19 @@ export function buildSecretsEnv(secrets: RuntimeProjectSecret[]): Record<string,
 async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipelineOptions): Promise<void> {
 	const { workspaceId, githubClient, stateHub, autoPR } = options;
 
-	logger.info(`[review] Review passed for "${card.title}" → ready for human review`);
+	const cardDesc60 = card.description?.split("\n")[0]?.slice(0, 60) ?? card.id;
+	logger.info(`[review] Review passed for "${cardDesc60}" → ready for human review`);
 
 	if (githubClient && card.githubIssueUrl) {
 		try {
-			logger.info(`[review] Posting GitHub comment on issue for "${card.title}"`);
+			logger.info(`[review] Posting GitHub comment on issue for "${cardDesc60}"`);
 			await githubClient.postComment(
 				card.githubIssueUrl,
-				`✅ AI review passed for task "${card.title}". Ready for human review.`,
+				`✅ AI review passed for task "${cardDesc60}". Ready for human review.`,
 			);
-			logger.info(`[review] GitHub comment posted for "${card.title}"`);
+			logger.info(`[review] GitHub comment posted for "${cardDesc60}"`);
 		} catch (err) {
-			logger.error({ err }, `[review] Failed to post GitHub comment for "${card.title}":`);
+			logger.error({ err }, `[review] Failed to post GitHub comment for "${cardDesc60}":`);
 		}
 	}
 
@@ -426,7 +427,7 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 		const taskBranch = getCardBranch(card);
 		const githubToken = options.secrets.find((s) => s.key === "GITHUB_TOKEN")?.value;
 		if (!githubToken) {
-			logger.warn(`[review] Auto PR skipped for "${card.title}" — GITHUB_TOKEN not set in project secrets`);
+			logger.warn(`[review] Auto PR skipped for "${cardDesc60}" — GITHUB_TOKEN not set in project secrets`);
 			await appendActivityLog(
 				workspaceId,
 				card.id,
@@ -436,12 +437,12 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 			return;
 		}
 		try {
-			logger.info(`[review] Auto PR: commit → push → create for "${card.title}" (branch: ${taskBranch})`);
-			await commitIfDirty(worktreePath, card.pr?.title ?? card.title);
+			logger.info(`[review] Auto PR: commit → push → create for "${cardDesc60}" (branch: ${taskBranch})`);
+			await commitIfDirty(worktreePath, card.pr?.title ?? card.description?.split("\n")[0]?.slice(0, 72) ?? card.id);
 			await pushBranch(worktreePath, taskBranch);
 			const devSummary =
 				[...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev")?.summary ?? card.description;
-			const prTitle = card.pr?.title ?? card.title;
+			const prTitle = card.pr?.title ?? card.description?.split("\n")[0]?.slice(0, 72) ?? card.id;
 			const prDescription = card.pr?.description ?? devSummary;
 			const prUrl = await createGithubPR(worktreePath, prTitle, prDescription, card.baseRef, githubToken);
 			logger.info(`[review] Auto PR created: ${prUrl}`);
@@ -456,7 +457,7 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 			}
 			await appendActivityLog(workspaceId, card.id, `Auto PR created → ${prUrl}`);
 		} catch (err) {
-			logger.error({ err }, `[review] Auto PR failed for "${card.title}":`);
+			logger.error({ err }, `[review] Auto PR failed for "${cardDesc60}":`);
 			await appendActivityLog(workspaceId, card.id, `Auto PR failed: ${String(err)}`);
 		}
 		stateHub.broadcastWorkspaceUpdate(workspaceId);
@@ -695,7 +696,7 @@ export function buildDevAgentSystemPrompt(
 			? `\n\n**Attached files** (use the Read tool to view each one):\n${card.descriptionAttachments?.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
 			: "";
 	parts.push(
-		`## Task: ${card.title}${card.description ? `\n\n${card.description}` : ""}${descAttachNote}${statSection}${context.text}`,
+		`## Task\n\n${card.description ?? ""}${descAttachNote}${statSection}${context.text}`,
 	);
 
 	if (parentCards.length > 0) {
@@ -703,7 +704,8 @@ export function buildDevAgentSystemPrompt(
 			.map((p) => {
 				const devComment = [...(p.reviewComments ?? [])].reverse().find((c) => c.type === "dev");
 				if (!devComment) return null;
-				return `### ${p.title}\n${devComment.summary}`;
+				const pDisplay = p.description?.split("\n")[0]?.slice(0, 60) ?? p.id;
+				return `### ${pDisplay}\n${devComment.summary}`;
 			})
 			.filter((s): s is string => s !== null);
 		if (parentSummaries.length > 0) {
@@ -718,7 +720,8 @@ export function buildDevAgentSystemPrompt(
 			.map((s) => {
 				const devComment = [...(s.reviewComments ?? [])].reverse().find((c) => c.type === "dev");
 				if (!devComment) return null;
-				return `### ${s.title}\n${devComment.summary}`;
+				const sDisplay = s.description?.split("\n")[0]?.slice(0, 60) ?? s.id;
+				return `### ${sDisplay}\n${devComment.summary}`;
 			})
 			.filter((s): s is string => s !== null);
 		if (siblingSummaries.length > 0) {
@@ -813,8 +816,7 @@ function buildCodeReviewSystemPrompt(
 	return `You are a senior code reviewer performing an automated review.
 
 ## Task to review
-"${card.title}"
-${card.description ? `\n${card.description}` : ""}${descAttachSection}${priorContext}
+${card.description ?? ""}${descAttachSection}${priorContext}
 
 ## Changed files
 ${stat}
@@ -864,8 +866,7 @@ function buildQASystemPrompt(
 	return `You are a QA engineer performing automated testing.
 
 ## Task to test
-"${card.title}"
-${card.description ? `\n${card.description}` : ""}${qaDescAttachSection}${priorContext}
+${card.description ?? ""}${qaDescAttachSection}${priorContext}
 
 ## Changed files
 ${stat}
@@ -908,7 +909,7 @@ function buildOrchSystemPrompt(
 	return `You are an Orchestrator agent. All subtasks for a story have finished their dev and review workflows. Your job is to decide whether the story goal has been fully and correctly met across all subtasks.
 
 ## Story
-**[${card.id}] ${card.title}**
+**[${card.id}]**
 ${card.description ? `\n${card.description}\n` : ""}
 ## Subtasks
 ${subtaskIds.length > 0 ? subtaskIds.map((id) => `- ${id}`).join("\n") : "(none)"}
@@ -921,7 +922,7 @@ ${diffSection}
 
 ## Step 1 — Read the board and inspect the code
 Call \`kanban_get_board\` to get the current state of all cards. For each subtask ID listed above, examine:
-- Its **title and description** (what it was supposed to do)
+- Its **description** (what it was supposed to do)
 - Its **review comments** (what was actually built, any CR/QA findings, and how issues were resolved)
 
 The diff above shows the combined changes for this story's shared worktree. You may also use your tools (Read, grep) to inspect specific files and verify the implementation matches the story goal. If the diff is large, use \`git diff ${card.baseRef}...HEAD\` to explore.
@@ -990,8 +991,7 @@ function buildCustomSystemPrompt(
 	return `You are ${slot.name}, an automated review agent.
 
 ## Task to review
-"${card.title}"
-${card.description ? `\n${card.description}` : ""}${priorContext}
+${card.description ?? ""}${priorContext}
 
 ## Changed files
 ${stat}
@@ -1088,7 +1088,7 @@ export async function runParentReopenCascade(
 	const parentBranch = getCardBranch(parentCard);
 	const systemPrompt = buildCascadeSystemPrompt(parentCard, parentBranch, childCards);
 
-	logger.info(`[cascade] Spawning cascade agent for parent "${parentCard.title}" (${childCards.length} children)`);
+	logger.info(`[cascade] Spawning cascade agent for parent "${parentCard.description?.split("\n")[0]?.slice(0, 60) ?? parentCard.id}" (${childCards.length} children)`);
 
 	await appendTerminalSession(workspaceId, parentCard.id, {
 		streamId,
@@ -1115,7 +1115,7 @@ export async function runParentReopenCascade(
 	);
 
 	await endTerminalSession(workspaceId, parentCard.id, streamId, Date.now(), "completed");
-	logger.info(`[cascade] Cascade agent done for parent "${parentCard.title}"`);
+	logger.info(`[cascade] Cascade agent done for parent "${parentCard.description?.split("\n")[0]?.slice(0, 60) ?? parentCard.id}"`);
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 	// Recursively cascade on any children that were reset to todo
@@ -1123,7 +1123,7 @@ export async function runParentReopenCascade(
 		const afterBoard = await loadBoard(workspaceId);
 		const resetChildren = childCards.filter((child) => afterBoard.cards[child.id]?.columnId === "todo");
 		for (const child of resetChildren) {
-			logger.info(`[cascade] Recursing into reset child "${child.title}"`);
+			logger.info(`[cascade] Recursing into reset child "${child.description?.split("\n")[0]?.slice(0, 60) ?? child.id}"`);
 			await options.onChildReset(child);
 		}
 	}
@@ -1159,8 +1159,9 @@ function buildCascadeSystemPrompt(
 	const childLines = childCards
 		.map((child) => {
 			const devComment = [...(child.reviewComments ?? [])].reverse().find((c) => c.type === "dev");
+			const childDisplay = child.description?.split("\n")[0]?.slice(0, 80) ?? child.id;
 			return [
-				`### [${child.id}] ${child.title} (${child.columnId})`,
+				`### [${child.id}] ${childDisplay} (${child.columnId})`,
 				devComment ? `Dev summary: ${devComment.summary}` : "No dev work completed yet.",
 			].join("\n");
 		})
@@ -1173,7 +1174,7 @@ All data you need is already provided below — do NOT call \`kanban_get_board\`
 
 ## Parent Task (Reopened)
 
-**[${parentCard.id}] ${parentCard.title}**
+**[${parentCard.id}]**
 ${parentCard.description ? `\n${parentCard.description}\n` : ""}
 **Reason for reopening (= the parent's new direction, not yet implemented):** ${reopenReason}
 ${allDevSummaries ? `\nParent's full dev history (OLD state — do NOT use this to judge conflicts, use the reopening reason above):\n${allDevSummaries}\n` : ""}

@@ -9,11 +9,9 @@ function sanitizeChannelName(name: string): string {
 }
 
 function cardMessage(card: RuntimeBoardCard, done = false): string {
-	const title = done ? `~${card.title}~` : `*${card.title}*`;
-	const desc = card.description?.trim();
-	if (!desc) return title;
+	const desc = card.description?.trim() ?? card.id;
 	const snippet = desc.length > 300 ? `${desc.slice(0, 300)}…` : desc;
-	return done ? `~${card.title}~\n~${snippet}~` : `*${card.title}*\n${snippet}`;
+	return done ? `~${snippet}~` : snippet;
 }
 
 

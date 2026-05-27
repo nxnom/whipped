@@ -79,7 +79,7 @@ export function DashboardPage({ workspaceId }: Props) {
 										<div className="flex items-center gap-3">
 											<span className="size-2 rounded-full bg-blue-400 animate-pulse" />
 											<div>
-												<p className="text-sm text-gray-100">{card.title}</p>
+												<p className="text-sm text-gray-100">{card.description?.split("\n")[0] ?? card.id}</p>
 												<p className="text-xs text-gray-500 mt-0.5">
 													{card.terminalSessions?.find((ts) => !ts.endedAt)?.agentId} · running
 												</p>

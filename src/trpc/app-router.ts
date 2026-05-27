@@ -529,7 +529,7 @@ export const appRouter = router({
 					const ownerCard = prBoard.cards[card.sharedWorktreeId ?? cardId];
 					const devSummary =
 						[...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev")?.summary ?? card.description;
-					const prTitle = ownerCard?.pr?.title ?? card.pr?.title ?? ownerCard?.title ?? card.title;
+					const prTitle = ownerCard?.pr?.title ?? card.pr?.title ?? (ownerCard ?? card).description?.split("\n")[0]?.slice(0, 72) ?? cardId;
 					const prDescription = ownerCard?.pr?.description ?? card.pr?.description ?? devSummary;
 
 					try {
@@ -1164,8 +1164,7 @@ export const appRouter = router({
 					const card = await createCard(
 						input.workspaceId,
 						{
-							title: `[${ticket.key}] ${ticket.summary}`,
-							description,
+							description: `[${ticket.key}] ${ticket.summary}\n\n${description}`.trim(),
 							jiraKey: ticket.key,
 							jiraUrl: ticket.url,
 						},

@@ -122,14 +122,16 @@ export function KanbanCard({
 
 						<div className="flex items-start justify-between gap-2">
 							<p className={`text-sm font-medium leading-snug flex-1 ${isStory ? "text-purple-100" : "text-gray-100"}`}>
-								{card.title}
+								{card.description?.split("\n")[0] ?? card.id}
 							</p>
 							<div className="flex items-center gap-1 shrink-0">
 								{isRunning && <span className="mt-0.5 size-2 rounded-full bg-blue-400 animate-pulse" />}
 							</div>
 						</div>
 
-						{card.description && <p className="mt-1.5 text-xs text-gray-400 line-clamp-2">{card.description}</p>}
+						{card.description && card.description.includes("\n") && (
+							<p className="mt-1.5 text-xs text-gray-400 line-clamp-2">{card.description.split("\n").slice(1).join("\n").trim()}</p>
+						)}
 
 						{/* Story progress bar */}
 						{isStory && deps.length > 0 && (

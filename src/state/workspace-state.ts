@@ -322,7 +322,7 @@ export async function moveCard(
 
 export async function createCard(
 	workspaceId: string,
-	data: Pick<RuntimeBoardCard, "title" | "description"> &
+	data: Pick<RuntimeBoardCard, "description"> &
 		Partial<
 			Pick<
 				RuntimeBoardCard,
@@ -351,7 +351,6 @@ export async function createCard(
 
 		const card: RuntimeBoardCard = {
 			id,
-			title: data.title,
 			description: data.description,
 			columnId: data.columnId ?? "todo",
 			type,
@@ -578,7 +577,6 @@ export async function updateCard(
 		Pick<
 			RuntimeBoardCard,
 			| "type"
-			| "title"
 			| "description"
 			| "descriptionAttachments"
 			| "agentId"

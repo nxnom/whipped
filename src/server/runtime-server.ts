@@ -53,7 +53,7 @@ async function cleanupStaleTasks(workspaceId: string, hub: RuntimeStateHub): Pro
 	for (const taskId of taskIds) {
 		const card = board.cards[taskId];
 		if (!card) continue;
-		logger.info(`[server] Cleanup stale in-progress task "${card.title}" → todo`);
+		logger.info(`[server] Cleanup stale in-progress task "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" → todo`);
 		await moveCard(workspaceId, taskId, "todo");
 		await appendActivityLog(workspaceId, taskId, "Server stopped — task interrupted, moved back to Todo");
 	}
@@ -183,7 +183,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 		function startReview(card: RuntimeBoardCard): void {
 			if (activeReviews.has(card.id)) return;
 			activeReviews.add(card.id);
-			logger.info(`[server] Starting review pipeline for "${card.title}"`);
+			logger.info(`[server] Starting review pipeline for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`);
 
 			(async () => {
 				const latestConfig = await loadGlobalConfig(); // reload fresh each review
@@ -217,7 +217,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 					registerLiveProcess: scheduler.registerLiveProcess.bind(scheduler),
 				});
 			})()
-				.catch((err) => logger.error({ err }, `[server] Review pipeline error for "${card.title}":`))
+				.catch((err) => logger.error({ err }, `[server] Review pipeline error for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}":`))
 				.finally(() => activeReviews.delete(card.id));
 		}
 
@@ -395,7 +395,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 						) {
 							const text = event.text.trim();
 							const found = await slackNotifier.findCardByThreadTs(event.thread_ts);
-							if (found) logger.info(`[slack] Thread reply → "${found.card.title}"`);
+							if (found) logger.info(`[slack] Thread reply → "${found.card.description?.split("\n")[0]?.slice(0, 60) ?? found.card.id}"`);
 							if (found) {
 								const { workspaceId, card } = found;
 								if (card.columnId === "done") {
@@ -447,7 +447,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 					await moveCard(workspaceId, card.id, "reopened");
 					stateHub.broadcastWorkspaceUpdate(workspaceId);
 					res.writeHead(200, { "Content-Type": "application/json" });
-					res.end(JSON.stringify({ response_type: "in_channel", text: `:arrows_counterclockwise: Ticket reopened: *${card.title}*` }));
+					res.end(JSON.stringify({ response_type: "in_channel", text: `:arrows_counterclockwise: Ticket reopened: *${card.description?.split("\n")[0]?.slice(0, 80) ?? card.id}*` }));
 					return;
 				}
 

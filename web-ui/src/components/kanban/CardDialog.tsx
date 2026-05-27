@@ -57,7 +57,7 @@ export function CardDialog({ card, workspaceId, onClose, onRefresh }: Props) {
 				onClick={(e) => e.stopPropagation()}
 			>
 				<div className="flex items-start justify-between gap-3 mb-3">
-					<h3 className="text-base font-semibold text-gray-100">{card.title}</h3>
+					<h3 className="text-base font-semibold text-gray-100">{card.description?.split("\n")[0] ?? card.id}</h3>
 					<button onClick={onClose} className="text-gray-500 hover:text-gray-300 shrink-0 mt-0.5">
 						<X size={16} />
 					</button>

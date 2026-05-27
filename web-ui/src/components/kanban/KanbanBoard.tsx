@@ -76,7 +76,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
 	const handleCardDelete = (card: RuntimeBoardCard) => {
 		ConfirmDialog.show({
 			title: "Delete task?",
-			content: `"${card.title}" will be permanently deleted.`,
+			content: `"${card.description?.split("\n")[0] ?? card.id}" will be permanently deleted.`,
 			confirmButtonLabel: "Delete",
 			cancelButtonLabel: "Cancel",
 			onConfirm: async ({ dismiss }) => {
@@ -410,7 +410,6 @@ function CreateCardContent({
 }) {
 	const taskWorkflows = workflows.filter((w) => !w.forStory);
 	const defaultWorkflow = taskWorkflows.find((w) => w.isDefault) ?? taskWorkflows[0];
-	const [title, setTitle] = useState("");
 	const [description, setDescription] = useState("");
 	const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
 	const [priority, setPriority] = useState<string>("");
@@ -434,13 +433,12 @@ function CreateCardContent({
 	}, [workspaceId]);
 
 	const handleCreate = async () => {
-		if (!title.trim()) return;
+		if (!description.trim()) return;
 		setLoading(true);
 		try {
 			const card = await trpc.cards.create.mutate({
 				workspaceId,
-				title: title.trim(),
-				description,
+				description: description.trim(),
 				priority: (priority as "urgent" | "high" | "medium" | "low" | undefined) || undefined,
 				readyForDev: readyForDev || undefined,
 				dependsOn: dependsOn.length > 0 ? dependsOn : undefined,
@@ -467,37 +465,17 @@ function CreateCardContent({
 
 			<div className="space-y-3">
 				<div>
-					<label className="text-xs text-gray-400 block mb-1">Title</label>
-					<Input
+					<label className="text-xs text-gray-400 block mb-1">Description <span className="text-gray-600">(first line is the display title)</span></label>
+					<Textarea
 						autoFocus
-						value={title}
+						value={description}
 						onChange={(e) => {
 							const v = e.target.value;
-							setTitle(v);
+							setDescription(v);
 							if (!branchNameEdited) {
-								setBranchName(deriveBranchName(v));
+								setBranchName(deriveBranchName(v.split("\n")[0] ?? ""));
 							}
 						}}
-						onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleCreate()}
-						placeholder="Task title..."
-					/>
-				</div>
-				<div>
-					<label className="text-xs text-gray-400 block mb-1">Branch Name</label>
-					<Input
-						value={branchName}
-						onChange={(e) => {
-							setBranchName(e.target.value);
-							setBranchNameEdited(true);
-						}}
-						placeholder="feat/auto-generated-from-title"
-					/>
-				</div>
-				<div>
-					<label className="text-xs text-gray-400 block mb-1">Description</label>
-					<Textarea
-						value={description}
-						onChange={(e) => setDescription(e.target.value)}
 						onPaste={(e) => {
 							const files = Array.from(e.clipboardData.files);
 							if (files.length) {
@@ -513,10 +491,21 @@ function CreateCardContent({
 								});
 							}
 						}}
-						placeholder="Describe what needs to be done..."
+						placeholder="First line is the task title. Add details below..."
 						rows={4}
 					/>
 					<ImagePicker pending={pendingImages} onChange={setPendingImages} />
+				</div>
+				<div>
+					<label className="text-xs text-gray-400 block mb-1">Branch Name</label>
+					<Input
+						value={branchName}
+						onChange={(e) => {
+							setBranchName(e.target.value);
+							setBranchNameEdited(true);
+						}}
+						placeholder="feat/auto-generated-from-description"
+					/>
 				</div>
 				<div className="grid grid-cols-2 gap-3">
 					<div>
@@ -555,24 +544,27 @@ function CreateCardContent({
 					<Select multiple value={dependsOn} onChange={(v) => setDependsOn(v)} placeholder="None" filterable clearable>
 						{Object.values(allCards)
 							.filter((c) => c.columnId !== "done")
-							.map((c) => (
-								<SelectOption
-									key={c.id}
-									value={c.id}
-									label={c.title}
-									hideCheckIcon
-									className={({ selected }) => (selected ? "bg-gray-700" : "")}
-								>
-									<div className="flex items-center justify-between w-full gap-2 min-w-0">
-										<span className="truncate text-sm">{c.title}</span>
-										<span
-											className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700"}`}
-										>
-											{COLUMN_LABEL[c.columnId] ?? c.columnId}
-										</span>
-									</div>
-								</SelectOption>
-							))}
+							.map((c) => {
+								const cDisplay = c.description?.split("\n")[0] ?? c.id;
+								return (
+									<SelectOption
+										key={c.id}
+										value={c.id}
+										label={cDisplay}
+										hideCheckIcon
+										className={({ selected }) => (selected ? "bg-gray-700" : "")}
+									>
+										<div className="flex items-center justify-between w-full gap-2 min-w-0">
+											<span className="truncate text-sm">{cDisplay}</span>
+											<span
+												className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700"}`}
+											>
+												{COLUMN_LABEL[c.columnId] ?? c.columnId}
+											</span>
+										</div>
+									</SelectOption>
+								);
+							})}
 					</Select>
 				</div>
 				<div className="flex items-center justify-between py-1">
@@ -588,7 +580,7 @@ function CreateCardContent({
 				<Button variant="ghost" onClick={dismiss}>
 					Cancel
 				</Button>
-				<Button onClick={handleCreate} disabled={!title.trim() || loading || taskWorkflows.length === 0}>
+				<Button onClick={handleCreate} disabled={!description.trim() || loading || taskWorkflows.length === 0}>
 					{loading ? "Creating..." : "Create"}
 				</Button>
 			</div>
@@ -616,7 +608,6 @@ function EditCardContent({
 
 	const canEditBranch = !isStory && !card.worktreePath;
 
-	const [title, setTitle] = useState(card.title);
 	const [description, setDescription] = useState(card.description);
 	const [existingAttachments, setExistingAttachments] = useState(card.descriptionAttachments ?? []);
 	const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
@@ -639,14 +630,13 @@ function EditCardContent({
 	});
 
 	const handleSave = async () => {
-		if (!title.trim()) return;
+		if (!description?.trim()) return;
 		setLoading(true);
 		try {
 			const newUploads = pendingImages.length > 0 ? await uploadImages(workspaceId, card.id, pendingImages) : [];
 			await trpc.cards.update.mutate({
 				workspaceId,
 				cardId: card.id,
-				title: title.trim(),
 				description,
 				descriptionAttachments: [...existingAttachments, ...newUploads],
 				priority: (priority as "urgent" | "high" | "medium" | "low" | undefined) || undefined,
@@ -672,38 +662,17 @@ function EditCardContent({
 
 			<div className="space-y-3">
 				<div>
-					<label className="text-xs text-gray-400 block mb-1">Title</label>
-					<Input
+					<label className="text-xs text-gray-400 block mb-1">Description <span className="text-gray-600">(first line is the display title)</span></label>
+					<Textarea
 						autoFocus
-						value={title}
+						value={description}
 						onChange={(e) => {
 							const v = e.target.value;
-							setTitle(v);
+							setDescription(v);
 							if (canEditBranch && !branchNameEdited) {
-								setBranchName(deriveBranchName(v));
+								setBranchName(deriveBranchName(v.split("\n")[0] ?? ""));
 							}
 						}}
-						onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSave()}
-					/>
-				</div>
-				{canEditBranch && (
-					<div>
-						<label className="text-xs text-gray-400 block mb-1">Branch Name</label>
-						<Input
-							value={branchName}
-							onChange={(e) => {
-								setBranchName(e.target.value);
-								setBranchNameEdited(true);
-							}}
-							placeholder="feat/auto-generated-from-title"
-						/>
-					</div>
-				)}
-				<div>
-					<label className="text-xs text-gray-400 block mb-1">Description</label>
-					<Textarea
-						value={description}
-						onChange={(e) => setDescription(e.target.value)}
 						onPaste={(e) => {
 							const files = Array.from(e.clipboardData.files);
 							if (files.length) {
@@ -742,6 +711,19 @@ function EditCardContent({
 					)}
 					<ImagePicker pending={pendingImages} onChange={setPendingImages} />
 				</div>
+				{canEditBranch && (
+					<div>
+						<label className="text-xs text-gray-400 block mb-1">Branch Name</label>
+						<Input
+							value={branchName}
+							onChange={(e) => {
+								setBranchName(e.target.value);
+								setBranchNameEdited(true);
+							}}
+							placeholder="feat/auto-generated-from-description"
+						/>
+					</div>
+				)}
 				<div className="grid grid-cols-2 gap-3">
 					<div>
 						<label className="text-xs text-gray-400 block mb-1">Priority</label>
@@ -772,16 +754,18 @@ function EditCardContent({
 							filterable
 							clearable
 						>
-							{depsCardPool.map((c) => (
+							{depsCardPool.map((c) => {
+								const cDisplay = c.description?.split("\n")[0] ?? c.id;
+								return (
 								<SelectOption
 									key={c.id}
 									value={c.id}
-									label={c.title}
+									label={cDisplay}
 									hideCheckIcon
 									className={({ selected }: { selected: boolean }) => (selected ? "bg-gray-700" : "")}
 								>
 									<div className="flex items-center justify-between w-full gap-2 min-w-0">
-										<span className="truncate text-sm">{c.title}</span>
+										<span className="truncate text-sm">{cDisplay}</span>
 										<span
 											className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700"}`}
 										>
@@ -789,7 +773,8 @@ function EditCardContent({
 										</span>
 									</div>
 								</SelectOption>
-							))}
+								);
+							})}
 						</Select>
 					</div>
 				)}
@@ -799,7 +784,7 @@ function EditCardContent({
 				<Button variant="ghost" onClick={dismiss}>
 					Cancel
 				</Button>
-				<Button onClick={handleSave} disabled={!title.trim() || loading}>
+				<Button onClick={handleSave} disabled={!description?.trim() || loading}>
 					{loading ? "Saving..." : "Save"}
 				</Button>
 			</div>

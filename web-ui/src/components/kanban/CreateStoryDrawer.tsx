@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BranchSelect } from "@/components/BranchSelect";
 import { trpc } from "@/runtime/trpc-client";
-import { deriveBranchName } from "@/utils/branch";
 
 interface PendingImage {
 	dataUrl: string | null;
@@ -121,7 +120,6 @@ const COLUMN_LABEL: Record<string, string> = {
 
 export interface SubtaskDraft {
 	tempId: string;
-	title: string;
 	description: string;
 	priority: string;
 	baseRef: string;
@@ -153,7 +151,6 @@ export function CreateStoryDrawer({
 	const storyWorkflows = workflows.filter((w) => w.forStory);
 	const defaultStoryWorkflow = storyWorkflows.find((w) => w.isDefault) ?? storyWorkflows[0];
 
-	const [title, setTitle] = useState("");
 	const [description, setDescription] = useState("");
 	const [storyPendingImages, setStoryPendingImages] = useState<PendingImage[]>([]);
 	const [priority, setPriority] = useState("");
@@ -178,7 +175,6 @@ export function CreateStoryDrawer({
 	}, [open, workspaceId]);
 
 	const handleClose = () => {
-		setTitle("");
 		setDescription("");
 		setStoryPendingImages([]);
 		setPriority("");
@@ -213,7 +209,7 @@ export function CreateStoryDrawer({
 	};
 
 	const handleCreate = async () => {
-		if (!title.trim() || subtasks.length === 0) return;
+		if (!description.trim() || subtasks.length === 0) return;
 		setLoading(true);
 		try {
 			// Pass 1: create all subtasks without intra-batch deps, build tempId → realId map
@@ -224,8 +220,7 @@ export function CreateStoryDrawer({
 				const existingDeps = subtask.dependsOn.filter((dep) => !subtasks.some((s) => s.tempId === dep));
 				const card = await trpc.cards.create.mutate({
 					workspaceId,
-					title: subtask.title.trim(),
-					description: subtask.description,
+					description: subtask.description.trim(),
 					type: "subtask",
 					priority: (subtask.priority as "urgent" | "high" | "medium" | "low") || undefined,
 					baseRef: subtask.baseRef || baseRef || undefined,
@@ -264,8 +259,7 @@ export function CreateStoryDrawer({
 			// Create the story card depending on all subtasks
 			const storyCard = await trpc.cards.create.mutate({
 				workspaceId,
-				title: title.trim(),
-				description,
+				description: description.trim(),
 				type: "story",
 				priority: (priority as "urgent" | "high" | "medium" | "low") || undefined,
 				baseRef: baseRef || undefined,
@@ -331,12 +325,9 @@ export function CreateStoryDrawer({
 					<div className="space-y-3">
 						<p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Story</p>
 						<div>
-							<label className="text-xs text-gray-400 block mb-1">Title</label>
-							<Input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Story title..." />
-						</div>
-						<div>
 							<label className="text-xs text-gray-400 block mb-1">Description</label>
 							<Textarea
+								autoFocus
 								value={description}
 								onChange={(e) => setDescription(e.target.value)}
 								placeholder="What does this story accomplish?"
@@ -407,8 +398,8 @@ export function CreateStoryDrawer({
 								{subtasks.map((subtask, i) => {
 									const depLabels = subtask.dependsOn.map((dep) => {
 										const draft = subtasks.find((s) => s.tempId === dep);
-										if (draft) return draft.title;
-										return allCards[dep]?.title ?? dep;
+										if (draft) return draft.description?.split("\n")[0] || draft.tempId;
+										return allCards[dep]?.description?.split("\n")[0] ?? dep;
 									});
 									return (
 										<div
@@ -417,7 +408,7 @@ export function CreateStoryDrawer({
 										>
 											<span className="text-xs text-gray-600 shrink-0 w-4">{i + 1}.</span>
 											<div className="flex-1 min-w-0">
-												<p className="text-sm text-gray-200 truncate">{subtask.title}</p>
+												<p className="text-sm text-gray-200 truncate">{subtask.description?.split("\n")[0] || subtask.tempId}</p>
 												<div className="flex items-center gap-2 mt-0.5 flex-wrap">
 													{subtask.priority && <span className="text-xs text-gray-500">{subtask.priority}</span>}
 													{depLabels.length > 0 && (
@@ -453,7 +444,7 @@ export function CreateStoryDrawer({
 					<Button variant="ghost" onClick={handleClose}>
 						Cancel
 					</Button>
-					<Button onClick={handleCreate} disabled={!title.trim() || subtasks.length === 0 || loading || storyWorkflows.length === 0}>
+					<Button onClick={handleCreate} disabled={!description.trim() || subtasks.length === 0 || loading || storyWorkflows.length === 0}>
 						{loading ? "Creating..." : "Create Story"}
 					</Button>
 				</div>
@@ -503,7 +494,6 @@ export function AddSubtaskDrawer({
 	const taskWorkflows = workflows.filter((w) => !w.forStory);
 	const defaultWorkflow = taskWorkflows.find((w) => w.isDefault) ?? taskWorkflows[0];
 
-	const [title, setTitle] = useState("");
 	const [description, setDescription] = useState("");
 	const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
 	const [priority, setPriority] = useState("");
@@ -517,7 +507,6 @@ export function AddSubtaskDrawer({
 	useEffect(() => {
 		if (open) {
 			if (editingSubtask) {
-				setTitle(editingSubtask.title);
 				setDescription(editingSubtask.description);
 				setPendingImages(editingSubtask.pendingImages);
 				setPriority(editingSubtask.priority);
@@ -527,7 +516,6 @@ export function AddSubtaskDrawer({
 				setBranchName(editingSubtask.branchName || "");
 				setBranchNameEdited(!!editingSubtask.branchName);
 			} else {
-				setTitle("");
 				setDescription("");
 				setPendingImages([]);
 				setPriority("");
@@ -545,10 +533,9 @@ export function AddSubtaskDrawer({
 	};
 
 	const handleSave = () => {
-		if (!title.trim()) return;
+		if (!description.trim()) return;
 		onSave({
 			tempId: editingSubtask?.tempId ?? `draft-${Date.now()}-${Math.random()}`,
-			title: title.trim(),
 			description,
 			pendingImages,
 			priority,
@@ -586,22 +573,6 @@ export function AddSubtaskDrawer({
 				onPaste={(e) => addFilesFromClipboard(e, setPendingImages)}
 			>
 				<div>
-					<label className="text-xs text-gray-400 block mb-1">Title</label>
-					<Input
-						autoFocus
-						value={title}
-						onChange={(e) => {
-							const v = e.target.value;
-							setTitle(v);
-							if (!branchNameEdited) {
-								setBranchName(deriveBranchName(v));
-							}
-						}}
-						onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSave()}
-						placeholder="Subtask title..."
-					/>
-				</div>
-				<div>
 					<label className="text-xs text-gray-400 block mb-1">Branch Name</label>
 					<Input
 						value={branchName}
@@ -609,12 +580,13 @@ export function AddSubtaskDrawer({
 							setBranchName(e.target.value);
 							setBranchNameEdited(true);
 						}}
-						placeholder="feat/auto-generated-from-title"
+						placeholder="feat/auto-generated"
 					/>
 				</div>
 				<div>
 					<label className="text-xs text-gray-400 block mb-1">Description</label>
 					<Textarea
+						autoFocus
 						value={description}
 						onChange={(e) => setDescription(e.target.value)}
 						placeholder="Describe what needs to be done..."
@@ -649,33 +621,38 @@ export function AddSubtaskDrawer({
 					<label className="text-xs text-gray-400 block mb-1">Depends on</label>
 					<Select multiple value={dependsOn} onChange={(v) => setDependsOn(v)} placeholder="None" filterable clearable>
 						{/* Other drafts in this story batch */}
-						{otherDrafts.map((draft) => (
+						{otherDrafts.map((draft) => {
+							const draftDisplay = draft.description?.split("\n")[0] || draft.tempId;
+							return (
 							<SelectOption
 								key={draft.tempId}
 								value={draft.tempId}
-								label={draft.title}
+								label={draftDisplay}
 								hideCheckIcon
 								className={({ selected }) => (selected ? "bg-gray-700" : "")}
 							>
 								<div className="flex items-center justify-between w-full gap-2 min-w-0">
-									<span className="truncate text-sm">{draft.title}</span>
+									<span className="truncate text-sm">{draftDisplay}</span>
 									<span className="text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium text-purple-400 bg-purple-400/10">
 										this story
 									</span>
 								</div>
 							</SelectOption>
-						))}
+							);
+						})}
 						{/* Existing board cards */}
-						{boardCardPool.map((c) => (
+						{boardCardPool.map((c) => {
+							const cDisplay = c.description?.split("\n")[0] ?? c.id;
+							return (
 							<SelectOption
 								key={c.id}
 								value={c.id}
-								label={c.title}
+								label={cDisplay}
 								hideCheckIcon
 								className={({ selected }) => (selected ? "bg-gray-700" : "")}
 							>
 								<div className="flex items-center justify-between w-full gap-2 min-w-0">
-									<span className="truncate text-sm">{c.title}</span>
+									<span className="truncate text-sm">{cDisplay}</span>
 									<span
 										className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700"}`}
 									>
@@ -683,7 +660,8 @@ export function AddSubtaskDrawer({
 									</span>
 								</div>
 							</SelectOption>
-						))}
+							);
+						})}
 					</Select>
 				</div>
 			</div>
@@ -692,7 +670,7 @@ export function AddSubtaskDrawer({
 				<Button variant="ghost" onClick={handleClose}>
 					Cancel
 				</Button>
-				<Button onClick={handleSave} disabled={!title.trim()}>
+				<Button onClick={handleSave} disabled={!description.trim()}>
 					{isEditing ? "Save Changes" : "Add Subtask"}
 				</Button>
 			</div>

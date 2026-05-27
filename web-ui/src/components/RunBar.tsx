@@ -25,7 +25,7 @@ export function RunBar({ workspaceId }: RunBarProps) {
 			.query({ workspaceId })
 			.then((s) => {
 				const card = s.board.cards[session.cardId!];
-				setCardTitle(card?.title ?? session.cardId!);
+				setCardTitle((card?.description?.split("\n")[0]) ?? session.cardId!);
 				setCardAgentId(card?.agentId ?? null);
 			})
 			.catch(() => setCardTitle(session.cardId));

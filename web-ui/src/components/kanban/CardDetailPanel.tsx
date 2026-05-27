@@ -476,7 +476,7 @@ export function CardDetailPanel({
 						<span className="text-xs text-[#2a2a35]">/</span>
 					</>
 				)}
-				<span className="text-[13px] font-semibold text-[#f0f0f5] truncate">{card.title}</span>
+				<span className="text-[13px] font-semibold text-[#f0f0f5] truncate">{card.description?.split("\n")[0] ?? card.id}</span>
 				<div className="flex-1" />
 				{card.jiraKey && (
 					<span className="text-[10px] font-mono text-[#4a4a5a]">{card.jiraKey}</span>
@@ -866,7 +866,7 @@ export function CardDetailPanel({
 												key={depId}
 												className="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-[#1a1a1f] border border-[#2a2a35]"
 											>
-												<span className="text-xs text-gray-300 truncate">{dep.title}</span>
+												<span className="text-xs text-gray-300 truncate">{dep.description?.split("\n")[0] ?? dep.id}</span>
 												<span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${DEP_COL_BADGE[dep.columnId] ?? "text-gray-400 bg-gray-700"}`}>
 													{COLUMN_LABELS[dep.columnId] ?? dep.columnId}
 												</span>

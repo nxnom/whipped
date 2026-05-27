@@ -86,7 +86,7 @@ server.registerTool(
 				string,
 				{
 					id: string;
-					title: string;
+					title?: string;
 					description: string;
 					columnId: string;
 					type?: string;
@@ -107,7 +107,8 @@ server.registerTool(
 				const priorityTag = card.priority ? ` [${card.priority}]` : "";
 				const depsTag =
 					card.dependsOn && card.dependsOn.length > 0 ? ` (depends on: ${card.dependsOn.join(", ")})` : "";
-				lines.push(`- [${id}]${typeTag} ${card.title}${priorityTag}${depsTag}`);
+				const cardDisplay = (card.description?.split("\n")[0] ?? "").slice(0, 80) || id;
+				lines.push(`- [${id}]${typeTag} ${cardDisplay}${priorityTag}${depsTag}`);
 				if (card.type === "story" && card.dependsOn && card.dependsOn.length > 0) {
 					const met = card.dependsOn.filter((depId) => {
 						const dep = board.cards[depId];
@@ -131,10 +132,9 @@ Creates all subtasks first, then the story card that depends on them. The story 
 
 **Intra-batch dependencies:** If subtask B should run after subtask A (both in this batch), give subtask A a \`tempId\` (e.g. "auth") and list that tempId in subtask B's \`dependsOn\`. The real card IDs are wired up automatically after creation.`,
 		inputSchema: {
-			title: z.string().describe("Story title — short description of the overall goal"),
 			description: z
 				.string()
-				.describe("Story description — what this story accomplishes as a whole, including acceptance criteria"),
+				.describe("Story description — what this story accomplishes as a whole, including acceptance criteria. The first line serves as the story title."),
 			priority: z.enum(["urgent", "high", "medium", "low"]).optional().describe("Story priority"),
 			workflowId: z
 				.string()
@@ -157,8 +157,7 @@ Creates all subtasks first, then the story card that depends on them. The story 
 							.describe(
 								"Short label to reference this subtask from other subtasks' dependsOn in this batch (e.g. 'auth', 'db-schema'). Not stored — only used for wiring up intra-batch deps.",
 							),
-						title: z.string().describe("Subtask title"),
-						description: z.string().describe("Subtask description with acceptance criteria"),
+						description: z.string().describe("Subtask description with acceptance criteria. The first line serves as the subtask title."),
 						priority: z.enum(["urgent", "high", "medium", "low"]).optional().describe("Subtask priority"),
 						workflowId: z
 							.string()
@@ -169,7 +168,7 @@ Creates all subtasks first, then the story card that depends on them. The story 
 							.string()
 							.optional()
 							.describe(
-								"Custom git branch name for this subtask (e.g. 'fix/user-auth-bug', 'feat/dark-mode'). Use dashes, not underscores. Omit to auto-generate from title.",
+								"Custom git branch name for this subtask (e.g. 'fix/user-auth-bug', 'feat/dark-mode'). Use dashes, not underscores. Omit to auto-generate from description.",
 							),
 						dependsOn: z
 							.array(z.string())
@@ -189,17 +188,16 @@ Creates all subtasks first, then the story card that depends on them. The story 
 				),
 		},
 	},
-	async ({ title, description, priority, workflowId, baseRef, attachments, subtasks }) => {
+	async ({ description, priority, workflowId, baseRef, attachments, subtasks }) => {
 		// Pass 1: create all subtasks without intra-batch deps, build tempId → realId map
 		const tempIdToRealId = new Map<string, string>();
-		const createdSubtasks: Array<{ realId: string; title: string; rawDeps: string[] }> = [];
+		const createdSubtasks: Array<{ realId: string; descFirst: string; rawDeps: string[] }> = [];
 
 		for (const subtask of subtasks) {
 			// Only pass existing board card IDs in this first pass — tempId refs aren't real yet
 			const existingDeps = (subtask.dependsOn ?? []).filter((dep) => !subtasks.some((s) => s.tempId === dep));
-			const card = await trpc<{ id: string; title: string }>("cards.create", {
+			const card = await trpc<{ id: string }>("cards.create", {
 				workspaceId,
-				title: subtask.title,
 				description: subtask.description,
 				type: "subtask",
 				priority: subtask.priority,
@@ -216,7 +214,7 @@ Creates all subtasks first, then the story card that depends on them. The story 
 				}
 			}
 			if (subtask.tempId) tempIdToRealId.set(subtask.tempId, card.id);
-			createdSubtasks.push({ realId: card.id, title: subtask.title, rawDeps: subtask.dependsOn ?? [] });
+			createdSubtasks.push({ realId: card.id, descFirst: subtask.description.split("\n")[0] ?? "", rawDeps: subtask.dependsOn ?? [] });
 		}
 
 		// Pass 2: wire up any intra-batch tempId deps that are now resolvable
@@ -235,9 +233,8 @@ Creates all subtasks first, then the story card that depends on them. The story 
 
 		// Create the story card depending on all subtasks
 		const subtaskIds = createdSubtasks.map((s) => s.realId);
-		const storyCard = await trpc<{ id: string; title: string }>("cards.create", {
+		const storyCard = await trpc<{ id: string }>("cards.create", {
 			workspaceId,
-			title,
 			description,
 			type: "story",
 			priority,
@@ -268,8 +265,9 @@ Creates all subtasks first, then the story card that depends on them. The story 
 			});
 		}
 
-		const lines = [`Created story [${storyCard.id}] "${title}" with ${subtaskIds.length} subtask(s):`];
-		for (const { realId, title: st } of createdSubtasks) lines.push(`  Subtask [${realId}] "${st}"`);
+		const storyDisplay = description.split("\n")[0]?.slice(0, 80) ?? storyCard.id;
+		const lines = [`Created story [${storyCard.id}] "${storyDisplay}" with ${subtaskIds.length} subtask(s):`];
+		for (const { realId, descFirst } of createdSubtasks) lines.push(`  Subtask [${realId}] "${descFirst.slice(0, 80)}"`);
 		lines.push(`The story will trigger its orchestrator workflow once all subtasks complete.`);
 		return { content: [{ type: "text", text: lines.join("\n") }] };
 	},
@@ -280,8 +278,7 @@ server.registerTool(
 	{
 		description: "Create a new task card on the Kanban board.",
 		inputSchema: {
-			title: z.string().describe("Short task title"),
-			description: z.string().describe("Full task description including acceptance criteria"),
+			description: z.string().describe("Full task description including acceptance criteria. The first line serves as the display title."),
 			type: z
 				.enum(["task", "story", "subtask"])
 				.optional()
@@ -312,12 +309,11 @@ server.registerTool(
 				.string()
 				.optional()
 				.describe(
-					"Custom git branch name for this card (e.g. 'fix/user-auth-bug', 'feat/dark-mode'). Use dashes, not underscores. Omit to auto-generate from title.",
+					"Custom git branch name for this card (e.g. 'fix/user-auth-bug', 'feat/dark-mode'). Use dashes, not underscores. Omit to auto-generate from description.",
 				),
 		},
 	},
 	async ({
-		title,
 		description,
 		type,
 		priority,
@@ -346,9 +342,8 @@ server.registerTool(
 			}
 		}
 
-		const card = await trpc<{ id: string; title: string; columnId: string }>("cards.create", {
+		const card = await trpc<{ id: string; columnId: string }>("cards.create", {
 			workspaceId,
-			title,
 			description,
 			type,
 			priority,
@@ -365,8 +360,9 @@ server.registerTool(
 				await trpc("cards.update", { workspaceId, cardId: card.id, descriptionAttachments: processed, revision: 0 });
 			}
 		}
+		const cardDisplay = description.split("\n")[0]?.slice(0, 80) || card.id;
 		return {
-			content: [{ type: "text", text: `Created card [${card.id}] "${card.title}" in ${card.columnId}.` }],
+			content: [{ type: "text", text: `Created card [${card.id}] "${cardDisplay}" in ${card.columnId}.` }],
 		};
 	},
 );
@@ -392,10 +388,9 @@ server.registerTool(
 	"kanban_update_card",
 	{
 		description:
-			"Update a card's title, description, priority, dependencies, workflow, readyForDev flag, or attachments.",
+			"Update a card's description, priority, dependencies, workflow, readyForDev flag, or attachments.",
 		inputSchema: {
 			cardId: z.string().describe("The card ID"),
-			title: z.string().optional().describe("New title"),
 			description: z.string().optional().describe("New description"),
 			priority: z.enum(["urgent", "high", "medium", "low"]).optional().describe("New priority level"),
 			dependsOn: z
@@ -410,7 +405,7 @@ server.registerTool(
 				.describe("New files to append to the card's existing description attachments"),
 		},
 	},
-	async ({ cardId, title, description, priority, dependsOn, workflowId, readyForDev, attachments }) => {
+	async ({ cardId, description, priority, dependsOn, workflowId, readyForDev, attachments }) => {
 		let descriptionAttachments: Array<{ type: string; name: string; mimeType: string; path: string }> | undefined;
 		if (attachments?.length) {
 			const state = await trpcQuery<{
@@ -428,7 +423,6 @@ server.registerTool(
 		await trpc("cards.update", {
 			workspaceId,
 			cardId,
-			title,
 			description,
 			priority,
 			dependsOn,
