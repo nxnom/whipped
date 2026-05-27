@@ -49,6 +49,24 @@ export function BoardPage({ onOpenAgent }: Props) {
 		navigate(`/${encodeURIComponent(wsId)}/board`);
 	};
 
+	const handleRemoveProject = async (wsId: string) => {
+		await trpc.projects.remove.mutate({ workspaceId: wsId });
+		const updated = projects.filter((p) => p.workspaceId !== wsId);
+		setProjects(updated);
+		if (wsId === workspaceId) {
+			const [first, layout] = await Promise.all([
+				Promise.resolve(updated),
+				trpc.projects.getLayout.query().catch(() => null),
+			]);
+			const nextId = (layout ? firstSortedProjectId(layout, first) : null) ?? first[0]?.workspaceId;
+			if (nextId) {
+				navigate(`/${encodeURIComponent(nextId)}/board`, { replace: true });
+			} else {
+				navigate("/", { replace: true });
+			}
+		}
+	};
+
 	return (
 		<div className="flex h-full overflow-hidden">
 			{/* Sidebar */}
@@ -102,6 +120,7 @@ export function BoardPage({ onOpenAgent }: Props) {
 							projects={projects}
 							activeWorkspaceId={workspaceId ?? null}
 							onSwitch={switchProject}
+							onRemove={handleRemoveProject}
 						/>
 					) : (
 						<div className="flex items-center gap-2 py-5 px-4">

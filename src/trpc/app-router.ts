@@ -13,9 +13,10 @@ import {
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getAvailableAgents, getCursorModels, getOpencodeModels } from "../agents/agent-registry.js";
-import { loadGlobalConfig, updateGlobalConfig } from "../config/runtime-config.js";
+import { loadGlobalConfig, updateGlobalConfig, WORKSPACES_DIR, ATTACHMENTS_DIR } from "../config/runtime-config.js";
 import {
 	projectsLayoutSchema,
+	type RuntimeBoardCard,
 	type RuntimeGlobalConfig,
 	reviewActorSchema,
 	reviewAttachmentSchema,
@@ -223,8 +224,66 @@ export const appRouter = router({
 				return context;
 			}),
 
-		remove: publicProcedure.input(z.object({ workspaceId: z.string() })).mutation(async ({ input }) => {
-			await removeWorkspace(input.workspaceId);
+		remove: publicProcedure.input(z.object({ workspaceId: z.string() })).mutation(async ({ ctx, input }) => {
+			const { workspaceId } = input;
+
+			// Get workspace info before removing (repoPath needed for worktree cleanup)
+			const allWorkspaces = await listWorkspaces();
+			const ws = allWorkspaces.find((w) => w.workspaceId === workspaceId);
+
+			// Stop all running agents and the run session
+			const scheduler = ctx.getScheduler(workspaceId);
+			if (scheduler) {
+				scheduler.prepareShutdown();
+				scheduler.stopAll();
+			}
+			ctx.stopRun(workspaceId);
+
+			// Load board cards before removing the workspace (needed for cleanup)
+			let boardCards: Record<string, RuntimeBoardCard> = {};
+			if (ws) {
+				try {
+					const board = await loadBoard(workspaceId);
+					boardCards = board.cards;
+				} catch {
+					// ignore — board may not exist yet
+				}
+			}
+
+			// Remove from workspace index
+			await removeWorkspace(workspaceId);
+
+			// Queue async cleanup of worktrees and workspace data files
+			if (ws) {
+				const repoPath = ws.repoPath;
+				const cards = boardCards;
+				enqueueCleanup(async () => {
+					const { rm } = await import("node:fs/promises");
+					const { join } = await import("node:path");
+
+					// Clean up each card's worktree (owner cards only — shared-worktree subtasks share the owner's)
+					for (const [cardId, card] of Object.entries(cards)) {
+						if (!card.sharedWorktreeId) {
+							await removeWorktreeAsync(cardId, repoPath, card.branchName).catch((err) => {
+								logger.warn(`[cleanup:project:${workspaceId}] worktree ${cardId} failed: ${String(err)}`);
+							});
+						}
+					}
+
+					// Remove workspace data directory (board.json, project-config.json, meta.json, buffers/)
+					await rm(join(WORKSPACES_DIR, workspaceId), { recursive: true, force: true }).catch((err) => {
+						logger.warn(`[cleanup:project:${workspaceId}] workspace dir failed: ${String(err)}`);
+					});
+
+					// Remove per-card attachment directories
+					for (const cardId of Object.keys(cards)) {
+						await rm(join(ATTACHMENTS_DIR, cardId), { recursive: true, force: true }).catch(() => {});
+					}
+
+					logger.info(`[cleanup:project:${workspaceId}] done`);
+				});
+			}
+
 			return { ok: true };
 		}),
 

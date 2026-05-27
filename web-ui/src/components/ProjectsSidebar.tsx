@@ -1,5 +1,6 @@
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
 import type { ProjectsLayout, RuntimeProject } from "@runtime-contract";
+import { ConfirmDialog } from "@geckoui/geckoui";
 import { ChevronDown, ChevronRight, Folder, Pencil, Trash2 } from "lucide-react";
 import React, { useEffect, useImperativeHandle, useRef, useState, useCallback } from "react";
 import { trpc } from "@/runtime/trpc-client";
@@ -112,6 +113,7 @@ interface Props {
 	projects: RuntimeProject[];
 	activeWorkspaceId: string | null;
 	onSwitch: (workspaceId: string) => void;
+	onRemove: (workspaceId: string) => Promise<void>;
 }
 
 export interface ProjectsSidebarHandle {
@@ -119,7 +121,7 @@ export interface ProjectsSidebarHandle {
 }
 
 export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(function ProjectsSidebar(
-	{ projects, activeWorkspaceId, onSwitch },
+	{ projects, activeWorkspaceId, onSwitch, onRemove },
 	ref,
 ) {
 	const [layout, setLayout] = useState<ProjectsLayout>({ version: 1, topLevel: [], folders: {} });
@@ -413,7 +415,7 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(fu
 											{...dp.dragHandleProps}
 											onClick={() => onSwitch(item.workspaceId)}
 											className={classNames(
-												"flex items-center gap-2 h-8 pr-3 my-px mx-1 rounded-md cursor-pointer select-none transition-colors",
+												"group flex items-center gap-2 h-8 pr-2 my-px mx-1 rounded-md cursor-pointer select-none transition-colors",
 												indent ? "pl-10" : "pl-3",
 												snap.isDragging ? "opacity-70" : isActive ? "" : "hover:bg-[#1a1a1f]",
 											)}
@@ -433,11 +435,32 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(fu
 											/>
 											<span
 												className={classNames(
-													"truncate text-[12px]",
+													"flex-1 min-w-0 truncate text-[12px]",
 													isActive ? "text-[#f0f0f5] font-medium" : "text-[#8888a0] font-normal",
 												)}
 											>
 												{project.name}
+											</span>
+											<span className="shrink-0 flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+												<button
+													onClick={(e) => {
+														e.stopPropagation();
+														ConfirmDialog.show({
+															title: "Remove project",
+															content: `Remove "${project.name}" from Overemployed? This will stop all running agents and delete all associated worktrees and data.`,
+															confirmButtonLabel: "Remove",
+															cancelButtonLabel: "Cancel",
+															onConfirm: async ({ dismiss }) => {
+																await onRemove(item.workspaceId);
+																dismiss();
+															},
+														});
+													}}
+													className="flex items-center justify-center w-5 h-5 rounded hover:bg-[#ef444420] transition-colors text-[#60607a] hover:text-[#ef4444]"
+													title="Remove project"
+												>
+													<Trash2 size={10} />
+												</button>
 											</span>
 										</div>
 									)}
