@@ -1,7 +1,8 @@
 import { toast } from "@geckoui/geckoui";
 import type { RuntimeGlobalConfig } from "@runtime-contract";
-import { AlertCircle, Check, CheckCircle2, ChevronRight, ExternalLink, Eye, EyeOff, Loader2 } from "lucide-react";
+import { AlertCircle, Check, CheckCircle2, ChevronRight, Copy, ExternalLink, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { trpc } from "@/runtime/trpc-client";
 
 function SectionDivider({ title }: { title: string }) {
@@ -68,9 +69,12 @@ function Mono({ children }: { children: React.ReactNode }) {
 }
 
 export function SlackSettings() {
+	const navigate = useNavigate();
+	const { workspaceId } = useParams<{ workspaceId: string }>();
 	const [config, setConfig] = useState<RuntimeGlobalConfig | null>(null);
 	const [appConfigToken, setAppConfigToken] = useState("");
 	const [publicUrl, setPublicUrl] = useState("");
+	const [botName, setBotName] = useState("Overemployed");
 
 	const [creating, setCreating] = useState(false);
 	const [resetting, setResetting] = useState(false);
@@ -78,12 +82,19 @@ export function SlackSettings() {
 	const [showHowItWorks, setShowHowItWorks] = useState(false);
 	const [showSetup, setShowSetup] = useState(false);
 	const [createError, setCreateError] = useState<string | null>(null);
+	const [waitingForInstall, setWaitingForInstall] = useState(false);
 
 	useEffect(() => {
-		trpc.config.get.query().then((c) => {
+		Promise.all([
+			trpc.config.get.query(),
+			trpc.slack.tunnelConfig.query(),
+		]).then(([c, tunnel]) => {
 			setConfig(c);
 			if (c.slackAppConfigToken) setAppConfigToken(c.slackAppConfigToken);
-			if (c.slackPublicUrl) setPublicUrl(c.slackPublicUrl);
+			if (c.slackBotName) setBotName(c.slackBotName);
+			// Auto-populate from tunnel domain; fall back to saved slackPublicUrl
+			const url = tunnel.domain ? `https://${tunnel.domain}` : (c.slackPublicUrl ?? "");
+			setPublicUrl(url);
 		}).catch(() => {});
 	}, []);
 
@@ -92,7 +103,7 @@ export function SlackSettings() {
 		setCreating(true);
 		setCreateError(null);
 		try {
-			await trpc.slack.createApp.mutate({ appConfigToken: appConfigToken.trim(), publicUrl: publicUrl.trim() });
+			await trpc.slack.createApp.mutate({ appConfigToken: appConfigToken.trim(), publicUrl: publicUrl.trim(), botName: botName.trim() || "Overemployed" });
 			const updated = await trpc.config.get.query();
 			setConfig(updated);
 			toast.success("Slack app created — now install it to your workspace");
@@ -109,10 +120,10 @@ export function SlackSettings() {
 		setResetting(true);
 		try {
 			await trpc.slack.resetApp.mutate();
-			const updated = await trpc.config.get.query();
+			const [updated, tunnel] = await Promise.all([trpc.config.get.query(), trpc.slack.tunnelConfig.query()]);
 			setConfig(updated);
-			setAppConfigToken("");
-			setPublicUrl("");
+			setAppConfigToken(updated.slackAppConfigToken ?? "");
+			setPublicUrl(tunnel.domain ? `https://${tunnel.domain}` : (updated.slackPublicUrl ?? ""));
 			setShowSetup(true);
 			toast.success("Slack configuration cleared");
 		} catch {
@@ -122,9 +133,23 @@ export function SlackSettings() {
 		}
 	};
 
+	useEffect(() => {
+		if (!waitingForInstall) return;
+		const id = setInterval(async () => {
+			const updated = await trpc.config.get.query().catch(() => null);
+			if (updated?.slackBotToken) {
+				setConfig(updated);
+				setWaitingForInstall(false);
+				toast.success("Workspace installation complete");
+			}
+		}, 2000);
+		return () => clearInterval(id);
+	}, [waitingForInstall]);
+
 	const handleInstall = () => {
 		if (!config?.slackOauthAuthorizeUrl) return;
 		window.open(config.slackOauthAuthorizeUrl, "_blank");
+		setWaitingForInstall(true);
 	};
 
 	const handleSaveToken = async () => {
@@ -153,7 +178,7 @@ export function SlackSettings() {
 	const botTokenSaved = !!config.slackBotToken;
 	const fullyConfigured = appCreated && botTokenSaved;
 
-	const step1Done = !!(appConfigToken && publicUrl);
+	const step1Done = !!(appConfigToken.trim() && publicUrl);
 	const step2Done = appCreated;
 	const step3Done = botTokenSaved;
 
@@ -227,21 +252,37 @@ export function SlackSettings() {
 									Note: this token expires after 12 hours, but you only need it once to create the app.
 								</p>
 								<div className="flex flex-col gap-2">
-									<label className="text-[11px] font-medium" style={{ color: "#8888a0" }}>App Configuration Token</label>
-									<SecretInput value={appConfigToken} placeholder="xoxe-..." onChange={setAppConfigToken} />
-								</div>
-								<div className="flex flex-col gap-2">
-									<label className="text-[11px] font-medium" style={{ color: "#8888a0" }}>Public URL (your Cloudflare Tunnel domain)</label>
+									<label className="text-[11px] font-medium" style={{ color: "#8888a0" }}>Bot name</label>
 									<input
-										value={publicUrl}
-										onChange={(e) => setPublicUrl(e.target.value)}
-										placeholder="https://slack.yourdomain.com"
+										value={botName}
+										onChange={(e) => setBotName(e.target.value)}
+										placeholder="Overemployed"
 										className="font-mono text-[12px] focus:outline-none focus:border-[#7c6aff]"
 										style={{ padding: "9px 12px", background: "#0c0c0f", border: "1px solid #2a2a35", borderRadius: 6, color: "#c0c0d0" }}
 									/>
 									<p className="text-[11px]" style={{ color: "#4a4a5a" }}>
-										Make sure your Cloudflare Tunnel is running (Settings → Tunnel) before creating the app.
+										Shown in Slack as the bot's display name — use something like "OE Office" or "OE Home" to identify the device.
 									</p>
+								</div>
+								<div className="flex flex-col gap-2">
+									<label className="text-[11px] font-medium" style={{ color: "#8888a0" }}>App Configuration Token</label>
+									<SecretInput value={appConfigToken} placeholder="xoxe-..." onChange={setAppConfigToken} />
+								</div>
+								<div className="flex flex-col gap-2">
+									<label className="text-[11px] font-medium" style={{ color: "#8888a0" }}>Public URL (Cloudflare Tunnel domain)</label>
+									{publicUrl ? (
+										<div className="flex items-center gap-2 px-3 py-2 rounded font-mono text-[12px]" style={{ background: "#0c0c0f", border: "1px solid #2a2a35", color: "#4ade80" }}>
+											<Check size={12} />
+											{publicUrl}
+										</div>
+									) : (
+										<div className="flex items-center gap-2 px-3 py-2 rounded text-[12px]" style={{ background: "#0c0c0f", border: "1px solid #4a2a1a", color: "#f87171" }}>
+											No tunnel domain configured —{" "}
+											<button onClick={() => navigate(`/${workspaceId}/settings/tunnel`)} className="underline hover:opacity-80 transition-opacity" style={{ color: "#facc15" }}>
+												set up Tunnel first
+											</button>
+										</div>
+									)}
 								</div>
 							</StepRow>
 
@@ -250,7 +291,7 @@ export function SlackSettings() {
 								{appCreated ? (
 									<div className="flex items-center gap-2 text-[12px]" style={{ color: "#4ade80" }}>
 										<Check size={13} />
-										App created — ID: <Mono>{config.slackAppId}</Mono>
+										App created — <Mono>{config.slackBotName ?? "Overemployed"}</Mono> ({config.slackAppId})
 									</div>
 								) : (
 									<>
@@ -289,7 +330,7 @@ export function SlackSettings() {
 											Click the button to open Slack's install page. After you click Allow, the bot token is captured automatically and saved here.
 										</p>
 										<p className="text-[12px]" style={{ color: "#60607a" }}>
-											Make sure your Tailscale funnel is running before clicking — Slack needs to reach the callback URL.
+											Make sure your Cloudflare Tunnel is running (Settings → Tunnel) before clicking — Slack needs to reach the callback URL.
 										</p>
 										<button
 											onClick={handleInstall}
@@ -300,10 +341,11 @@ export function SlackSettings() {
 											<ExternalLink size={14} />
 											Install to Workspace
 										</button>
-										{step2Done && (
-											<p className="text-[11px]" style={{ color: "#4a4a5a" }}>
-												After installing, this page will update automatically within a few seconds.
-											</p>
+										{waitingForInstall && (
+											<div className="flex items-center gap-2 text-[12px]" style={{ color: "#facc15" }}>
+												<Loader2 size={12} className="animate-spin" />
+												Waiting for Slack to redirect back…
+											</div>
 										)}
 									</>
 								)}

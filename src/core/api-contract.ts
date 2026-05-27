@@ -331,6 +331,7 @@ export const runtimeGlobalConfigSchema = z.object({
 	slackAppId: z.string().optional(),
 	slackOauthAuthorizeUrl: z.string().optional(),
 	slackPublicUrl: z.string().optional(),
+	slackBotName: z.string().default("Overemployed"),
 	autoStartTunnel: z.boolean().default(false),
 	tunnelId: z.string().optional(),
 	tunnelDomain: z.string().optional(),

@@ -2,15 +2,15 @@ import { logger } from "../core/logger.js";
 
 const BACKEND_PORT = 50008;
 
-function buildManifest(publicUrl: string) {
+function buildManifest(publicUrl: string, botName = "Overemployed") {
 	return {
 		display_information: {
-			name: "Overemployed",
+			name: botName,
 			description: "AI agent task notifications",
 			background_color: "#1a1a2e",
 		},
 		features: {
-			bot_user: { display_name: "Overemployed", always_online: true },
+			bot_user: { display_name: botName, always_online: true },
 			slash_commands: [
 				{
 					command: "/reopen",
@@ -59,42 +59,68 @@ export interface CreatedSlackApp {
 	oauthAuthorizeUrl: string;
 }
 
+type ManifestApiResponse = {
+	ok: boolean;
+	error?: string;
+	app_id?: string;
+	credentials?: {
+		client_id: string;
+		client_secret: string;
+		signing_secret: string;
+		verification_token: string;
+	};
+	oauth_authorize_url?: string;
+};
+
+function handleManifestError(error: string | undefined, action: string): never {
+	if (error === "not_allowed_token_type") {
+		throw new Error(
+			"Wrong token type — use an App Configuration Token from api.slack.com/apps (scroll to the bottom → Your App Configuration Tokens → Generate Token)",
+		);
+	}
+	throw new Error(error ?? `${action} failed`);
+}
+
 export async function createSlackApp(
 	appConfigToken: string,
 	publicUrl: string,
+	existingAppId?: string,
+	botName?: string,
 ): Promise<CreatedSlackApp> {
-	const manifest = buildManifest(publicUrl);
+	const manifest = buildManifest(publicUrl, botName);
+
+	if (existingAppId) {
+		// Update existing app manifest
+		const res = await fetch("https://slack.com/api/apps.manifest.update", {
+			method: "POST",
+			headers: { "Content-Type": "application/json; charset=utf-8", Authorization: `Bearer ${appConfigToken}` },
+			body: JSON.stringify({ app_id: existingAppId, manifest }),
+		});
+		const data = (await res.json()) as ManifestApiResponse;
+		if (!data.ok) {
+			logger.error({ error: data.error }, "[slack-setup] apps.manifest.update failed");
+			handleManifestError(data.error, "apps.manifest.update");
+		}
+		// update doesn't return credentials — return partial so caller knows app_id
+		return {
+			appId: existingAppId,
+			clientId: data.credentials?.client_id ?? "",
+			clientSecret: data.credentials?.client_secret ?? "",
+			signingSecret: data.credentials?.signing_secret ?? "",
+			verificationToken: data.credentials?.verification_token ?? "",
+			oauthAuthorizeUrl: data.oauth_authorize_url ?? `https://slack.com/oauth/v2/authorize?client_id=&scope=`,
+		};
+	}
 
 	const res = await fetch("https://slack.com/api/apps.manifest.create", {
 		method: "POST",
-		headers: {
-			"Content-Type": "application/json; charset=utf-8",
-			Authorization: `Bearer ${appConfigToken}`,
-		},
+		headers: { "Content-Type": "application/json; charset=utf-8", Authorization: `Bearer ${appConfigToken}` },
 		body: JSON.stringify({ manifest }),
 	});
-
-	const data = (await res.json()) as {
-		ok: boolean;
-		error?: string;
-		app_id?: string;
-		credentials?: {
-			client_id: string;
-			client_secret: string;
-			signing_secret: string;
-			verification_token: string;
-		};
-		oauth_authorize_url?: string;
-	};
-
+	const data = (await res.json()) as ManifestApiResponse;
 	if (!data.ok) {
 		logger.error({ error: data.error }, "[slack-setup] apps.manifest.create failed");
-		if (data.error === "not_allowed_token_type") {
-			throw new Error(
-				"Wrong token type — use an App Configuration Token from api.slack.com/apps (scroll to the bottom → Your App Configuration Tokens → Generate Token)",
-			);
-		}
-		throw new Error(data.error ?? "apps.manifest.create failed");
+		handleManifestError(data.error, "apps.manifest.create");
 	}
 
 	return {

@@ -1065,7 +1065,7 @@ export const appRouter = router({
 		}),
 		resetTunnel: publicProcedure.mutation(async () => {
 			tunnelManager.stop();
-			await updateGlobalConfig({ tunnelId: undefined, tunnelDomain: undefined });
+			await updateGlobalConfig({ tunnelId: undefined, tunnelDomain: undefined, autoStartTunnel: false });
 			// Remove the cloudflared config file so the wizard starts clean
 			const { unlink } = await import("node:fs/promises");
 			const { homedir } = await import("node:os");
@@ -1073,30 +1073,42 @@ export const appRouter = router({
 			try { await unlink(join(homedir(), ".cloudflared", "config.yml")); } catch { /* already gone */ }
 		}),
 		resetApp: publicProcedure.mutation(async () => {
-			await updateGlobalConfig({
-				slackBotToken: undefined,
-				slackSigningSecret: undefined,
-				slackClientId: undefined,
-				slackClientSecret: undefined,
-				slackAppId: undefined,
-				slackOauthAuthorizeUrl: undefined,
-				slackPublicUrl: undefined,
-			});
+			// Only clear the bot token — everything else (app ID, credentials, oauth URL) is reusable
+			await updateGlobalConfig({ slackBotToken: undefined });
 		}),
-		createApp: publicProcedure
-			.input(z.object({ appConfigToken: z.string(), publicUrl: z.string() }))
+		importCredentials: publicProcedure
+			.input(z.object({
+				slackAppId: z.string(),
+				slackClientId: z.string(),
+				slackClientSecret: z.string(),
+				slackSigningSecret: z.string(),
+				slackOauthAuthorizeUrl: z.string(),
+				slackPublicUrl: z.string(),
+			}))
 			.mutation(async ({ input }) => {
-				const app = await createSlackApp(input.appConfigToken, input.publicUrl);
+				await updateGlobalConfig(input);
+			}),
+		createApp: publicProcedure
+			.input(z.object({ appConfigToken: z.string(), publicUrl: z.string(), botName: z.string().default("Overemployed") }))
+			.mutation(async ({ input }) => {
+				const existing = await loadGlobalConfig();
+				const app = await createSlackApp(input.appConfigToken, input.publicUrl, existing.slackAppId, input.botName);
+				const clientId = app.clientId || existing.slackClientId || "";
+				const scopes = "channels:manage,channels:join,channels:read,channels:history,chat:write,chat:write.public,groups:write,groups:read,groups:history,commands";
+				const oauthAuthorizeUrl = app.oauthAuthorizeUrl
+					|| existing.slackOauthAuthorizeUrl
+					|| (clientId ? `https://slack.com/oauth/v2/authorize?client_id=${clientId}&scope=${scopes}` : "");
 				await updateGlobalConfig({
 					slackAppConfigToken: input.appConfigToken,
-					slackClientId: app.clientId,
-					slackClientSecret: app.clientSecret,
-					slackSigningSecret: app.signingSecret,
 					slackAppId: app.appId,
-					slackOauthAuthorizeUrl: app.oauthAuthorizeUrl,
 					slackPublicUrl: input.publicUrl,
+					slackBotName: input.botName,
+					...(app.clientId && { slackClientId: app.clientId }),
+					...(app.clientSecret && { slackClientSecret: app.clientSecret }),
+					...(app.signingSecret && { slackSigningSecret: app.signingSecret }),
+					slackOauthAuthorizeUrl: oauthAuthorizeUrl,
 				});
-				return app;
+				return { ...app, oauthAuthorizeUrl };
 			}),
 	}),
 	jira: router({

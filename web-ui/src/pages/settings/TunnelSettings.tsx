@@ -213,6 +213,8 @@ export function TunnelSettings() {
 		setResetting(true);
 		try {
 			await trpc.slack.resetTunnel.mutate();
+			const updated = await trpc.config.get.query();
+			setConfig(updated);
 			setTunnelConfig(null);
 			setDomain("");
 			setCloudflaredStatus(null);
