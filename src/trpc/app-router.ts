@@ -1,6 +1,15 @@
 import { spawnSync } from "node:child_process";
 import { tunnelManager } from "../slack/cloudflare-tunnel.js";
 import { createSlackApp } from "../slack/slack-setup.js";
+import {
+	checkCloudflaredInstalled,
+	checkCloudflaredAuth,
+	createTunnel,
+	routeDns,
+	openCloudflaredLogin,
+	readTunnelConfig,
+	writeTunnelConfig,
+} from "../slack/cloudflare-setup.js";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getAvailableAgents, getCursorModels, getOpencodeModels } from "../agents/agent-registry.js";
@@ -1019,6 +1028,32 @@ export const appRouter = router({
 
 	// ─── Jira (per-project) ───────────────────────────────────────────────────
 	slack: router({
+		checkCloudflared: publicProcedure.query(async () => {
+			const [install, authed] = await Promise.all([checkCloudflaredInstalled(), checkCloudflaredAuth()]);
+			return { ...install, authed };
+		}),
+		cloudflaredLogin: publicProcedure
+			.input(z.object({ force: z.boolean().default(false) }))
+			.mutation(({ input }) => openCloudflaredLogin(input.force)),
+		createTunnel: publicProcedure
+			.input(z.object({ domain: z.string() }))
+			.mutation(async ({ input }) => {
+				const config = await loadGlobalConfig();
+				const name = config.tunnelName ?? "overemployed";
+				const { tunnelId } = await createTunnel(name);
+				await writeTunnelConfig(tunnelId, name, input.domain);
+				await routeDns(name, input.domain);
+				await updateGlobalConfig({ tunnelId, tunnelDomain: input.domain });
+				return { tunnelId };
+			}),
+		tunnelConfig: publicProcedure.query(async () => {
+			const [config, fileConfig] = await Promise.all([loadGlobalConfig(), readTunnelConfig()]);
+			return {
+				tunnelId: config.tunnelId ?? fileConfig?.tunnelId,
+				domain: config.tunnelDomain ?? fileConfig?.domain,
+				tunnelName: config.tunnelName ?? "overemployed",
+			};
+		}),
 		tunnelStatus: publicProcedure.query(() => tunnelManager.getState()),
 		startTunnel: publicProcedure.mutation(() => {
 			tunnelManager.start();
@@ -1027,6 +1062,15 @@ export const appRouter = router({
 		stopTunnel: publicProcedure.mutation(() => {
 			tunnelManager.stop();
 			return tunnelManager.getState();
+		}),
+		resetTunnel: publicProcedure.mutation(async () => {
+			tunnelManager.stop();
+			await updateGlobalConfig({ tunnelId: undefined, tunnelDomain: undefined });
+			// Remove the cloudflared config file so the wizard starts clean
+			const { unlink } = await import("node:fs/promises");
+			const { homedir } = await import("node:os");
+			const { join } = await import("node:path");
+			try { await unlink(join(homedir(), ".cloudflared", "config.yml")); } catch { /* already gone */ }
 		}),
 		resetApp: publicProcedure.mutation(async () => {
 			await updateGlobalConfig({

@@ -332,6 +332,9 @@ export const runtimeGlobalConfigSchema = z.object({
 	slackOauthAuthorizeUrl: z.string().optional(),
 	slackPublicUrl: z.string().optional(),
 	autoStartTunnel: z.boolean().default(false),
+	tunnelId: z.string().optional(),
+	tunnelDomain: z.string().optional(),
+	tunnelName: z.string().default("overemployed"),
 });
 export type RuntimeGlobalConfig = z.infer<typeof runtimeGlobalConfigSchema>;
 
