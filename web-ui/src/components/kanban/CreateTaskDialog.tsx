@@ -83,7 +83,7 @@ const PRIORITY_OPTIONS = [
 	{ value: "urgent", label: "Urgent", dot: "#ef4444", bg: "#ef444415", text: "#ef4444", border: "#ef444440" },
 	{ value: "high",   label: "High",   dot: "#f97316", bg: "#f9731615", text: "#f97316", border: "#f9731640" },
 	{ value: "medium", label: "Medium", dot: "#eab308", bg: "#eab30815", text: "#eab308", border: "#eab30840" },
-	{ value: "low",    label: "Low",    dot: "#6b7280",  bg: "#6b728015", text: "#6b7280",  border: "#6b728040" },
+	{ value: "low",    label: "Low",    dot: "#94a3b8",  bg: "#94a3b820", text: "#94a3b8",  border: "#94a3b850" },
 ] as const;
 
 const COLUMN_BADGE: Record<string, string> = {
@@ -323,6 +323,211 @@ function CreateSubtaskDialog({
 						>
 							<Plus size={14} />
 							{isEditing ? "Save Changes" : "Add Subtask"}
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+// ─── Edit dialog ─────────────────────────────────────────────────────────────
+
+interface EditTaskDialogProps {
+	card: RuntimeBoardCard;
+	workspaceId: string;
+	allCards: Record<string, RuntimeBoardCard>;
+	workflows: Workflow[];
+	onClose: () => void;
+	onRefresh: () => void;
+}
+
+export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose, onRefresh }: EditTaskDialogProps) {
+	const isStory = card.type === "story";
+	const isSubtask = card.type === "subtask";
+	const canEditBranch = !isStory && !card.worktreePath;
+
+	const [description, setDescription] = useState(card.description ?? "");
+	const [existingAttachments, setExistingAttachments] = useState(card.descriptionAttachments ?? []);
+	const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+	const [priority, setPriority] = useState<string>(card.priority ?? "");
+	const [dependsOn, setDependsOn] = useState<string[]>(card.dependsOn ?? []);
+	const [workflowId, setWorkflowId] = useState<string>(card.workflowId ?? "");
+	const [branchName, setBranchName] = useState<string>(card.branchName ?? "");
+	const [branchNameEdited, setBranchNameEdited] = useState(!!card.branchName);
+	const [loading, setLoading] = useState(false);
+
+	const availableWorkflows = isStory ? workflows.filter((w) => w.forStory) : workflows.filter((w) => !w.forStory);
+
+	const depsCardPool = Object.values(allCards).filter((c) => {
+		if (c.id === card.id || c.columnId === "done") return false;
+		if (isSubtask) return c.type !== "story";
+		return true;
+	});
+
+	const handleSave = async () => {
+		if (!description?.trim()) return;
+		setLoading(true);
+		try {
+			const newUploads = pendingImages.length > 0 ? await uploadImages(workspaceId, card.id, pendingImages) : [];
+			await trpc.cards.update.mutate({
+				workspaceId,
+				cardId: card.id,
+				description,
+				descriptionAttachments: [...existingAttachments, ...newUploads],
+				priority: (priority as "urgent" | "high" | "medium" | "low") || undefined,
+				dependsOn: isStory ? undefined : dependsOn,
+				workflowId: workflowId || undefined,
+				branchName: canEditBranch ? branchName.trim() || undefined : undefined,
+				revision: 0,
+			});
+			onClose();
+			onRefresh();
+		} catch {
+			toast.error(`Failed to update ${isStory ? "story" : isSubtask ? "subtask" : "task"}`);
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	const dialogTitle = isStory ? "Edit Story" : isSubtask ? "Edit Subtask" : "Edit Task";
+
+	return (
+		<div className="fixed inset-0 z-50 flex items-center justify-center">
+			<div className="absolute inset-0 bg-black/70" onClick={onClose} />
+			<div className="relative flex h-[850px] max-h-[calc(100vh-80px)] w-[1400px] max-w-[calc(100vw-80px)] rounded-xl bg-[#141418] border border-[#2a2a35] shadow-[0_8px_40px_4px_#00000060] overflow-hidden">
+
+				{/* ── Left panel ── */}
+				<div className="flex flex-col flex-1 overflow-hidden" onPaste={(e) => addFilesFromClipboard(e, setPendingImages)}>
+					<div className="flex items-center gap-3 px-6 py-3.5 border-b border-[#2a2a35] shrink-0">
+						<span className="text-[15px] font-semibold text-[#f0f0f5]">{dialogTitle}</span>
+						<div className="flex-1" />
+						<button onClick={onClose} className="text-[#60607a] hover:text-[#f0f0f5] transition-colors">
+							<X size={18} />
+						</button>
+					</div>
+
+					<div className="flex flex-col flex-1 min-h-0 px-8 py-4 gap-2">
+						<textarea
+							autoFocus
+							value={description}
+							onChange={(e) => {
+								const v = e.target.value;
+								setDescription(v);
+								if (canEditBranch && !branchNameEdited) {
+									setBranchName(deriveBranchName(v.split("\n")[0] ?? ""));
+								}
+							}}
+							placeholder="Describe what the agent should do..."
+							className="flex-1 min-h-0 bg-transparent text-[15px] text-[#c0c0d0] placeholder-[#2a2a35] outline-none resize-none leading-[1.7]"
+						/>
+						{existingAttachments.length > 0 && (
+							<div className="flex flex-wrap gap-1.5 shrink-0">
+								{existingAttachments.map((att, i) => (
+									<span key={i} className="inline-flex items-center gap-1 text-[11px] text-[#8888a0] bg-[#1a1a1f] border border-[#2a2a35] rounded px-1.5 py-0.5">
+										<Paperclip size={10} className="shrink-0" /> {att.name}
+										<button
+											type="button"
+											onClick={() => setExistingAttachments((a) => a.filter((_, j) => j !== i))}
+											className="text-[#4a4a5a] hover:text-[#ef4444] transition-colors"
+										>
+											<X size={9} />
+										</button>
+									</span>
+								))}
+							</div>
+						)}
+						<ImagePicker pending={pendingImages} onChange={setPendingImages} />
+						<div className="flex items-center gap-2 shrink-0 mt-auto pt-1">
+							<button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-[#2a2a35] text-[11px] text-[#60607a] hover:text-[#f0f0f5] hover:border-[#3a3a48] transition-colors">
+								<Paperclip size={12} />
+								Attach files
+							</button>
+						</div>
+					</div>
+				</div>
+
+				{/* ── Right sidebar ── */}
+				<div className="w-80 shrink-0 bg-[#111115] border-l border-[#2a2a35] flex flex-col overflow-hidden">
+					<div className="px-[18px] py-3.5 border-b border-[#2a2a35] shrink-0">
+						<span className="text-xs font-semibold text-[#8888a0]">Configuration</span>
+					</div>
+					<div className="flex-1 min-h-0 overflow-y-auto px-[18px] py-4 flex flex-col gap-5">
+						<div className="flex flex-col gap-2">
+							<span className="text-[11px] font-medium text-[#60607a]">{isStory ? "Orchestrator Workflow" : "Workflow"}</span>
+							<Select value={workflowId} onChange={(v) => setWorkflowId(v as string)} prefix={<WorkflowIcon size={14} className="text-[#8888a0]" />}>
+								{availableWorkflows.map((w) => (
+									<SelectOption key={w.id} value={w.id} label={w.name + (w.isDefault ? " (default)" : "")} />
+								))}
+							</Select>
+						</div>
+						<div className="flex flex-col gap-2">
+							<span className="text-[11px] font-medium text-[#60607a]">Priority</span>
+							<div className="flex flex-wrap gap-1.5">
+								{PRIORITY_OPTIONS.map((opt) => {
+									const active = priority === opt.value;
+									return (
+										<button
+											key={opt.value}
+											onClick={() => setPriority(active ? "" : opt.value)}
+											className="flex items-center gap-1 px-2.5 py-1.5 rounded text-[11px] border transition-colors"
+											style={active
+												? { background: opt.bg, color: opt.text, borderColor: opt.border, fontWeight: 500 }
+												: { background: "#1a1a1f", color: "#60607a", borderColor: "#2a2a35" }}
+										>
+											<span className="size-1.5 rounded-full shrink-0" style={{ background: opt.dot }} />
+											{opt.label}
+										</button>
+									);
+								})}
+							</div>
+						</div>
+						{canEditBranch && (
+							<div className="flex flex-col gap-2">
+								<span className="text-[11px] font-medium text-[#60607a]">Branch Name (optional)</span>
+								<Input
+									value={branchName}
+									onChange={(e) => { setBranchName(e.target.value); setBranchNameEdited(true); }}
+									placeholder="auto-generated from description"
+									prefix={<GitBranch size={13} className="text-[#4a4a5a]" />}
+								/>
+							</div>
+						)}
+						{!isStory && (
+							<div className="flex flex-col gap-2">
+								<span className="text-[11px] font-medium text-[#60607a]">Dependencies</span>
+								<Select multiple value={dependsOn} onChange={(v) => setDependsOn(v)} placeholder="None" filterable clearable>
+									{depsCardPool.map((c) => {
+										const cDisplay = c.description?.split("\n")[0] ?? c.id;
+										return (
+											<SelectOption key={c.id} value={c.id} label={cDisplay} hideCheckIcon>
+												<div className="flex items-center justify-between w-full gap-2 min-w-0">
+													<span className="truncate text-sm">{cDisplay}</span>
+													<span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium ${COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700"}`}>
+														{COLUMN_LABEL[c.columnId] ?? c.columnId}
+													</span>
+												</div>
+											</SelectOption>
+										);
+									})}
+								</Select>
+							</div>
+						)}
+					</div>
+					<div className="flex items-center gap-2.5 px-[18px] py-3.5 border-t border-[#2a2a35] shrink-0">
+						<div className="flex-1" />
+						<button
+							onClick={onClose}
+							className="px-4 py-2 rounded-md text-xs font-medium text-[#8888a0] hover:text-[#f0f0f5] transition-colors"
+						>
+							Cancel
+						</button>
+						<button
+							onClick={handleSave}
+							disabled={!description?.trim() || loading}
+							className="flex items-center gap-1.5 px-5 py-2 rounded-md text-xs font-semibold text-white bg-[#7c6aff] disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+						>
+							{loading ? "Saving..." : "Save Changes"}
 						</button>
 					</div>
 				</div>

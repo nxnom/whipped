@@ -1,4 +1,4 @@
-import { Button, ConfirmDialog, Dialog, Input, Select, SelectOption, Switch, Textarea, toast } from "@geckoui/geckoui";
+import { Button, ConfirmDialog, Input, Select, SelectOption, Switch, Textarea, toast } from "@geckoui/geckoui";
 import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
 import type {
 	RuntimeBoardCard,
@@ -14,7 +14,7 @@ import { trpc } from "@/runtime/trpc-client";
 import { useRunSession } from "@/stores/run-session-store";
 import { deriveBranchName } from "@/utils/branch";
 import { CardDetailPanel } from "./CardDetailPanel";
-import { CreateTaskDialog } from "./CreateTaskDialog";
+import { CreateTaskDialog, EditTaskDialog } from "./CreateTaskDialog";
 import { KanbanColumn } from "./KanbanColumn";
 
 interface KanbanBoardProps {
@@ -60,6 +60,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
 	const detailCard = detailCardId ? (state.board.cards[detailCardId] ?? null) : null;
 	const [createDialogOpen, setCreateDialogOpen] = useState(false);
 	const [createDialogMode, setCreateDialogMode] = useState<"task" | "story">("task");
+	const [editDialogCard, setEditDialogCard] = useState<RuntimeBoardCard | null>(null);
 	const [currentBranch, setCurrentBranch] = useState<string>("");
 
 	useEffect(() => {
@@ -112,19 +113,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
 	};
 
 	const openEditDialog = (card: RuntimeBoardCard) => {
-		Dialog.show({
-			className: "w-full",
-			content: ({ dismiss }) => (
-				<EditCardContent
-					workspaceId={workspaceId}
-					card={card}
-					allCards={state.board.cards}
-					workflows={state.projectConfig.workflows}
-					dismiss={dismiss}
-					onRefresh={onRefresh}
-				/>
-			),
-		});
+		setEditDialogCard(card);
 	};
 
 	const handleMoveAllToReady = () => {
@@ -295,6 +284,17 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, onOpenSettings, on
 				onRefresh={onRefresh}
 				navigate={(path) => navigate(path)}
 			/>
+
+			{editDialogCard && (
+				<EditTaskDialog
+					card={editDialogCard}
+					workspaceId={workspaceId}
+					allCards={state.board.cards}
+					workflows={state.projectConfig.workflows}
+					onRefresh={onRefresh}
+					onClose={() => setEditDialogCard(null)}
+				/>
+			)}
 		</div>
 	);
 }
