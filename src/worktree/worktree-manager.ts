@@ -78,6 +78,37 @@ export function createWorktree(
 	// Prune stale git refs in case a previous run left the worktree deregistered
 	git(["worktree", "prune"], repoPath);
 
+	// Best-effort sync baseRef with remote so the new worktree starts from the latest available state.
+	const fetchResult = git(["fetch", "origin", baseRef], repoPath);
+	if (!fetchResult.ok) {
+		logger.warn(`[worktree:create] Could not fetch origin/${baseRef} — proceeding with local state`);
+	} else {
+		const switchResult = git(["switch", baseRef], repoPath);
+		if (!switchResult.ok) {
+			logger.warn(`[worktree:create] Could not switch to ${baseRef} — skipping remote sync`);
+		} else {
+			const current = git(["rev-parse", baseRef], repoPath).stdout.trim();
+			const remote = git(["rev-parse", `origin/${baseRef}`], repoPath).stdout.trim();
+			const mergeBase = git(["merge-base", baseRef, `origin/${baseRef}`], repoPath).stdout.trim();
+
+			if (current === remote) {
+				// already in sync
+			} else if (current === mergeBase) {
+				// local is purely behind remote — fast-forward
+				git(["merge", "--ff-only", `origin/${baseRef}`], repoPath);
+			} else if (remote === mergeBase) {
+				// local is ahead of remote (e.g. from local merges) — nothing to do
+			} else {
+				// diverged — merge remote in, abort on conflict
+				const mergeResult = git(["merge", "--no-ff", "-m", `Merge remote origin/${baseRef}`, `origin/${baseRef}`], repoPath);
+				if (!mergeResult.ok) {
+					git(["merge", "--abort"], repoPath);
+					logger.warn(`[worktree:create] Could not merge origin/${baseRef} into local — proceeding with local state`);
+				}
+			}
+		}
+	}
+
 	const branchCheck = git(["branch", "--list", branch], repoPath);
 	const branchExists = branchCheck.stdout.includes(branch);
 	logger.info(`[worktree:create] branchExists=${branchExists}`);
