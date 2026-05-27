@@ -178,10 +178,10 @@ export function SlackSettings() {
 	const [creating, setCreating] = useState(false);
 	const [resetting, setResetting] = useState(false);
 	const [showAdvanced, setShowAdvanced] = useState(false);
-	const [showHowItWorks, setShowHowItWorks] = useState(false);
 	const [showSetup, setShowSetup] = useState(false);
 	const [createError, setCreateError] = useState<string | null>(null);
 	const [waitingForInstall, setWaitingForInstall] = useState(false);
+
 
 	useEffect(() => {
 		Promise.all([trpc.config.get.query(), trpc.slack.tunnelConfig.query()])
@@ -265,6 +265,17 @@ export function SlackSettings() {
 		}
 	};
 
+	const handleToggleEnabled = async () => {
+		if (!config) return;
+		const next = { ...config, slackEnabled: !config.slackEnabled };
+		try {
+			const updated = await trpc.config.save.mutate(next);
+			setConfig(updated);
+		} catch {
+			toast.error("Failed to save");
+		}
+	};
+
 	if (!config) {
 		return (
 			<div className="flex-1 flex flex-col">
@@ -301,6 +312,38 @@ export function SlackSettings() {
 							<span className="text-[13px] text-[#4ade80]">Connected — Slack app is fully configured</span>
 						</div>
 					)}
+
+					{/* Slack integration section */}
+					<div className="flex flex-col gap-4">
+						<div className="flex items-center gap-3">
+							<span className="text-[15px] font-semibold text-[#f0f0f5]">Slack</span>
+							<div className="flex-1 h-px bg-[#1a1a1f]" />
+						</div>
+						<div className="flex items-center justify-between">
+							<div className="flex flex-col gap-0.5">
+								<span className="text-[13px] font-medium text-[#c0c0d0]">Enable Slack integration</span>
+								<span className="text-[11px] text-[#60607a]">
+									{config.slackEnabled ? "Active — notifications and replies are syncing." : "Paused — no messages will be sent or received."}
+								</span>
+							</div>
+							<button
+								role="switch"
+								aria-checked={config.slackEnabled}
+								onClick={handleToggleEnabled}
+								className={classNames(
+									"relative shrink-0 transition-colors w-9 h-5 rounded-[10px]",
+									config.slackEnabled ? "bg-[#7c6aff]" : "bg-[#2a2a35]",
+								)}
+							>
+								<span
+									className={classNames(
+										"absolute top-[3px] left-[3px] w-3.5 h-3.5 rounded-full bg-white transition-transform",
+										config.slackEnabled ? "translate-x-4" : "translate-x-0",
+									)}
+								/>
+							</button>
+						</div>
+					</div>
 
 					{/* Setup wizard */}
 					<div className="flex flex-col gap-0">
@@ -462,44 +505,6 @@ export function SlackSettings() {
 										</>
 									)}
 								</StepRow>
-							</div>
-						)}
-					</div>
-
-					{/* How it works */}
-					<div className="flex flex-col gap-3">
-						<button
-							onClick={() => setShowHowItWorks((v) => !v)}
-							className="self-start flex items-center gap-1.5 text-[11px] transition-opacity hover:opacity-80 text-[#4a4a5a]"
-						>
-							<ChevronRight
-								size={12}
-								className={classNames("transition-transform duration-150", showHowItWorks ? "rotate-90" : "rotate-0")}
-							/>
-							How it works
-						</button>
-						{showHowItWorks && (
-							<div className="rounded-lg overflow-hidden text-[12px] border border-[#2a2a35]">
-								{[
-									["Ticket created", `New message in #oe-{project-name}`],
-									["Agent adds activity", "Thread reply on the ticket message"],
-									["Ticket changes status", "Thread reply: Status → In Progress / Done / Blocked"],
-									["PR opened or merged", "Thread reply with PR link"],
-									["You reply in thread", "Comment added to the ticket"],
-									['You reply "reopen" in thread', "Ticket moved to Reopened column"],
-								].map(([event, result], i, arr) => (
-									<div
-										key={event}
-										className={classNames(
-											"flex items-center gap-4 px-4 py-3",
-											i < arr.length - 1 ? "border-b border-[#1a1a1f]" : "",
-										)}
-										style={{ background: i % 2 === 0 ? "#0c0c0f" : "#0f0f12" }}
-									>
-										<span className="font-medium shrink-0 text-[#c0c0d0] w-[220px]">{event}</span>
-										<span className="text-[#60607a]">{result}</span>
-									</div>
-								))}
 							</div>
 						)}
 					</div>

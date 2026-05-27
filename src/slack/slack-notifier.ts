@@ -38,7 +38,7 @@ class SlackNotifier {
 	private async processUpdate(workspaceId: string, repoPath: string): Promise<void> {
 		try {
 			const config = await loadGlobalConfig();
-			if (!config.slackBotToken) return;
+			if (!config.slackEnabled || !config.slackBotToken) return;
 
 			const board = await loadBoard(workspaceId);
 			const cards = board.cards as Record<string, RuntimeBoardCard>;
@@ -103,7 +103,7 @@ class SlackNotifier {
 	async joinExistingChannels(workspaceId: string): Promise<void> {
 		try {
 			const config = await loadGlobalConfig();
-			if (!config.slackBotToken) return;
+			if (!config.slackEnabled || !config.slackBotToken) return;
 			const board = await loadBoard(workspaceId);
 			const channelIds = new Set(
 				Object.values(board.cards as Record<string, RuntimeBoardCard>)
@@ -125,7 +125,7 @@ class SlackNotifier {
 		if (!card.slackChannelId || !card.slackMessageTs) return;
 		try {
 			const config = await loadGlobalConfig();
-			if (!config.slackBotToken) return;
+			if (!config.slackEnabled || !config.slackBotToken) return;
 			const client = new SlackClient(config.slackBotToken);
 			await client.postMessage(card.slackChannelId, text, card.slackMessageTs);
 		} catch (err) {
@@ -271,7 +271,7 @@ class SlackNotifier {
 		if (!card.slackChannelId || !card.slackMessageTs) return;
 		try {
 			const config = await loadGlobalConfig();
-			if (!config.slackBotToken) return;
+			if (!config.slackEnabled || !config.slackBotToken) return;
 			const client = new SlackClient(config.slackBotToken);
 			await client.updateMessage(card.slackChannelId, card.slackMessageTs, cardMessage(card, true));
 			await client.addReaction(card.slackChannelId, card.slackMessageTs, "wastebasket");

@@ -324,6 +324,7 @@ export const runtimeGlobalConfigSchema = z.object({
 	pollingIntervalSeconds: z.number().int().positive().default(30),
 	prPollingIntervalSeconds: z.number().int().positive().default(60),
 	terminalApp: z.string().optional(),
+	slackEnabled: z.boolean().default(true),
 	slackBotToken: z.string().optional(),
 	slackSigningSecret: z.string().optional(),
 	slackAppConfigToken: z.string().optional(),
