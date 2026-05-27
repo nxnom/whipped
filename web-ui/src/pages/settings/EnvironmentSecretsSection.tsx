@@ -1,5 +1,5 @@
 import { BUILTIN_SECRET_KEYS, type RuntimeProjectConfig, type RuntimeProjectSecret } from "@runtime-contract";
-import { ClipboardPaste, Eye, EyeOff, Plus, X } from "lucide-react";
+import { ClipboardPaste, Eye, EyeOff, Lock, Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/runtime/trpc-client";
 import { toast } from "@geckoui/geckoui";
@@ -218,9 +218,9 @@ function SecretRow({
 
 			{/* Badge or remove */}
 			{isBuiltin ? (
-				<div className="shrink-0 bg-[#3b82f615] rounded px-[7px] py-0.5">
-					<span className="text-[10px] text-[#3b82f6]">default</span>
-				</div>
+				<span className="shrink-0 text-[#3b82f6]">
+					<Lock size={14} />
+				</span>
 			) : (
 				<button onClick={onRemove} className="shrink-0 hover:opacity-70 transition-opacity text-[#60607a]">
 					<X size={14} />
