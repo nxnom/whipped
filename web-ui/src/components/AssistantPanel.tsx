@@ -106,13 +106,13 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 			{/* Drag handle */}
 			<div
 				onMouseDown={onDragStart}
-				className="w-1 shrink-0 cursor-col-resize hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors bg-gray-800"
+				className="w-1 shrink-0 cursor-col-resize hover:bg-[#7c6aff]/40 active:bg-[#7c6aff]/60 transition-colors bg-[#2a2a35]"
 			/>
-			<div className="flex-1 border-l border-gray-800 flex flex-col overflow-hidden">
-				<div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 shrink-0">
+			<div className="flex-1 border-l border-[#2a2a35] flex flex-col overflow-hidden">
+				<div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2a35] shrink-0">
 					<div className="flex items-center gap-2">
-						<Bot size={16} className="text-blue-400" />
-						<h2 className="text-sm font-medium text-gray-300">Assistant</h2>
+						<Bot size={16} className="text-[#7c6aff]" />
+						<h2 className="text-sm font-medium text-[#f0f0f5]">Assistant</h2>
 					</div>
 					<div className="flex items-center gap-2">
 						{taskId && (
@@ -130,7 +130,7 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 					{taskId ? (
 						<TaskTerminal taskId={taskId} workspaceId={workspaceId} className="flex-1 min-h-0" />
 					) : (
-						<div className="flex-1 flex flex-col items-center justify-center gap-4 text-gray-500">
+						<div className="flex-1 flex flex-col items-center justify-center gap-4 text-[#60607a]">
 							<Bot size={40} />
 							<p className="text-sm">Interactive Claude session for managing your board</p>
 							<Button size="sm" onClick={() => void startSession()} disabled={starting}>
