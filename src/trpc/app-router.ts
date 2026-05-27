@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { tunnelManager } from "../slack/cloudflare-tunnel.js";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getAvailableAgents, getCursorModels, getOpencodeModels } from "../agents/agent-registry.js";
@@ -1016,6 +1017,17 @@ export const appRouter = router({
 	}),
 
 	// ─── Jira (per-project) ───────────────────────────────────────────────────
+	slack: router({
+		tunnelStatus: publicProcedure.query(() => tunnelManager.getState()),
+		startTunnel: publicProcedure.mutation(() => {
+			tunnelManager.start();
+			return tunnelManager.getState();
+		}),
+		stopTunnel: publicProcedure.mutation(() => {
+			tunnelManager.stop();
+			return tunnelManager.getState();
+		}),
+	}),
 	jira: router({
 		fetchTickets: publicProcedure.input(z.object({ workspaceId: z.string() })).query(async ({ input }) => {
 			const projectConfig = await loadProjectConfig(input.workspaceId);

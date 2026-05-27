@@ -6,6 +6,7 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import * as nodePty from "node-pty";
 import { WebSocketServer } from "ws";
 import { writeClaudeTaskHookSettings } from "../agents/agent-hooks.js";
+import { tunnelManager } from "../slack/cloudflare-tunnel.js";
 import { ATTACHMENTS_DIR, DEFAULT_PORT, loadGlobalConfig } from "../config/runtime-config.js";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
@@ -590,9 +591,12 @@ export async function createRuntimeServer(options: ServerOptions) {
 		logger.warn("[server] Failed to write claude hook settings:", err);
 	});
 
+	tunnelManager.start();
+
 	return {
 		url: `http://${host}:${port}`,
 		close: async () => {
+			tunnelManager.stop();
 			for (const [, poller] of pollers) poller.stop();
 			// Persist failed/todo state for in-progress tasks before killing processes.
 			for (const [wsId, scheduler] of schedulers) {
