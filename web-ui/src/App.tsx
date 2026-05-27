@@ -9,17 +9,18 @@ import { RunBar } from "@/components/RunBar";
 import { BoardPage } from "@/pages/Board";
 import { SettingsPage } from "@/pages/settings";
 import { trpc } from "@/runtime/trpc-client";
+import { firstSortedProjectId } from "@/utils/projects";
 
 function HomeRoute({ onAddProject }: { onAddProject: () => void }) {
 	const navigate = useNavigate();
 	const [ready, setReady] = useState(false);
 
 	useEffect(() => {
-		trpc.projects.list
-			.query()
-			.then((list) => {
+		Promise.all([trpc.projects.list.query(), trpc.projects.getLayout.query()])
+			.then(([list, layout]) => {
 				if (list.length > 0) {
-					navigate(`/${encodeURIComponent(list[0]!.workspaceId)}/board`, { replace: true });
+					const id = (layout ? firstSortedProjectId(layout, list) : null) ?? list[0]!.workspaceId;
+					navigate(`/${encodeURIComponent(id)}/board`, { replace: true });
 				} else {
 					setReady(true);
 				}

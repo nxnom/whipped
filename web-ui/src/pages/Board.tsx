@@ -8,6 +8,7 @@ import { type ProjectsSidebarHandle, ProjectsSidebar } from "@/components/Projec
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
 import { useWorkspaceState } from "@/stores/board-store";
 import { trpc } from "@/runtime/trpc-client";
+import { firstSortedProjectId } from "@/utils/projects";
 
 interface Props {
 	onOpenAgent: () => void;
@@ -30,11 +31,14 @@ export function BoardPage({ onOpenAgent }: Props) {
 
 	const loadProjects = async () => {
 		try {
-			const list = await trpc.projects.list.query();
+			const [list, layout] = await Promise.all([trpc.projects.list.query(), trpc.projects.getLayout.query()]);
 			setProjects(list);
 			if (list.length > 0) {
 				const valid = list.some((p) => p.workspaceId === workspaceId);
-				if (!valid) navigate(`/${encodeURIComponent(list[0]!.workspaceId)}/board`, { replace: true });
+				if (!valid) {
+					const id = (layout ? firstSortedProjectId(layout, list) : null) ?? list[0]!.workspaceId;
+					navigate(`/${encodeURIComponent(id)}/board`, { replace: true });
+				}
 			}
 		} catch {
 			toast.error("Failed to load projects");
