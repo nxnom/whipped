@@ -452,15 +452,22 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 			return;
 		}
 		try {
-			logger.info(`[review] Auto PR: commit → push → create for "${cardDesc60}" (branch: ${taskBranch})`);
 			await commitIfDirty(worktreePath, card.pr?.title ?? card.description?.split("\n")[0]?.slice(0, 72) ?? card.id);
 			await pushBranch(worktreePath, taskBranch);
 			const devSummary =
 				[...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev")?.summary ?? card.description;
 			const prTitle = card.pr?.title ?? card.description?.split("\n")[0]?.slice(0, 72) ?? card.id;
 			const prDescription = card.pr?.description ?? devSummary;
-			const prUrl = await createGithubPR(worktreePath, prTitle, prDescription, card.baseRef, githubToken);
-			logger.info(`[review] Auto PR created: ${prUrl}`);
+			let prUrl: string;
+			if (card.pr?.url) {
+				// PR already exists locally — push already updated it, nothing more to do
+				prUrl = card.pr.url;
+				logger.info(`[review] Auto PR: pushed to existing PR ${prUrl} for "${cardDesc60}"`);
+			} else {
+				logger.info(`[review] Auto PR: commit → push → create for "${cardDesc60}" (branch: ${taskBranch})`);
+				prUrl = await createGithubPR(worktreePath, prTitle, prDescription, card.baseRef, githubToken);
+				logger.info(`[review] Auto PR created: ${prUrl}`);
+			}
 			await updateCard(workspaceId, card.id, { pr: { ...card.pr, url: prUrl } });
 			// Propagate PR URL to all subtasks sharing this story's worktree.
 			const prBoard = await loadBoard(workspaceId);

@@ -171,6 +171,18 @@ export async function createGithubPR(
 				"GitHub token lacks required permissions — edit your fine-grained PAT at github.com/settings/personal-access-tokens and add Repository > Contents > Read-only and Pull requests > Read & Write.",
 			);
 		}
+		// PR already exists — find and return the existing PR URL instead of failing
+		if (status === 422 && msg.includes("A pull request already exists")) {
+			const { data: prs } = await octokit.pulls.list({
+				owner: remote.owner,
+				repo: remote.repo,
+				head: `${remote.owner}:${head}`,
+				base: baseRef,
+				state: "open",
+				per_page: 1,
+			});
+			if (prs[0]) return prs[0].html_url;
+		}
 		throw err;
 	}
 }

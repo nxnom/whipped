@@ -900,6 +900,73 @@ export const appRouter = router({
 
 				return { diff, error: null, baseBehindCount };
 			}),
+
+		getCommits: publicProcedure
+			.input(z.object({ workspaceId: z.string(), cardId: z.string() }))
+			.query(async ({ input }) => {
+				const { workspaceId, cardId } = input;
+				const workspaces = await listWorkspaces();
+				const ws = workspaces.find((w) => w.workspaceId === workspaceId);
+				if (!ws) throw new TRPCError({ code: "NOT_FOUND", message: "Workspace not found" });
+
+				const board = await loadBoard(workspaceId);
+				const card = board.cards[cardId];
+				if (!card) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
+
+				const worktreePath = getWorktreePath(card.sharedWorktreeId ?? cardId);
+				const { existsSync } = await import("node:fs");
+				if (!existsSync(worktreePath)) return { commits: [] };
+
+				const result = spawnSync(
+					"git",
+					["log", "--pretty=format:%H%x00%h%x00%s%x00%an%x00%ai", `${card.baseRef}..HEAD`],
+					{ cwd: worktreePath, encoding: "utf-8" },
+				);
+
+				if (result.status !== 0 || !result.stdout?.trim()) return { commits: [] };
+
+				const commits = result.stdout
+					.trim()
+					.split("\n")
+					.filter(Boolean)
+					.map((line) => {
+						const [hash = "", shortHash = "", message = "", author = "", date = ""] = line.split("\x00");
+						return { hash, shortHash, message, author, date };
+					});
+
+				return { commits };
+			}),
+
+		getDiffForCommit: publicProcedure
+			.input(z.object({ workspaceId: z.string(), cardId: z.string(), commitHash: z.string() }))
+			.query(async ({ input }) => {
+				const { workspaceId, cardId, commitHash } = input;
+				const workspaces = await listWorkspaces();
+				const ws = workspaces.find((w) => w.workspaceId === workspaceId);
+				if (!ws) throw new TRPCError({ code: "NOT_FOUND", message: "Workspace not found" });
+
+				const board = await loadBoard(workspaceId);
+				const card = board.cards[cardId];
+				if (!card) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
+
+				if (!/^[0-9a-f]{4,64}$/i.test(commitHash)) return { diff: null, error: "Invalid commit hash" };
+
+				const worktreePath = getWorktreePath(card.sharedWorktreeId ?? cardId);
+				const { existsSync } = await import("node:fs");
+				if (!existsSync(worktreePath)) return { diff: null, error: "No worktree" };
+
+				const result = spawnSync(
+					"git",
+					["show", commitHash, "--format=", "--patch", "--no-color", "-U3"],
+					{ cwd: worktreePath, encoding: "utf-8", maxBuffer: 4 * 1024 * 1024 },
+				);
+
+				if (result.status !== 0) {
+					return { diff: null, error: result.stderr?.trim() ?? "Failed to get commit diff" };
+				}
+
+				return { diff: result.stdout.replace(/^\n+/, ""), error: null };
+			}),
 	}),
 
 	// ─── Terminal ──────────────────────────────────────────────────────────────
