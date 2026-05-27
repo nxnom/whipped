@@ -18,7 +18,7 @@ function Avatar({ comment }: { comment: RuntimeReviewComment }) {
 	if (actor.type === "human" || actor.type === "external") {
 		const initials = actor.id.slice(0, 2).toUpperCase();
 		return (
-			<div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-700 text-[11px] font-bold text-gray-300 shrink-0 select-none">
+			<div className="w-8 h-8 rounded-full flex items-center justify-center bg-[#2a2a38] text-[11px] font-bold text-gray-300 shrink-0 select-none">
 				{initials}
 			</div>
 		);
@@ -28,7 +28,7 @@ function Avatar({ comment }: { comment: RuntimeReviewComment }) {
 
 	if (err) {
 		return (
-			<div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-700 text-[11px] font-bold text-gray-300 shrink-0 select-none">
+			<div className="w-8 h-8 rounded-full flex items-center justify-center bg-[#2a2a38] text-[11px] font-bold text-gray-300 shrink-0 select-none">
 				{actor.id.slice(0, 2).toUpperCase()}
 			</div>
 		);
@@ -38,7 +38,7 @@ function Avatar({ comment }: { comment: RuntimeReviewComment }) {
 		<img
 			src={`https://api.dicebear.com/9.x/fun-emoji/svg?seed=${encodeURIComponent(seed)}`}
 			alt={actor.id}
-			className="w-8 h-8 rounded-full shrink-0 bg-gray-800"
+			className="w-8 h-8 rounded-full shrink-0 bg-[#1a1a24]"
 			onError={() => setErr(true)}
 			loading="lazy"
 		/>
@@ -109,13 +109,13 @@ function AttachmentItem({ path, name, mimeType }: { path: string; name: string; 
 					src={attachmentUrl(path)}
 					alt={name}
 					className={classNames(
-						"rounded border border-gray-700 cursor-pointer object-contain",
+						"rounded border border-[#2a2a38] cursor-pointer object-contain",
 						expanded ? "max-w-full max-h-96" : "max-h-24 max-w-48",
 					)}
 					onClick={() => setExpanded((v) => !v)}
 					title={expanded ? "Click to collapse" : "Click to expand"}
 				/>
-				<div className="text-[10px] text-gray-600 mt-0.5">{name}</div>
+				<div className="text-[10px] text-[#4a4a5a] mt-0.5">{name}</div>
 			</div>
 		);
 	}
@@ -124,7 +124,7 @@ function AttachmentItem({ path, name, mimeType }: { path: string; name: string; 
 			href={attachmentUrl(path)}
 			target="_blank"
 			rel="noreferrer"
-			className="mt-1 inline-flex items-center gap-1.5 px-2 py-1 rounded border border-gray-700 bg-gray-800 text-xs text-gray-300 hover:text-gray-100 hover:border-gray-600 transition-colors max-w-[200px]"
+			className="mt-1 inline-flex items-center gap-1.5 px-2 py-1 rounded border border-[#2a2a38] bg-[#1a1a24] text-xs text-gray-300 hover:text-gray-100 hover:border-[#3a3a50] transition-colors max-w-[200px]"
 			title={name}
 		>
 			<Paperclip size={11} className="shrink-0" />
@@ -179,11 +179,11 @@ function makeMdComponents(): React.ComponentProps<typeof ReactMarkdown>["compone
 		code: ({ children, className }) => {
 			const isBlock = className?.includes("language-");
 			return isBlock ? (
-				<code className="block bg-gray-800 rounded px-3 py-2 text-xs font-mono text-gray-200 overflow-x-auto whitespace-pre my-1">
+				<code className="block bg-[#1a1a24] border border-[#2a2a38] rounded px-3 py-2 text-xs font-mono text-gray-200 overflow-x-auto whitespace-pre my-1">
 					{children}
 				</code>
 			) : (
-				<code className="bg-gray-800 rounded px-1 py-0.5 text-xs font-mono text-gray-200">{children}</code>
+				<code className="bg-[#1a1a24] border border-[#2a2a38] rounded px-1 py-0.5 text-xs font-mono text-gray-200">{children}</code>
 			);
 		},
 		pre: ({ children }) => <pre className="my-1 overflow-x-auto">{children}</pre>,
@@ -191,7 +191,7 @@ function makeMdComponents(): React.ComponentProps<typeof ReactMarkdown>["compone
 		ol: ({ children }) => <ol className="list-decimal list-inside my-1 space-y-0.5">{children}</ol>,
 		li: ({ children }) => <li className="text-gray-300">{children}</li>,
 		blockquote: ({ children }) => (
-			<blockquote className="border-l-2 border-gray-600 pl-3 my-1 text-gray-400 italic">{children}</blockquote>
+			<blockquote className="border-l-2 border-[#3a3a50] pl-3 my-1 text-gray-400 italic">{children}</blockquote>
 		),
 		a: ({ href, children }) => (
 			<a href={href} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">
@@ -201,7 +201,7 @@ function makeMdComponents(): React.ComponentProps<typeof ReactMarkdown>["compone
 		h1: ({ children }) => <h1 className="text-base font-semibold text-gray-100 mt-2 mb-1">{children}</h1>,
 		h2: ({ children }) => <h2 className="text-sm font-semibold text-gray-100 mt-2 mb-1">{children}</h2>,
 		h3: ({ children }) => <h3 className="text-sm font-medium text-gray-200 mt-1 mb-0.5">{children}</h3>,
-		hr: () => <hr className="border-gray-700 my-2" />,
+		hr: () => <hr className="border-[#2a2a38] my-2" />,
 		img: ({ src, alt }) => <img src={src} alt={alt} className="max-w-full max-h-64 rounded my-1 object-contain" />,
 	};
 }
@@ -315,7 +315,7 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 			<div className="flex-1 overflow-y-auto py-4">
 				{commentEntries.length === 0 ? (
 					<div className="flex items-center justify-center h-full">
-						<p className="text-sm text-gray-600">No comments yet</p>
+						<p className="text-sm text-[#4a4a5a]">No comments yet</p>
 					</div>
 				) : (
 					<>
@@ -330,17 +330,17 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 								<div key={i}>
 									{showDate && (
 										<div className="flex items-center gap-3 px-4 my-3">
-											<div className="flex-1 h-px bg-gray-800" />
-											<span className="text-[11px] text-gray-500 font-medium shrink-0">
+											<div className="flex-1 h-px bg-[#1e1e28]" />
+											<span className="text-[11px] text-[#4a4a5a] font-medium shrink-0">
 												{formatDateLabel(comment.createdAt)}
 											</span>
-											<div className="flex-1 h-px bg-gray-800" />
+											<div className="flex-1 h-px bg-[#1e1e28]" />
 										</div>
 									)}
 
 									<div
 										className={classNames(
-											"group flex items-start gap-3 px-4 hover:bg-gray-900/40",
+											"group flex items-start gap-3 px-4 hover:bg-[#13131a]",
 											showHeader ? "mt-3 pb-0.5" : "py-0.5",
 										)}
 									>
@@ -349,7 +349,7 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 											{showHeader ? (
 												<Avatar comment={comment} />
 											) : (
-												<span className="block w-8 text-center text-[8px] text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity tabular-nums whitespace-nowrap pt-1">
+												<span className="block w-8 text-center text-[8px] text-[#3a3a4a] opacity-0 group-hover:opacity-100 transition-opacity tabular-nums whitespace-nowrap pt-1">
 													{new Date(comment.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
 												</span>
 											)}
@@ -360,12 +360,12 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 												<div className="flex items-baseline gap-2 mb-0.5 flex-wrap">
 													<span className="font-semibold text-sm text-gray-100">{name}</span>
 													<AgentBadge comment={comment} />
-													<span className="text-xs text-gray-600 tabular-nums">
+													<span className="text-xs text-[#4a4a5a] tabular-nums">
 														{new Date(comment.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
 													</span>
 													{sourceCardTitle && (
 														<span
-															className="text-[10px] px-1.5 py-0.5 rounded font-medium text-gray-500 bg-gray-800 truncate max-w-[160px]"
+															className="text-[10px] px-1.5 py-0.5 rounded font-medium text-[#6a6a80] bg-[#1a1a24] border border-[#2a2a38] truncate max-w-[160px]"
 															title={sourceCardTitle}
 														>
 															{sourceCardTitle}
@@ -443,7 +443,7 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 			</div>
 
 			{/* Input */}
-			<div className="shrink-0 border-t border-gray-800 p-3">
+			<div className="shrink-0 border-t border-[#1e1e28] p-3">
 				<input
 					ref={fileInputRef}
 					type="file"
@@ -455,7 +455,7 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 						e.target.value = "";
 					}}
 				/>
-				<div className="rounded-lg border border-gray-700 bg-gray-900 focus-within:border-gray-600 transition-colors">
+				<div className="rounded-lg border border-[#2a2a38] bg-[#0d0d12] focus-within:border-[#3a3a50] transition-colors">
 					{/* Pending attachment previews */}
 					{pendingAttachments.length > 0 && (
 						<div className="flex flex-wrap gap-2 px-3 pt-2">
@@ -465,12 +465,12 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 										<img
 											src={att.dataUrl}
 											alt={att.name}
-											className="h-16 w-16 object-cover rounded border border-gray-700"
+											className="h-16 w-16 object-cover rounded border border-[#2a2a38]"
 											title={att.name}
 										/>
 									) : (
 										<div
-											className="h-16 w-16 flex flex-col items-center justify-center gap-1 rounded border border-gray-700 bg-gray-800 px-1"
+											className="h-16 w-16 flex flex-col items-center justify-center gap-1 rounded border border-[#2a2a38] bg-[#1a1a24] px-1"
 											title={att.name}
 										>
 											<Paperclip size={16} className="shrink-0 text-gray-500" />
@@ -479,7 +479,7 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 									)}
 									<button
 										onClick={() => setPendingAttachments((prev) => prev.filter((_, i) => i !== idx))}
-										className="absolute -top-1 -right-1 size-4 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+										className="absolute -top-1 -right-1 size-4 rounded-full bg-[#1a1a24] border border-[#3a3a50] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
 									>
 										<X size={10} className="text-gray-300" />
 									</button>
@@ -519,13 +519,13 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 						<div className="flex items-center gap-2">
 							<button
 								onClick={() => fileInputRef.current?.click()}
-								className="text-gray-600 hover:text-gray-400 transition-colors"
+								className="text-[#4a4a5a] hover:text-gray-400 transition-colors"
 								title="Attach file"
 								type="button"
 							>
 								<Paperclip size={14} />
 							</button>
-							<span className="text-[10px] text-gray-700">↵ Send · ⇧↵ Newline</span>
+							<span className="text-[10px] text-[#3a3a4a]">↵ Send · ⇧↵ Newline</span>
 						</div>
 						<div className="flex gap-1.5">
 							{isReadyForReview && (
