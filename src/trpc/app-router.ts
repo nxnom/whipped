@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { tunnelManager } from "../slack/cloudflare-tunnel.js";
+import { createSlackApp } from "../slack/slack-setup.js";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getAvailableAgents, getCursorModels, getOpencodeModels } from "../agents/agent-registry.js";
@@ -1027,6 +1028,32 @@ export const appRouter = router({
 			tunnelManager.stop();
 			return tunnelManager.getState();
 		}),
+		resetApp: publicProcedure.mutation(async () => {
+			await updateGlobalConfig({
+				slackBotToken: undefined,
+				slackSigningSecret: undefined,
+				slackClientId: undefined,
+				slackClientSecret: undefined,
+				slackAppId: undefined,
+				slackOauthAuthorizeUrl: undefined,
+				slackPublicUrl: undefined,
+			});
+		}),
+		createApp: publicProcedure
+			.input(z.object({ appConfigToken: z.string(), publicUrl: z.string() }))
+			.mutation(async ({ input }) => {
+				const app = await createSlackApp(input.appConfigToken, input.publicUrl);
+				await updateGlobalConfig({
+					slackAppConfigToken: input.appConfigToken,
+					slackClientId: app.clientId,
+					slackClientSecret: app.clientSecret,
+					slackSigningSecret: app.signingSecret,
+					slackAppId: app.appId,
+					slackOauthAuthorizeUrl: app.oauthAuthorizeUrl,
+					slackPublicUrl: input.publicUrl,
+				});
+				return app;
+			}),
 	}),
 	jira: router({
 		fetchTickets: publicProcedure.input(z.object({ workspaceId: z.string() })).query(async ({ input }) => {

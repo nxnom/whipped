@@ -219,46 +219,35 @@ export function TunnelSettings() {
 
 							<SetupStep number={2} title="Authenticate with Cloudflare">
 								<CodeBlock>cloudflared tunnel login</CodeBlock>
-								<p>Opens a browser — select your Cloudflare account and authorise. Writes a cert to <Mono>~/.cloudflared/cert.pem</Mono>.</p>
+								<p>Opens a browser — select your Cloudflare account and authorise.</p>
 							</SetupStep>
 
 							<SetupStep number={3} title="Create a named tunnel">
 								<CodeBlock>cloudflared tunnel create overemployed</CodeBlock>
-								<p>Prints a tunnel ID — note it down. Writes credentials to <Mono>~/.cloudflared/{"<tunnel-id>"}.json</Mono>.</p>
-							</SetupStep>
-
-							<SetupStep number={4} title="Route your subdomain to the tunnel">
-								<CodeBlock>cloudflared tunnel route dns overemployed your-subdomain.yourdomain.com</CodeBlock>
-								<p>If that fails, add a CNAME manually in your DNS provider:</p>
-								<pre
-									className="px-3 py-2 rounded font-mono text-[11px] leading-relaxed"
-									style={{ background: "#0c0c0f", border: "1px solid #2a2a35", color: "#8888a0" }}
-								>
+								<p>Note the tunnel ID printed. Then add a CNAME in your Cloudflare DNS dashboard:</p>
+								<pre className="px-3 py-2 rounded font-mono text-[11px] leading-relaxed" style={{ background: "#0c0c0f", border: "1px solid #2a2a35", color: "#8888a0" }}>
 {`Type:    CNAME
-Name:    your-subdomain
+Name:    slack
 Content: <tunnel-id>.cfargotunnel.com
 Proxy:   Proxied (orange cloud ON)`}
 								</pre>
 							</SetupStep>
 
-							<SetupStep number={5} title="Create the config file">
+							<SetupStep number={4} title="Create the config file">
 								<p>Create <Mono>~/.cloudflared/config.yml</Mono>:</p>
-								<pre
-									className="px-3 py-2 rounded font-mono text-[11px] leading-relaxed"
-									style={{ background: "#0c0c0f", border: "1px solid #2a2a35", color: "#8888a0" }}
-								>
+								<pre className="px-3 py-2 rounded font-mono text-[11px] leading-relaxed" style={{ background: "#0c0c0f", border: "1px solid #2a2a35", color: "#8888a0" }}>
 {`tunnel: <tunnel-id>
 credentials-file: /Users/<username>/.cloudflared/<tunnel-id>.json
 
 ingress:
-  - hostname: your-subdomain.yourdomain.com
+  - hostname: slack.yourdomain.com
     service: http://127.0.0.1:50008
   - service: http_status:404`}
 								</pre>
 							</SetupStep>
 
-							<SetupStep number={6} title="Enable auto-start (recommended)">
-								<p>Toggle <span style={{ color: "#c0c0d0", fontWeight: 500 }}>Auto-start tunnel</span> above — the tunnel will start automatically every time the server starts. No need to run anything separately.</p>
+							<SetupStep number={5} title="Enable auto-start (recommended)">
+								<p>Toggle <span style={{ color: "#c0c0d0", fontWeight: 500 }}>Auto-start tunnel</span> above — Overemployed will run <Mono>cloudflared tunnel run overemployed</Mono> automatically on every server start.</p>
 							</SetupStep>
 						</div>
 					</div>

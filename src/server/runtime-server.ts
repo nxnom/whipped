@@ -7,6 +7,7 @@ import * as nodePty from "node-pty";
 import { WebSocketServer } from "ws";
 import { writeClaudeTaskHookSettings } from "../agents/agent-hooks.js";
 import { tunnelManager } from "../slack/cloudflare-tunnel.js";
+import { exchangeCodeForBotToken } from "../slack/slack-setup.js";
 import { ATTACHMENTS_DIR, DEFAULT_PORT, loadGlobalConfig } from "../config/runtime-config.js";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
@@ -286,6 +287,40 @@ export async function createRuntimeServer(options: ServerOptions) {
 
 	const httpServer = createServer(async (req, res) => {
 		const url = new URL(req.url ?? "/", `http://${host}`);
+
+		if (url.pathname === "/api/slack/oauth-callback") {
+			const code = url.searchParams.get("code");
+			if (!code) {
+				res.writeHead(400, { "Content-Type": "text/plain" });
+				res.end("Missing code");
+				return;
+			}
+			try {
+				const config = await loadGlobalConfig();
+				if (!config.slackClientId || !config.slackClientSecret || !config.slackPublicUrl) {
+					res.writeHead(400, { "Content-Type": "text/plain" });
+					res.end("Slack app not configured");
+					return;
+				}
+				const botToken = await exchangeCodeForBotToken(
+					code,
+					config.slackClientId,
+					config.slackClientSecret,
+					config.slackPublicUrl,
+				);
+				await import("../config/runtime-config.js").then((m) =>
+					m.updateGlobalConfig({ slackBotToken: botToken }),
+				);
+				logger.info("[slack] Bot token saved via OAuth callback");
+				res.writeHead(200, { "Content-Type": "text/html" });
+				res.end(`<!DOCTYPE html><html><head><title>Slack Connected</title></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0f0f10;color:#f0f0f5"><div style="text-align:center"><div style="font-size:48px;margin-bottom:16px">✓</div><h2 style="margin:0 0 8px">Slack connected!</h2><p style="color:#60607a;margin:0">You can close this tab and return to the app.</p></div></body></html>`);
+			} catch (err) {
+				logger.error({ err }, "[slack] OAuth callback failed");
+				res.writeHead(500, { "Content-Type": "text/plain" });
+				res.end("OAuth failed");
+			}
+			return;
+		}
 
 		if (url.pathname === "/api/hook") {
 			const event = url.searchParams.get("event") as "stop" | "user_prompt" | null;
