@@ -125,11 +125,18 @@ export function abortMerge(repoPath: string): void {
 // Plain git push — works for any remote (GitHub, GitLab, Bitbucket, SSH, etc.)
 // Auth is handled by the user's git credential store or SSH key.
 export async function pushBranch(worktreePath: string, branch: string): Promise<void> {
+	if (!existsSync(worktreePath)) {
+		throw new Error(`Failed to push: worktree path no longer exists (${worktreePath})`);
+	}
 	await execFileAsync("git", ["push", "-u", "--force-with-lease", "origin", branch], {
 		cwd: worktreePath,
 		encoding: "utf-8",
-	}).catch((err: { stderr?: string }) => {
-		throw new Error(`Failed to push: ${(err.stderr ?? String(err)).trim()}`);
+	}).catch((err: { stderr?: string; message?: string; code?: string }) => {
+		// `??` would keep an empty-string stderr; prefer any non-empty channel.
+		const stderr = err.stderr?.trim();
+		const message = err.message?.trim();
+		const detail = stderr || message || err.code || String(err);
+		throw new Error(`Failed to push: ${detail}`);
 	});
 }
 

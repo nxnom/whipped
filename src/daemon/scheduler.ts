@@ -748,6 +748,27 @@ export class TaskScheduler {
 			this.running.delete(taskId);
 			void appendActivityLog(this.options.workspaceId, taskId, "Agent stopped manually");
 		}
+		this.stopReviewAgentsForCard(taskId);
+	}
+
+	// Fire stop callbacks for any review-pipeline agents whose streamId belongs
+	// to this card. Without this, deleting a card while reviews are still
+	// running leaves orphan agents that finish in a deleted worktree and crash
+	// the post-review push.
+	private stopReviewAgentsForCard(cardId: string): void {
+		const prefix = `${cardId}-`;
+		for (const streamId of [...this.stopCallbacks.keys()]) {
+			if (!streamId.startsWith(prefix)) continue;
+			const cb = this.stopCallbacks.get(streamId);
+			if (!cb) continue;
+			this.stopCallbacks.delete(streamId);
+			logger.info(`[scheduler] Stopping review agent ${streamId} (card ${cardId} stopped)`);
+			try {
+				cb();
+			} catch (err) {
+				logger.warn({ err }, `[scheduler] stopReviewAgentsForCard: callback for ${streamId} threw`);
+			}
+		}
 	}
 
 	// Stop a task because its parent was reopened — session becomes "stopped" rather than being removed.

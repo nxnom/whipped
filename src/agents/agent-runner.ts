@@ -70,17 +70,30 @@ export function spawnAgent(options: AgentRunOptions): AgentProcess {
 		onOutput(data);
 	});
 
+	let exited = false;
 	pty.onExit(({ exitCode }) => {
+		exited = true;
 		onExit(exitCode ?? 0);
 	});
 
 	return {
 		kill() {
+			if (exited) return;
+			// SIGTERM first so claude/codex can flush; escalate to SIGKILL for TUI
+			// agents (opencode, cursor) that swallow SIGTERM and otherwise stay alive.
 			try {
-				treeKill(pty.pid);
+				treeKill(pty.pid, "SIGTERM");
 			} catch {
 				/* process may already be gone */
 			}
+			setTimeout(() => {
+				if (exited) return;
+				try {
+					treeKill(pty.pid, "SIGKILL");
+				} catch {
+					/* process may already be gone */
+				}
+			}, 1000).unref();
 		},
 		resize(cols, rows) {
 			try {

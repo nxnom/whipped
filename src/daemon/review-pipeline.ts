@@ -443,6 +443,16 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 	const { workspaceId, githubClient, stateHub, autoPR } = options;
 
 	const cardDesc60 = card.description?.split("\n")[0]?.slice(0, 60) ?? card.id;
+
+	// Card may have been deleted while the review pipeline was still in flight
+	// (e.g. user deleted the card; orphan review agent kept running). Bail out
+	// so we don't push to a now-missing worktree or move a non-existent card.
+	const successBoard = await loadBoard(workspaceId);
+	if (!successBoard.cards[card.id]) {
+		logger.info(`[review] Skipping post-success actions for "${cardDesc60}" — card no longer exists`);
+		return;
+	}
+
 	logger.info(`[review] Review passed for "${cardDesc60}" → ready for human review`);
 
 	if (githubClient && card.githubIssueUrl) {
