@@ -14,6 +14,7 @@ import {
 	GitBranch,
 	GitMerge,
 	GitPullRequest,
+	Globe,
 	Loader2,
 	Paperclip,
 	Pencil,
@@ -31,6 +32,7 @@ import { trpc } from "@/runtime/trpc-client";
 import { useRunSession } from "@/stores/run-session-store";
 import { ChatComments } from "./ChatComments";
 import { DiffView } from "./DiffView";
+import { showPreviewUrlDialog } from "./PreviewUrlDialog";
 
 interface Props {
 	card: RuntimeBoardCard;
@@ -620,6 +622,20 @@ export function CardDetailPanel({
 					</>
 				)}
 				<div className="w-px h-[18px] bg-[#2a2a35] shrink-0" />
+				<Tooltip delayDuration={0} content="Open preview & annotate" side="bottom" triggerAsChild>
+					<button
+						onClick={() =>
+							showPreviewUrlDialog(workspaceId, {
+								id: card.id,
+								title: card.description?.split("\n")[0] ?? card.id,
+							})
+						}
+						className="cursor-pointer text-[#60607a] hover:text-[#7c6aff] transition-colors"
+						title="Open preview & annotate"
+					>
+						<Globe size={15} />
+					</button>
+				</Tooltip>
 				<Tooltip delayDuration={0} content="Delete task" side="bottom" triggerAsChild>
 					<button
 						onClick={handleDelete}

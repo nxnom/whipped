@@ -1,4 +1,7 @@
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { tunnelManager } from "../slack/cloudflare-tunnel.js";
 import { createSlackApp } from "../slack/slack-setup.js";
 import {
@@ -382,6 +385,18 @@ export const appRouter = router({
 				await updateProjectConfig(input.workspaceId, (c) => ({
 					...c,
 					systemPrompt: trimmed || undefined,
+				}));
+				ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
+				return { ok: true, cleared: !trimmed };
+			}),
+
+		setPreviewUrl: publicProcedure
+			.input(z.object({ workspaceId: z.string(), url: z.string() }))
+			.mutation(async ({ ctx, input }) => {
+				const trimmed = input.url.trim().replace(/\/$/, "");
+				await updateProjectConfig(input.workspaceId, (c) => ({
+					...c,
+					previewUrl: trimmed || undefined,
 				}));
 				ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
 				return { ok: true, cleared: !trimmed };
@@ -1056,6 +1071,17 @@ export const appRouter = router({
 			const cmd = process.platform === "win32" ? "explorer" : process.platform === "darwin" ? "open" : "xdg-open";
 			spawnSync(cmd, [input.path], { stdio: "ignore" });
 			return { ok: true };
+		}),
+
+		extensionPath: publicProcedure.query(() => {
+			// Resolves from dist/trpc/ (prod) or src/trpc/ (dev) up to the project root
+			const thisDir = fileURLToPath(new URL(".", import.meta.url));
+			const candidates = [
+				resolve(thisDir, "..", "..", "extension"),         // prod: dist/ root
+				resolve(thisDir, "..", "..", "..", "extension"),   // dev: src/ → project root
+			];
+			const found = candidates.find((p) => existsSync(p));
+			return { path: found ?? null };
 		}),
 
 		listTerminals: publicProcedure.query(async () => {

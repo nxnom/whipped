@@ -6,6 +6,7 @@ import {
 	FolderOpen,
 	GitBranch,
 	GitPullRequest,
+	Globe,
 	Layers,
 	Link2,
 	Pencil,
@@ -17,6 +18,7 @@ import {
 	Zap,
 } from "lucide-react";
 import { trpc } from "@/runtime/trpc-client";
+import { showPreviewUrlDialog } from "./PreviewUrlDialog";
 
 interface KanbanCardProps {
 	card: RuntimeBoardCard;
@@ -63,7 +65,7 @@ export function KanbanCard({
 	index,
 	allCards,
 	workflowName,
-	workspaceId: _workspaceId,
+	workspaceId,
 	isRunning: isRunningNow,
 	onClick,
 	onEdit,
@@ -325,6 +327,19 @@ export function KanbanCard({
 								<FolderOpen size={13} />
 							</button>
 						)}
+						<button
+							onClick={(e) => {
+								e.stopPropagation();
+								showPreviewUrlDialog(workspaceId, {
+									id: card.id,
+									title: card.description?.split("\n")[0] ?? card.id,
+								});
+							}}
+							className="px-2.5 py-1.5 rounded text-xs text-gray-500 hover:text-[#7c6aff] hover:bg-[#252530] transition-colors cursor-pointer"
+							title="Open preview & annotate"
+						>
+							<Globe size={13} />
+						</button>
 						<div className="flex-1" />
 						{!isRunning && onEdit && (
 							<button

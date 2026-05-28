@@ -497,6 +497,62 @@ export async function createRuntimeServer(options: ServerOptions) {
 			return;
 		}
 
+		// ── Visual comment endpoint (used by browser extension) ────────────────
+		// OPTIONS /api/visual-comment — CORS preflight
+		// POST    /api/visual-comment — { workspaceId, cardId, summary, visualComment }
+		if (url.pathname === "/api/visual-comment") {
+			res.setHeader("Access-Control-Allow-Origin", "*");
+			res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+			res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+			if (req.method === "OPTIONS") {
+				res.writeHead(204);
+				res.end();
+				return;
+			}
+			if (req.method === "POST") {
+				try {
+					const body = await readBody(req);
+					const payload = JSON.parse(body.toString()) as {
+						workspaceId?: string;
+						cardId?: string;
+						summary?: string;
+						visualComment?: Record<string, unknown>;
+					};
+					const { workspaceId: wsId, cardId, summary, visualComment } = payload;
+					if (!wsId || !cardId || !summary) {
+						res.writeHead(400, { "Content-Type": "application/json" });
+						res.end(JSON.stringify({ error: "Missing required fields" }));
+						return;
+					}
+					const board = await loadBoard(wsId);
+					const card = board.cards[cardId] as RuntimeBoardCard | undefined;
+					if (!card) {
+						res.writeHead(404, { "Content-Type": "application/json" });
+						res.end(JSON.stringify({ error: "Card not found" }));
+						return;
+					}
+					const comment = {
+						type: "visual-comment",
+						actor: { type: "human" as const, id: "human" },
+						createdAt: Date.now(),
+						summary,
+						metadata: visualComment ? { visualComment } : undefined,
+					};
+					await updateCard(wsId, cardId, {
+						reviewComments: [...(card.reviewComments ?? []), comment],
+					});
+					stateHub.broadcastWorkspaceUpdate(wsId);
+					res.writeHead(200, { "Content-Type": "application/json" });
+					res.end(JSON.stringify({ ok: true }));
+				} catch (err) {
+					logger.error({ err }, "[visual-comment] Error");
+					res.writeHead(500, { "Content-Type": "application/json" });
+					res.end(JSON.stringify({ error: "Internal error" }));
+				}
+				return;
+			}
+		}
+
 		// ── Attachment file server ──────────────────────────────────────────────
 		// GET  /api/attachments/{cardId}/{filename}  — serve with caching
 		// POST /api/attachments/{cardId}?workspaceId=…&filename=…  — raw binary upload
