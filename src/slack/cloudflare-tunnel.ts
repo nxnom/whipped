@@ -41,9 +41,9 @@ class CloudflareTunnelManager {
 
 	private _spawn(): void {
 		this.state = { status: "starting" };
-		logger.info("[tunnel] Starting cloudflared tunnel run overemployed");
+		logger.info("[tunnel] Starting cloudflared tunnel run whipped");
 
-		const proc = spawn("cloudflared", ["tunnel", "run", "overemployed"], {
+		const proc = spawn("cloudflared", ["tunnel", "run", "whipped"], {
 			stdio: ["ignore", "pipe", "pipe"],
 		});
 

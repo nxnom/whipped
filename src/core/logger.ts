@@ -1,9 +1,9 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import pino from "pino";
-import { OVEREMPLOYED_HOME_DIR } from "../config/runtime-config.js";
+import { WHIPPED_HOME_DIR } from "../config/runtime-config.js";
 
-const LOGS_DIR = join(OVEREMPLOYED_HOME_DIR, "logs");
+const LOGS_DIR = join(WHIPPED_HOME_DIR, "logs");
 
 const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD, fixed at process start
 
@@ -26,7 +26,7 @@ try {
 	mkdirSync(LOGS_DIR, { recursive: true });
 	streams.push({
 		stream: pino.destination({
-			dest: join(LOGS_DIR, `overemployed-${date}.log`),
+			dest: join(LOGS_DIR, `whipped-${date}.log`),
 			sync: false,
 		}),
 	});

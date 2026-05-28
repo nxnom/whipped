@@ -49,7 +49,7 @@ async function runServerForeground(options: RunOptions): Promise<void> {
 	const repoPath = process.cwd();
 
 	if (!hasGitRepository(repoPath)) {
-		logger.error("Error: overemployed must be run inside a git repository.");
+		logger.error("Error: whipped must be run inside a git repository.");
 		process.exit(1);
 	}
 
@@ -59,12 +59,12 @@ async function runServerForeground(options: RunOptions): Promise<void> {
 		process.exit(1);
 	}
 
-	const spinner = ora("Starting overemployed...").start();
+	const spinner = ora("Starting whipped...").start();
 
 	let server: Awaited<ReturnType<typeof createRuntimeServer>>;
 	try {
 		server = await createRuntimeServer({ port, host, repoPath });
-		spinner.succeed(`overemployed running at ${server.url}`);
+		spinner.succeed(`whipped running at ${server.url}`);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		spinner.fail(`Failed to start: ${message}`);
@@ -79,7 +79,7 @@ async function runServerForeground(options: RunOptions): Promise<void> {
 		}
 	}
 
-	logger.info("Press Ctrl+C to stop. Tip: run `overemployed start` to background.");
+	logger.info("Press Ctrl+C to stop. Tip: run `whipped start` to background.");
 
 	let shuttingDown = false;
 	installGracefulShutdownHandlers({
@@ -111,7 +111,7 @@ async function runServerForeground(options: RunOptions): Promise<void> {
 async function runDefault(options: RunOptions): Promise<void> {
 	const state = readState();
 	if (state && isAlive(state.pid)) {
-		console.log(`overemployed is already running at ${state.url} (pid ${state.pid}).`);
+		console.log(`whipped is already running at ${state.url} (pid ${state.pid}).`);
 		if (!options.noOpen) {
 			try {
 				await open(state.url);
@@ -119,7 +119,7 @@ async function runDefault(options: RunOptions): Promise<void> {
 				// non-fatal
 			}
 		}
-		console.log("Use `overemployed stop` to stop, `overemployed logs -f` to tail logs.");
+		console.log("Use `whipped stop` to stop, `whipped logs -f` to tail logs.");
 		return;
 	}
 	await runServerForeground(options);
@@ -129,7 +129,7 @@ const program = new Command();
 program.enablePositionalOptions();
 
 program
-	.name("overemployed")
+	.name("whipped")
 	.description("Autonomous AI agent kanban board for Claude and Codex")
 	.version(VERSION, "-v, --version")
 	.option("--port <number>", "Port to listen on", String(DEFAULT_PORT))
@@ -145,7 +145,7 @@ program
 
 program
 	.command("start")
-	.description("Start overemployed as a detached background daemon")
+	.description("Start whipped as a detached background daemon")
 	.option("--port <number>", "Port to listen on", String(DEFAULT_PORT))
 	.option("--host <ip>", "Host to bind to", "127.0.0.1")
 	.action(async (opts: { port: string; host: string }) => {
@@ -177,7 +177,7 @@ program
 
 program
 	.command("logs")
-	.description("Show overemployed logs")
+	.description("Show whipped logs")
 	.option("-f, --follow", "Follow log output (like tail -f)", false)
 	.option("-n, --lines <count>", "Number of lines to show", "200")
 	.action(async (opts: { follow: boolean; lines: string }) => {
@@ -218,11 +218,11 @@ program.addHelpText(
 	"after",
 	`
 Examples:
-  $ overemployed              Open the board (smart default: foreground or open existing)
-  $ overemployed start        Background daemon — keeps running after terminal closes
-  $ overemployed logs -f      Tail the live log
-  $ overemployed stop         Stop the background daemon
-  $ overemployed help start   Show help for the start command
+  $ whipped              Open the board (smart default: foreground or open existing)
+  $ whipped start        Background daemon — keeps running after terminal closes
+  $ whipped logs -f      Tail the live log
+  $ whipped stop         Stop the background daemon
+  $ whipped help start   Show help for the start command
 
 Daemon log: ${getDaemonLogPath()}
 `,

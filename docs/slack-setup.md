@@ -24,7 +24,7 @@ cloudflared tunnel login
 ### Create the tunnel
 
 ```bash
-cloudflared tunnel create overemployed
+cloudflared tunnel create whipped
 # Writes credentials to ~/.cloudflared/<tunnel-id>.json
 # Note the tunnel ID printed — you need it for config.yml
 ```
@@ -32,7 +32,7 @@ cloudflared tunnel create overemployed
 ### Add DNS record
 
 ```bash
-cloudflared tunnel route dns overemployed slack.your-domain.dev
+cloudflared tunnel route dns whipped slack.your-domain.dev
 ```
 
 If that fails (domain not on Cloudflare nameservers), add it manually in the Cloudflare dashboard:
@@ -74,7 +74,7 @@ Replace `<tunnel-id>` with the ID printed when you ran `cloudflared tunnel creat
 Run this in a separate terminal before starting the app:
 
 ```bash
-cloudflared tunnel run overemployed
+cloudflared tunnel run whipped
 ```
 
 You should see `INF Registered tunnel connection` — then `https://slack.your-domain.dev` is live.

@@ -198,7 +198,7 @@ export const reviewAttachmentSchema = z.object({
 	type: z.string(), // "image" | "file" | any mime category
 	name: z.string(),
 	mimeType: z.string(),
-	path: z.string(), // absolute path in ~/.overemployed/attachments/
+	path: z.string(), // absolute path in ~/.whipped/attachments/
 });
 export type RuntimeReviewAttachment = z.infer<typeof reviewAttachmentSchema>;
 
@@ -333,12 +333,12 @@ export const runtimeGlobalConfigSchema = z.object({
 	slackAppId: z.string().optional(),
 	slackOauthAuthorizeUrl: z.string().optional(),
 	slackPublicUrl: z.string().optional(),
-	slackBotName: z.string().default("Overemployed"),
+	slackBotName: z.string().default("Whipped"),
 	slackInstallerUserId: z.string().optional(),
 	autoStartTunnel: z.boolean().default(false),
 	tunnelId: z.string().optional(),
 	tunnelDomain: z.string().optional(),
-	tunnelName: z.string().default("overemployed"),
+	tunnelName: z.string().default("whipped"),
 });
 export type RuntimeGlobalConfig = z.infer<typeof runtimeGlobalConfigSchema>;
 

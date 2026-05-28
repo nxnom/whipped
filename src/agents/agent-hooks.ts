@@ -2,13 +2,13 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const HOOKS_DIR = join(homedir(), ".overemployed", "hooks");
+const HOOKS_DIR = join(homedir(), ".whipped", "hooks");
 export const CLAUDE_TASK_SETTINGS_PATH = join(HOOKS_DIR, "claude-task-settings.json");
 export const CLAUDE_HOME_MCP_CONFIG_PATH = join(HOOKS_DIR, "claude-home-mcp-config.json");
 export const CLAUDE_REVIEW_MCP_CONFIG_PATH = join(HOOKS_DIR, "claude-review-mcp-config.json");
 
-export const HOOK_TASK_ID_ENV = "OVEREMPLOYED_HOOK_TASK_ID";
-export const HOOK_WORKSPACE_ID_ENV = "OVEREMPLOYED_HOOK_WORKSPACE_ID";
+export const HOOK_TASK_ID_ENV = "WHIPPED_HOOK_TASK_ID";
+export const HOOK_WORKSPACE_ID_ENV = "WHIPPED_HOOK_WORKSPACE_ID";
 
 // Extract the port the runtime server is listening on from a server URL string.
 // Used by the codex adapter to build inline hook commands.
@@ -44,9 +44,9 @@ export async function writeClaudeTaskHookSettings(serverPort: number): Promise<v
 	await writeFile(CLAUDE_TASK_SETTINGS_PATH, JSON.stringify(settings, null, 2));
 }
 
-// The raw {command, args} pair for the overemployed MCP server. Claude consumes the
+// The raw {command, args} pair for the whipped MCP server. Claude consumes the
 // JSON shape via buildMcpConfig; codex inlines this spec via `-c` overrides.
-export function buildOveremployedMcpServerSpec(
+export function buildWhippedMcpServerSpec(
 	mcp: { command: string; args: string[] },
 	serverUrl: string,
 	workspaceId: string,
@@ -66,13 +66,13 @@ function buildMcpConfig(
 ): object {
 	return {
 		mcpServers: {
-			overemployed: buildOveremployedMcpServerSpec(mcp, serverUrl, workspaceId, agentId),
+			whipped: buildWhippedMcpServerSpec(mcp, serverUrl, workspaceId, agentId),
 		},
 	};
 }
 
 // Writes a settings.json for the home agent (Kanban Agent) that registers the
-// overemployed MCP server so Claude has typed tools to manage the board.
+// whipped MCP server so Claude has typed tools to manage the board.
 export async function writeClaudeHomeSettings(
 	mcp: { command: string; args: string[] },
 	serverUrl: string,
@@ -147,7 +147,7 @@ export async function writeOpencodeFiles(
 	const plugin = `import { tool } from "@opencode-ai/plugin"
 import type { Plugin } from "@opencode-ai/plugin"
 
-export const OveremployedPlugin: Plugin = async () => {
+export const WhippedPlugin: Plugin = async () => {
   const port = ${serverPort}
 
   return {${systemTransformHook}
@@ -172,7 +172,7 @@ export const OveremployedPlugin: Plugin = async () => {
 
 	const config = {
 		mcp: {
-			overemployed: {
+			whipped: {
 				type: "local",
 				command: [mcpServer.command, ...mcpServer.args],
 			},
@@ -180,7 +180,7 @@ export const OveremployedPlugin: Plugin = async () => {
 	};
 
 	await Promise.all([
-		writeFile(join(dir, "plugin", "overemployed.ts"), plugin),
+		writeFile(join(dir, "plugin", "whipped.ts"), plugin),
 		writeFile(join(dir, "opencode.json"), JSON.stringify(config, null, 2)),
 	]);
 }
@@ -221,7 +221,7 @@ export async function writeCursorConfigFiles(
 
 	const mcpConfig = {
 		mcpServers: {
-			overemployed: mcpServerSpec,
+			whipped: mcpServerSpec,
 		},
 	};
 

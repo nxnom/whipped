@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { unlink } from "node:fs/promises";
 import { join } from "node:path";
 import {
-	buildOveremployedMcpServerSpec,
+	buildWhippedMcpServerSpec,
 	buildTaskHookEnv,
 	CLAUDE_TASK_SETTINGS_PATH,
 	cleanupCursorConfigDir,
@@ -229,7 +229,7 @@ async function runReviewSlot(
 			: undefined;
 	const mcpServer =
 		slot.agentBinary === "codex" || slot.agentBinary === "opencode" || slot.agentBinary === "cursor"
-			? buildOveremployedMcpServerSpec(options.mcpBinary, options.serverUrl, workspaceId, slot.agentBinary)
+			? buildWhippedMcpServerSpec(options.mcpBinary, options.serverUrl, workspaceId, slot.agentBinary)
 			: undefined;
 
 	if (slot.agentBinary === "claude" && mcpConfigPath) {

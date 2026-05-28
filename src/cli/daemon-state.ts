@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { connect } from "node:net";
 import { join } from "node:path";
-import { OVEREMPLOYED_HOME_DIR } from "../config/runtime-config.js";
+import { WHIPPED_HOME_DIR } from "../config/runtime-config.js";
 
 export interface DaemonState {
 	pid: number;
@@ -11,7 +11,7 @@ export interface DaemonState {
 	startedAt: string;
 }
 
-const STATE_PATH = join(OVEREMPLOYED_HOME_DIR, "daemon.pid");
+const STATE_PATH = join(WHIPPED_HOME_DIR, "daemon.pid");
 
 export function getStatePath(): string {
 	return STATE_PATH;
@@ -29,7 +29,7 @@ export function readState(): DaemonState | null {
 }
 
 export function writeState(state: DaemonState): void {
-	mkdirSync(OVEREMPLOYED_HOME_DIR, { recursive: true });
+	mkdirSync(WHIPPED_HOME_DIR, { recursive: true });
 	writeFileSync(STATE_PATH, JSON.stringify(state, null, 2), "utf-8");
 }
 

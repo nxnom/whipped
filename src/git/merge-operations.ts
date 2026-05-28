@@ -8,7 +8,7 @@ import { logger } from "../core/logger.js";
 
 const execFileAsync = promisify(execFile);
 
-const WORKTREES_DIR = join(homedir(), ".overemployed", "worktrees");
+const WORKTREES_DIR = join(homedir(), ".whipped", "worktrees");
 
 function git(args: string[], cwd: string): { stdout: string; stderr: string; ok: boolean } {
 	const r = spawnSync("git", args, { cwd, encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] });
@@ -64,14 +64,14 @@ export async function commitIfDirty(worktreePath: string, message: string): Prom
 	return true;
 }
 
-// Stages and commits all changes as a temporary "__overemployed_wip__" commit so a
+// Stages and commits all changes as a temporary "__whipped_wip__" commit so a
 // dependent worktree can branch from it. Returns true if a commit was made.
 // Always pair with undoTempCommit() after the dependent worktree is created.
 export async function createTempCommit(worktreePath: string): Promise<boolean> {
 	const dirty = await isWorktreeDirty(worktreePath);
 	if (!dirty) return false;
 	await execFileAsync("git", ["add", "-A"], { cwd: worktreePath }).catch(() => {});
-	await execFileAsync("git", ["commit", "-m", "__overemployed_wip__"], { cwd: worktreePath });
+	await execFileAsync("git", ["commit", "-m", "__whipped_wip__"], { cwd: worktreePath });
 	return true;
 }
 
@@ -303,7 +303,7 @@ export function listLocalBranches(repoPath: string): string[] {
 	return r.stdout
 		.trim()
 		.split("\n")
-		.filter((b) => b && !b.startsWith("task/") && !b.startsWith("overemployed/") && !b.startsWith("kanbom/"));
+		.filter((b) => b && !b.startsWith("task/") && !b.startsWith("whipped/") && !b.startsWith("kanbom/"));
 }
 
 // Fetches body_html for a single issue comment, which contains pre-signed CDN URLs

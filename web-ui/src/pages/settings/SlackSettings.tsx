@@ -173,7 +173,7 @@ export function SlackSettings() {
 	const [config, setConfig] = useState<RuntimeGlobalConfig | null>(null);
 	const [appConfigToken, setAppConfigToken] = useState("");
 	const [publicUrl, setPublicUrl] = useState("");
-	const [botName, setBotName] = useState("Overemployed");
+	const [botName, setBotName] = useState("Whipped");
 
 	const [creating, setCreating] = useState(false);
 	const [resetting, setResetting] = useState(false);
@@ -202,7 +202,7 @@ export function SlackSettings() {
 			await trpc.slack.createApp.mutate({
 				appConfigToken: appConfigToken.trim(),
 				publicUrl: publicUrl.trim(),
-				botName: botName.trim() || "Overemployed",
+				botName: botName.trim() || "Whipped",
 			});
 			const updated = await trpc.config.get.query();
 			setConfig(updated);
@@ -406,7 +406,7 @@ export function SlackSettings() {
 										<input
 											value={botName}
 											onChange={(e) => setBotName(e.target.value)}
-											placeholder="Overemployed"
+											placeholder="Whipped"
 											className="font-mono text-[12px] focus:outline-none focus:border-[#7c6aff] px-3 py-[9px] bg-[#0c0c0f] border border-[#2a2a35] rounded-md text-[#c0c0d0]"
 										/>
 										<p className="text-[11px] text-[#4a4a5a]">
@@ -446,7 +446,7 @@ export function SlackSettings() {
 									{appCreated ? (
 										<div className="flex items-center gap-2 text-[12px] text-[#4ade80]">
 											<Check size={13} />
-											App created — <Mono>{config.slackBotName ?? "Overemployed"}</Mono> ({config.slackAppId})
+											App created — <Mono>{config.slackBotName ?? "Whipped"}</Mono> ({config.slackAppId})
 										</div>
 									) : (
 										<>

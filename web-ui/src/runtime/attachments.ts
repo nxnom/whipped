@@ -1,5 +1,5 @@
 // Converts an absolute attachment path (stored in card data) to a serving URL.
-// Path format: /.../.overemployed/attachments/{cardId}/{filename}
+// Path format: /.../.whipped/attachments/{cardId}/{filename}
 // URL format:  /api/attachments/{cardId}/{filename}
 export function attachmentUrl(path: string): string {
 	const parts = path.replace(/\\/g, "/").split("/");

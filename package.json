@@ -1,10 +1,10 @@
 {
-  "name": "overemployed",
+  "name": "whipped",
   "version": "0.1.0",
   "description": "Autonomous AI agent kanban board for Claude and Codex",
   "type": "module",
   "bin": {
-    "overemployed": "dist/cli.js"
+    "whipped": "dist/cli.js"
   },
   "engines": {
     "node": ">=22"
@@ -14,10 +14,10 @@
     "build": "pnpm clean && pnpm web:build && node scripts/build.mjs",
     "dev": "NODE_ENV=development tsx src/cli.ts",
     "dev:full": "node scripts/dev-full.mjs",
-    "web:dev": "pnpm --filter @overemployed/web dev",
-    "web:build": "pnpm --filter @overemployed/web build",
+    "web:dev": "pnpm --filter @whipped/web dev",
+    "web:build": "pnpm --filter @whipped/web build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "web:typecheck": "pnpm --filter @overemployed/web typecheck",
+    "web:typecheck": "pnpm --filter @whipped/web typecheck",
     "lint": "biome lint src web-ui/src",
     "format": "biome format --write ."
   },

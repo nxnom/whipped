@@ -4,7 +4,7 @@ import { unlink } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-	buildOveremployedMcpServerSpec,
+	buildWhippedMcpServerSpec,
 	buildTaskHookEnv,
 	CLAUDE_HOME_MCP_CONFIG_PATH,
 	CLAUDE_TASK_SETTINGS_PATH,
@@ -166,12 +166,12 @@ export class TaskScheduler {
 				logger.warn({ err }, "[scheduler] Failed to write home agent MCP settings");
 			});
 		} else if (agentId === "opencode") {
-			const mcpSpec = buildOveremployedMcpServerSpec(getMcpServerPath(), serverUrl, workspaceId);
+			const mcpSpec = buildWhippedMcpServerSpec(getMcpServerPath(), serverUrl, workspaceId);
 			await writeOpencodeFiles(taskId, getServerPort(serverUrl), mcpSpec, { appendSystemPrompt }).catch((err) => {
 				logger.warn({ err }, "[scheduler] Failed to write opencode home agent files");
 			});
 		} else if (agentId === "cursor") {
-			const mcpSpec = buildOveremployedMcpServerSpec(getMcpServerPath(), serverUrl, workspaceId);
+			const mcpSpec = buildWhippedMcpServerSpec(getMcpServerPath(), serverUrl, workspaceId);
 			await writeCursorConfigFiles(taskId, getServerPort(serverUrl), mcpSpec).catch((err) => {
 				logger.warn({ err }, "[scheduler] Failed to write cursor home agent config");
 			});
@@ -193,7 +193,7 @@ export class TaskScheduler {
 				},
 				mcpConfigPath: agentId === "claude" ? CLAUDE_HOME_MCP_CONFIG_PATH : undefined,
 				mcpServer:
-					agentId === "codex" ? buildOveremployedMcpServerSpec(getMcpServerPath(), serverUrl, workspaceId) : undefined,
+					agentId === "codex" ? buildWhippedMcpServerSpec(getMcpServerPath(), serverUrl, workspaceId) : undefined,
 				appendSystemPrompt: agentId !== "opencode" ? appendSystemPrompt : undefined,
 				onOutput: (data) => {
 					homeTask.outputBuffer += data;
@@ -506,7 +506,7 @@ export class TaskScheduler {
 					mcpConfigPath!,
 				).catch(() => {});
 			} else if (agentId === "opencode") {
-				const mcpSpec = buildOveremployedMcpServerSpec(
+				const mcpSpec = buildWhippedMcpServerSpec(
 					getMcpServerPath(),
 					this.options.serverUrl,
 					workspaceId,
@@ -516,7 +516,7 @@ export class TaskScheduler {
 					appendSystemPrompt: devSystemPromptResult.text,
 				}).catch(() => {});
 			} else if (agentId === "cursor") {
-				const mcpSpec = buildOveremployedMcpServerSpec(
+				const mcpSpec = buildWhippedMcpServerSpec(
 					getMcpServerPath(),
 					this.options.serverUrl,
 					workspaceId,
@@ -559,7 +559,7 @@ export class TaskScheduler {
 					mcpConfigPath: agentId === "claude" ? mcpConfigPath : undefined,
 					mcpServer:
 						agentId === "codex"
-							? buildOveremployedMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId, agentId)
+							? buildWhippedMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId, agentId)
 							: undefined,
 					appendSystemPrompt:
 						agentId !== "opencode"
@@ -999,12 +999,12 @@ export class TaskScheduler {
 		let hookHandled = false;
 
 		if (defaultAgent === "opencode") {
-			const mcpSpec = buildOveremployedMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId);
+			const mcpSpec = buildWhippedMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId);
 			await writeOpencodeFiles(streamId, getServerPort(this.options.serverUrl), mcpSpec, {
 				appendSystemPrompt: CONFLICT_RESOLUTION_SYSTEM_PROMPT,
 			}).catch(() => {});
 		} else if (defaultAgent === "cursor") {
-			const mcpSpec = buildOveremployedMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId);
+			const mcpSpec = buildWhippedMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId);
 			await writeCursorConfigFiles(streamId, getServerPort(this.options.serverUrl), mcpSpec).catch(() => {});
 		}
 

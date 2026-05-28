@@ -3,10 +3,10 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { type RuntimeGlobalConfig, runtimeGlobalConfigSchema } from "../core/api-contract.js";
 
-export const OVEREMPLOYED_HOME_DIR = join(homedir(), ".overemployed");
-export const CONFIG_FILE = join(OVEREMPLOYED_HOME_DIR, "config.json");
-export const WORKSPACES_DIR = join(OVEREMPLOYED_HOME_DIR, "workspaces");
-export const ATTACHMENTS_DIR = join(OVEREMPLOYED_HOME_DIR, "attachments");
+export const WHIPPED_HOME_DIR = join(homedir(), ".whipped");
+export const CONFIG_FILE = join(WHIPPED_HOME_DIR, "config.json");
+export const WORKSPACES_DIR = join(WHIPPED_HOME_DIR, "workspaces");
+export const ATTACHMENTS_DIR = join(WHIPPED_HOME_DIR, "attachments");
 export const DEFAULT_PORT = 50008;
 export const DEFAULT_WEB_UI_PORT = 50007;
 
@@ -41,7 +41,7 @@ export async function loadGlobalConfig(): Promise<RuntimeGlobalConfig> {
 }
 
 export async function saveGlobalConfig(config: RuntimeGlobalConfig): Promise<void> {
-	await mkdir(OVEREMPLOYED_HOME_DIR, { recursive: true });
+	await mkdir(WHIPPED_HOME_DIR, { recursive: true });
 	await writeFile(CONFIG_FILE, JSON.stringify(config, null, 2), "utf-8");
 }
 

@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { mkdirSync, openSync } from "node:fs";
 import { join } from "node:path";
-import { OVEREMPLOYED_HOME_DIR } from "../config/runtime-config.js";
+import { WHIPPED_HOME_DIR } from "../config/runtime-config.js";
 import {
 	clearState,
 	type DaemonState,
@@ -13,7 +13,7 @@ import {
 	writeState,
 } from "./daemon-state.js";
 
-const DAEMON_LOG_DIR = join(OVEREMPLOYED_HOME_DIR, "logs");
+const DAEMON_LOG_DIR = join(WHIPPED_HOME_DIR, "logs");
 const DAEMON_LOG_PATH = join(DAEMON_LOG_DIR, "daemon.log");
 
 interface StartOptions {
@@ -25,8 +25,8 @@ export async function startDaemon(options: StartOptions): Promise<void> {
 	const { port, host } = options;
 	const existing = readState();
 	if (existing && isAlive(existing.pid)) {
-		console.log(`overemployed is already running at ${existing.url} (pid ${existing.pid})`);
-		console.log("Use `overemployed restart` to restart, or `overemployed stop` to stop.");
+		console.log(`whipped is already running at ${existing.url} (pid ${existing.pid})`);
+		console.log("Use `whipped restart` to restart, or `whipped stop` to stop.");
 		return;
 	}
 	if (existing) clearState();
@@ -72,15 +72,15 @@ export async function startDaemon(options: StartOptions): Promise<void> {
 	};
 	writeState(state);
 
-	console.log(`overemployed running at ${url} (pid ${child.pid})`);
+	console.log(`whipped running at ${url} (pid ${child.pid})`);
 	console.log(`Logs: ${DAEMON_LOG_PATH}`);
-	console.log("Stop with `overemployed stop`.");
+	console.log("Stop with `whipped stop`.");
 }
 
 export async function stopDaemon(): Promise<void> {
 	const state = readState();
 	if (!state) {
-		console.log("overemployed is not running.");
+		console.log("whipped is not running.");
 		return;
 	}
 	if (!isAlive(state.pid)) {
@@ -89,7 +89,7 @@ export async function stopDaemon(): Promise<void> {
 		return;
 	}
 
-	console.log(`Stopping overemployed (pid ${state.pid})...`);
+	console.log(`Stopping whipped (pid ${state.pid})...`);
 	try {
 		process.kill(state.pid, "SIGTERM");
 	} catch (e) {
@@ -123,24 +123,24 @@ export async function restartDaemon(options: StartOptions): Promise<void> {
 export function statusDaemon(): void {
 	const state = readState();
 	if (!state) {
-		console.log("overemployed is not running.");
-		console.log(`Data dir: ${OVEREMPLOYED_HOME_DIR}`);
+		console.log("whipped is not running.");
+		console.log(`Data dir: ${WHIPPED_HOME_DIR}`);
 		return;
 	}
 	const alive = isAlive(state.pid);
 	if (!alive) {
-		console.log(`overemployed is not running (stale state file: ${getStatePath()}).`);
-		console.log("Run `overemployed stop` to clear it.");
+		console.log(`whipped is not running (stale state file: ${getStatePath()}).`);
+		console.log("Run `whipped stop` to clear it.");
 		return;
 	}
 	const startedAt = new Date(state.startedAt);
 	const uptimeMs = Date.now() - startedAt.getTime();
-	console.log(`overemployed is running.`);
+	console.log(`whipped is running.`);
 	console.log(`  URL:        ${state.url}`);
 	console.log(`  PID:        ${state.pid}`);
 	console.log(`  Started:    ${startedAt.toISOString()}`);
 	console.log(`  Uptime:     ${formatDuration(uptimeMs)}`);
-	console.log(`  Data dir:   ${OVEREMPLOYED_HOME_DIR}`);
+	console.log(`  Data dir:   ${WHIPPED_HOME_DIR}`);
 }
 
 function formatDuration(ms: number): string {

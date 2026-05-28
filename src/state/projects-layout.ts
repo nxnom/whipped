@@ -2,7 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const LAYOUT_PATH = join(homedir(), ".overemployed", "projects-layout.json");
+const LAYOUT_PATH = join(homedir(), ".whipped", "projects-layout.json");
 
 export interface ProjectFolder {
 	id: string;

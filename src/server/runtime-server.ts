@@ -609,7 +609,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 		}
 
 		res.writeHead(200, { "Content-Type": "text/plain" });
-		res.end("overemployed running");
+		res.end("whipped running");
 	});
 
 	// Single terminal WebSocket per task: /api/terminal?workspaceId=...&taskId=...

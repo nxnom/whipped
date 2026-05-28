@@ -1199,7 +1199,7 @@ export const appRouter = router({
 			.mutation(({ input }) => openCloudflaredLogin(input.force)),
 		createTunnel: publicProcedure.input(z.object({ domain: z.string() })).mutation(async ({ input }) => {
 			const config = await loadGlobalConfig();
-			const name = config.tunnelName ?? "overemployed";
+			const name = config.tunnelName ?? "whipped";
 			const { tunnelId } = await createTunnel(name);
 			await writeTunnelConfig(tunnelId, name, input.domain);
 			await routeDns(name, input.domain);
@@ -1211,7 +1211,7 @@ export const appRouter = router({
 			return {
 				tunnelId: config.tunnelId ?? fileConfig?.tunnelId,
 				domain: config.tunnelDomain ?? fileConfig?.domain,
-				tunnelName: config.tunnelName ?? "overemployed",
+				tunnelName: config.tunnelName ?? "whipped",
 			};
 		}),
 		tunnelStatus: publicProcedure.query(() => tunnelManager.getState()),
@@ -1271,7 +1271,7 @@ export const appRouter = router({
 			}),
 		createApp: publicProcedure
 			.input(
-				z.object({ appConfigToken: z.string(), publicUrl: z.string(), botName: z.string().default("Overemployed") }),
+				z.object({ appConfigToken: z.string(), publicUrl: z.string(), botName: z.string().default("Whipped") }),
 			)
 			.mutation(async ({ input }) => {
 				const existing = await loadGlobalConfig();

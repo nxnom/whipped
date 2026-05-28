@@ -93,7 +93,7 @@ export function BoardPage({ onOpenAgent }: Props) {
 							<line x1="6" y1="10.5" x2="15" y2="10.5" stroke="white" strokeWidth="1" strokeOpacity="0.5" />
 						</svg>
 					</div>
-					<span className="text-[14px] font-bold text-[#f0f0f5]">Overemployed</span>
+					<span className="text-[14px] font-bold text-[#f0f0f5]">Whipped</span>
 				</div>
 
 				<div className="h-px bg-[#2a2a35] shrink-0" />

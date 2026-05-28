@@ -2,7 +2,7 @@ import { logger } from "../core/logger.js";
 
 const BACKEND_PORT = 50008;
 
-function buildManifest(publicUrl: string, botName = "Overemployed") {
+function buildManifest(publicUrl: string, botName = "Whipped") {
 	return {
 		display_information: {
 			name: botName,

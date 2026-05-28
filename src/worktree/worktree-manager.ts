@@ -8,7 +8,7 @@ import { logger } from "../core/logger.js";
 
 const execFileAsync = promisify(execFile);
 
-const WORKTREES_DIR = join(homedir(), ".overemployed", "worktrees");
+const WORKTREES_DIR = join(homedir(), ".whipped", "worktrees");
 
 function git(args: string[], cwd: string): { stdout: string; stderr: string; ok: boolean } {
 	const result = spawnSync("git", args, {

@@ -1,13 +1,13 @@
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { OVEREMPLOYED_HOME_DIR } from "../config/runtime-config.js";
+import { WHIPPED_HOME_DIR } from "../config/runtime-config.js";
 
-const LOGS_DIR = join(OVEREMPLOYED_HOME_DIR, "logs");
+const LOGS_DIR = join(WHIPPED_HOME_DIR, "logs");
 
 export function getTodayLogPath(): string {
 	const date = new Date().toISOString().slice(0, 10);
-	return join(LOGS_DIR, `overemployed-${date}.log`);
+	return join(LOGS_DIR, `whipped-${date}.log`);
 }
 
 interface LogsOptions {
@@ -19,7 +19,7 @@ export async function runLogs(options: LogsOptions): Promise<void> {
 	const path = getTodayLogPath();
 	if (!existsSync(path)) {
 		console.error(`No log file for today yet: ${path}`);
-		console.error("Run `overemployed start` (or the foreground default) to generate one.");
+		console.error("Run `whipped start` (or the foreground default) to generate one.");
 		process.exit(1);
 	}
 

@@ -447,7 +447,7 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(fu
 														e.stopPropagation();
 														ConfirmDialog.show({
 															title: "Remove project",
-															content: `Remove "${project.name}" from Overemployed? This will stop all running agents and delete all associated worktrees and data.`,
+															content: `Remove "${project.name}" from Whipped? This will stop all running agents and delete all associated worktrees and data.`,
 															confirmButtonLabel: "Remove",
 															cancelButtonLabel: "Cancel",
 															onConfirm: async ({ dismiss }) => {
