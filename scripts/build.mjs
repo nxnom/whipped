@@ -1,5 +1,5 @@
 import * as esbuild from "esbuild";
-import { copyFileSync, mkdirSync } from "node:fs";
+import { copyFileSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const __dirname = new URL(".", import.meta.url).pathname;
@@ -34,5 +34,15 @@ await Promise.all([
 
 // Copy web UI build output
 mkdirSync("dist/web-ui", { recursive: true });
+
+// Copy SQL migration files (esbuild ignores .sql, but db.ts reads them at runtime)
+const migrationsSrc = "src/state/migrations";
+const migrationsDst = "dist/state/migrations";
+mkdirSync(migrationsDst, { recursive: true });
+for (const file of readdirSync(migrationsSrc)) {
+	if (file.endsWith(".sql")) {
+		copyFileSync(join(migrationsSrc, file), join(migrationsDst, file));
+	}
+}
 
 console.log("Build complete.");

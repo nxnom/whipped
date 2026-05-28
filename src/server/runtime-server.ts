@@ -17,6 +17,7 @@ import { BoardPoller } from "../daemon/poller.js";
 import { runReviewPipeline } from "../daemon/review-pipeline.js";
 import { getMcpServerPath, TaskScheduler } from "../daemon/scheduler.js";
 import { createGithubClient } from "../github/github-client.js";
+import { openDb } from "../state/db.js";
 import {
 	appendActivityLog,
 	closeAllOpenTerminalSessions,
@@ -71,6 +72,9 @@ interface ServerOptions {
 
 export async function createRuntimeServer(options: ServerOptions) {
 	const { port = DEFAULT_PORT, host = "127.0.0.1", repoPath } = options;
+
+	// Open SQLite DB and run pending migrations before anything else touches state.
+	openDb();
 
 	const _globalConfig = await loadGlobalConfig();
 	const initialCtx = await loadWorkspaceContext(repoPath);
