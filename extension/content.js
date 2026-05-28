@@ -505,9 +505,8 @@
 
       const timer = setTimeout(() => {
         cleanup();
-        console.warn("[whipped] reactInfo timeout — content-main.js not responding");
         resolve({});
-      }, 1500);
+      }, 5000);
 
       function listener(e) {
         if (e.source !== window) return;
@@ -516,9 +515,6 @@
         clearTimeout(timer);
         cleanup();
         const result = e.data.result || {};
-        console.log("[whipped] reactInfo result:", result);
-        if (result.error) console.warn("[whipped] reactInfo error:", result.error, "debugKeys:", result.debugKeys);
-        if (result.trace) console.log("[whipped] fiber trace:", result.trace);
         resolve({
           componentName: result.componentName || null,
           sourceFile: result.sourceFile || null,
