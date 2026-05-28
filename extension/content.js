@@ -554,11 +554,26 @@
         <button class="send">Send</button>
       </div>
     `;
+    // Render off-screen first so we can measure the real size before placing it
+    form.style.left = "-9999px";
+    form.style.top = "0";
     document.body.appendChild(form);
-
-    const fw = 300, fh = 220;
-    form.style.left = Math.min(x + 12, window.innerWidth - fw - 12) + "px";
-    form.style.top = Math.min(y + 12, window.innerHeight - fh - 12) + "px";
+    const rect = form.getBoundingClientRect();
+    const fw = rect.width, fh = rect.height;
+    const margin = 8, gap = 12;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    // Horizontal: try right of click; if it overflows, flip to the left; else clamp
+    let left;
+    if (x + gap + fw <= vw - margin) left = x + gap;
+    else if (x - gap - fw >= margin) left = x - gap - fw;
+    else left = Math.max(margin, vw - fw - margin);
+    // Vertical: try below click; if it overflows, flip above; else clamp
+    let top;
+    if (y + gap + fh <= vh - margin) top = y + gap;
+    else if (y - gap - fh >= margin) top = y - gap - fh;
+    else top = Math.max(margin, vh - fh - margin);
+    form.style.left = left + "px";
+    form.style.top = top + "px";
 
     const ta = form.querySelector("textarea");
     ta.focus();
