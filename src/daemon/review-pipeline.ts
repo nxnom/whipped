@@ -851,14 +851,27 @@ export function buildDevAgentSystemPrompt(
 	const parts: string[] = [];
 
 	const statBase = effectiveBaseRef ?? card.baseRef;
-	const stat = worktreePath ? getGitStat(worktreePath, statBase) : null;
 	const fullDiff = worktreePath ? getGitFullDiff(worktreePath, statBase) : "";
-	const diffSection = fullDiff
-		? fullDiff.length <= INLINE_DIFF_LIMIT
-			? `\n\n## Diff (vs ${statBase})\n${fullDiff}`
-			: `\n\n## Diff (vs ${statBase})\nLarge changeset (${fullDiff.length.toLocaleString()} chars). Use \`git diff ${statBase}...HEAD\` and read individual files to explore.`
-		: "";
-	const statSection = stat ? `\n\n## Current worktree state (vs ${statBase})\n${stat}${diffSection}` : "";
+	// First dev run = no prior dev summary on this card. On a fresh worktree
+	// there's no diff to show; saying nothing leaves the agent guessing and
+	// prompts it to waste a tool call running `git diff` to verify.
+	const isFirstDevRun = !(card.reviewComments ?? []).some((c) => c.type === "dev");
+	let statSection = "";
+	if (worktreePath) {
+		if (fullDiff) {
+			const stat = getGitStat(worktreePath, statBase);
+			const diffSection = fullDiff.length <= INLINE_DIFF_LIMIT
+				? `\n\n## Diff (vs ${statBase})\n${fullDiff}`
+				: `\n\n## Diff (vs ${statBase})\nLarge changeset (${fullDiff.length.toLocaleString()} chars). Use \`git diff ${statBase}...HEAD\` and read individual files to explore.`;
+			statSection = `\n\n## Current worktree state (vs ${statBase})\n${stat}${diffSection}`;
+		} else if (isFirstDevRun) {
+			statSection = `\n\n## Worktree state\n\nThis is the initial dev run on this card. The worktree is clean and branched from \`${statBase}\` — there is no prior diff to inspect. Skip \`git diff\` and start implementing.`;
+		} else {
+			// Subsequent run with no diff — unusual; surface the stat helper's message
+			const stat = getGitStat(worktreePath, statBase);
+			statSection = `\n\n## Current worktree state (vs ${statBase})\n${stat}`;
+		}
+	}
 
 	const descAttachNote =
 		(card.descriptionAttachments?.length ?? 0) > 0
