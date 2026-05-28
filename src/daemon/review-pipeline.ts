@@ -202,6 +202,19 @@ async function runReviewSlot(
 	const stat = getGitStat(worktreePath, card.baseRef);
 	const fullDiff = getGitFullDiff(worktreePath, card.baseRef);
 	const context = formatPriorComments(card);
+	// For orchestrator slots, preload subtask cards so we can inline them in
+	// the prompt rather than forcing the agent to call kanban_get_board.
+	let subtaskCards: RuntimeBoardCard[] = [];
+	if (slot.type === "orch" && (card.dependsOn?.length ?? 0) > 0) {
+		try {
+			const board = await loadBoard(workspaceId);
+			subtaskCards = (card.dependsOn ?? [])
+				.map((id) => board.cards[id])
+				.filter((c): c is RuntimeBoardCard => !!c);
+		} catch (err) {
+			logger.warn({ err }, "[review] orch: failed to preload subtasks");
+		}
+	}
 	const rawSystemPrompt = buildReviewSlotSystemPrompt(
 		slot,
 		card,
@@ -212,6 +225,7 @@ async function runReviewSlot(
 		options.secrets,
 		options.systemPrompt,
 		options.autoCommit,
+		subtaskCards,
 	);
 	// Cursor Agent CLI does not fire a settings.json stop hook reliably.
 	// Tell it to call the task_complete MCP tool explicitly when done.
@@ -800,15 +814,6 @@ function formatPriorComments(card: RuntimeBoardCard): { text: string; files: str
 			lines.push(formatComment(c, { headingLevel: "###", stripMustFix: false }));
 		}
 
-		// Edge case: if there are no previous iterations AND this is just one
-		// initial human comment with no AI work yet, emit no header at all
-		// (matches the "first run" expectation).
-		if (previous.length === 0 && !hasWork && current.input.length <= 1) {
-			// Single initial input, first run — skip the prompt section entirely.
-			// The task description already conveys the request.
-			return { text: "", files: [] };
-		}
-
 		sections.push(lines.join("\n"));
 	}
 
@@ -820,6 +825,20 @@ function formatPriorComments(card: RuntimeBoardCard): { text: string; files: str
 }
 
 const INLINE_DIFF_LIMIT = 8000;
+
+/** Format the diff block. Inlines when small; otherwise tells the agent how to fetch. */
+function formatDiffBlock(fullDiff: string, baseRef: string, header = "Git diff"): string {
+	if (fullDiff.length <= INLINE_DIFF_LIMIT) return `${header}:\n${fullDiff}`;
+	return `Large changeset (${fullDiff.length.toLocaleString()} chars). Use \`git diff ${baseRef}...HEAD\` and read individual files to explore.`;
+}
+
+/** Shared instruction reminding agents how to treat the iteration-grouped comments. */
+const ITERATION_SCOPING_NOTE = `
+**About prior comments:** any \`## Previous Iterations\` section is for context only — already addressed in earlier rounds. Do NOT re-implement or re-verify that work unless the current iteration explicitly asks for it. Focus your effort on \`## New Feedback\` / \`## Current Iteration\`.`.trim();
+
+/** Visual-comment usage hint for the dev agent. */
+const VISUAL_COMMENT_HINT = `
+**Visual Feedback comments** carry annotation metadata (\`elementSelector\`, \`elementText\`, \`pageUrl\`, and for Angular a \`componentChain\` outer→inner). To locate the affected code, grep for any selector in the chain (Angular) or open the \`Source\` file:line directly (React). Use \`elementText\` to narrow down when multiple instances exist.`.trim();
 
 // Exported — used by scheduler.ts for dev agent
 export function buildDevAgentSystemPrompt(
@@ -860,10 +879,7 @@ export function buildDevAgentSystemPrompt(
 	if (worktreePath) {
 		if (fullDiff) {
 			const stat = getGitStat(worktreePath, statBase);
-			const diffSection = fullDiff.length <= INLINE_DIFF_LIMIT
-				? `\n\n## Diff (vs ${statBase})\n${fullDiff}`
-				: `\n\n## Diff (vs ${statBase})\nLarge changeset (${fullDiff.length.toLocaleString()} chars). Use \`git diff ${statBase}...HEAD\` and read individual files to explore.`;
-			statSection = `\n\n## Current worktree state (vs ${statBase})\n${stat}${diffSection}`;
+			statSection = `\n\n## Current worktree state (vs ${statBase})\n${stat}\n\n## Diff (vs ${statBase})\n${formatDiffBlock(fullDiff, statBase, "Git diff")}`;
 		} else if (isFirstDevRun) {
 			statSection = `\n\n## Worktree state\n\nThis is the initial dev run on this card. The worktree is clean and branched from \`${statBase}\` — there is no prior diff to inspect. Skip \`git diff\` and start implementing.`;
 		} else {
@@ -919,21 +935,26 @@ export function buildDevAgentSystemPrompt(
 
 Work autonomously without asking for permission or confirmation. You have full access to the codebase in your current working directory. Your worktree is branched off \`${effectiveBaseRef ?? card.baseRef}\`.
 
-If there are prior review comments above with issues listed, you MUST address ALL of them before finishing — including info-level ones. Do not skip any issue regardless of severity.
+${ITERATION_SCOPING_NOTE}
+For the current iteration's comments, you MUST address every issue listed — including info-level ones. Do not skip any.
+
+${VISUAL_COMMENT_HINT}
 
 When you finish your work:
-${commitInstruction}
+
+1. Call the \`kanban_add_comment\` MCP tool with:
+   - cardId: "${card.id}"
+   - type: "dev"
+   - status: "pass" if successful, "fail" if you were unable to complete the task
+   - summary: 2–5 sentences for the next reviewer agent in this pipeline (NOT the PR description — that already went to set_pr_meta). Mention key decisions and any known limitations.
+
 2. Call the \`kanban_set_pr_meta\` MCP tool with:
    - cardId: "${card.id}"
    - title: PR title following the git conventions below
    - description: PR description body following the git conventions below
-   This is what the daemon will use when it creates the PR. Skip this call only if you genuinely have no code changes to ship.${priorPrSection}
+   This is what the daemon will use when it creates the PR. **Skip this call only when you genuinely made no code changes** (e.g. you concluded the task was already done).${priorPrSection}
 
-3. Call the \`kanban_add_comment\` MCP tool with:
-   - cardId: "${card.id}"
-   - type: "dev"
-   - status: "pass" if successful, "fail" if you were unable to complete the task
-   - summary: 2–5 sentences for the next reviewer agent in this pipeline (NOT the PR description — that already went to set_pr_meta). Mention key decisions and any known limitations.`);
+${commitInstruction.replace(/^1\. /, "3. ")}`);
 
 	if (customPrompt.trim()) parts.push(`## Project-specific instructions\n\n${customPrompt.trim()}`);
 
@@ -957,6 +978,7 @@ function buildReviewSlotSystemPrompt(
 	secrets: RuntimeProjectSecret[] = [],
 	systemPrompt?: string,
 	autoCommit = true,
+	subtaskCards: RuntimeBoardCard[] = [],
 ): string {
 	switch (slot.type) {
 		case "code_review":
@@ -974,6 +996,7 @@ function buildReviewSlotSystemPrompt(
 				secrets,
 				systemPrompt,
 				autoCommit,
+				subtaskCards,
 			);
 		default:
 			return buildCustomSystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets, systemPrompt);
@@ -990,10 +1013,6 @@ function buildCodeReviewSystemPrompt(
 	secrets: RuntimeProjectSecret[],
 	systemPrompt?: string,
 ): string {
-	const diffSection =
-		fullDiff.length <= INLINE_DIFF_LIMIT
-			? `Git diff:\n${fullDiff}`
-			: `Large changeset (${fullDiff.length.toLocaleString()} chars). Use \`git diff ${card.baseRef}...HEAD\` and read individual files to explore — start with the stat above to decide where to focus.`;
 	const custom = customPrompt.trim() ? `\n\n## Project-specific instructions\n\n${customPrompt.trim()}` : "";
 	const secretsSection = buildSecretsSection(secrets);
 	const projectContext = systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : "";
@@ -1012,20 +1031,22 @@ ${card.description ?? ""}${descAttachSection}${priorContext}
 ${stat}
 
 ## Diff
-${diffSection}
+${formatDiffBlock(fullDiff, card.baseRef)}
+
+${ITERATION_SCOPING_NOTE}
 
 ## What to check
 - Correctness: does it do what the task requires?
 - Security: injection, auth bypass, data exposure, unsafe operations?
 - Interface impact: grep callers of any changed function/type/export to confirm nothing breaks downstream
-- Previous feedback: verify all prior review failures and human feedback are addressed
+- Current iteration feedback: verify every issue / request under \`## New Feedback\` or \`## Current Iteration\` has been addressed in the diff
 - Test coverage: only mention if tests exist and are missing coverage, or if existing tests are broken
 
 ## How to work
 Use your tools — grep for callers, read type definitions, check related modules. Don't rely only on the diff.
 
 ## How to report
-Write your findings to the terminal as plain text. Do NOT include pass/fail verdict words in your terminal output; those go only in the \`kanban_add_comment\` call.
+The terminal output is observational — your only formal verdict is the \`status\` field in \`kanban_add_comment\`. Write findings to the terminal as plain text without pass/fail words.
 
 Then call \`kanban_add_comment\` with cardId: "${card.id}", type: "code_review", status: "pass"/"fail"/"warning", summary: your findings (specific, concise), and optionally issues: [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional note, pipeline still passes), message}].${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}`;
 }
@@ -1040,10 +1061,6 @@ function buildQASystemPrompt(
 	secrets: RuntimeProjectSecret[],
 	systemPrompt?: string,
 ): string {
-	const diffSection =
-		fullDiff.length <= INLINE_DIFF_LIMIT
-			? `Git diff:\n${fullDiff}`
-			: `Large changeset (${fullDiff.length.toLocaleString()} chars). Use \`git diff ${card.baseRef}...HEAD\` to explore.`;
 	const custom = customPrompt.trim() ? `\n\n## Project-specific instructions\n\n${customPrompt.trim()}` : "";
 	const secretsSection = buildSecretsSection(secrets);
 	const projectContext = systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : "";
@@ -1062,15 +1079,17 @@ ${card.description ?? ""}${qaDescAttachSection}${priorContext}
 ${stat}
 
 ## Diff
-${diffSection}
+${formatDiffBlock(fullDiff, card.baseRef)}
+
+${ITERATION_SCOPING_NOTE}
 
 ## What to do
 1. Identify the app type (web, API, React Native/Expo, library, etc.)
 2. Run the appropriate tests — existing test suite, TypeScript checks, Playwright, HTTP requests, etc.
-3. Verify previous QA failures and human feedback have been addressed
+3. Verify every issue / request listed under \`## New Feedback\` or \`## Current Iteration\` has been addressed in the diff
 
 ## How to report
-Write your findings to the terminal as plain text. Do NOT include pass/fail verdict words in your terminal output; those go only in the \`kanban_add_comment\` call.
+The terminal output is observational — your only formal verdict is the \`status\` field in \`kanban_add_comment\`. Write findings to the terminal as plain text without pass/fail words.
 
 Then call \`kanban_add_comment\` with cardId: "${card.id}", type: "qa", status: "pass"/"fail"/"warning"/"skipped", summary: what you ran and the outcome, and optionally issues: [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional, pipeline still passes), message}] and attachments: [{type: "image"|"file", name, mimeType, path}].${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}`;
 }
@@ -1085,16 +1104,36 @@ function buildOrchSystemPrompt(
 	secrets: RuntimeProjectSecret[],
 	systemPrompt?: string,
 	autoCommit = true,
+	subtaskCards: RuntimeBoardCard[] = [],
 ): string {
-	const subtaskIds = card.dependsOn ?? [];
 	const commentType = slot.type === "custom" ? slot.id : slot.type;
-	const custom = customPrompt.trim() ? `\n\n## Additional instructions\n\n${customPrompt.trim()}` : "";
+	const custom = customPrompt.trim() ? `\n\n## Project-specific instructions\n\n${customPrompt.trim()}` : "";
 	const secretsSection = buildSecretsSection(secrets);
 	const projectContext = systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : "";
-	const diffSection =
-		fullDiff.length <= INLINE_DIFF_LIMIT
-			? `Git diff:\n${fullDiff}`
-			: `Large changeset (${fullDiff.length.toLocaleString()} chars). Use \`git diff ${card.baseRef}...HEAD\` and read individual files to explore — start with the stat above to decide where to focus.`;
+
+	// Inline subtask context: id, description, latest dev/cr/qa status & summary.
+	// Saves a kanban_get_board roundtrip at runtime.
+	const subtasksSection = subtaskCards.length > 0
+		? subtaskCards.map((sub) => {
+				const title = sub.description?.split("\n")[0]?.slice(0, 100) ?? sub.id;
+				const lines = [`### [${sub.id}] ${title} (${sub.columnId})`];
+				if (sub.description) lines.push(sub.description);
+				const lastByType = (type: string) => [...(sub.reviewComments ?? [])].reverse().find((c) => c.type === type);
+				const dev = lastByType("dev");
+				const cr = lastByType("code_review");
+				const qa = lastByType("qa");
+				if (dev) lines.push(`\n**Dev** · ${dev.status ?? "?"}: ${dev.summary}`);
+				if (cr) {
+					const issues = (cr.issues ?? []).map((i) => `  - [${i.severity}] ${i.message}`).join("\n");
+					lines.push(`\n**Code Review** · ${cr.status ?? "?"}: ${cr.summary}${issues ? `\n${issues}` : ""}`);
+				}
+				if (qa) {
+					const issues = (qa.issues ?? []).map((i) => `  - [${i.severity}] ${i.message}`).join("\n");
+					lines.push(`\n**QA** · ${qa.status ?? "?"}: ${qa.summary}${issues ? `\n${issues}` : ""}`);
+				}
+				return lines.join("\n");
+			}).join("\n\n")
+		: "(no subtasks)";
 
 	return `You are an Orchestrator agent. All subtasks for a story have finished their dev and review workflows. Your job is to decide whether the story goal has been fully and correctly met across all subtasks.
 
@@ -1102,63 +1141,41 @@ function buildOrchSystemPrompt(
 **[${card.id}]**
 ${card.description ? `\n${card.description}\n` : ""}
 ## Subtasks
-${subtaskIds.length > 0 ? subtaskIds.map((id) => `- ${id}`).join("\n") : "(none)"}
+${subtasksSection}
 ${priorContext}
 ## Changed files
 ${stat}
 
 ## Diff
-${diffSection}
+${formatDiffBlock(fullDiff, card.baseRef)}
 
-## Step 1 — Read the board and inspect the code
-Call \`kanban_get_board\` to get the current state of all cards. For each subtask ID listed above, examine:
-- Its **description** (what it was supposed to do)
-- Its **review comments** (what was actually built, any CR/QA findings, and how issues were resolved)
+${ITERATION_SCOPING_NOTE}
 
-The diff above shows the combined changes for this story's shared worktree. You may also use your tools (Read, grep) to inspect specific files and verify the implementation matches the story goal. If the diff is large, use \`git diff ${card.baseRef}...HEAD\` to explore.
+## Decision tree
 
-## Step 2 — Evaluate against the story goal
-Work through these checks:
+Make ONE pass/fail decision per orchestrator run:
 
-1. **Completeness** — Does the combined implementation cover everything stated in the story description and acceptance criteria? Is anything missing?
-2. **Integration** — Do the subtasks connect correctly? If subtask A exposes an endpoint/type/function that subtask B consumes, do the interfaces actually match?
-3. **Correctness** — Based on what the CR and QA agents reported and what you see in the diff, are there unresolved issues that affect the story goal?
-4. **Consistency** — Are patterns, naming, data shapes, and behaviors consistent across subtasks?
+1. **PASS** if the combined implementation in the diff above meets the story goal AND all current-iteration feedback has been addressed → call \`kanban_add_comment\` once on the **story card** with \`type: "${commentType}"\`, \`status: "pass"\`, and a 2–4 sentence summary of what was built. Stop.
 
-## Step 3 — Act
+2. **FAIL** if something is missing, wrong, or unresolved → for **each** subtask that needs rework, call \`kanban_add_comment\` on the **subtask card** with \`type: "orch"\`, \`status: "fail"\`, and an exact actionable summary + \`issues\` array. Then call \`kanban_add_comment\` once on the **story card** with \`type: "${commentType}"\`, \`status: "fail"\`, summarising which subtasks need rework and why (1–2 sentences). Do NOT call \`kanban_move_card\` — the system reopens subtasks automatically based on your comments.
 
-### ✅ Story goal is fully met
-Call \`kanban_add_comment\` on the **story card** (${card.id}):
-\`\`\`
-type: "${commentType}"
-status: "pass"
-summary: Confirm the story goal is met. Summarise what was built across all subtasks in 2–4 sentences. Note any design decisions or caveats worth recording for the human reviewer.
-\`\`\`
+## What to evaluate
 
-### ❌ Rework needed
-For **each subtask that needs changes**, call \`kanban_add_comment\` on that **subtask card**:
-\`\`\`
-type: "orch"
-status: "fail"
-summary: Exact description of what is wrong and what to change. Reference specific files, functions, endpoints, or field names. The dev agent will read this as its only instruction — be precise enough that no further clarification is needed.
-issues: [{ severity: "blocking", message: "..." }]  // one issue per distinct problem
-\`\`\`
+1. **Completeness** — does the diff cover everything in the story description?
+2. **Integration** — if subtask A exposes an interface that subtask B consumes, do they actually match?
+3. **Correctness** — given the CR/QA findings already shown above, are there unresolved issues that affect the story goal?
+4. **Consistency** — are patterns, naming, data shapes, and behaviors consistent across subtasks?
 
-Do NOT call \`kanban_move_card\` — the system moves subtasks automatically based on your comments.
-
-Then call \`kanban_add_comment\` on the **story card** (${card.id}):
-\`\`\`
-type: "${commentType}"
-status: "fail"
-summary: Which subtasks need rework and the overall reason (1–2 sentences).
-\`\`\`
+You may use \`Read\` / \`grep\` on the worktree to verify, but everything you need to make a decision is already in this prompt — avoid unnecessary tool calls.
 
 ## Rules
-- You will run again after subtasks are fixed, so only pass when you are confident the story goal is met
-- Only flag subtasks for issues that affect the story goal — do not flag for minor style preferences or issues the CR/QA agent already marked as info-only
-- Never flag a subtask without a specific, actionable comment — vague feedback blocks the dev agent
-- **Choosing the right subtask**: Reopen the subtask whose work scope is most directly responsible for the issue. Since all subtasks share the same worktree directory, the dev agent can fix any file regardless of which subtask you target — pick the one where the fix semantically belongs.${!autoCommit ? "\n- **Auto-commit is disabled**: Subtask worktrees intentionally have uncommitted changes. Do NOT flag this." : ""}
-- Your pass/fail summary must describe only what was built and whether it meets the story goal — nothing else.${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}`;
+
+- All data above is current; do NOT call \`kanban_get_board\` — it's redundant.
+- You will run again after any flagged subtasks are fixed, so only pass when confident the story goal is met.
+- Only flag subtasks for issues that affect the story goal. Skip minor style preferences or info-level findings already noted by CR/QA.
+- A flagged subtask without a specific, actionable comment blocks the dev agent — never leave the summary vague.
+- **Choosing the right subtask**: reopen the one whose scope is most semantically responsible for the issue. All subtasks share one worktree, so the dev agent can edit any file regardless of which subtask you target.${!autoCommit ? "\n- **Auto-commit is disabled**: Subtask worktrees intentionally have uncommitted changes. Do NOT flag this." : ""}
+- Your story-card summary must describe only what was built and whether it meets the story goal — nothing else.${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}`;
 }
 
 function buildCustomSystemPrompt(
@@ -1171,10 +1188,6 @@ function buildCustomSystemPrompt(
 	secrets: RuntimeProjectSecret[],
 	systemPrompt?: string,
 ): string {
-	const diffSection =
-		fullDiff.length <= INLINE_DIFF_LIMIT
-			? `Git diff:\n${fullDiff}`
-			: `Large changeset (${fullDiff.length.toLocaleString()} chars). Use \`git diff ${card.baseRef}...HEAD\` to explore.`;
 	const secretsSection = buildSecretsSection(secrets);
 	const projectContext = systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : "";
 
@@ -1187,12 +1200,14 @@ ${card.description ?? ""}${priorContext}
 ${stat}
 
 ## Diff
-${diffSection}
+${formatDiffBlock(fullDiff, card.baseRef)}
+
+${ITERATION_SCOPING_NOTE}
 
 ## Instructions
 ${customPrompt.trim()}
 
-Write your findings to the terminal as plain text. Do NOT include pass/fail verdict words in your terminal output; those go only in the \`kanban_add_comment\` call.
+The terminal output is observational — your only formal verdict is the \`status\` field in \`kanban_add_comment\`. Write findings to the terminal as plain text without pass/fail words.
 
 Then call \`kanban_add_comment\` with cardId: "${card.id}", type: "${slot.id}", status: "pass"/"fail"/"warning"/"skipped", summary: your findings, and optionally issues: [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional note, pipeline still passes), message}].${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}`;
 }
@@ -1332,25 +1347,20 @@ function buildCascadeSystemPrompt(
 ): string {
 	const comments = parentCard.reviewComments ?? [];
 
-	const lastDevIdx = (() => {
-		for (let i = comments.length - 1; i >= 0; i--) {
-			if (comments[i]?.type === "dev") return i;
-		}
-		return -1;
-	})();
+	// The "reopening reason" = the trailing non-AI feedback of the CURRENT
+	// iteration (everything the parent's dev agent will be asked to address
+	// next). Use the same grouping the prompt-formatter uses for consistency.
+	const iterations = groupIntoIterations(parentCard);
+	const current = iterations[iterations.length - 1];
+	const currentInputSummaries = current?.input.map((c) => c.summary).filter(Boolean) ?? [];
+	const reopenReason = currentInputSummaries.length > 0
+		? currentInputSummaries.join("\n")
+		: "Parent task was reopened.";
 
 	const allDevSummaries = comments
 		.filter((c) => c.type === "dev")
 		.map((c, i) => `Dev iteration ${i + 1}:\n${c.summary}`)
 		.join("\n\n");
-
-	const humanFeedback = comments
-		.slice(lastDevIdx + 1)
-		.filter((c) => c.actor.type !== "ai")
-		.map((c) => c.summary)
-		.filter(Boolean);
-
-	const reopenReason = humanFeedback.length > 0 ? humanFeedback.join("\n") : "Parent task was reopened.";
 
 	const childLines = childCards
 		.map((child) => {
@@ -1402,7 +1412,7 @@ The default is to **leave children alone**. Only reset when the reopening reason
    - type: "cascade"
    - status: "fail"
    - summary: Explain specifically what the parent changed and why this child's prior work needs to be revisited.
-   - issues: include one blocking issue with severity "blocking" and message: "Run \`git merge ${parentBranch}\` FIRST (no fetch needed — all worktrees share the same git repo). After merging, implement this task's original goal on top of the parent's new state. The parent's changes are the new baseline — build on them, do not mirror them."
+   - issues: include one blocking issue with severity "blocking" and message: "Run \`git merge ${parentBranch}\` — no fetch needed since all task worktrees in this project share the same local repo. After merging, implement this task's original goal on top of the parent's new state. The parent's changes are the new baseline — build on them, do not mirror them."
 3. Call \`kanban_move_card\` to "todo" for that child.
 
 After handling all children, call \`kanban_add_comment\` on the PARENT card (${parentCard.id}) with type "cascade" and a brief summary of each decision.`;
