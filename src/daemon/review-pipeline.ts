@@ -627,65 +627,195 @@ function getGitFullDiff(worktreePath: string, baseRef: string): string {
 	return sections.join("\n\n");
 }
 
+/**
+ * Format a single comment as a markdown block. Headings use `headingLevel`
+ * (### for top-level, #### for nested-in-iteration). `stripMustFix` removes
+ * the "MUST FIX" warning — used for previous-iteration entries that were
+ * already resolved by the iteration completing.
+ */
+function formatComment(
+	c: RuntimeBoardCard["reviewComments"][number],
+	opts: { headingLevel: "###" | "####"; stripMustFix: boolean },
+): string {
+	const typeLabel =
+		c.type === "human"
+			? "Human Feedback"
+			: c.type === "visual-comment"
+				? "Visual Feedback"
+				: c.type.replace(/[-_]/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+	const actorId = c.actor.id;
+	const statusLabel = c.status?.toUpperCase() ?? "";
+	const hasMustFix = c.issues?.some((i) => i.severity === "blocking" || i.severity === "warning") ?? false;
+	const failedRound = c.status === "fail" || hasMustFix;
+	const mustFix = failedRound && !opts.stripMustFix ? " ⚠ MUST FIX BEFORE PROCEEDING" : "";
+
+	const parts: string[] = [
+		`${opts.headingLevel} ${typeLabel} · ${actorId}${statusLabel ? ` · ${statusLabel}` : ""}${mustFix}`,
+	];
+	if (c.summary) parts.push(c.summary);
+
+	if (c.issues?.length) {
+		for (const issue of c.issues) {
+			const loc = issue.file ? `${issue.file}${issue.line != null ? `:${issue.line}` : ""}` : "";
+			parts.push(`- [${issue.severity}]${loc ? ` ${loc}` : ""} — ${issue.message}`);
+		}
+	}
+
+	if (c.attachments?.length) {
+		const attLines = c.attachments.map((att) => `  - ${att.name}: ${att.path}`).join("\n");
+		parts.push(`Attached files (use Read tool to view):\n${attLines}`);
+	}
+
+	if (c.metadata?.visualComment && typeof c.metadata.visualComment === "object") {
+		const vc = c.metadata.visualComment as Record<string, unknown>;
+		const vcLines = ["Visual annotation context:"];
+		if (vc.pageUrl) vcLines.push(`- Page: ${vc.pageUrl}`);
+		if (vc.elementSelector) vcLines.push(`- Element selector: ${vc.elementSelector}`);
+		if (vc.elementText) vcLines.push(`- Element text: "${vc.elementText}"`);
+		if (Array.isArray(vc.componentChain) && vc.componentChain.length) {
+			vcLines.push(`- Component chain (outer → inner): ${(vc.componentChain as string[]).join(" → ")}`);
+		} else if (vc.componentName) {
+			vcLines.push(`- Component: ${vc.componentName}`);
+		}
+		if (vc.sourceFile) vcLines.push(`- Source: ${vc.sourceFile}${vc.sourceLine != null ? `:${vc.sourceLine}` : ""}`);
+		parts.push(vcLines.join("\n"));
+	} else if (c.metadata && Object.keys(c.metadata).length > 0) {
+		for (const [k, v] of Object.entries(c.metadata)) {
+			if (typeof v !== "object") parts.push(`${k}: ${String(v)}`);
+		}
+	}
+
+	return parts.join("\n");
+}
+
+/**
+ * Group comments into iteration cycles.
+ *
+ * An iteration = one round of user/external input followed by AI work. A new
+ * iteration starts when we see a non-AI comment after an AI cycle has started
+ * (NOT necessarily after the AI summary was written — we use terminal-session
+ * startedAt timestamps so that comments arriving mid-run get correctly bumped
+ * into the NEXT iteration, since the running AI didn't see them).
+ */
+type Iteration = {
+	input: RuntimeBoardCard["reviewComments"]; // non-AI comments
+	work: RuntimeBoardCard["reviewComments"];  // AI comments
+};
+
+function groupIntoIterations(card: RuntimeBoardCard): Iteration[] {
+	const comments = [...(card.reviewComments ?? [])].sort((a, b) => a.createdAt - b.createdAt);
+	if (comments.length === 0) return [];
+
+	// Map each AI comment's effective start time. If it has a streamId pointing
+	// to a terminal session, use the session's startedAt (when the prompt was
+	// formed). Otherwise fall back to createdAt.
+	const sessions = card.terminalSessions ?? [];
+	const aiStartTime = (c: RuntimeBoardCard["reviewComments"][number]): number => {
+		if (c.actor.type !== "ai") return c.createdAt;
+		if (c.streamId) {
+			const s = sessions.find((s) => s.streamId === c.streamId);
+			if (s?.startedAt != null) return s.startedAt;
+		}
+		return c.createdAt;
+	};
+
+	// Walk comments. Track the latest AI session start time we've seen — any
+	// later non-AI comment is "input for the next iteration".
+	const iterations: Iteration[] = [];
+	let current: Iteration | null = null;
+	let latestAiStart = -Infinity;
+
+	for (const c of comments) {
+		const isAI = c.actor.type === "ai";
+		if (!isAI) {
+			const isPostLastAi = c.createdAt > latestAiStart;
+			if (!current || (current.work.length > 0 && isPostLastAi)) {
+				current = { input: [c], work: [] };
+				iterations.push(current);
+			} else {
+				current.input.push(c);
+			}
+		} else {
+			if (!current) {
+				current = { input: [], work: [c] };
+				iterations.push(current);
+			} else {
+				current.work.push(c);
+			}
+			latestAiStart = Math.max(latestAiStart, aiStartTime(c));
+		}
+	}
+
+	return iterations;
+}
+
 function formatPriorComments(card: RuntimeBoardCard): { text: string; files: string[] } {
-	const comments = card.reviewComments ?? [];
-	if (comments.length === 0) return { text: "", files: [] };
+	const iterations = groupIntoIterations(card);
+	if (iterations.length === 0) return { text: "", files: [] };
 
-	const allFiles: string[] = [];
-	const lines = comments.map((c) => {
-		const typeLabel =
-			c.type === "human"
-				? "Human Feedback"
-				: c.type === "visual-comment"
-					? "Visual Feedback"
-					: c.type.replace(/[-_]/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-		const actorId = c.actor.id;
-		const statusLabel = c.status?.toUpperCase() ?? "";
-		const hasMustFix = c.issues?.some((i) => i.severity === "blocking" || i.severity === "warning") ?? false;
-		const failedRound = c.status === "fail" || hasMustFix;
+	const sections: string[] = [];
 
-		const parts: string[] = [
-			`### ${typeLabel} · ${actorId}${statusLabel ? ` · ${statusLabel}` : ""}${failedRound ? " ⚠ MUST FIX BEFORE PROCEEDING" : ""}`,
+	// Previous iterations: everything except the last
+	const previous = iterations.slice(0, -1);
+	const current = iterations[iterations.length - 1];
+
+	if (previous.length > 0) {
+		const lines: string[] = [
+			"## Previous Iterations",
+			"_For context only — already addressed. Do not redo unless explicitly asked._",
 		];
-		parts.push(c.summary);
-
-		if (c.issues?.length) {
-			for (const issue of c.issues) {
-				const loc = issue.file ? `${issue.file}${issue.line != null ? `:${issue.line}` : ""}` : "";
-				parts.push(`- [${issue.severity}]${loc ? ` ${loc}` : ""} — ${issue.message}`);
+		previous.forEach((it, idx) => {
+			lines.push("");
+			lines.push(`### Iteration ${idx + 1}`);
+			const all = [...it.input, ...it.work].sort((a, b) => a.createdAt - b.createdAt);
+			for (const c of all) {
+				lines.push("");
+				lines.push(formatComment(c, { headingLevel: "####", stripMustFix: true }));
 			}
+		});
+		sections.push(lines.join("\n"));
+	}
+
+	if (current) {
+		const hasInput = current.input.length > 0;
+		const hasWork = current.work.length > 0;
+		// Heading depends on whether AI work has started this round.
+		const heading = hasInput && hasWork
+			? "## Current Iteration (in progress)"
+			: hasInput
+				? "## New Feedback (address this round)"
+				: "## Current Iteration";
+		// Subtle hint when there's no new user input at all (re-triggered with no new instructions)
+		const subhead = hasInput
+			? ""
+			: "_Re-triggered without new user feedback. Continue from prior state._";
+
+		const lines: string[] = [heading];
+		if (subhead) lines.push(subhead);
+
+		// In current iteration, only top-level ### headings (no Iteration N grouping)
+		const all = [...current.input, ...current.work].sort((a, b) => a.createdAt - b.createdAt);
+		for (const c of all) {
+			lines.push("");
+			lines.push(formatComment(c, { headingLevel: "###", stripMustFix: false }));
 		}
 
-		if (c.attachments?.length) {
-			const attLines = c.attachments.map((att) => `  - ${att.name}: ${att.path}`).join("\n");
-			parts.push(`Attached files (use Read tool to view):\n${attLines}`);
+		// Edge case: if there are no previous iterations AND this is just one
+		// initial human comment with no AI work yet, emit no header at all
+		// (matches the "first run" expectation).
+		if (previous.length === 0 && !hasWork && current.input.length <= 1) {
+			// Single initial input, first run — skip the prompt section entirely.
+			// The task description already conveys the request.
+			return { text: "", files: [] };
 		}
 
-		if (c.metadata?.visualComment && typeof c.metadata.visualComment === "object") {
-			const vc = c.metadata.visualComment as Record<string, unknown>;
-			const vcLines = ["Visual annotation context:"];
-			if (vc.pageUrl) vcLines.push(`- Page: ${vc.pageUrl}`);
-			if (vc.elementSelector) vcLines.push(`- Element selector: ${vc.elementSelector}`);
-			if (vc.elementText) vcLines.push(`- Element text: "${vc.elementText}"`);
-			if (Array.isArray(vc.componentChain) && vc.componentChain.length) {
-				vcLines.push(`- Component chain (outer → inner): ${(vc.componentChain as string[]).join(" → ")}`);
-			} else if (vc.componentName) {
-				vcLines.push(`- Component: ${vc.componentName}`);
-			}
-			if (vc.sourceFile) vcLines.push(`- Source: ${vc.sourceFile}${vc.sourceLine != null ? `:${vc.sourceLine}` : ""}`);
-			parts.push(vcLines.join("\n"));
-		} else if (c.metadata && Object.keys(c.metadata).length > 0) {
-			for (const [k, v] of Object.entries(c.metadata)) {
-				if (typeof v !== "object") parts.push(`${k}: ${String(v)}`);
-			}
-		}
+		sections.push(lines.join("\n"));
+	}
 
-		return parts.join("\n");
-	});
-
+	if (sections.length === 0) return { text: "", files: [] };
 	return {
-		text: `\n\n---\n\n## Prior Review History\n\n${lines.join("\n\n")}`,
-		files: allFiles,
+		text: `\n\n---\n\n${sections.join("\n\n---\n\n")}`,
+		files: [],
 	};
 }
 
