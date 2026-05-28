@@ -2,7 +2,7 @@ import { mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
-import { WHIPPED_HOME_DIR } from "../config/runtime-config.js";
+import { WHIPPED_HOME_DIR } from "../config/paths.js";
 import { logger } from "../core/logger.js";
 
 const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), "migrations");

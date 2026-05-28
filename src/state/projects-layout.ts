@@ -1,8 +1,10 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { getDb } from "./db.js";
 
-const LAYOUT_PATH = join(homedir(), ".whipped", "projects-layout.json");
+// Legacy JSON path — kept exported for the future one-time JSON→SQLite import.
+// Live reads/writes now go through SQLite via projects_layout singleton row.
+export const LAYOUT_PATH = join(homedir(), ".whipped", "projects-layout.json");
 
 export interface ProjectFolder {
 	id: string;
@@ -21,15 +23,31 @@ export interface ProjectsLayout {
 
 const EMPTY: ProjectsLayout = { version: 1, topLevel: [], folders: {} };
 
-export function loadProjectsLayout(): ProjectsLayout {
-	if (!existsSync(LAYOUT_PATH)) return structuredClone(EMPTY);
+function parseLayout(rawJson: string): ProjectsLayout {
 	try {
-		return JSON.parse(readFileSync(LAYOUT_PATH, "utf-8")) as ProjectsLayout;
+		const parsed = JSON.parse(rawJson) as ProjectsLayout;
+		if (parsed && parsed.version === 1 && Array.isArray(parsed.topLevel) && typeof parsed.folders === "object") {
+			return parsed;
+		}
 	} catch {
-		return structuredClone(EMPTY);
+		// fall through
 	}
+	return structuredClone(EMPTY);
+}
+
+export function loadProjectsLayout(): ProjectsLayout {
+	const db = getDb();
+	const row = db.prepare("SELECT layout_json FROM projects_layout WHERE id = 1").get() as
+		| { layout_json: string }
+		| undefined;
+	if (!row) return structuredClone(EMPTY);
+	return parseLayout(row.layout_json);
 }
 
 export function saveProjectsLayout(layout: ProjectsLayout): void {
-	writeFileSync(LAYOUT_PATH, JSON.stringify(layout, null, 2), "utf-8");
+	const db = getDb();
+	db.prepare("UPDATE projects_layout SET layout_json = ?, updated_at = ? WHERE id = 1").run(
+		JSON.stringify(layout),
+		Date.now(),
+	);
 }

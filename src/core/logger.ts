@@ -1,7 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import pino from "pino";
-import { WHIPPED_HOME_DIR } from "../config/runtime-config.js";
+import { WHIPPED_HOME_DIR } from "../config/paths.js";
 
 const LOGS_DIR = join(WHIPPED_HOME_DIR, "logs");
 

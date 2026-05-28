@@ -18,6 +18,7 @@ import {
 	SCHEMA_VERSION,
 } from "../core/api-contract.js";
 import { generateTaskId } from "../core/task-id.js";
+import { getDb } from "./db.js";
 
 // ─── Per-workspace write mutex ────────────────────────────────────────────────
 //
@@ -48,29 +49,6 @@ async function withLock<T>(workspaceId: string, fn: () => Promise<T>): Promise<T
 	}
 }
 
-// ─── Index ────────────────────────────────────────────────────────────────────
-
-const INDEX_FILE = join(WORKSPACES_DIR, "index.json");
-
-interface WorkspaceIndex {
-	entries: Record<string, { workspaceId: string; repoPath: string; name: string }>;
-	repoPathToId: Record<string, string>;
-}
-
-async function loadIndex(): Promise<WorkspaceIndex> {
-	try {
-		const raw = await readFile(INDEX_FILE, "utf-8");
-		return JSON.parse(raw) as WorkspaceIndex;
-	} catch {
-		return { entries: {}, repoPathToId: {} };
-	}
-}
-
-async function saveIndex(index: WorkspaceIndex): Promise<void> {
-	await mkdir(WORKSPACES_DIR, { recursive: true });
-	await writeFile(INDEX_FILE, JSON.stringify(index, null, 2), "utf-8");
-}
-
 // ─── Workspace paths ──────────────────────────────────────────────────────────
 
 function workspaceDirPath(workspaceId: string): string {
@@ -83,10 +61,6 @@ function boardFilePath(workspaceId: string): string {
 
 function metaFilePath(workspaceId: string): string {
 	return join(workspaceDirPath(workspaceId), "meta.json");
-}
-
-function projectConfigFilePath(workspaceId: string): string {
-	return join(workspaceDirPath(workspaceId), "project-config.json");
 }
 
 function bufferFilePath(workspaceId: string, streamId: string): string {
@@ -148,35 +122,150 @@ async function saveMeta(
 	await writeFile(metaFilePath(workspaceId), JSON.stringify(meta, null, 2), "utf-8");
 }
 
-export async function loadProjectConfig(workspaceId: string): Promise<RuntimeProjectConfig> {
+// Project config is split across multiple SQLite tables:
+//   workflows[]          → workflows
+//   secrets[]            → workspace_secrets
+//   github / jira        → workspace_integrations rows
+//   everything else      → workspaces.settings_json
+// On load we re-assemble the full RuntimeProjectConfig.
+
+function loadProjectConfigInternal(workspaceId: string): RuntimeProjectConfig {
+	const db = getDb();
+
+	const wsRow = db.prepare("SELECT settings_json FROM workspaces WHERE id = ?").get(workspaceId) as
+		| { settings_json: string }
+		| undefined;
+	if (!wsRow) return runtimeProjectConfigSchema.parse({});
+
+	let settings: Record<string, unknown> = {};
 	try {
-		const raw = await readFile(projectConfigFilePath(workspaceId), "utf-8");
-		const parsed = runtimeProjectConfigSchema.safeParse(JSON.parse(raw));
-		return parsed.success ? parsed.data : runtimeProjectConfigSchema.parse({});
+		const parsed = JSON.parse(wsRow.settings_json);
+		if (parsed && typeof parsed === "object") settings = parsed as Record<string, unknown>;
 	} catch {
-		return runtimeProjectConfigSchema.parse({});
+		// fall through with empty
 	}
+
+	const workflowRows = db
+		.prepare("SELECT id, name, is_default, for_story, slots_json FROM workflows WHERE workspace_id = ?")
+		.all(workspaceId) as Array<{
+		id: string;
+		name: string;
+		is_default: number;
+		for_story: number;
+		slots_json: string;
+	}>;
+	const workflows = workflowRows.map((row) => {
+		let slots: unknown = [];
+		try {
+			slots = JSON.parse(row.slots_json);
+		} catch {
+			slots = [];
+		}
+		return {
+			id: row.id,
+			name: row.name,
+			isDefault: row.is_default === 1,
+			forStory: row.for_story === 1,
+			slots,
+		};
+	});
+
+	const secretRows = db
+		.prepare("SELECT key, value FROM workspace_secrets WHERE workspace_id = ?")
+		.all(workspaceId) as Array<{ key: string; value: string }>;
+	const secrets = secretRows.map((r) => ({ key: r.key, value: r.value }));
+
+	const integrationRows = db
+		.prepare("SELECT type, config_json FROM workspace_integrations WHERE workspace_id = ? AND enabled = 1")
+		.all(workspaceId) as Array<{ type: string; config_json: string }>;
+	let github: unknown;
+	let jira: unknown;
+	for (const row of integrationRows) {
+		try {
+			const cfg = JSON.parse(row.config_json);
+			if (row.type === "github") github = cfg;
+			else if (row.type === "jira") jira = cfg;
+		} catch {
+			// skip corrupt row
+		}
+	}
+
+	const merged: Record<string, unknown> = {
+		...settings,
+		workflows,
+		secrets,
+	};
+	if (github) merged.github = github;
+	if (jira) merged.jira = jira;
+
+	const parsed = runtimeProjectConfigSchema.safeParse(merged);
+	return parsed.success ? parsed.data : runtimeProjectConfigSchema.parse({});
+}
+
+function saveProjectConfigInternal(workspaceId: string, config: RuntimeProjectConfig): void {
+	const db = getDb();
+	const now = Date.now();
+
+	const { workflows, secrets, github, jira, ...rest } = config;
+
+	db.prepare("UPDATE workspaces SET settings_json = ?, updated_at = ? WHERE id = ?").run(
+		JSON.stringify(rest),
+		now,
+		workspaceId,
+	);
+
+	db.prepare("DELETE FROM workflows WHERE workspace_id = ?").run(workspaceId);
+	const insertWf = db.prepare(
+		"INSERT INTO workflows (id, workspace_id, name, is_default, for_story, slots_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+	);
+	for (const wf of workflows) {
+		insertWf.run(
+			wf.id,
+			workspaceId,
+			wf.name,
+			wf.isDefault ? 1 : 0,
+			wf.forStory ? 1 : 0,
+			JSON.stringify(wf.slots),
+			now,
+			now,
+		);
+	}
+
+	db.prepare("DELETE FROM workspace_secrets WHERE workspace_id = ?").run(workspaceId);
+	const insertSec = db.prepare("INSERT INTO workspace_secrets (workspace_id, key, value) VALUES (?, ?, ?)");
+	for (const s of secrets) {
+		insertSec.run(workspaceId, s.key, s.value);
+	}
+
+	db.prepare("DELETE FROM workspace_integrations WHERE workspace_id = ?").run(workspaceId);
+	const insertInt = db.prepare(
+		"INSERT INTO workspace_integrations (workspace_id, type, enabled, config_json, updated_at) VALUES (?, ?, 1, ?, ?)",
+	);
+	if (github) insertInt.run(workspaceId, "github", JSON.stringify(github), now);
+	if (jira) insertInt.run(workspaceId, "jira", JSON.stringify(jira), now);
+}
+
+export async function loadProjectConfig(workspaceId: string): Promise<RuntimeProjectConfig> {
+	return loadProjectConfigInternal(workspaceId);
 }
 
 export async function saveProjectConfig(workspaceId: string, config: RuntimeProjectConfig): Promise<void> {
-	await mkdir(workspaceDirPath(workspaceId), { recursive: true });
-	await writeFile(projectConfigFilePath(workspaceId), JSON.stringify(config, null, 2), "utf-8");
+	saveProjectConfigInternal(workspaceId, config);
 }
 
-// Atomic read-modify-write on the project config. Use this for partial
-// updates (single-field setters) so two concurrent callers cannot race
-// load → mutate → save into a last-write-wins overwrite.
+// Atomic read-modify-write inside a SQLite transaction.
 export async function updateProjectConfig(
 	workspaceId: string,
 	mutator: (config: RuntimeProjectConfig) => RuntimeProjectConfig,
 ): Promise<RuntimeProjectConfig> {
-	return withLock(workspaceId, async () => {
-		const current = await loadProjectConfig(workspaceId);
+	const db = getDb();
+	const tx = db.transaction(() => {
+		const current = loadProjectConfigInternal(workspaceId);
 		const next = mutator(current);
-		await mkdir(workspaceDirPath(workspaceId), { recursive: true });
-		await writeFile(projectConfigFilePath(workspaceId), JSON.stringify(next, null, 2), "utf-8");
+		saveProjectConfigInternal(workspaceId, next);
 		return next;
 	});
+	return tx();
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -189,30 +278,35 @@ export interface WorkspaceContext {
 }
 
 export async function loadWorkspaceContext(repoPath: string): Promise<WorkspaceContext> {
-	const index = await loadIndex();
-	const existingId = index.repoPathToId[repoPath];
-	if (existingId) {
-		const entry = index.entries[existingId];
-		if (entry) {
-			return { workspaceId: existingId, repoPath, name: entry.name, lastUpdated: 0 };
-		}
+	const db = getDb();
+	const existing = db.prepare("SELECT id, name FROM workspaces WHERE repo_path = ?").get(repoPath) as
+		| { id: string; name: string }
+		| undefined;
+	if (existing) {
+		return { workspaceId: existing.id, repoPath, name: existing.name, lastUpdated: 0 };
 	}
 
 	const workspaceId = randomBytes(4).toString("hex");
 	const name = repoPath.split("/").pop() ?? repoPath;
-	index.entries[workspaceId] = { workspaceId, repoPath, name };
-	index.repoPathToId[repoPath] = workspaceId;
-	await saveIndex(index);
+	const now = Date.now();
+	db.prepare(
+		"INSERT INTO workspaces (id, repo_path, name, settings_json, created_at, updated_at) VALUES (?, ?, ?, '{}', ?, ?)",
+	).run(workspaceId, repoPath, name, now, now);
 
 	return { workspaceId, repoPath, name, lastUpdated: 0 };
 }
 
 export async function listWorkspaces(): Promise<WorkspaceContext[]> {
-	const index = await loadIndex();
-	return Object.values(index.entries).map((e) => ({
-		workspaceId: e.workspaceId,
-		repoPath: e.repoPath,
-		name: e.name,
+	const db = getDb();
+	const rows = db.prepare("SELECT id, repo_path, name FROM workspaces WHERE archived_at IS NULL").all() as Array<{
+		id: string;
+		repo_path: string;
+		name: string;
+	}>;
+	return rows.map((r) => ({
+		workspaceId: r.id,
+		repoPath: r.repo_path,
+		name: r.name,
 		lastUpdated: 0,
 	}));
 }
@@ -636,10 +730,6 @@ export async function deleteCard(workspaceId: string, cardId: string): Promise<v
 }
 
 export async function removeWorkspace(workspaceId: string): Promise<void> {
-	const index = await loadIndex();
-	const entry = index.entries[workspaceId];
-	if (!entry) return;
-	delete index.entries[workspaceId];
-	delete index.repoPathToId[entry.repoPath];
-	await saveIndex(index);
+	const db = getDb();
+	db.prepare("DELETE FROM workspaces WHERE id = ?").run(workspaceId);
 }
