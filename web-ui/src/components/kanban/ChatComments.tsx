@@ -415,10 +415,12 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 													elementSelector?: string;
 													elementText?: string;
 													componentName?: string;
+													componentChain?: string[];
 													sourceFile?: string;
 													sourceLine?: number;
 												};
 												const shortFile = vc.sourceFile?.split("/").slice(-2).join("/");
+												const chainDisplay = vc.componentChain?.length ? vc.componentChain.join(" → ") : vc.componentName;
 												return (
 													<div className="mt-1.5 flex flex-col gap-1 px-2 py-1.5 rounded bg-[#7c6aff]/8 border border-[#7c6aff]/20 text-[11px] text-[#8888a0]">
 														<div className="flex items-center gap-1.5 flex-wrap">
@@ -426,8 +428,8 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 															{vc.elementSelector && (
 																<code className="font-mono text-[#c4baff]">{vc.elementSelector}</code>
 															)}
-															{vc.componentName && (
-																<span className="text-[#6a6a80]">⚛ {vc.componentName}</span>
+															{chainDisplay && (
+																<span className="text-[#6a6a80]">⚛ {chainDisplay}</span>
 															)}
 														</div>
 														{vc.elementText && (

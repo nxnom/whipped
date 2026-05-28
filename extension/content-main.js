@@ -433,8 +433,427 @@
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  // 6. (FUTURE) ANGULAR / VUE / SVELTE HANDLERS
+  // 6. ANGULAR HANDLER
   // ════════════════════════════════════════════════════════════════════════
+  //
+  // Angular (Ivy, v9+) exposes a debug API at `window.ng` in dev mode:
+  //   - ng.getComponent(el)     → component instance if el is the host element
+  //   - ng.getDirectives(el)    → array of directive instances on the element
+  //   - ng.getOwningComponent(el) → the parent component that rendered el
+  //
+  // We walk up the DOM to find the nearest component host, then read:
+  //   - constructor.name        → component class name
+  //   - constructor.ɵcmp.selectors → the CSS selector (e.g. "app-login-form")
+  //
+  // Source file resolution: Angular doesn't expose _debugSource/_debugStack.
+  // The agent can grep for `selector: '...'` or `class ComponentName` to find
+  // the file. We still try to extract a sourceURL comment from the compiled
+  // factory if one is present.
+
+  function hasAngularDebugApi() {
+    return typeof window.ng?.getComponent === "function";
+  }
+
+  // Detect Angular even if window.ng is unavailable (tree-shaken in some builds).
+  function hasAngularIvy() {
+    return !!document.querySelector("[ng-version]")
+      || typeof window.getAllAngularRootElements === "function";
+  }
+
+  // Find the closest component host walking up the DOM.
+  //
+  // Strategy:
+  //  1. Closest custom element ancestor (e.g. <app-button>, <app-table>) —
+  //     these are always component hosts in Angular and work regardless of
+  //     ViewEncapsulation (None, Emulated, ShadowDom).
+  //  2. Closest element with _nghost-XXX attribute — Emulated encapsulation
+  //     marker for component hosts.
+  //
+  // This matches what users intuitively expect: "which component owns the UI
+  // I just clicked on" — almost always the nearest enclosing custom element.
+  function findTemplateAuthorHost(el) {
+    let node = el;
+    while (node && node.nodeType === 1) {
+      // Custom element tag (has a hyphen) — almost certainly a component host
+      if (node.tagName && node.tagName.includes("-")) return node;
+      // _nghost-* attribute marker (Emulated encapsulation)
+      for (const attr of node.attributes || []) {
+        if (attr.name.startsWith("_nghost-")) return node;
+      }
+      node = node.parentElement;
+    }
+    return null;
+  }
+
+  // Legacy fallback: walk up looking for any _nghost-* (closest descendant
+  // component). Used only when the _ngcontent-based lookup fails.
+  function findComponentHostByNghost(el) {
+    let node = el;
+    while (node && node.nodeType === 1) {
+      for (const attr of node.attributes || []) {
+        if (attr.name.startsWith("_nghost-")) return node;
+      }
+      node = node.parentElement;
+    }
+    return null;
+  }
+
+  // Resolve the element to the component whose template actually authored it.
+  // Angular's emulated encapsulation tags every element with _ngcontent-XXX
+  // where XXX matches the _nghost-XXX of the authoring component's host.
+  // This is per-element accurate: clicking on a header in the layout returns
+  // the layout's host, clicking on table content in the page returns the
+  // page's host — exactly the precision we want for source-file resolution.
+  function findTemplateAuthorHost(el) {
+    let node = el;
+    while (node && node.nodeType === 1) {
+      for (const attr of node.attributes || []) {
+        if (attr.name.startsWith("_ngcontent-")) {
+          const hash = attr.name.substring("_ngcontent-".length);
+          try {
+            const host = document.querySelector(`[_nghost-${CSS.escape(hash)}]`);
+            if (host) return host;
+          } catch { /* invalid selector */ }
+        }
+      }
+      node = node.parentElement;
+    }
+    return null;
+  }
+
+  // Fallback: walk up DOM looking for an element with __ngContext__ at all.
+  function findClosestLContext(el) {
+    let node = el;
+    while (node && node.nodeType === 1) {
+      const ctx = node.__ngContext__;
+      if (ctx !== undefined && ctx !== null) return { host: node, ctx };
+      node = node.parentElement;
+    }
+    return null;
+  }
+
+  // Heuristic: identify whether a value looks like an Angular component instance.
+  function isLikelyComponentInstance(val) {
+    if (!val || typeof val !== "object") return false;
+    const ctor = val.constructor;
+    if (!ctor || ctor === Object || ctor === Array) return false;
+    // Ivy component definition presence is the strongest signal
+    if (ctor.ɵcmp || ctor.ngComponentDef) return true;
+    return false;
+  }
+
+  // Walk down all Angular root LViews to find the LView whose HOST element
+  // matches the target. Necessary because non-root hosts often store
+  // __ngContext__ as a numeric LView ID (lazy resolution), and the actual
+  // LView lookup table is internal to @angular/core.
+  function findLViewByHostElement(targetEl) {
+    if (typeof window.getAllAngularRootElements !== "function") return null;
+    let roots;
+    try { roots = window.getAllAngularRootElements(); }
+    catch { return null; }
+    const seen = new WeakSet();
+    for (const root of roots) {
+      const ctx = root.__ngContext__;
+      if (Array.isArray(ctx)) {
+        const found = walkLViewForHost(ctx, targetEl, seen);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  function walkLViewForHost(lView, targetEl, seen) {
+    if (!Array.isArray(lView) || seen.has(lView)) return null;
+    seen.add(lView);
+    // HOST is typically at index 0; some versions also expose at T_HOST=5
+    if (lView[0] === targetEl) return lView;
+    // Recurse into any nested LView/LContainer arrays
+    for (let i = 0; i < lView.length; i++) {
+      const v = lView[i];
+      if (Array.isArray(v)) {
+        const found = walkLViewForHost(v, targetEl, seen);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  // Read the component instance from an LView.
+  // Angular's LView stores its component at the CONTEXT slot — index varies
+  // by version: Angular 18 uses 8; older versions used 1 or 9. We try those
+  // first (most reliable) before falling back to a scan.
+  function findComponentInLView(lView) {
+    if (!Array.isArray(lView)) return null;
+    for (const idx of [8, 9, 7, 1, 10]) {
+      const val = lView[idx];
+      if (isLikelyComponentInstance(val)) return val;
+    }
+    // Last-resort scan if known indices missed
+    for (let i = 0; i < lView.length; i++) {
+      const v = lView[i];
+      if (isLikelyComponentInstance(v)) return v;
+    }
+    return null;
+  }
+
+  // Get the component instance hosted by a specific element.
+  //
+  // When window.ng.getComponent is available, trust it strictly — its `null`
+  // means the element is NOT a component host (just a plain tag inside
+  // someone else's template), and we should skip it rather than guess.
+  //
+  // The LView/__ngContext__ fallback (used only when ng API is unavailable)
+  // is intentionally strict: it must find an LView whose HOST is exactly
+  // this element, not just any LView that references it.
+  function getComponentForHost(el) {
+    if (!el) return null;
+    if (typeof window.ng?.getComponent === "function") {
+      try { return window.ng.getComponent(el) || null; } catch { return null; }
+    }
+    const ctx = el.__ngContext__;
+    if (Array.isArray(ctx) && ctx[0] === el) {
+      return findComponentInLView(ctx);
+    }
+    const lView = findLViewByHostElement(el);
+    if (lView && lView[0] === el) return findComponentInLView(lView);
+    return null;
+  }
+
+  // Walk up DOM from `start` (exclusive or inclusive) and return the first
+  // element that's a component host (custom element or has _nghost-* marker).
+  function walkUpForHost(start, includeStart) {
+    let node = includeStart ? start : start?.parentElement;
+    while (node && node.nodeType === 1) {
+      if (node.tagName && node.tagName.includes("-")) return node;
+      for (const attr of node.attributes || []) {
+        if (attr.name.startsWith("_nghost-")) return node;
+      }
+      node = node.parentElement;
+    }
+    return null;
+  }
+
+  // Extract the component from an LView/LContext. Angular's LView layout
+  // changed over time — CONTEXT lived at index 1 in older versions, then 8,
+  // then 9. We scan multiple indices and walk PARENT LViews if the current
+  // CONTEXT is a template context (embedded view) rather than a component.
+  function ngComponentFromCtx(ctx, depth = 0) {
+    if (!ctx || depth > 10) return null;
+    if (!Array.isArray(ctx)) {
+      if (ctx.component) return ctx.component;
+      if (ctx.lView) return ngComponentFromCtx(ctx.lView, depth + 1);
+      return null;
+    }
+    // Try common CONTEXT slot indices across Angular versions
+    for (const idx of [8, 9, 7, 1, 10]) {
+      const val = ctx[idx];
+      if (isLikelyComponentInstance(val)) return val;
+    }
+    // Not a component view (might be embedded) — walk to PARENT LView
+    // PARENT is typically at index 3
+    const parent = ctx[3];
+    if (Array.isArray(parent) && parent !== ctx) return ngComponentFromCtx(parent, depth + 1);
+    return null;
+  }
+
+  function ngComponentName(component) {
+    const raw = component?.constructor?.name;
+    if (!raw) return null;
+    // Bundlers (webpack/esbuild) sometimes wrap exported classes in an IIFE that
+    // prefixes the class name with an underscore. Strip a single leading "_"
+    // so we get the source-level class name (e.g. _LoginComponent → LoginComponent).
+    return raw.startsWith("_") ? raw.slice(1) : raw;
+  }
+
+  function ngSelector(component) {
+    const cmp = component?.constructor?.ɵcmp || component?.constructor?.ngComponentDef;
+    if (!cmp?.selectors?.[0]) return null;
+    const sel = cmp.selectors[0];
+    if (!Array.isArray(sel)) return null;
+    // Selector array format: [tagName] or ["", attrName, ""] etc.
+    // The first string is the element tag selector (most common case).
+    const parts = sel.filter((s) => typeof s === "string" && s);
+    return parts.length ? parts[0] : null;
+  }
+
+  function ngSourceUrlFromFn(fn) {
+    if (typeof fn !== "function") return null;
+    try {
+      const src = Function.prototype.toString.call(fn);
+      const m = src.match(/\/[/*][@#]\s*sourceURL=([^\s*]+)/);
+      if (m) return m[1];
+    } catch { /* */ }
+    return null;
+  }
+
+  // ── Scan loaded JS chunks for a class definition and source-map it ────────
+  //
+  // Angular CLI (and most bundlers) don't add per-class sourceURL comments, so
+  // we can't read the .ts location off the class directly. But the chunks have
+  // source maps. Strategy: search each loaded chunk's text for `class _Foo`,
+  // find the line of the match, then ask the source map for the original .ts
+  // file + line.
+
+  const chunkTextCache = new Map();   // url → text (or null on fail)
+  const classLocationCache = new Map(); // className → { sourceFile, sourceLine } | null
+
+  async function fetchChunkText(url) {
+    if (chunkTextCache.has(url)) return chunkTextCache.get(url);
+    let text = null;
+    try {
+      const res = await fetch(url);
+      if (res.ok) text = await res.text();
+    } catch { /* */ }
+    chunkTextCache.set(url, text);
+    return text;
+  }
+
+  function getLoadedChunkUrls() {
+    const urls = new Set();
+    // <script src> tags (classic webpack/esbuild bundles)
+    for (const s of document.querySelectorAll("script[src]")) {
+      if (s.src) urls.add(s.src);
+    }
+    // Performance API: catches dynamic imports, ESM modules (used by Vite),
+    // and lazy-loaded chunks — none of these appear as <script> tags.
+    try {
+      for (const e of performance.getEntriesByType("resource")) {
+        const name = e.name;
+        if (!name) continue;
+        if (e.initiatorType === "script" || /\.[mc]?[jt]sx?(\?|$)/.test(name)) {
+          urls.add(name);
+        }
+      }
+    } catch { /* performance API unavailable */ }
+    return Array.from(urls).filter((src) => {
+      if (!src) return false;
+      if (!src.startsWith(window.location.origin)) return false;
+      if (/\/polyfills/.test(src)) return false;
+      if (/\/runtime/.test(src)) return false;
+      if (/\/vendor/.test(src)) return false;
+      if (/\/@vite\//.test(src)) return false;
+      if (/\/@id\//.test(src)) return false;
+      if (/\/@fs\//.test(src)) return false;
+      if (/\/node_modules\//.test(src)) return false;
+      return true;
+    });
+  }
+
+  async function findClassDefinitionLocation(className) {
+    if (!className) return null;
+    if (classLocationCache.has(className)) return classLocationCache.get(className);
+
+    const chunkUrls = getLoadedChunkUrls();
+    // Strip leading "_" — source code has the unprefixed name; the underscore
+    // is added by the bundler's IIFE wrapper at runtime.
+    const baseName = className.replace(/^_/, "");
+    const safeName = baseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // Match all common bundler output forms:
+    //   class Foo {                       — classic
+    //   class _Foo {                      — IIFE-wrapped
+    //   var _Foo = class { ... }          — ESBuild (Angular CLI)
+    //   let _Foo = class { ... }
+    //   const _Foo = class { ... }
+    const re = new RegExp(
+      `(?:class\\s+_?${safeName}\\b|(?:var|let|const)\\s+_?${safeName}\\s*=\\s*class\\b)`
+    );
+
+    let result = null;
+    for (const url of chunkUrls) {
+      const text = await fetchChunkText(url);
+      if (!text) continue;
+      const m = re.exec(text);
+      if (!m) continue;
+      const lineInChunk = text.slice(0, m.index).split("\n").length;
+      const colInChunk = m.index - text.lastIndexOf("\n", m.index - 1) - 1;
+      const decoded = await getDecodedMap(url);
+      if (decoded) {
+        const pos = decoded.type === "indexed"
+          ? lookupIndexed(decoded.sections, lineInChunk, colInChunk)
+          : lookupPosition(decoded.lineMap, decoded.sources, decoded.sourceRoot, lineInChunk, colInChunk);
+        if (pos?.file) {
+          result = { sourceFile: pos.file, sourceLine: pos.line };
+          break;
+        }
+      }
+      result = { sourceFile: url, sourceLine: lineInChunk };
+      break;
+    }
+
+    classLocationCache.set(className, result);
+    return result;
+  }
+
+  function findAngularHost(el) {
+    let node = el;
+    while (node && node.nodeType === 1) {
+      try {
+        const c = window.ng.getComponent(node);
+        if (c) return { host: node, component: c };
+      } catch { /* */ }
+      node = node.parentElement;
+    }
+    return null;
+  }
+
+  async function extractAngularInfo(el) {
+    if (!hasAngularDebugApi() && !hasAngularIvy()) return null;
+
+    // Build the chain of authoring components (innermost first).
+    const chain = buildAuthoringChain(el);
+    if (chain.length === 0) return {};
+
+    // Render each entry as a single tag: prefer the component's own selector,
+    // fall back to the host element's tag name.
+    const tags = chain.map((e) => {
+      if (e.component) {
+        const sel = ngSelector(e.component);
+        if (sel) return sel;
+      }
+      return e.host.tagName.toLowerCase();
+    });
+
+    // Drop consecutive duplicates (happens when one component class is bound
+    // to multiple host selectors, or when emulated encapsulation produces
+    // overlapping content scopes).
+    const innerToOuter = tags.filter((tag, i) => tag !== tags[i - 1]);
+    // Outer → inner (visually reads as a path from app root down to clicked).
+    const componentChain = [...innerToOuter].reverse();
+
+    return {
+      componentName: innerToOuter[0],
+      componentChain,
+    };
+  }
+
+  // Walk up via _ngcontent hashes, collecting each authoring component
+  // (the component whose template owns each element along the way).
+  function buildAuthoringChain(el) {
+    const chain = [];
+    const seen = new Set();
+    let node = el;
+    let safety = 0;
+    while (node && node.nodeType === 1 && safety++ < 50) {
+      let authorHost = null;
+      for (const attr of node.attributes || []) {
+        if (attr.name.startsWith("_ngcontent-")) {
+          const hash = attr.name.substring("_ngcontent-".length);
+          try {
+            authorHost = document.querySelector(`[_nghost-${CSS.escape(hash)}]`);
+          } catch { /* */ }
+          break;
+        }
+      }
+      if (authorHost && !seen.has(authorHost)) {
+        seen.add(authorHost);
+        chain.push({ host: authorHost, component: getComponentForHost(authorHost) });
+        node = authorHost.parentElement;
+        continue;
+      }
+      node = node.parentElement;
+    }
+    return chain;
+  }
 
   // ════════════════════════════════════════════════════════════════════════
   // 7. DISPATCH
@@ -442,6 +861,10 @@
 
   async function extractFrameworkInfo(el) {
     if (hasReactFiber(el)) return await extractReactInfo(el);
+    if (hasAngularDebugApi() || hasAngularIvy()) {
+      const r = await extractAngularInfo(el);
+      if (r && (r.componentName || r.componentChain || r.sourceFile)) return r;
+    }
     return {};
   }
 

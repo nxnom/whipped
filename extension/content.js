@@ -517,6 +517,7 @@
         const result = e.data.result || {};
         resolve({
           componentName: result.componentName || null,
+          componentChain: result.componentChain || null,
           sourceFile: result.sourceFile || null,
           sourceLine: result.sourceLine || null,
         });
@@ -541,11 +542,14 @@
 
     form = document.createElement("div");
     form.id = "__wa-form";
+    const chainText = Array.isArray(ri.componentChain) && ri.componentChain.length
+      ? ri.componentChain.join(" → ")
+      : ri.componentName;
     form.innerHTML = `
       <div class="meta">
         ${selectedCardTitle ? `<div>📌 ${escHtml(selectedCardTitle)}</div>` : ""}
         <div>🎯 <code>${escHtml(selector)}</code></div>
-        ${ri.componentName ? `<div>⚛ ${escHtml(ri.componentName)}</div>` : ""}
+        ${chainText ? `<div>⚛ ${escHtml(chainText)}</div>` : ""}
         ${shortFile ? `<div class="src">📄 ${escHtml(shortFile)}${ri.sourceLine ? ":" + ri.sourceLine : ""}</div>` : ""}
       </div>
       <textarea rows="3" placeholder="Describe the change…"></textarea>
@@ -597,6 +601,7 @@
             elementSelector: selector,
             elementText: elementText || undefined,
             componentName: ri.componentName || undefined,
+            componentChain: ri.componentChain || undefined,
             sourceFile: ri.sourceFile || undefined,
             sourceLine: ri.sourceLine || undefined,
           },

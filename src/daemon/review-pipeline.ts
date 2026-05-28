@@ -667,7 +667,11 @@ function formatPriorComments(card: RuntimeBoardCard): { text: string; files: str
 			if (vc.pageUrl) vcLines.push(`- Page: ${vc.pageUrl}`);
 			if (vc.elementSelector) vcLines.push(`- Element selector: ${vc.elementSelector}`);
 			if (vc.elementText) vcLines.push(`- Element text: "${vc.elementText}"`);
-			if (vc.componentName) vcLines.push(`- Component: ${vc.componentName}`);
+			if (Array.isArray(vc.componentChain) && vc.componentChain.length) {
+				vcLines.push(`- Component chain (outer → inner): ${(vc.componentChain as string[]).join(" → ")}`);
+			} else if (vc.componentName) {
+				vcLines.push(`- Component: ${vc.componentName}`);
+			}
 			if (vc.sourceFile) vcLines.push(`- Source: ${vc.sourceFile}${vc.sourceLine != null ? `:${vc.sourceLine}` : ""}`);
 			parts.push(vcLines.join("\n"));
 		} else if (c.metadata && Object.keys(c.metadata).length > 0) {
