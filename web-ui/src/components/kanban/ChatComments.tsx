@@ -409,50 +409,55 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 											)}
 
 											{/* Visual comment metadata */}
-											{comment.type === "visual-comment" && !!comment.metadata?.visualComment && (() => {
-												const vc = comment.metadata!.visualComment as {
-													pageUrl?: string;
-													elementSelector?: string;
-													elementText?: string;
-													componentName?: string;
-													componentChain?: string[];
-													sourceFile?: string;
-													sourceLine?: number;
-												};
-												const shortFile = vc.sourceFile?.split("/").slice(-2).join("/");
-												const chainDisplay = vc.componentChain?.length ? vc.componentChain.join(" → ") : vc.componentName;
-												return (
-													<div className="mt-1.5 flex flex-col gap-1 px-2 py-1.5 rounded bg-[#7c6aff]/8 border border-[#7c6aff]/20 text-[11px] text-[#8888a0]">
-														<div className="flex items-center gap-1.5 flex-wrap">
-															<span className="px-1.5 py-0.5 rounded text-[10px] font-medium text-[#a78bfa] bg-[#7c6aff]/15">Visual</span>
-															{vc.elementSelector && (
-																<code className="font-mono text-[#c4baff]">{vc.elementSelector}</code>
+											{comment.type === "visual-comment" &&
+												!!comment.metadata?.visualComment &&
+												(() => {
+													const vc = comment.metadata!.visualComment as {
+														pageUrl?: string;
+														elementSelector?: string;
+														elementText?: string;
+														componentName?: string;
+														componentChain?: string[];
+														sourceFile?: string;
+														sourceLine?: number;
+													};
+													const shortFile = vc.sourceFile?.split("/").slice(-2).join("/");
+													const chainDisplay = vc.componentChain?.length
+														? vc.componentChain.join(" → ")
+														: vc.componentName;
+													return (
+														<div className="mt-1.5 flex flex-col gap-1 px-2 py-1.5 rounded bg-[#7c6aff]/8 border border-[#7c6aff]/20 text-[11px] text-[#8888a0]">
+															<div className="flex items-center gap-1.5 flex-wrap">
+																<span className="px-1.5 py-0.5 rounded text-[10px] font-medium text-[#a78bfa] bg-[#7c6aff]/15">
+																	Visual
+																</span>
+																{vc.elementSelector && (
+																	<code className="font-mono text-[#c4baff]">{vc.elementSelector}</code>
+																)}
+																{chainDisplay && <span className="text-[#6a6a80]">⚛ {chainDisplay}</span>}
+															</div>
+															{vc.elementText && (
+																<div className="text-[#a0a0b8] italic line-clamp-2">"{vc.elementText}"</div>
 															)}
-															{chainDisplay && (
-																<span className="text-[#6a6a80]">⚛ {chainDisplay}</span>
+															{vc.pageUrl && (
+																<a
+																	href={vc.pageUrl}
+																	target="_blank"
+																	rel="noreferrer"
+																	className="truncate text-[#4a4a5a] hover:text-[#8888a0] transition-colors"
+																>
+																	{vc.pageUrl}
+																</a>
+															)}
+															{shortFile && (
+																<span className="font-mono text-[#4a4a5a]">
+																	{shortFile}
+																	{vc.sourceLine != null ? `:${vc.sourceLine}` : ""}
+																</span>
 															)}
 														</div>
-														{vc.elementText && (
-															<div className="text-[#a0a0b8] italic line-clamp-2">"{vc.elementText}"</div>
-														)}
-														{vc.pageUrl && (
-															<a
-																href={vc.pageUrl}
-																target="_blank"
-																rel="noreferrer"
-																className="truncate text-[#4a4a5a] hover:text-[#8888a0] transition-colors"
-															>
-																{vc.pageUrl}
-															</a>
-														)}
-														{shortFile && (
-															<span className="font-mono text-[#4a4a5a]">
-																{shortFile}{vc.sourceLine != null ? `:${vc.sourceLine}` : ""}
-															</span>
-														)}
-													</div>
-												);
-											})()}
+													);
+												})()}
 
 											{/* Attachments */}
 											{comment.attachments &&

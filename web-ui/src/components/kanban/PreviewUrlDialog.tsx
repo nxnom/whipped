@@ -114,8 +114,6 @@ export function showPreviewUrlDialog(workspaceId: string, card?: CardContext) {
 	Dialog.show({
 		className: "max-w-md w-full",
 		dismissOnOutsideClick: true,
-		content: ({ dismiss }) => (
-			<PreviewUrlDialogBody workspaceId={workspaceId} card={card} dismiss={dismiss} />
-		),
+		content: ({ dismiss }) => <PreviewUrlDialogBody workspaceId={workspaceId} card={card} dismiss={dismiss} />,
 	});
 }

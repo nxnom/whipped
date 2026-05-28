@@ -1077,8 +1077,8 @@ export const appRouter = router({
 			// Resolves from dist/trpc/ (prod) or src/trpc/ (dev) up to the project root
 			const thisDir = fileURLToPath(new URL(".", import.meta.url));
 			const candidates = [
-				resolve(thisDir, "..", "..", "extension"),         // prod: dist/ root
-				resolve(thisDir, "..", "..", "..", "extension"),   // dev: src/ → project root
+				resolve(thisDir, "..", "..", "extension"), // prod: dist/ root
+				resolve(thisDir, "..", "..", "..", "extension"), // dev: src/ → project root
 			];
 			const found = candidates.find((p) => existsSync(p));
 			return { path: found ?? null };
@@ -1296,9 +1296,7 @@ export const appRouter = router({
 				await updateGlobalConfig(input);
 			}),
 		createApp: publicProcedure
-			.input(
-				z.object({ appConfigToken: z.string(), publicUrl: z.string(), botName: z.string().default("Whipped") }),
-			)
+			.input(z.object({ appConfigToken: z.string(), publicUrl: z.string(), botName: z.string().default("Whipped") }))
 			.mutation(async ({ input }) => {
 				const existing = await loadGlobalConfig();
 				const app = await createSlackApp(input.appConfigToken, input.publicUrl, existing.slackAppId, input.botName);

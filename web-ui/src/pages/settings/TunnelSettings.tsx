@@ -515,8 +515,8 @@ export function TunnelSettings() {
 										<>
 											<p className="text-[12px] text-[#60607a]">
 												Enter your public domain, then click Create — we'll run{" "}
-												<Mono>cloudflared tunnel create whipped</Mono> and write{" "}
-												<Mono>~/.cloudflared/config.yml</Mono> automatically.
+												<Mono>cloudflared tunnel create whipped</Mono> and write <Mono>~/.cloudflared/config.yml</Mono>{" "}
+												automatically.
 											</p>
 											<div className="flex flex-col gap-1.5">
 												<label className="text-[11px] font-medium text-[#8888a0]">Your public domain</label>

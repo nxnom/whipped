@@ -208,9 +208,7 @@ async function runReviewSlot(
 	if (slot.type === "orch" && (card.dependsOn?.length ?? 0) > 0) {
 		try {
 			const board = await loadBoard(workspaceId);
-			subtaskCards = (card.dependsOn ?? [])
-				.map((id) => board.cards[id])
-				.filter((c): c is RuntimeBoardCard => !!c);
+			subtaskCards = (card.dependsOn ?? []).map((id) => board.cards[id]).filter((c): c is RuntimeBoardCard => !!c);
 		} catch (err) {
 			logger.warn({ err }, "[review] orch: failed to preload subtasks");
 		}
@@ -713,19 +711,19 @@ function formatComment(
  */
 type Iteration = {
 	input: RuntimeBoardCard["reviewComments"]; // non-AI comments
-	work: RuntimeBoardCard["reviewComments"];  // AI comments
+	work: RuntimeBoardCard["reviewComments"]; // AI comments
 };
 
 function groupIntoIterations(card: RuntimeBoardCard): Iteration[] {
 	const comments = [...(card.reviewComments ?? [])].sort((a, b) => a.createdAt - b.createdAt);
 	if (comments.length === 0) return [];
 
-	// Map each AI comment's effective start time. If it has a streamId pointing
-	// to a terminal session, use the session's startedAt (when the prompt was
-	// formed). Otherwise fall back to createdAt.
 	const sessions = card.terminalSessions ?? [];
+
+	// Effective "start time" of an AI comment = the session's startedAt when
+	// its prompt was formed. This is what determines which iteration the AI's
+	// output belongs to (since the AI saw all comments before its start).
 	const aiStartTime = (c: RuntimeBoardCard["reviewComments"][number]): number => {
-		if (c.actor.type !== "ai") return c.createdAt;
 		if (c.streamId) {
 			const s = sessions.find((s) => s.streamId === c.streamId);
 			if (s?.startedAt != null) return s.startedAt;
@@ -733,34 +731,50 @@ function groupIntoIterations(card: RuntimeBoardCard): Iteration[] {
 		return c.createdAt;
 	};
 
-	// Walk comments. Track the latest AI session start time we've seen — any
-	// later non-AI comment is "input for the next iteration".
-	const iterations: Iteration[] = [];
-	let current: Iteration | null = null;
-	let latestAiStart = -Infinity;
+	// Pass 1 — iteration boundaries. A non-AI comment opens a new iteration
+	// iff some AI session has started since the previous boundary. We look at
+	// the session list directly (not just AI summaries we've processed) so
+	// mid-run comments correctly land in the NEXT iteration.
+	const boundaries: number[] = [];
+	for (const c of comments) {
+		if (c.actor.type === "ai") continue;
+		const prev = boundaries[boundaries.length - 1];
+		if (prev == null) {
+			boundaries.push(c.createdAt);
+			continue;
+		}
+		const aiStartedSincePrev = sessions.some(
+			(s) => s.startedAt != null && s.startedAt > prev && s.startedAt <= c.createdAt,
+		);
+		if (aiStartedSincePrev) boundaries.push(c.createdAt);
+	}
+
+	// No non-AI comments at all (programmatic kickoff) — single iteration of
+	// pure AI work.
+	if (boundaries.length === 0) {
+		return [{ input: [], work: comments }];
+	}
+
+	const iterations: Iteration[] = boundaries.map(() => ({ input: [], work: [] }));
+
+	const findIterIdx = (timestamp: number): number => {
+		let idx = 0; // orphan AI before any user input → iter 0
+		for (let i = 0; i < boundaries.length; i++) {
+			if (boundaries[i] <= timestamp) idx = i;
+			else break;
+		}
+		return idx;
+	};
 
 	for (const c of comments) {
 		const isAI = c.actor.type === "ai";
-		if (!isAI) {
-			const isPostLastAi = c.createdAt > latestAiStart;
-			if (!current || (current.work.length > 0 && isPostLastAi)) {
-				current = { input: [c], work: [] };
-				iterations.push(current);
-			} else {
-				current.input.push(c);
-			}
-		} else {
-			if (!current) {
-				current = { input: [], work: [c] };
-				iterations.push(current);
-			} else {
-				current.work.push(c);
-			}
-			latestAiStart = Math.max(latestAiStart, aiStartTime(c));
-		}
+		const ts = isAI ? aiStartTime(c) : c.createdAt;
+		const idx = findIterIdx(ts);
+		if (isAI) iterations[idx].work.push(c);
+		else iterations[idx].input.push(c);
 	}
 
-	return iterations;
+	return iterations.filter((it) => it.input.length > 0 || it.work.length > 0);
 }
 
 function formatPriorComments(card: RuntimeBoardCard): { text: string; files: string[] } {
@@ -793,19 +807,17 @@ function formatPriorComments(card: RuntimeBoardCard): { text: string; files: str
 	if (current) {
 		const hasInput = current.input.length > 0;
 		const hasWork = current.work.length > 0;
-		// Heading depends on whether AI work has started this round.
-		const heading = hasInput && hasWork
-			? "## Current Iteration (in progress)"
-			: hasInput
-				? "## New Feedback (address this round)"
-				: "## Current Iteration";
-		// Subtle hint when there's no new user input at all (re-triggered with no new instructions)
-		const subhead = hasInput
-			? ""
-			: "_Re-triggered without new user feedback. Continue from prior state._";
+		// hasInput && hasWork  → mid-iteration, both user input and AI responses
+		// hasInput && !hasWork → only user input, AI hasn't responded yet
+		// !hasInput && hasWork → programmatic flow (no user comments ever), AI work in progress
+		const heading =
+			hasInput && hasWork
+				? "## Current Iteration (in progress)"
+				: hasInput
+					? "## New Feedback (address this round)"
+					: "## Prior agent activity";
 
 		const lines: string[] = [heading];
-		if (subhead) lines.push(subhead);
 
 		// In current iteration, only top-level ### headings (no Iteration N grouping)
 		const all = [...current.input, ...current.work].sort((a, b) => a.createdAt - b.createdAt);
@@ -834,7 +846,7 @@ function formatDiffBlock(fullDiff: string, baseRef: string, header = "Git diff")
 
 /** Shared instruction reminding agents how to treat the iteration-grouped comments. */
 const ITERATION_SCOPING_NOTE = `
-**About prior comments:** any \`## Previous Iterations\` section is for context only — already addressed in earlier rounds. Do NOT re-implement or re-verify that work unless the current iteration explicitly asks for it. Focus your effort on \`## New Feedback\` / \`## Current Iteration\`.`.trim();
+**About prior comments:** any \`## Previous Iterations\` or \`## Prior agent activity\` section is for context only — already addressed in earlier rounds or shown as background. Do NOT re-implement or re-verify that work unless the current iteration explicitly asks for it. Focus your effort on \`## New Feedback\` / \`## Current Iteration\`.`.trim();
 
 /** Visual-comment usage hint for the dev agent. */
 const VISUAL_COMMENT_HINT = `
@@ -900,8 +912,8 @@ export function buildDevAgentSystemPrompt(
 			.map((p) => {
 				const devComment = [...(p.reviewComments ?? [])].reverse().find((c) => c.type === "dev");
 				if (!devComment) return null;
-				const pDisplay = p.description?.split("\n")[0]?.slice(0, 60) ?? p.id;
-				return `### ${pDisplay}\n${devComment.summary}`;
+				const desc = p.description ? `${p.description}\n\n` : "";
+				return `### [${p.id}]\n${desc}**Dev summary:** ${devComment.summary}`;
 			})
 			.filter((s): s is string => s !== null);
 		if (parentSummaries.length > 0) {
@@ -916,8 +928,8 @@ export function buildDevAgentSystemPrompt(
 			.map((s) => {
 				const devComment = [...(s.reviewComments ?? [])].reverse().find((c) => c.type === "dev");
 				if (!devComment) return null;
-				const sDisplay = s.description?.split("\n")[0]?.slice(0, 60) ?? s.id;
-				return `### ${sDisplay}\n${devComment.summary}`;
+				const desc = s.description ? `${s.description}\n\n` : "";
+				return `### [${s.id}]\n${desc}**Dev summary:** ${devComment.summary}`;
 			})
 			.filter((s): s is string => s !== null);
 		if (siblingSummaries.length > 0) {
@@ -1111,38 +1123,47 @@ function buildOrchSystemPrompt(
 	const secretsSection = buildSecretsSection(secrets);
 	const projectContext = systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : "";
 
+	const orchDescAttachSection =
+		(card.descriptionAttachments?.length ?? 0) > 0
+			? `\n\n**Attached files** (use Read tool to view):\n${card.descriptionAttachments?.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
+			: "";
+
 	// Inline subtask context: id, description, latest dev/cr/qa status & summary.
 	// Saves a kanban_get_board roundtrip at runtime.
-	const subtasksSection = subtaskCards.length > 0
-		? subtaskCards.map((sub) => {
-				const title = sub.description?.split("\n")[0]?.slice(0, 100) ?? sub.id;
-				const lines = [`### [${sub.id}] ${title} (${sub.columnId})`];
-				if (sub.description) lines.push(sub.description);
-				const lastByType = (type: string) => [...(sub.reviewComments ?? [])].reverse().find((c) => c.type === type);
-				const dev = lastByType("dev");
-				const cr = lastByType("code_review");
-				const qa = lastByType("qa");
-				if (dev) lines.push(`\n**Dev** · ${dev.status ?? "?"}: ${dev.summary}`);
-				if (cr) {
-					const issues = (cr.issues ?? []).map((i) => `  - [${i.severity}] ${i.message}`).join("\n");
-					lines.push(`\n**Code Review** · ${cr.status ?? "?"}: ${cr.summary}${issues ? `\n${issues}` : ""}`);
-				}
-				if (qa) {
-					const issues = (qa.issues ?? []).map((i) => `  - [${i.severity}] ${i.message}`).join("\n");
-					lines.push(`\n**QA** · ${qa.status ?? "?"}: ${qa.summary}${issues ? `\n${issues}` : ""}`);
-				}
-				return lines.join("\n");
-			}).join("\n\n")
-		: "(no subtasks)";
+	const subtasksSection =
+		subtaskCards.length > 0
+			? subtaskCards
+					.map((sub) => {
+						const lines = [`### [${sub.id}] (${sub.columnId})`];
+						if (sub.description) lines.push(sub.description);
+						const lastByType = (type: string) => [...(sub.reviewComments ?? [])].reverse().find((c) => c.type === type);
+						const dev = lastByType("dev");
+						const cr = lastByType("code_review");
+						const qa = lastByType("qa");
+						if (dev) lines.push(`\n**Dev** · ${dev.status ?? "?"}: ${dev.summary}`);
+						if (cr) {
+							const issues = (cr.issues ?? []).map((i) => `  - [${i.severity}] ${i.message}`).join("\n");
+							lines.push(`\n**Code Review** · ${cr.status ?? "?"}: ${cr.summary}${issues ? `\n${issues}` : ""}`);
+						}
+						if (qa) {
+							const issues = (qa.issues ?? []).map((i) => `  - [${i.severity}] ${i.message}`).join("\n");
+							lines.push(`\n**QA** · ${qa.status ?? "?"}: ${qa.summary}${issues ? `\n${issues}` : ""}`);
+						}
+						return lines.join("\n");
+					})
+					.join("\n\n")
+			: "(no subtasks)";
 
 	return `You are an Orchestrator agent. All subtasks for a story have finished their dev and review workflows. Your job is to decide whether the story goal has been fully and correctly met across all subtasks.
 
 ## Story
 **[${card.id}]**
-${card.description ? `\n${card.description}\n` : ""}
+${card.description ? `\n${card.description}\n` : ""}${orchDescAttachSection}
+
 ## Subtasks
-${subtasksSection}
-${priorContext}
+
+${subtasksSection}${priorContext}
+
 ## Changed files
 ${stat}
 
@@ -1190,11 +1211,15 @@ function buildCustomSystemPrompt(
 ): string {
 	const secretsSection = buildSecretsSection(secrets);
 	const projectContext = systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : "";
+	const customDescAttachSection =
+		(card.descriptionAttachments?.length ?? 0) > 0
+			? `\n\n**Attached files** (use Read tool to view):\n${card.descriptionAttachments?.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
+			: "";
 
 	return `You are ${slot.name}, an automated review agent.
 
 ## Task to review
-${card.description ?? ""}${priorContext}
+${card.description ?? ""}${customDescAttachSection}${priorContext}
 
 ## Changed files
 ${stat}
@@ -1353,9 +1378,8 @@ function buildCascadeSystemPrompt(
 	const iterations = groupIntoIterations(parentCard);
 	const current = iterations[iterations.length - 1];
 	const currentInputSummaries = current?.input.map((c) => c.summary).filter(Boolean) ?? [];
-	const reopenReason = currentInputSummaries.length > 0
-		? currentInputSummaries.join("\n")
-		: "Parent task was reopened.";
+	const reopenReason =
+		currentInputSummaries.length > 0 ? currentInputSummaries.join("\n") : "Parent task was reopened.";
 
 	const allDevSummaries = comments
 		.filter((c) => c.type === "dev")
@@ -1365,11 +1389,14 @@ function buildCascadeSystemPrompt(
 	const childLines = childCards
 		.map((child) => {
 			const devComment = [...(child.reviewComments ?? [])].reverse().find((c) => c.type === "dev");
-			const childDisplay = child.description?.split("\n")[0]?.slice(0, 80) ?? child.id;
+			const desc = child.description ? `\n${child.description}\n` : "";
 			return [
-				`### [${child.id}] ${childDisplay} (${child.columnId})`,
-				devComment ? `Dev summary: ${devComment.summary}` : "No dev work completed yet.",
-			].join("\n");
+				`### [${child.id}] (${child.columnId})`,
+				desc,
+				devComment ? `**Dev summary:** ${devComment.summary}` : "No dev work completed yet.",
+			]
+				.filter(Boolean)
+				.join("\n");
 		})
 		.join("\n\n");
 

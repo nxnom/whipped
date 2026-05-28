@@ -506,22 +506,12 @@ export class TaskScheduler {
 					mcpConfigPath!,
 				).catch(() => {});
 			} else if (agentId === "opencode") {
-				const mcpSpec = buildWhippedMcpServerSpec(
-					getMcpServerPath(),
-					this.options.serverUrl,
-					workspaceId,
-					agentId,
-				);
+				const mcpSpec = buildWhippedMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId, agentId);
 				await writeOpencodeFiles(taskId, getServerPort(this.options.serverUrl), mcpSpec, {
 					appendSystemPrompt: devSystemPromptResult.text,
 				}).catch(() => {});
 			} else if (agentId === "cursor") {
-				const mcpSpec = buildWhippedMcpServerSpec(
-					getMcpServerPath(),
-					this.options.serverUrl,
-					workspaceId,
-					agentId,
-				);
+				const mcpSpec = buildWhippedMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId, agentId);
 				await writeCursorConfigFiles(taskId, getServerPort(this.options.serverUrl), mcpSpec).catch(() => {});
 			}
 

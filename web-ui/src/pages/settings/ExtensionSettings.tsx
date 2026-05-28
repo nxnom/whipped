@@ -33,9 +33,7 @@ function StepBadge({ n, done }: { n: number; done: boolean }) {
 		<div
 			className={classNames(
 				"shrink-0 flex items-center justify-center text-[11px] font-bold w-6 h-6 rounded-full border",
-				done
-					? "bg-[#1a3a1a] border-[#2a6a2a] text-[#4ade80]"
-					: "bg-[#1a1a2e] border-[#7c6aff60] text-[#7c6aff]",
+				done ? "bg-[#1a3a1a] border-[#2a6a2a] text-[#4ade80]" : "bg-[#1a1a2e] border-[#7c6aff60] text-[#7c6aff]",
 			)}
 		>
 			{done ? <Check size={12} /> : n}
@@ -123,7 +121,6 @@ export function ExtensionSettings() {
 
 			<div className="flex-1 overflow-y-auto px-10 py-6">
 				<div className="max-w-2xl flex flex-col gap-8">
-
 					{/* Server URL section */}
 					<div className="flex flex-col gap-3">
 						<div className="flex items-center gap-2">
@@ -131,8 +128,8 @@ export function ExtensionSettings() {
 							<div className="flex-1 h-px bg-[#1a1a1f]" />
 						</div>
 						<p className="text-[13px] text-[#8888a0] leading-relaxed">
-							This is what you paste into the extension popup. Use the tunnel URL if you want to annotate from
-							a mobile device on another network.
+							This is what you paste into the extension popup. Use the tunnel URL if you want to annotate from a mobile
+							device on another network.
 						</p>
 						<CopyField label="Local (same machine)" value={localUrl} />
 						{tunnelUrl ? (
@@ -142,17 +139,16 @@ export function ExtensionSettings() {
 								<Smartphone size={13} className="text-[#4a4a5a] shrink-0" />
 								<span className="text-[12px] text-[#4a4a5a]">
 									No tunnel running — set one up in{" "}
-									<a
-										href="#"
+									<button
 										onClick={(e) => {
 											e.preventDefault();
 											window.history.pushState({}, "", window.location.pathname.replace(/\/[^/]+$/, "/tunnel"));
 											window.dispatchEvent(new PopStateEvent("popstate"));
 										}}
-										className="text-[#7c6aff] hover:underline"
+										className="text-[#7c6aff] hover:underline cursor-pointer"
 									>
 										Tunnel settings
-									</a>{" "}
+									</button>{" "}
 									to annotate from mobile
 								</span>
 							</div>
@@ -219,8 +215,8 @@ export function ExtensionSettings() {
 								<div className="flex flex-col gap-2">
 									<p className="text-[12px] text-[#8888a0] leading-relaxed">
 										Click the <Puzzle size={11} className="inline mx-0.5 text-[#8888a0]" /> extensions icon in Chrome,
-										pin <strong className="text-[#c0c0d0]">Whipped Annotate</strong>, then open its popup.
-										Paste the server URL, pick a project and card, and click{" "}
+										pin <strong className="text-[#c0c0d0]">Whipped Annotate</strong>, then open its popup. Paste the
+										server URL, pick a project and card, and click{" "}
 										<strong className="text-[#c0c0d0]">Start Annotating</strong>.
 									</p>
 									<CopyField label="Paste this into the extension" value={serverUrl} />
@@ -230,11 +226,10 @@ export function ExtensionSettings() {
 							<Step n={4} title="Annotate" done={false} last>
 								<div className="flex flex-col gap-2">
 									<p className="text-[12px] text-[#8888a0] leading-relaxed">
-										Navigate to any page. The{" "}
-										<strong className="text-[#c0c0d0]">💬 Annotate</strong> button appears in the corner.
-										Click it to enter annotation mode, then click any element to leave a comment.
-										It will appear on the card's <strong className="text-[#c0c0d0]">Comments</strong> tab
-										with the element selector and React source file (if available).
+										Navigate to any page. The <strong className="text-[#c0c0d0]">💬 Annotate</strong> button appears in
+										the corner. Click it to enter annotation mode, then click any element to leave a comment. It will
+										appear on the card's <strong className="text-[#c0c0d0]">Comments</strong> tab with the element
+										selector and React source file (if available).
 									</p>
 									<div className="flex items-start gap-3">
 										<div className="flex flex-col items-center gap-1.5 px-4 py-3 rounded-lg bg-[#141418] border border-[#2a2a35] flex-1">
@@ -243,7 +238,12 @@ export function ExtensionSettings() {
 										</div>
 										<div className="flex flex-col items-center gap-1.5 px-4 py-3 rounded-lg bg-[#141418] border border-[#2a2a35] flex-1">
 											<Smartphone size={16} className={tunnelUrl ? "text-[#7c6aff]" : "text-[#4a4a5a]"} />
-											<span className={classNames("text-[11px] text-center", tunnelUrl ? "text-[#8888a0]" : "text-[#4a4a5a]")}>
+											<span
+												className={classNames(
+													"text-[11px] text-center",
+													tunnelUrl ? "text-[#8888a0]" : "text-[#4a4a5a]",
+												)}
+											>
 												{tunnelUrl ? "Mobile — use tunnel URL" : "Mobile — requires tunnel"}
 											</span>
 										</div>
@@ -261,11 +261,26 @@ export function ExtensionSettings() {
 						</div>
 						<div className="grid grid-cols-3 gap-3">
 							{[
-								{ icon: "🎯", title: "Click any element", desc: "Hover to highlight, click to select. Captures CSS selector and React component info." },
-								{ icon: "✍️", title: "Write a comment", desc: "Describe the change. Source file and line number are captured automatically from React dev mode." },
-								{ icon: "📋", title: "Lands on the card", desc: "Comment appears in the Comments tab with a Visual badge, element selector, and source location." },
+								{
+									icon: "🎯",
+									title: "Click any element",
+									desc: "Hover to highlight, click to select. Captures CSS selector and React component info.",
+								},
+								{
+									icon: "✍️",
+									title: "Write a comment",
+									desc: "Describe the change. Source file and line number are captured automatically from React dev mode.",
+								},
+								{
+									icon: "📋",
+									title: "Lands on the card",
+									desc: "Comment appears in the Comments tab with a Visual badge, element selector, and source location.",
+								},
 							].map(({ icon, title, desc }) => (
-								<div key={title} className="flex flex-col gap-2 px-4 py-3 rounded-lg bg-[#141418] border border-[#2a2a35]">
+								<div
+									key={title}
+									className="flex flex-col gap-2 px-4 py-3 rounded-lg bg-[#141418] border border-[#2a2a35]"
+								>
 									<span className="text-xl">{icon}</span>
 									<p className="text-[12px] font-medium text-[#c0c0d0]">{title}</p>
 									<p className="text-[11px] text-[#60607a] leading-relaxed">{desc}</p>
@@ -273,7 +288,6 @@ export function ExtensionSettings() {
 							))}
 						</div>
 					</div>
-
 				</div>
 			</div>
 		</div>
