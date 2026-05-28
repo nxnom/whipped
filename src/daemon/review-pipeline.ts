@@ -290,25 +290,41 @@ async function runReviewSlot(
 		return { passed, comment: mcpComment, storedViaMcp: true };
 	}
 
-	// Non-MCP fallback: try to parse JSON from output
+	// Non-MCP fallback. The agent skipped the `kanban_add_comment` MCP call.
+	// If it at least emitted parseable JSON we respect that; otherwise we
+	// post a tiny generic placeholder. We deliberately do NOT dump the
+	// terminal buffer or a tail of it — the full session is already saved
+	// under buffers/ and linked via streamId, and pasting raw output into
+	// the comment pollutes downstream agent context.
 	const parsed = tryParseAgentJson(output);
-	const status =
-		parsed?.status ?? (/(FAIL|REJECT|CRITICAL|BLOCKING|ERROR|CRASH|BROKEN)/i.test(output) ? "fail" : "pass");
-	const hasMustFixIssue = parsed?.issues?.some((i: { severity: string }) => i.severity === "blocking") ?? false;
-	const passed = status !== "fail" && !hasMustFixIssue;
 	const nowFallback = Date.now();
+	if (parsed?.summary) {
+		const status = parsed.status ?? "pass";
+		const hasMustFixIssue = parsed.issues?.some((i: { severity: string }) => i.severity === "blocking") ?? false;
+		const passed = status !== "fail" && !hasMustFixIssue;
+		const comment: RuntimeReviewComment = {
+			type: commentType,
+			actor: { type: "ai", id: slot.name },
+			status: status as RuntimeReviewComment["status"],
+			createdAt: nowFallback,
+			streamId,
+			summary: parsed.summary,
+			issues: parsed.issues,
+			metadata: parsed.metadata,
+		};
+		await endTerminalSession(workspaceId, card.id, streamId, nowFallback, passed ? "completed" : "failed");
+		return { passed, storedViaMcp: false, comment };
+	}
 	const comment: RuntimeReviewComment = {
 		type: commentType,
 		actor: { type: "ai", id: slot.name },
-		status: status as RuntimeReviewComment["status"],
+		status: "warning",
 		createdAt: nowFallback,
 		streamId,
-		summary: parsed?.summary ?? output.trim(),
-		issues: parsed?.issues,
-		metadata: parsed?.metadata,
+		summary: "(no result reported)",
 	};
-	await endTerminalSession(workspaceId, card.id, streamId, nowFallback, passed ? "completed" : "failed");
-	return { passed, storedViaMcp: false, comment };
+	await endTerminalSession(workspaceId, card.id, streamId, nowFallback, "completed");
+	return { passed: true, storedViaMcp: false, comment };
 }
 
 function getSlotTriggerWord(type: string): string {
@@ -1055,12 +1071,18 @@ ${ITERATION_SCOPING_NOTE}
 - Test coverage: only mention if tests exist and are missing coverage, or if existing tests are broken
 
 ## How to work
-Use your tools — grep for callers, read type definitions, check related modules. Don't rely only on the diff.
+Use your tools — grep for callers, read type definitions, check related modules. Don't rely only on the diff. The terminal output is observational — write findings as plain text without pass/fail words. Your only formal verdict is the \`status\` field in the MCP call below.${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}
 
-## How to report
-The terminal output is observational — your only formal verdict is the \`status\` field in \`kanban_add_comment\`. Write findings to the terminal as plain text without pass/fail words.
+## When you finish your review
 
-Then call \`kanban_add_comment\` with cardId: "${card.id}", type: "code_review", status: "pass"/"fail"/"warning", summary: your findings (specific, concise), and optionally issues: [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional note, pipeline still passes), message}].${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}`;
+1. Call the \`kanban_add_comment\` MCP tool with:
+   - cardId: "${card.id}"
+   - type: "code_review"
+   - status: "pass" / "fail" / "warning"
+   - summary: your findings (specific, concise)
+   - issues (optional): [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional note, pipeline still passes), message}]
+
+This MCP call is required — without it the pipeline has no record of your verdict.`;
 }
 
 function buildQASystemPrompt(
@@ -1100,10 +1122,19 @@ ${ITERATION_SCOPING_NOTE}
 2. Run the appropriate tests — existing test suite, TypeScript checks, Playwright, HTTP requests, etc.
 3. Verify every issue / request listed under \`## New Feedback\` or \`## Current Iteration\` has been addressed in the diff
 
-## How to report
-The terminal output is observational — your only formal verdict is the \`status\` field in \`kanban_add_comment\`. Write findings to the terminal as plain text without pass/fail words.
+The terminal output is observational — write findings as plain text without pass/fail words. Your only formal verdict is the \`status\` field in the MCP call below.${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}
 
-Then call \`kanban_add_comment\` with cardId: "${card.id}", type: "qa", status: "pass"/"fail"/"warning"/"skipped", summary: what you ran and the outcome, and optionally issues: [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional, pipeline still passes), message}] and attachments: [{type: "image"|"file", name, mimeType, path}].${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}`;
+## When you finish testing
+
+1. Call the \`kanban_add_comment\` MCP tool with:
+   - cardId: "${card.id}"
+   - type: "qa"
+   - status: "pass" / "fail" / "warning" / "skipped"
+   - summary: what you ran and the outcome
+   - issues (optional): [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional, pipeline still passes), message}]
+   - attachments (optional): [{type: "image" | "file", name, mimeType, path}]
+
+This MCP call is required — without it the pipeline has no record of your verdict.`;
 }
 
 function buildOrchSystemPrompt(
@@ -1172,14 +1203,6 @@ ${formatDiffBlock(fullDiff, card.baseRef)}
 
 ${ITERATION_SCOPING_NOTE}
 
-## Decision tree
-
-Make ONE pass/fail decision per orchestrator run:
-
-1. **PASS** if the combined implementation in the diff above meets the story goal AND all current-iteration feedback has been addressed → call \`kanban_add_comment\` once on the **story card** with \`type: "${commentType}"\`, \`status: "pass"\`, and a 2–4 sentence summary of what was built. Stop.
-
-2. **FAIL** if something is missing, wrong, or unresolved → for **each** subtask that needs rework, call \`kanban_add_comment\` on the **subtask card** with \`type: "orch"\`, \`status: "fail"\`, and an exact actionable summary + \`issues\` array. Then call \`kanban_add_comment\` once on the **story card** with \`type: "${commentType}"\`, \`status: "fail"\`, summarising which subtasks need rework and why (1–2 sentences). Do NOT call \`kanban_move_card\` — the system reopens subtasks automatically based on your comments.
-
 ## What to evaluate
 
 1. **Completeness** — does the diff cover everything in the story description?
@@ -1196,7 +1219,17 @@ You may use \`Read\` / \`grep\` on the worktree to verify, but everything you ne
 - Only flag subtasks for issues that affect the story goal. Skip minor style preferences or info-level findings already noted by CR/QA.
 - A flagged subtask without a specific, actionable comment blocks the dev agent — never leave the summary vague.
 - **Choosing the right subtask**: reopen the one whose scope is most semantically responsible for the issue. All subtasks share one worktree, so the dev agent can edit any file regardless of which subtask you target.${!autoCommit ? "\n- **Auto-commit is disabled**: Subtask worktrees intentionally have uncommitted changes. Do NOT flag this." : ""}
-- Your story-card summary must describe only what was built and whether it meets the story goal — nothing else.${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}`;
+- Your story-card summary must describe only what was built and whether it meets the story goal — nothing else.${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}
+
+## Decision tree
+
+Make ONE pass/fail decision per orchestrator run:
+
+1. **PASS** — the combined implementation in the diff above meets the story goal AND all current-iteration feedback has been addressed. Call the \`kanban_add_comment\` MCP tool once on the **story card** with \`type: "${commentType}"\`, \`status: "pass"\`, and a 2–4 sentence summary of what was built. Stop.
+
+2. **FAIL** — something is missing, wrong, or unresolved. For **each** subtask that needs rework, call the \`kanban_add_comment\` MCP tool on the **subtask card** with \`type: "orch"\`, \`status: "fail"\`, and an exact actionable summary + \`issues\` array. Then call the \`kanban_add_comment\` MCP tool once on the **story card** with \`type: "${commentType}"\`, \`status: "fail"\`, summarising which subtasks need rework and why (1–2 sentences). Do NOT call \`kanban_move_card\` — the system reopens subtasks automatically based on your comments.
+
+These MCP calls are required — without them the pipeline has no record of your decision.`;
 }
 
 function buildCustomSystemPrompt(
@@ -1232,9 +1265,18 @@ ${ITERATION_SCOPING_NOTE}
 ## Instructions
 ${customPrompt.trim()}
 
-The terminal output is observational — your only formal verdict is the \`status\` field in \`kanban_add_comment\`. Write findings to the terminal as plain text without pass/fail words.
+The terminal output is observational — write findings as plain text without pass/fail words. Your only formal verdict is the \`status\` field in the MCP call below.${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}
 
-Then call \`kanban_add_comment\` with cardId: "${card.id}", type: "${slot.id}", status: "pass"/"fail"/"warning"/"skipped", summary: your findings, and optionally issues: [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional note, pipeline still passes), message}].${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}`;
+## When you finish
+
+1. Call the \`kanban_add_comment\` MCP tool with:
+   - cardId: "${card.id}"
+   - type: "${slot.id}"
+   - status: "pass" / "fail" / "warning" / "skipped"
+   - summary: your findings
+   - issues (optional): [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional note, pipeline still passes), message}]
+
+This MCP call is required — without it the pipeline has no record of your verdict.`;
 }
 
 async function getMcpComment(
