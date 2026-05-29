@@ -3,7 +3,7 @@ import { Square, Terminal } from "lucide-react";
 import { useState } from "react";
 import { classNames } from "@/utils/classNames";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
-import { trpc } from "@/runtime/trpc-client";
+import { useWrite } from "@/runtime/api-client";
 import { useWorkspaceState } from "@/stores/board-store";
 
 interface Props {
@@ -14,6 +14,9 @@ export function DashboardPage({ workspaceId }: Props) {
 	const { state, refetch } = useWorkspaceState(workspaceId);
 	const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
 	const [togglingMode, setTogglingMode] = useState(false);
+
+	const { trigger: setAutonomousMode } = useWrite((api) => api("workspace/autonomous-mode").POST());
+	const { trigger: stopAgent } = useWrite((api) => api("cards/stop-agent").POST());
 
 	if (!state) {
 		return <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">Loading...</div>;
@@ -26,7 +29,7 @@ export function DashboardPage({ workspaceId }: Props) {
 	const handleToggleAutonomous = async () => {
 		setTogglingMode(true);
 		try {
-			await trpc.workspace.setAutonomousMode.mutate({ workspaceId, enabled: !state.autonomousModeEnabled });
+			await setAutonomousMode({ body: { workspaceId, enabled: !state.autonomousModeEnabled } });
 			refetch();
 			toast.success(state.autonomousModeEnabled ? "Autonomous mode off" : "Autonomous mode on");
 		} catch {
@@ -93,7 +96,7 @@ export function DashboardPage({ workspaceId }: Props) {
 												onClick={async (e) => {
 													e.stopPropagation();
 													try {
-														await trpc.cards.stopAgent.mutate({ workspaceId, cardId: taskId });
+														await stopAgent({ body: { workspaceId, cardId: taskId } });
 														refetch();
 													} catch {
 														toast.error("Failed to stop agent");

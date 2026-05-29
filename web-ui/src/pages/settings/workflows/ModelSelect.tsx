@@ -2,7 +2,7 @@ import { Input, Select, SelectOption } from "@geckoui/geckoui";
 import { MODEL_OPTIONS, type RuntimeAgentId } from "@runtime-contract";
 import { useEffect, useState } from "react";
 import { classNames } from "@/utils/classNames";
-import { trpc } from "@/runtime/trpc-client";
+import { useRead } from "@/runtime/api-client";
 
 export function ModelSelect({
 	agentId,
@@ -18,19 +18,22 @@ export function ModelSelect({
 	const [dynamicModels, setDynamicModels] = useState<{ value: string; label: string }[]>([]);
 	const [isFetching, setIsFetching] = useState(false);
 
+	const { trigger: fetchOpencodeModels } = useRead((api) => api("agents/opencode-models").GET(), { enabled: false });
+	const { trigger: fetchCursorModels } = useRead((api) => api("agents/cursor-models").GET(), { enabled: false });
+
 	const fetchDynamicModels = () => {
 		setIsFetching(true);
 		if (agentId === "opencode") {
-			trpc.agents.opencodeModels
-				.query()
-				.then((models) => setDynamicModels(models.map((m) => ({ value: m, label: m }))))
-				.catch(() => {})
+			fetchOpencodeModels()
+				.then((res) => {
+					if (res.data) setDynamicModels(res.data.map((m) => ({ value: m, label: m })));
+				})
 				.finally(() => setIsFetching(false));
 		} else if (agentId === "cursor") {
-			trpc.agents.cursorModels
-				.query()
-				.then((models) => setDynamicModels(models))
-				.catch(() => {})
+			fetchCursorModels()
+				.then((res) => {
+					if (res.data) setDynamicModels(res.data);
+				})
 				.finally(() => setIsFetching(false));
 		}
 	};

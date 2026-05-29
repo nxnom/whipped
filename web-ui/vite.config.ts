@@ -15,7 +15,7 @@ export default defineConfig({
 		alias: {
 			"@": resolve(__dirname, "src"),
 			"@runtime-contract": resolve(__dirname, "../src/core/api-contract.ts"),
-			"@runtime-trpc": resolve(__dirname, "../src/trpc/app-router.ts"),
+			"@runtime-validation": resolve(__dirname, "../src/core/validation"),
 		},
 	},
 	server: {

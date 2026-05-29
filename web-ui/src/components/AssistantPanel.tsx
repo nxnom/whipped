@@ -2,7 +2,7 @@ import { Button } from "@geckoui/geckoui";
 import { Bot, Square, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
-import { trpc } from "@/runtime/trpc-client";
+import { useRead, useWrite } from "@/runtime/api-client";
 import { classNames } from "@/utils/classNames";
 
 const MIN_WIDTH = 320;
@@ -21,6 +21,12 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 	const startingRef = useRef(false);
 	const [width, setWidth] = useState(DEFAULT_WIDTH);
 	const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+	const { trigger: fetchSessionStatus } = useRead((api) => api("agent/session").GET({ query: { workspaceId } }), {
+		enabled: false,
+	});
+	const { trigger: startSessionRequest } = useWrite((api) => api("agent/session").POST());
+	const { trigger: stopSessionRequest } = useWrite((api) => api("agent/session").DELETE());
 
 	const onDragStart = (e: React.MouseEvent) => {
 		e.preventDefault();
@@ -49,12 +55,12 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 			startingRef.current = true;
 			setStarting(true);
 			try {
-				const result = await trpc.agent.startSession.mutate({ workspaceId });
+				const { data: result } = await startSessionRequest({ body: { workspaceId } });
 				if (cancelled) {
-					await trpc.agent.stopSession.mutate({ workspaceId }).catch(() => {});
+					await stopSessionRequest({ query: { workspaceId } }).catch(() => {});
 					return;
 				}
-				setTaskId(result.taskId);
+				setTaskId(result?.taskId ?? null);
 			} finally {
 				startingRef.current = false;
 				if (!cancelled) setStarting(false);
@@ -63,9 +69,9 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 
 		const init = async () => {
 			try {
-				const status = await trpc.agent.sessionStatus.query({ workspaceId });
+				const { data: status } = await fetchSessionStatus();
 				if (cancelled) return;
-				if (status.running && status.taskId) {
+				if (status?.running && status.taskId) {
 					setTaskId(status.taskId);
 				} else {
 					await doStart();
@@ -86,8 +92,8 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 		startingRef.current = true;
 		setStarting(true);
 		try {
-			const result = await trpc.agent.startSession.mutate({ workspaceId });
-			setTaskId(result.taskId);
+			const { data: result } = await startSessionRequest({ body: { workspaceId } });
+			setTaskId(result?.taskId ?? null);
 		} finally {
 			startingRef.current = false;
 			setStarting(false);
@@ -95,7 +101,7 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 	};
 
 	const stopSession = async () => {
-		await trpc.agent.stopSession.mutate({ workspaceId }).catch(() => {});
+		await stopSessionRequest({ query: { workspaceId } }).catch(() => {});
 		setTaskId(null);
 		onClose();
 	};

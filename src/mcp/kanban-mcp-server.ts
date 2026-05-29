@@ -17,28 +17,59 @@ const serverUrl = process.argv[2] ?? process.env.WHIPPED_SERVER_URL ?? "http://1
 const workspaceId = process.argv[3] ?? process.env.WHIPPED_WORKSPACE_ID ?? "";
 const agentId = process.argv[4] ?? "claude";
 
-async function trpc<T>(procedure: string, input: unknown): Promise<T> {
-	const res = await fetch(`${serverUrl}/api/trpc/${procedure}`, {
-		method: "POST",
+// Maps each logical procedure to its Hono REST route. The home agent runs as a
+// separate process and calls the server over HTTP; responses are unwrapped
+// (Hono returns the value directly, unlike tRPC's { result: { data } }).
+type RestRoute = { method: "GET" | "POST" | "PATCH" | "DELETE"; path: (input: Record<string, unknown>) => string };
+
+const ROUTES: Record<string, RestRoute> = {
+	"workspace.state": { method: "GET", path: () => "workspace/state" },
+	"workflows.list": { method: "GET", path: () => "workflows" },
+	"projectConfig.get": { method: "GET", path: () => "project-config" },
+	"memory.search": { method: "GET", path: () => "memory/search" },
+	"memory.get": { method: "GET", path: (i) => `memory/${i.id as string}` },
+	"cards.create": { method: "POST", path: () => "cards" },
+	"cards.update": { method: "PATCH", path: (i) => `cards/${i.cardId as string}` },
+	"cards.move": { method: "POST", path: () => "cards/move" },
+	"cards.delete": { method: "DELETE", path: (i) => `cards/${i.cardId as string}` },
+	"cards.addReviewComment": { method: "POST", path: () => "cards/add-review-comment" },
+	"cards.interruptTask": { method: "POST", path: () => "cards/interrupt-task" },
+	"cards.setPrMeta": { method: "POST", path: () => "cards/set-pr-meta" },
+	"workflows.upsert": { method: "POST", path: () => "workflows" },
+	"projectConfig.setGitInstructions": { method: "POST", path: () => "project-config/git-instructions" },
+	"projectConfig.setSystemPrompt": { method: "POST", path: () => "project-config/system-prompt" },
+	"memory.propose": { method: "POST", path: () => "memory/propose" },
+	"memory.proposeUpdate": { method: "POST", path: () => "memory/propose-update" },
+};
+
+// Mutation (POST/PATCH/DELETE): input is the JSON body.
+async function apiMutate<T>(procedure: string, input: Record<string, unknown>): Promise<T> {
+	const route = ROUTES[procedure];
+	if (!route) throw new Error(`Unknown procedure: ${procedure}`);
+	const res = await fetch(`${serverUrl}/api/${route.path(input)}`, {
+		method: route.method,
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify(input),
 		signal: AbortSignal.timeout(15000),
 	});
-	if (!res.ok) throw new Error(`tRPC ${procedure} failed: ${res.status} ${await res.text()}`);
-	const body = (await res.json()) as { result?: { data?: T } };
-	return body.result?.data as T;
+	if (!res.ok) throw new Error(`${procedure} failed: ${res.status} ${await res.text()}`);
+	return (await res.json()) as T;
 }
 
-async function trpcQuery<T>(procedure: string, input: unknown): Promise<T> {
-	const encoded = encodeURIComponent(JSON.stringify(input));
-	const res = await fetch(`${serverUrl}/api/trpc/${procedure}?input=${encoded}`, {
+// Query (GET): input fields become query params; returns the parsed body (may be null).
+async function apiQuery<T>(procedure: string, input: Record<string, unknown>): Promise<T> {
+	const route = ROUTES[procedure];
+	if (!route) throw new Error(`Unknown procedure: ${procedure}`);
+	const qs = new URLSearchParams();
+	for (const [k, v] of Object.entries(input)) {
+		if (v !== undefined && v !== null) qs.set(k, String(v));
+	}
+	const query = qs.toString();
+	const res = await fetch(`${serverUrl}/api/${route.path(input)}${query ? `?${query}` : ""}`, {
 		signal: AbortSignal.timeout(15000),
 	});
-	if (!res.ok) throw new Error(`tRPC ${procedure} failed: ${res.status} ${await res.text()}`);
-	const body = (await res.json()) as { result?: { data?: T } };
-	const data = body.result?.data;
-	if (data == null) throw new Error(`tRPC ${procedure} returned empty response`);
-	return data;
+	if (!res.ok) throw new Error(`${procedure} failed: ${res.status} ${await res.text()}`);
+	return (await res.json()) as T;
 }
 
 const server = new McpServer({ name: "whipped", version: "1.0.0" });
@@ -77,7 +108,7 @@ server.registerTool(
 		inputSchema: {},
 	},
 	async () => {
-		const state = await trpcQuery<{ board: { columns: unknown[]; cards: unknown } }>("workspace.state", {
+		const state = await apiQuery<{ board: { columns: unknown[]; cards: unknown } }>("workspace.state", {
 			workspaceId,
 		});
 		const board = state.board as {
@@ -200,7 +231,7 @@ Creates all subtasks first, then the story card that depends on them. The story 
 		for (const subtask of subtasks) {
 			// Only pass existing board card IDs in this first pass — tempId refs aren't real yet
 			const existingDeps = (subtask.dependsOn ?? []).filter((dep) => !subtasks.some((s) => s.tempId === dep));
-			const card = await trpc<{ id: string }>("cards.create", {
+			const card = await apiMutate<{ id: string }>("cards.create", {
 				workspaceId,
 				description: subtask.description,
 				type: "subtask",
@@ -214,7 +245,12 @@ Creates all subtasks first, then the story card that depends on them. The story 
 			if (subtask.attachments?.length) {
 				const processed = await processAttachments(subtask.attachments, card.id);
 				if (processed.length) {
-					await trpc("cards.update", { workspaceId, cardId: card.id, descriptionAttachments: processed, revision: 0 });
+					await apiMutate("cards.update", {
+						workspaceId,
+						cardId: card.id,
+						descriptionAttachments: processed,
+						revision: 0,
+					});
 				}
 			}
 			if (subtask.tempId) tempIdToRealId.set(subtask.tempId, card.id);
@@ -231,7 +267,7 @@ Creates all subtasks first, then the story card that depends on them. The story 
 			if (batchDeps.length === 0) continue;
 			const resolvedBatchDeps = batchDeps.map((dep) => tempIdToRealId.get(dep)!);
 			const existingDeps = rawDeps.filter((dep) => !tempIdToRealId.has(dep));
-			await trpc("cards.update", {
+			await apiMutate("cards.update", {
 				workspaceId,
 				cardId: realId,
 				dependsOn: [...existingDeps, ...resolvedBatchDeps],
@@ -241,7 +277,7 @@ Creates all subtasks first, then the story card that depends on them. The story 
 
 		// Create the story card depending on all subtasks
 		const subtaskIds = createdSubtasks.map((s) => s.realId);
-		const storyCard = await trpc<{ id: string }>("cards.create", {
+		const storyCard = await apiMutate<{ id: string }>("cards.create", {
 			workspaceId,
 			description,
 			type: "story",
@@ -253,7 +289,7 @@ Creates all subtasks first, then the story card that depends on them. The story 
 		if (attachments?.length) {
 			const processed = await processAttachments(attachments, storyCard.id);
 			if (processed.length) {
-				await trpc("cards.update", {
+				await apiMutate("cards.update", {
 					workspaceId,
 					cardId: storyCard.id,
 					descriptionAttachments: processed,
@@ -265,7 +301,7 @@ Creates all subtasks first, then the story card that depends on them. The story 
 		// Pass 3: wire sharedWorktreeId on all subtasks so they share one worktree.
 		// The story card ID is the worktree owner — all subtasks write to the same directory.
 		for (const { realId } of createdSubtasks) {
-			await trpc("cards.update", {
+			await apiMutate("cards.update", {
 				workspaceId,
 				cardId: realId,
 				sharedWorktreeId: storyCard.id,
@@ -330,7 +366,7 @@ server.registerTool(
 		let sharedWorktreeId: string | undefined;
 		if (type !== "story" && dependsOn && dependsOn.length === 1) {
 			try {
-				const state = await trpcQuery<{
+				const state = await apiQuery<{
 					board: { cards: Record<string, { sharedWorktreeId?: string }> };
 				}>("workspace.state", { workspaceId });
 				const primaryDepId = dependsOn[0]!;
@@ -343,7 +379,7 @@ server.registerTool(
 			}
 		}
 
-		const card = await trpc<{ id: string; columnId: string }>("cards.create", {
+		const card = await apiMutate<{ id: string; columnId: string }>("cards.create", {
 			workspaceId,
 			description,
 			type,
@@ -358,7 +394,12 @@ server.registerTool(
 		if (attachments?.length) {
 			const processed = await processAttachments(attachments, card.id);
 			if (processed.length) {
-				await trpc("cards.update", { workspaceId, cardId: card.id, descriptionAttachments: processed, revision: 0 });
+				await apiMutate("cards.update", {
+					workspaceId,
+					cardId: card.id,
+					descriptionAttachments: processed,
+					revision: 0,
+				});
 			}
 		}
 		const cardDisplay = description.split("\n")[0]?.slice(0, 80) || card.id;
@@ -380,7 +421,7 @@ server.registerTool(
 		},
 	},
 	async ({ cardId, targetColumnId }) => {
-		await trpc("cards.move", { workspaceId, cardId, targetColumnId, revision: 0 });
+		await apiMutate("cards.move", { workspaceId, cardId, targetColumnId, revision: 0 });
 		return { content: [{ type: "text", text: `Moved card ${cardId} to ${targetColumnId}.` }] };
 	},
 );
@@ -408,7 +449,7 @@ server.registerTool(
 	async ({ cardId, description, priority, dependsOn, workflowId, readyForDev, attachments }) => {
 		let descriptionAttachments: Array<{ type: string; name: string; mimeType: string; path: string }> | undefined;
 		if (attachments?.length) {
-			const state = await trpcQuery<{
+			const state = await apiQuery<{
 				board: {
 					cards: Record<
 						string,
@@ -420,7 +461,7 @@ server.registerTool(
 			const processed = await processAttachments(attachments, cardId);
 			descriptionAttachments = [...existing, ...processed];
 		}
-		await trpc("cards.update", {
+		await apiMutate("cards.update", {
 			workspaceId,
 			cardId,
 			description,
@@ -464,7 +505,7 @@ server.registerTool(
 	async ({ cardId, type, streamId, summary, status, issues, attachments, metadata }) => {
 		const processedAttachments = attachments?.length ? await processAttachments(attachments, cardId) : undefined;
 
-		await trpc("cards.addReviewComment", {
+		await apiMutate("cards.addReviewComment", {
 			workspaceId,
 			cardId,
 			type,
@@ -489,7 +530,7 @@ server.registerTool(
 		},
 	},
 	async ({ cardId }) => {
-		await trpc("cards.delete", { workspaceId, cardId });
+		await apiMutate("cards.delete", { workspaceId, cardId });
 		return { content: [{ type: "text", text: `Deleted card ${cardId}.` }] };
 	},
 );
@@ -504,7 +545,7 @@ server.registerTool(
 		},
 	},
 	async ({ cardId }) => {
-		await trpc("cards.interruptTask", { workspaceId, cardId });
+		await apiMutate("cards.interruptTask", { workspaceId, cardId });
 		return { content: [{ type: "text", text: `Task ${cardId} interrupted.` }] };
 	},
 );
@@ -516,7 +557,7 @@ server.registerTool(
 		inputSchema: {},
 	},
 	async () => {
-		const workflows = await trpcQuery<
+		const workflows = await apiQuery<
 			Array<{
 				id: string;
 				name: string;
@@ -618,7 +659,7 @@ server.registerTool(
 		},
 	},
 	async ({ id, name, isDefault, forStory, slots }) => {
-		const workflow = await trpc<{ id: string; name: string }>("workflows.upsert", {
+		const workflow = await apiMutate<{ id: string; name: string }>("workflows.upsert", {
 			workspaceId,
 			workflow: { id, name, isDefault: isDefault ?? false, forStory: forStory ?? false, slots },
 		});
@@ -636,7 +677,7 @@ server.registerTool(
 		},
 	},
 	async ({ cardId }) => {
-		const state = await trpcQuery<{
+		const state = await apiQuery<{
 			board: {
 				cards: Record<
 					string,
@@ -689,7 +730,7 @@ server.registerTool(
 		},
 	},
 	async ({ cardId, title, description, streamId }) => {
-		const result = await trpc<{ ok: boolean; pr: { title?: string; description?: string } }>("cards.setPrMeta", {
+		const result = await apiMutate<{ ok: boolean; pr: { title?: string; description?: string } }>("cards.setPrMeta", {
 			workspaceId,
 			cardId,
 			title,
@@ -713,7 +754,7 @@ server.registerTool(
 		inputSchema: {},
 	},
 	async () => {
-		const config = await trpcQuery<{ gitInstructions?: string }>("projectConfig.get", { workspaceId });
+		const config = await apiQuery<{ gitInstructions?: string }>("projectConfig.get", { workspaceId });
 		const custom = config.gitInstructions?.trim() ? config.gitInstructions : null;
 		const effective = custom ?? DEFAULT_GIT_INSTRUCTIONS;
 		const lines: string[] = [];
@@ -745,7 +786,7 @@ server.registerTool(
 		},
 	},
 	async ({ instructions }) => {
-		const result = await trpc<{ ok: boolean; cleared: boolean }>("projectConfig.setGitInstructions", {
+		const result = await apiMutate<{ ok: boolean; cleared: boolean }>("projectConfig.setGitInstructions", {
 			workspaceId,
 			instructions,
 		});
@@ -770,7 +811,7 @@ server.registerTool(
 		inputSchema: {},
 	},
 	async () => {
-		const config = await trpcQuery<{ systemPrompt?: string }>("projectConfig.get", { workspaceId });
+		const config = await apiQuery<{ systemPrompt?: string }>("projectConfig.get", { workspaceId });
 		const prompt = config.systemPrompt?.trim();
 		return { content: [{ type: "text", text: prompt ? prompt : "(no shared system prompt set)" }] };
 	},
@@ -786,7 +827,7 @@ server.registerTool(
 		},
 	},
 	async ({ prompt }) => {
-		const result = await trpc<{ ok: boolean; cleared: boolean }>("projectConfig.setSystemPrompt", {
+		const result = await apiMutate<{ ok: boolean; cleared: boolean }>("projectConfig.setSystemPrompt", {
 			workspaceId,
 			prompt,
 		});
@@ -847,7 +888,7 @@ server.registerTool(
 	},
 	async ({ query }) => {
 		try {
-			const results = await trpcQuery<MemoryResult[]>("memory.search", { query, workspaceId });
+			const results = await apiQuery<MemoryResult[]>("memory.search", { query, workspaceId });
 			if (!results || results.length === 0) {
 				return { content: [{ type: "text", text: "No matching memory." }] };
 			}
@@ -869,7 +910,7 @@ server.registerTool(
 	},
 	async ({ id }) => {
 		try {
-			const m = await trpcQuery<MemoryResult | null>("memory.get", { id });
+			const m = await apiQuery<MemoryResult | null>("memory.get", { id });
 			if (!m) return { content: [{ type: "text", text: "Memory not found." }] };
 			return { content: [{ type: "text", text: `(${m.scope}/${m.type}) ${m.title}\n\n${m.content}` }] };
 		} catch (err) {
@@ -901,7 +942,7 @@ if (agentSlot === "dev") {
 		},
 		async ({ scope, type, title, content, sourceType, importance }) => {
 			try {
-				const saved = await trpc<{ status: string }>("memory.propose", {
+				const saved = await apiMutate<{ status: string }>("memory.propose", {
 					scope,
 					workspaceId: scope === "project" ? workspaceId : undefined,
 					type,
@@ -939,7 +980,7 @@ if (agentSlot === "dev") {
 		},
 		async ({ id, title, content, type, importance, sourceType }) => {
 			try {
-				const updated = await trpc<{ status: string }>("memory.proposeUpdate", {
+				const updated = await apiMutate<{ status: string }>("memory.proposeUpdate", {
 					id,
 					title,
 					content,

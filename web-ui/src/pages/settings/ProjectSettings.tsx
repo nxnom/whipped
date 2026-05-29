@@ -1,7 +1,7 @@
 import { toast } from "@geckoui/geckoui";
 import type { RuntimeAgentId, RuntimeProjectConfig, RuntimeProjectSecret } from "@runtime-contract";
 import { useEffect, useRef, useState } from "react";
-import { trpc } from "@/runtime/trpc-client";
+import { useRead, useWrite } from "@/runtime/api-client";
 import { useWorkspaceState } from "@/stores/board-store";
 import type { ProjectSection } from "./_shared";
 import { WorkflowsSection } from "./workflows";
@@ -49,29 +49,23 @@ const SECTION_META: Record<ProjectSection, { title: string; description: string 
 
 export function ProjectSettings({ workspaceId, section }: { workspaceId: string; section: ProjectSection }) {
 	const [config, setConfig] = useState<RuntimeProjectConfig | null>(null);
-	const [globalDefaultBinary, setGlobalDefaultBinary] = useState<RuntimeAgentId>("claude");
 	const [saving, setSaving] = useState(false);
 	const [togglingAutonomous, setTogglingAutonomous] = useState(false);
-	const [branches, setBranches] = useState<string[]>([]);
 	const isDirtyRef = useRef(false);
 
 	const { state: wsState } = useWorkspaceState(workspaceId);
 
-	useEffect(() => {
-		trpc.config.get
-			.query()
-			.then((g) => setGlobalDefaultBinary(g.defaultAgent as "claude" | "codex"))
-			.catch(() => {});
-	}, []);
+	const { data: globalConfig } = useRead((api) => api("config").GET());
+	const { data: branchesData } = useRead((api) => api("cards/branches").GET({ query: { workspaceId } }), {
+		enabled: section === "general-automation" || section === "instructions",
+	});
+	const { trigger: setAutonomousMode } = useWrite((api) => api("workspace/autonomous-mode").POST());
+	const { trigger: saveProjectConfig } = useWrite((api) => api("project-config").PUT());
 
-	useEffect(() => {
-		if (section === "general-automation" || section === "instructions") {
-			trpc.cards.listBranches
-				.query({ workspaceId })
-				.then(({ branches: b }) => setBranches(b))
-				.catch(() => {});
-		}
-	}, [section, workspaceId]);
+	// Derive directly from the cached reads — never mirror Spoosh data into local
+	// state via an effect (its reference changes each render → setState loop).
+	const globalDefaultBinary = (globalConfig?.defaultAgent ?? "claude") as RuntimeAgentId;
+	const branches = branchesData?.branches ?? [];
 
 	useEffect(() => {
 		setConfig(null);
@@ -79,10 +73,10 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 	}, [workspaceId]);
 
 	useEffect(() => {
-		if (wsState?.projectConfig && !isDirtyRef.current) {
+		if (wsState?.projectConfig && config === null && !isDirtyRef.current) {
 			setConfig(wsState.projectConfig);
 		}
-	}, [wsState?.projectConfig]);
+	}, [wsState?.projectConfig, config]);
 
 	const updateConfig = (next: RuntimeProjectConfig) => {
 		isDirtyRef.current = true;
@@ -94,7 +88,8 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 		const next = !config.autonomousModeEnabled;
 		setTogglingAutonomous(true);
 		try {
-			await trpc.workspace.setAutonomousMode.mutate({ workspaceId, enabled: next });
+			const res = await setAutonomousMode({ body: { workspaceId, enabled: next } });
+			if (res.error) throw res.error;
 			updateConfig({ ...config, autonomousModeEnabled: next });
 			toast.success(next ? "Autonomous mode enabled" : "Autonomous mode disabled");
 		} catch {
@@ -108,7 +103,8 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 		if (!config) return;
 		setSaving(true);
 		try {
-			await trpc.projectConfig.save.mutate({ workspaceId, config });
+			const res = await saveProjectConfig({ body: { workspaceId, config } });
+			if (res.error) throw res.error;
 			isDirtyRef.current = false;
 			toast.success("Settings saved");
 		} catch {
@@ -124,7 +120,8 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 		updateConfig(next);
 		setSaving(true);
 		try {
-			await trpc.projectConfig.save.mutate({ workspaceId, config: next });
+			const res = await saveProjectConfig({ body: { workspaceId, config: next } });
+			if (res.error) throw res.error;
 			isDirtyRef.current = false;
 			toast.success("Secrets saved");
 		} catch {

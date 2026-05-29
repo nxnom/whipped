@@ -8,25 +8,25 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { RunBar } from "@/components/RunBar";
 import { BoardPage } from "@/pages/Board";
 import { SettingsPage } from "@/pages/settings";
-import { trpc } from "@/runtime/trpc-client";
+import { useRead } from "@/runtime/api-client";
 import { firstSortedProjectId } from "@/utils/projects";
 
 function HomeRoute({ onAddProject }: { onAddProject: () => void }) {
 	const navigate = useNavigate();
 	const [ready, setReady] = useState(false);
+	const { data: list, loading: listLoading } = useRead((api) => api("projects").GET());
+	const { data: layout, loading: layoutLoading } = useRead((api) => api("projects/layout").GET());
 
 	useEffect(() => {
-		Promise.all([trpc.projects.list.query(), trpc.projects.getLayout.query()])
-			.then(([list, layout]) => {
-				if (list.length > 0) {
-					const id = (layout ? firstSortedProjectId(layout, list) : null) ?? list[0]!.workspaceId;
-					navigate(`/${encodeURIComponent(id)}/board`, { replace: true });
-				} else {
-					setReady(true);
-				}
-			})
-			.catch(() => setReady(true));
-	}, []);
+		if (listLoading || layoutLoading) return;
+		const projects = list ?? [];
+		if (projects.length > 0) {
+			const id = (layout ? firstSortedProjectId(layout, projects) : null) ?? projects[0]!.workspaceId;
+			navigate(`/${encodeURIComponent(id)}/board`, { replace: true });
+		} else {
+			setReady(true);
+		}
+	}, [list, layout, listLoading, layoutLoading, navigate]);
 
 	if (!ready) return null;
 

@@ -1,8 +1,7 @@
 import { ConfirmDialog, toast } from "@geckoui/geckoui";
 import { MEMORY_TYPE_OPTIONS, type MemoryType, type RuntimeMemory } from "@runtime-contract";
 import { Brain, Check, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import { trpc } from "@/runtime/trpc-client";
+import { useRead, useWrite } from "@/runtime/api-client";
 
 const TYPE_LABEL: Record<MemoryType, string> = Object.fromEntries(
 	MEMORY_TYPE_OPTIONS.map((o) => [o.value, o.label]),
@@ -10,24 +9,14 @@ const TYPE_LABEL: Record<MemoryType, string> = Object.fromEntries(
 
 // Memories created by agents while working on this card (origin_card_id = cardId).
 export function CardMemoryTab({ cardId }: { cardId: string }) {
-	const [memories, setMemories] = useState<RuntimeMemory[]>([]);
-	const [loading, setLoading] = useState(true);
+	const { data, loading, trigger: load } = useRead((api) => api("memory/for-card").GET({ query: { cardId } }));
+	const memories: RuntimeMemory[] = data ?? [];
 
-	const load = useCallback(async () => {
-		setLoading(true);
-		try {
-			setMemories(await trpc.memory.listForCard.query({ cardId }));
-		} finally {
-			setLoading(false);
-		}
-	}, [cardId]);
-
-	useEffect(() => {
-		void load();
-	}, [load]);
+	const { trigger: approveTrigger } = useWrite((api) => api("memory/:id/approve").POST());
+	const { trigger: removeTrigger } = useWrite((api) => api("memory/:id").DELETE());
 
 	const approve = async (m: RuntimeMemory) => {
-		await trpc.memory.approve.mutate({ id: m.id });
+		await approveTrigger({ params: { id: m.id } });
 		toast("Approved");
 		await load();
 	};
@@ -39,7 +28,7 @@ export function CardMemoryTab({ cardId }: { cardId: string }) {
 			confirmButtonLabel: "Delete",
 			cancelButtonLabel: "Cancel",
 			onConfirm: async ({ dismiss }) => {
-				await trpc.memory.remove.mutate({ id: m.id });
+				await removeTrigger({ params: { id: m.id } });
 				dismiss();
 				await load();
 			},

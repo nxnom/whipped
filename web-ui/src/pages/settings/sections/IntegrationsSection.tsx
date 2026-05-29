@@ -1,64 +1,23 @@
+import { RHFInput, toast } from "@geckoui/geckoui";
+import { zodResolver } from "@hookform/resolvers/zod";
 import type { RuntimeJiraTicket, RuntimeProjectConfig } from "@runtime-contract";
+import { type JiraConfigValues, jiraConfigSchema } from "@runtime-validation/jira";
 import { Download, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { useState } from "react";
-import { toast } from "@geckoui/geckoui";
-import { trpc } from "@/runtime/trpc-client";
+import { FormProvider, useForm } from "react-hook-form";
+import { useRead, useWrite } from "@/runtime/api-client";
 import { classNames } from "@/utils/classNames";
 
 // ─── primitives ───────────────────────────────────────────────────────────────
 
-const fieldInputClassName =
-	"flex-1 bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-2 text-[#c0c0d0] text-[12px] outline-none";
+const fieldContainerClassName = "flex-1 bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-2";
+const fieldInputClassName = "text-[#c0c0d0] text-[12px] outline-none bg-transparent";
 
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
 	return (
 		<div className="flex items-center gap-3">
 			<span className="text-[12px] font-medium shrink-0 w-[100px] text-[#8888a0]">{label}</span>
 			{children}
-		</div>
-	);
-}
-
-function TextInput({
-	value,
-	onChange,
-	placeholder,
-}: {
-	value: string;
-	onChange: (v: string) => void;
-	placeholder?: string;
-}) {
-	return (
-		<input
-			value={value}
-			onChange={(e) => onChange(e.target.value)}
-			placeholder={placeholder}
-			className={fieldInputClassName}
-		/>
-	);
-}
-
-function PasswordInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-	const [revealed, setRevealed] = useState(false);
-	return (
-		<div className="flex items-center gap-2 flex-1 bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-2">
-			<input
-				type={revealed ? "text" : "password"}
-				value={value}
-				onChange={(e) => onChange(e.target.value)}
-				placeholder="••••••••••••••••"
-				className={classNames(
-					"flex-1 bg-transparent focus:outline-none font-mono text-[12px] min-w-0",
-					revealed ? "text-[#c0c0d0]" : "text-[#60607a]",
-				)}
-			/>
-			<button
-				type="button"
-				onClick={() => setRevealed((v) => !v)}
-				className="shrink-0 hover:opacity-70 transition-opacity text-[#60607a]"
-			>
-				{revealed ? <EyeOff size={14} /> : <Eye size={14} />}
-			</button>
 		</div>
 	);
 }
@@ -124,6 +83,8 @@ function TicketRow({
 
 // ─── main component ───────────────────────────────────────────────────────────
 
+const EMPTY_JIRA: JiraConfigValues = { host: "", email: "", token: "", projectKey: "" };
+
 export function IntegrationsSection({
 	workspaceId,
 	config,
@@ -139,45 +100,49 @@ export function IntegrationsSection({
 }) {
 	const [tickets, setTickets] = useState<RuntimeJiraTicket[] | null>(null);
 	const [selected, setSelected] = useState<Set<string>>(new Set());
-	const [fetching, setFetching] = useState(false);
-	const [importing, setImporting] = useState(false);
+	const [revealed, setRevealed] = useState(false);
+
+	const methods = useForm<JiraConfigValues>({
+		resolver: zodResolver(jiraConfigSchema),
+		values: { ...EMPTY_JIRA, ...config.jira },
+	});
 
 	const jira = config.jira;
 	const isConnected = !!(jira?.host && jira?.email && jira?.token);
 
-	const updateJira = (patch: Partial<typeof jira>) =>
-		onUpdate({ ...config, jira: { host: "", email: "", token: "", projectKey: "", ...jira, ...patch } });
+	// Push edits back into the parent-owned project config so the existing
+	// Save flow persists them. RHF `values` keeps the form in sync the other way.
+	const updateJira = (patch: Partial<JiraConfigValues>) =>
+		onUpdate({ ...config, jira: { ...EMPTY_JIRA, ...jira, ...patch } });
+
+	const { trigger: fetchTicketsTrigger, loading: fetching } = useRead(
+		(api) => api("jira/tickets").GET({ query: { workspaceId } }),
+		{ enabled: false },
+	);
+	const { trigger: importTrigger, loading: importing } = useWrite((api) => api("jira/import").POST());
 
 	const fetchTickets = async () => {
-		setFetching(true);
 		setTickets(null);
 		setSelected(new Set());
-		try {
-			const result = await trpc.jira.fetchTickets.query({ workspaceId });
-			setTickets(result);
-		} catch {
+		const res = await fetchTicketsTrigger();
+		if (res.error || !res.data) {
 			toast.error("Failed to fetch Jira tickets. Check your configuration.");
-		} finally {
-			setFetching(false);
+			return;
 		}
+		setTickets(res.data);
 	};
 
 	const handleImport = async () => {
 		if (selected.size === 0) return;
-		setImporting(true);
-		try {
-			const result = await trpc.jira.importTickets.mutate({
-				workspaceId,
-				ticketKeys: Array.from(selected),
-			});
-			toast.success(`Imported ${result.created.length} ticket${result.created.length !== 1 ? "s" : ""}`);
-			setTickets(null);
-			setSelected(new Set());
-		} catch {
+		const res = await importTrigger({ body: { workspaceId, ticketKeys: Array.from(selected) } });
+		if (res.error || !res.data) {
 			toast.error("Failed to import tickets");
-		} finally {
-			setImporting(false);
+			return;
 		}
+		const count = res.data.created.length;
+		toast.success(`Imported ${count} ticket${count !== 1 ? "s" : ""}`);
+		setTickets(null);
+		setSelected(new Set());
 	};
 
 	const toggleTicket = (key: string) => {
@@ -189,126 +154,153 @@ export function IntegrationsSection({
 	};
 
 	return (
-		<div className="flex flex-col gap-6">
-			{/* Jira card */}
-			<div className="bg-[#141418] border border-[#2a2a35] rounded-[10px]">
-				{/* Card header */}
-				<div className="flex items-center gap-3 px-5 py-4 border-b border-[#2a2a35]">
-					{/* Jira logo */}
-					<div className="flex items-center justify-center shrink-0 text-[16px] font-bold w-8 h-8 bg-[#2563eb15] rounded-lg text-[#2563eb]">
-						J
-					</div>
-
-					{/* Title */}
-					<div className="flex flex-col gap-0.5">
-						<span className="text-[15px] font-semibold text-[#f0f0f5]">Jira</span>
-						<span className="text-[11px] text-[#60607a]">Import tickets from Jira projects</span>
-					</div>
-
-					<div className="flex-1" />
-
-					{/* Connection status */}
-					{isConnected ? (
-						<div className="flex items-center gap-1.5 bg-[#22c55e15] rounded-[10px] px-2.5 py-[3px]">
-							<div className="w-1.5 h-1.5 rounded-full bg-[#22c55e]" />
-							<span className="text-[10px] font-medium text-[#22c55e]">Connected</span>
+		<FormProvider {...methods}>
+			<div className="flex flex-col gap-6">
+				{/* Jira card */}
+				<div className="bg-[#141418] border border-[#2a2a35] rounded-[10px]">
+					{/* Card header */}
+					<div className="flex items-center gap-3 px-5 py-4 border-b border-[#2a2a35]">
+						{/* Jira logo */}
+						<div className="flex items-center justify-center shrink-0 text-[16px] font-bold w-8 h-8 bg-[#2563eb15] rounded-lg text-[#2563eb]">
+							J
 						</div>
-					) : (
-						<div className="flex items-center gap-1.5 bg-[#60607a20] rounded-[10px] px-2.5 py-[3px]">
-							<div className="w-1.5 h-1.5 rounded-full bg-[#60607a]" />
-							<span className="text-[10px] font-medium text-[#60607a]">Not connected</span>
+
+						{/* Title */}
+						<div className="flex flex-col gap-0.5">
+							<span className="text-[15px] font-semibold text-[#f0f0f5]">Jira</span>
+							<span className="text-[11px] text-[#60607a]">Import tickets from Jira projects</span>
 						</div>
-					)}
-				</div>
 
-				{/* Card body */}
-				<div className="flex flex-col gap-3.5 p-5">
-					<FieldRow label="Host">
-						<TextInput
-							value={jira?.host ?? ""}
-							onChange={(v) => updateJira({ host: v })}
-							placeholder="company.atlassian.net"
-						/>
-					</FieldRow>
-					<FieldRow label="Email">
-						<TextInput
-							value={jira?.email ?? ""}
-							onChange={(v) => updateJira({ email: v })}
-							placeholder="you@company.com"
-						/>
-					</FieldRow>
-					<FieldRow label="API Token">
-						<PasswordInput value={jira?.token ?? ""} onChange={(v) => updateJira({ token: v })} />
-					</FieldRow>
-					<FieldRow label="Project Key">
-						<TextInput
-							value={jira?.projectKey ?? ""}
-							onChange={(v) => updateJira({ projectKey: v })}
-							placeholder="ENG"
-						/>
-					</FieldRow>
-
-					<div className="h-px bg-[#2a2a35]" />
-
-					{/* Import Tickets */}
-					<div className="flex items-center gap-3">
-						<span className="text-[13px] font-semibold text-[#f0f0f5]">Import Tickets</span>
 						<div className="flex-1" />
-						<button
-							onClick={fetchTickets}
-							disabled={fetching || !isConnected}
-							className="flex items-center gap-1.5 hover:opacity-80 transition-opacity disabled:opacity-40 bg-[#7c6aff] rounded-md px-3.5 py-[7px] text-white"
-						>
-							<RefreshCw size={13} className={fetching ? "animate-spin" : ""} />
-							<span className="text-[12px] font-medium">Fetch Tickets</span>
-						</button>
+
+						{/* Connection status */}
+						{isConnected ? (
+							<div className="flex items-center gap-1.5 bg-[#22c55e15] rounded-[10px] px-2.5 py-[3px]">
+								<div className="w-1.5 h-1.5 rounded-full bg-[#22c55e]" />
+								<span className="text-[10px] font-medium text-[#22c55e]">Connected</span>
+							</div>
+						) : (
+							<div className="flex items-center gap-1.5 bg-[#60607a20] rounded-[10px] px-2.5 py-[3px]">
+								<div className="w-1.5 h-1.5 rounded-full bg-[#60607a]" />
+								<span className="text-[10px] font-medium text-[#60607a]">Not connected</span>
+							</div>
+						)}
 					</div>
 
-					{/* Ticket list */}
-					{tickets && tickets.length > 0 && (
-						<>
-							<div className="bg-[#0c0c0f] border border-[#2a2a35] rounded-md overflow-hidden">
-								{tickets.map((t) => (
-									<TicketRow
-										key={t.key}
-										ticket={t}
-										selected={selected.has(t.key)}
-										onToggle={() => toggleTicket(t.key)}
-									/>
-								))}
-							</div>
-							<div className="flex items-center justify-end gap-2.5">
-								{selected.size > 0 && <span className="text-[12px] text-[#60607a]">{selected.size} selected</span>}
-								<button
-									onClick={handleImport}
-									disabled={selected.size === 0 || importing}
-									className="flex items-center gap-1.5 hover:opacity-80 transition-opacity disabled:opacity-40 bg-[#7c6aff] rounded-md px-3.5 py-[7px] text-white"
-								>
-									<Download size={13} />
-									<span className="text-[12px] font-medium">
-										{importing ? "Importing..." : `Import${selected.size > 0 ? ` ${selected.size}` : ""}`}
-									</span>
-								</button>
-							</div>
-						</>
-					)}
+					{/* Card body */}
+					<div className="flex flex-col gap-3.5 p-5">
+						<FieldRow label="Host">
+							<RHFInput
+								name="host"
+								className={fieldContainerClassName}
+								inputClassName={fieldInputClassName}
+								placeholder="company.atlassian.net"
+								onChange={(v) => updateJira({ host: v ?? "" })}
+							/>
+						</FieldRow>
+						<FieldRow label="Email">
+							<RHFInput
+								name="email"
+								className={fieldContainerClassName}
+								inputClassName={fieldInputClassName}
+								placeholder="you@company.com"
+								onChange={(v) => updateJira({ email: v ?? "" })}
+							/>
+						</FieldRow>
+						<FieldRow label="API Token">
+							<RHFInput
+								name="token"
+								type={revealed ? "text" : "password"}
+								className={classNames("flex-1 bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-2")}
+								inputClassName={classNames(
+									"font-mono text-[12px] outline-none bg-transparent",
+									revealed ? "text-[#c0c0d0]" : "text-[#60607a]",
+								)}
+								placeholder="••••••••••••••••"
+								onChange={(v) => updateJira({ token: v ?? "" })}
+								suffix={
+									<button
+										type="button"
+										onClick={() => setRevealed((r) => !r)}
+										className="shrink-0 hover:opacity-70 transition-opacity text-[#60607a]"
+									>
+										{revealed ? <EyeOff size={14} /> : <Eye size={14} />}
+									</button>
+								}
+							/>
+						</FieldRow>
+						<FieldRow label="Project Key">
+							<RHFInput
+								name="projectKey"
+								className={fieldContainerClassName}
+								inputClassName={fieldInputClassName}
+								placeholder="ENG"
+								onChange={(v) => updateJira({ projectKey: v ?? "" })}
+							/>
+						</FieldRow>
 
-					{tickets && tickets.length === 0 && (
-						<p className="text-[12px] text-center py-3 text-[#4a4a5a]">No open tickets found</p>
-					)}
+						<div className="h-px bg-[#2a2a35]" />
+
+						{/* Import Tickets */}
+						<div className="flex items-center gap-3">
+							<span className="text-[13px] font-semibold text-[#f0f0f5]">Import Tickets</span>
+							<div className="flex-1" />
+							<button
+								onClick={fetchTickets}
+								disabled={fetching || !isConnected}
+								className="flex items-center gap-1.5 hover:opacity-80 transition-opacity disabled:opacity-40 bg-[#7c6aff] rounded-md px-3.5 py-[7px] text-white"
+							>
+								<RefreshCw size={13} className={fetching ? "animate-spin" : ""} />
+								<span className="text-[12px] font-medium">Fetch Tickets</span>
+							</button>
+						</div>
+
+						{/* Ticket list */}
+						{tickets && tickets.length > 0 && (
+							<>
+								<div className="bg-[#0c0c0f] border border-[#2a2a35] rounded-md overflow-hidden">
+									{tickets.map((t) => (
+										<TicketRow
+											key={t.key}
+											ticket={t}
+											selected={selected.has(t.key)}
+											onToggle={() => toggleTicket(t.key)}
+										/>
+									))}
+								</div>
+								<div className="flex items-center justify-end gap-2.5">
+									{selected.size > 0 && <span className="text-[12px] text-[#60607a]">{selected.size} selected</span>}
+									<button
+										onClick={handleImport}
+										disabled={selected.size === 0 || importing}
+										className="flex items-center gap-1.5 hover:opacity-80 transition-opacity disabled:opacity-40 bg-[#7c6aff] rounded-md px-3.5 py-[7px] text-white"
+									>
+										<Download size={13} />
+										<span className="text-[12px] font-medium">
+											{importing ? "Importing..." : `Import${selected.size > 0 ? ` ${selected.size}` : ""}`}
+										</span>
+									</button>
+								</div>
+							</>
+						)}
+
+						{tickets && tickets.length === 0 && (
+							<p className="text-[12px] text-center py-3 text-[#4a4a5a]">No open tickets found</p>
+						)}
+					</div>
+				</div>
+
+				{/* Save */}
+				<div className="flex justify-end">
+					<button
+						onClick={onSave}
+						disabled={saving}
+						className="text-sm font-medium px-4 py-2 rounded-lg transition-opacity disabled:opacity-50 bg-[#7c6aff] text-white"
+					>
+						{saving ? "Saving..." : "Save"}
+					</button>
 				</div>
 			</div>
-
-			{/* Save */}
-			<div className="flex justify-end">
-				<button
-					onClick={onSave}
-					disabled={saving}
-					className="text-sm font-medium px-4 py-2 rounded-lg transition-opacity disabled:opacity-50 bg-[#7c6aff] text-white"
-				>
-					{saving ? "Saving..." : "Save"}
-				</button>
-			</div>
-		</div>
+		</FormProvider>
 	);
 }

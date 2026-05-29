@@ -1,38 +1,43 @@
-import { toast } from "@geckoui/geckoui";
+import { RHFError, RHFInput, RHFInputGroup, toast } from "@geckoui/geckoui";
+import { zodResolver } from "@hookform/resolvers/zod";
 import type { RuntimeGlobalConfig } from "@runtime-contract";
+import { type CreateAppInput, createAppSchema, signingSecretSchema } from "@runtime-validation/slack";
 import { AlertCircle, Check, CheckCircle2, ChevronRight, ExternalLink, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { FormProvider, useForm } from "react-hook-form";
 import { useNavigate, useParams } from "react-router-dom";
-import { trpc } from "@/runtime/trpc-client";
+import { useRead, useWrite } from "@/runtime/api-client";
 import { classNames } from "@/utils/classNames";
 
-function SecretInput({
-	value,
-	placeholder,
-	onChange,
-}: {
-	value: string;
-	placeholder: string;
-	onChange: (v: string) => void;
-}) {
+const SECRET_INPUT_CLASS =
+	"w-full font-mono text-[12px] focus:outline-none focus:border-[#7c6aff] pl-3 pr-9 py-[9px] bg-[#0c0c0f] border border-[#2a2a35] rounded-md text-[#c0c0d0]";
+
+// Reusable show/hide password toggle rendered as the RHFInput `suffix`.
+function SecretToggle({ visible, onToggle }: { visible: boolean; onToggle: () => void }) {
+	return (
+		<button
+			type="button"
+			onClick={onToggle}
+			className="absolute right-2 top-1/2 -translate-y-1/2 opacity-40 hover:opacity-80 transition-opacity text-[#c0c0d0]"
+		>
+			{visible ? <EyeOff size={14} /> : <Eye size={14} />}
+		</button>
+	);
+}
+
+// RHF-bound secret field with a show/hide toggle. Wraps RHFInput in type
+// password/text and renders the toggle as a suffix.
+function RHFSecretInput({ name, placeholder }: { name: string; placeholder: string }) {
 	const [visible, setVisible] = useState(false);
 	return (
-		<div className="relative">
-			<input
-				type={visible ? "text" : "password"}
-				value={value}
-				placeholder={placeholder}
-				onChange={(e) => onChange(e.target.value)}
-				className="w-full font-mono text-[12px] focus:outline-none focus:border-[#7c6aff] pl-3 pr-9 py-[9px] bg-[#0c0c0f] border border-[#2a2a35] rounded-md text-[#c0c0d0]"
-			/>
-			<button
-				type="button"
-				onClick={() => setVisible((v) => !v)}
-				className="absolute right-2 top-1/2 -translate-y-1/2 opacity-40 hover:opacity-80 transition-opacity text-[#c0c0d0]"
-			>
-				{visible ? <EyeOff size={14} /> : <Eye size={14} />}
-			</button>
-		</div>
+		<RHFInput
+			name={name}
+			type={visible ? "text" : "password"}
+			placeholder={placeholder}
+			className="relative"
+			inputClassName={SECRET_INPUT_CLASS}
+			suffix={<SecretToggle visible={visible} onToggle={() => setVisible((v) => !v)} />}
+		/>
 	);
 }
 
@@ -93,76 +98,86 @@ function Mono({ children }: { children: React.ReactNode }) {
 
 function AdvancedCredentials({
 	config,
-	setConfig,
-	handleSaveToken,
+	onSaveToken,
+	savingToken,
 }: {
 	config: RuntimeGlobalConfig;
-	setConfig: (c: RuntimeGlobalConfig) => void;
-	handleSaveToken: () => void;
+	onSaveToken: (botToken: string) => void;
+	savingToken: boolean;
 }) {
-	const [signingSecret, setSigningSecret] = useState("");
-	const [saving, setSaving] = useState(false);
+	const [botToken, setBotToken] = useState(config.slackBotToken ?? "");
+	const [tokenVisible, setTokenVisible] = useState(false);
 
-	const handleSaveSigningSecret = async () => {
-		if (!signingSecret.trim()) return;
-		setSaving(true);
-		try {
-			await trpc.slack.updateSigningSecret.mutate({ signingSecret: signingSecret.trim() });
-			setSigningSecret("");
-			toast.success("Signing secret updated");
-		} catch {
+	const methods = useForm({
+		resolver: zodResolver(signingSecretSchema),
+		values: { signingSecret: "" },
+	});
+
+	const updateSigningSecret = useWrite((api) => api("slack/updateSigningSecret").POST());
+
+	const onSubmitSigningSecret = methods.handleSubmit(async (values) => {
+		const res = await updateSigningSecret.trigger({ body: { signingSecret: values.signingSecret.trim() } });
+		if (res.error) {
 			toast.error("Failed to update signing secret");
-		} finally {
-			setSaving(false);
+			return;
 		}
-	};
+		methods.reset({ signingSecret: "" });
+		toast.success("Signing secret updated");
+	});
 
 	return (
 		<div className="flex flex-col gap-4 pl-4 border-l border-[#2a2a35]">
 			<div className="flex flex-col gap-2">
 				<p className="text-[12px] text-[#60607a]">Replace the bot token manually if needed.</p>
 				<div className="flex gap-3 items-center">
-					<div className="flex-1">
-						<SecretInput
-							value={config.slackBotToken ?? ""}
+					<div className="flex-1 relative">
+						<input
+							type={tokenVisible ? "text" : "password"}
+							value={botToken}
 							placeholder="xoxb-..."
-							onChange={(v) => setConfig({ ...config, slackBotToken: v || undefined })}
+							onChange={(e) => setBotToken(e.target.value)}
+							className={SECRET_INPUT_CLASS}
 						/>
+						<SecretToggle visible={tokenVisible} onToggle={() => setTokenVisible((v) => !v)} />
 					</div>
 					<button
-						onClick={handleSaveToken}
-						className="px-4 py-2 rounded-lg text-[13px] font-medium shrink-0 bg-[#7c6aff] text-white"
+						onClick={() => onSaveToken(botToken)}
+						disabled={savingToken}
+						className="px-4 py-2 rounded-lg text-[13px] font-medium shrink-0 disabled:opacity-40 bg-[#7c6aff] text-white"
 					>
 						Save
 					</button>
 				</div>
 			</div>
-			<div className="flex flex-col gap-2">
-				<p className="text-[12px] text-[#60607a]">
-					Update signing secret if webhooks return signature mismatch. Find it at{" "}
-					<a
-						href={`https://api.slack.com/apps/${config.slackAppId ?? ""}/general`}
-						target="_blank"
-						rel="noreferrer"
-						className="underline text-[#7c6aff]"
-					>
-						api.slack.com/apps → App Credentials → Signing Secret
-					</a>
-					.
-				</p>
-				<div className="flex gap-3 items-center">
-					<div className="flex-1">
-						<SecretInput value={signingSecret} placeholder="Paste new signing secret..." onChange={setSigningSecret} />
+			<FormProvider {...methods}>
+				<form onSubmit={onSubmitSigningSecret} className="flex flex-col gap-2">
+					<p className="text-[12px] text-[#60607a]">
+						Update signing secret if webhooks return signature mismatch. Find it at{" "}
+						<a
+							href={`https://api.slack.com/apps/${config.slackAppId ?? ""}/general`}
+							target="_blank"
+							rel="noreferrer"
+							className="underline text-[#7c6aff]"
+						>
+							api.slack.com/apps → App Credentials → Signing Secret
+						</a>
+						.
+					</p>
+					<div className="flex gap-3 items-start">
+						<div className="flex-1">
+							<RHFSecretInput name="signingSecret" placeholder="Paste new signing secret..." />
+							<RHFError name="signingSecret" className="text-[11px] text-[#ef4444] mt-1" />
+						</div>
+						<button
+							type="submit"
+							disabled={updateSigningSecret.loading}
+							className="px-4 py-2 rounded-lg text-[13px] font-medium shrink-0 disabled:opacity-40 bg-[#7c6aff] text-white"
+						>
+							{updateSigningSecret.loading ? "Saving…" : "Save"}
+						</button>
 					</div>
-					<button
-						onClick={handleSaveSigningSecret}
-						disabled={!signingSecret.trim() || saving}
-						className="px-4 py-2 rounded-lg text-[13px] font-medium shrink-0 disabled:opacity-40 bg-[#7c6aff] text-white"
-					>
-						{saving ? "Saving…" : "Save"}
-					</button>
-				</div>
-			</div>
+				</form>
+			</FormProvider>
 		</div>
 	);
 }
@@ -170,82 +185,81 @@ function AdvancedCredentials({
 export function SlackSettings() {
 	const navigate = useNavigate();
 	const { workspaceId } = useParams<{ workspaceId: string }>();
-	const [config, setConfig] = useState<RuntimeGlobalConfig | null>(null);
-	const [appConfigToken, setAppConfigToken] = useState("");
-	const [publicUrl, setPublicUrl] = useState("");
-	const [botName, setBotName] = useState("Whipped");
 
-	const [creating, setCreating] = useState(false);
-	const [resetting, setResetting] = useState(false);
 	const [showAdvanced, setShowAdvanced] = useState(false);
 	const [showSetup, setShowSetup] = useState(false);
 	const [createError, setCreateError] = useState<string | null>(null);
 	const [waitingForInstall, setWaitingForInstall] = useState(false);
 
-	useEffect(() => {
-		Promise.all([trpc.config.get.query(), trpc.slack.tunnelConfig.query()])
-			.then(([c, tunnel]) => {
-				setConfig(c);
-				if (c.slackAppConfigToken) setAppConfigToken(c.slackAppConfigToken);
-				if (c.slackBotName) setBotName(c.slackBotName);
-				const url = tunnel.domain ? `https://${tunnel.domain}` : (c.slackPublicUrl ?? "");
-				setPublicUrl(url);
-			})
-			.catch(() => {});
-	}, []);
+	const { data: config, trigger: refetchConfig } = useRead((api) => api("config").GET());
+	const { data: tunnel } = useRead((api) => api("slack/tunnelConfig").GET());
 
-	const handleCreateApp = async () => {
-		if (!appConfigToken.trim() || !publicUrl.trim()) return;
-		setCreating(true);
-		setCreateError(null);
-		try {
-			await trpc.slack.createApp.mutate({
-				appConfigToken: appConfigToken.trim(),
-				publicUrl: publicUrl.trim(),
-				botName: botName.trim() || "Whipped",
-			});
-			const updated = await trpc.config.get.query();
-			setConfig(updated);
-			toast.success("Slack app created — now install it to your workspace");
-		} catch (err) {
-			const msg = err instanceof Error ? err.message : "Failed to create app";
-			setCreateError(msg);
-			toast.error(msg);
-		} finally {
-			setCreating(false);
-		}
-	};
+	const saveConfig = useWrite((api) => api("config").PUT());
+	const createApp = useWrite((api) => api("slack/createApp").POST());
+	const resetApp = useWrite((api) => api("slack/resetApp").POST());
 
-	const handleReset = async () => {
-		setResetting(true);
-		try {
-			await trpc.slack.resetApp.mutate();
-			const [updated, tunnel] = await Promise.all([trpc.config.get.query(), trpc.slack.tunnelConfig.query()]);
-			setConfig(updated);
-			setAppConfigToken("");
-			setBotName("");
-			setPublicUrl(tunnel.domain ? `https://${tunnel.domain}` : "");
-			setShowSetup(true);
-			toast.success("Slack configuration cleared");
-		} catch {
-			toast.error("Failed to reset");
-		} finally {
-			setResetting(false);
-		}
-	};
+	// Initial form values come straight from the loaded config + tunnel domain
+	// (RHF `values` keeps them in sync — no useEffect needed).
+	const publicUrl = tunnel?.domain ? `https://${tunnel.domain}` : (config?.slackPublicUrl ?? "");
+	const methods = useForm({
+		resolver: zodResolver(createAppSchema),
+		values: {
+			appConfigToken: config?.slackAppConfigToken ?? "",
+			publicUrl,
+			botName: config?.slackBotName ?? "Whipped",
+		} satisfies CreateAppInput,
+	});
 
+	// While waiting for the OAuth install to complete, poll config every 2s so the
+	// captured bot token shows up automatically (preserves the original interval).
 	useEffect(() => {
 		if (!waitingForInstall) return;
-		const id = setInterval(async () => {
-			const updated = await trpc.config.get.query().catch(() => null);
-			if (updated?.slackBotToken) {
-				setConfig(updated);
-				setWaitingForInstall(false);
-				toast.success("Workspace installation complete");
-			}
+		const id = setInterval(() => {
+			void refetchConfig();
 		}, 2000);
 		return () => clearInterval(id);
+		// refetchConfig (a Spoosh trigger) is intentionally not a dep — its identity
+		// changes each render; the captured trigger polls the same endpoint fine.
 	}, [waitingForInstall]);
+
+	// Once the polled config carries a bot token, stop waiting and notify.
+	useEffect(() => {
+		if (waitingForInstall && config?.slackBotToken) {
+			setWaitingForInstall(false);
+			toast.success("Workspace installation complete");
+		}
+	}, [waitingForInstall, config?.slackBotToken]);
+
+	const handleCreateApp = methods.handleSubmit(async (values) => {
+		setCreateError(null);
+		const res = await createApp.trigger({
+			body: {
+				appConfigToken: values.appConfigToken.trim(),
+				publicUrl: values.publicUrl.trim(),
+				botName: values.botName.trim() || "Whipped",
+			},
+		});
+		if (res.error) {
+			const msg = res.error.message ?? "Failed to create app";
+			setCreateError(msg);
+			toast.error(msg);
+			return;
+		}
+		await refetchConfig();
+		toast.success("Slack app created — now install it to your workspace");
+	});
+
+	const handleReset = async () => {
+		const res = await resetApp.trigger({});
+		if (res.error) {
+			toast.error("Failed to reset");
+			return;
+		}
+		await refetchConfig();
+		methods.reset({ appConfigToken: "", botName: "", publicUrl: tunnel?.domain ? `https://${tunnel.domain}` : "" });
+		setShowSetup(true);
+		toast.success("Slack configuration cleared");
+	};
 
 	const handleInstall = () => {
 		if (!config?.slackOauthAuthorizeUrl) return;
@@ -253,26 +267,25 @@ export function SlackSettings() {
 		setWaitingForInstall(true);
 	};
 
-	const handleSaveToken = async () => {
+	const handleSaveToken = async (botToken: string) => {
 		if (!config) return;
-		try {
-			const updated = await trpc.config.save.mutate({ ...config, slackBotToken: config.slackBotToken });
-			setConfig(updated);
-			toast.success("Saved");
-		} catch {
+		const res = await saveConfig.trigger({ body: { ...config, slackBotToken: botToken || undefined } });
+		if (res.error) {
 			toast.error("Failed to save");
+			return;
 		}
+		await refetchConfig();
+		toast.success("Saved");
 	};
 
 	const handleToggleEnabled = async () => {
 		if (!config) return;
-		const next = { ...config, slackEnabled: !config.slackEnabled };
-		try {
-			const updated = await trpc.config.save.mutate(next);
-			setConfig(updated);
-		} catch {
+		const res = await saveConfig.trigger({ body: { ...config, slackEnabled: !config.slackEnabled } });
+		if (res.error) {
 			toast.error("Failed to save");
+			return;
 		}
+		await refetchConfig();
 	};
 
 	if (!config) {
@@ -290,6 +303,7 @@ export function SlackSettings() {
 	const botTokenSaved = !!config.slackBotToken;
 	const fullyConfigured = appCreated && botTokenSaved;
 
+	const appConfigToken = methods.watch("appConfigToken");
 	const step1Done = !!(appConfigToken.trim() && publicUrl);
 	const step2Done = appCreated;
 	const step3Done = botTokenSaved;
@@ -347,168 +361,183 @@ export function SlackSettings() {
 					</div>
 
 					{/* Setup wizard */}
-					<div className="flex flex-col gap-0">
-						<div className="flex items-center gap-3">
-							<span className="text-[15px] font-semibold text-[#f0f0f5]">Setup</span>
-							<div className="flex-1 h-px bg-[#1a1a1f]" />
-							{fullyConfigured && (
-								<button
-									onClick={() => setShowSetup((v) => !v)}
-									className="text-[11px] transition-opacity hover:opacity-80 shrink-0 text-[#4a4a5a]"
-								>
-									{showSetup ? "Collapse" : "Reconfigure"}
-								</button>
-							)}
-						</div>
-						{fullyConfigured && !showSetup ? null : (
-							<div className="mt-5">
-								{fullyConfigured && showSetup && (
-									<div className="flex items-center gap-3 mb-5 pb-5 border-b border-[#1a1a1f]">
-										<button
-											onClick={handleInstall}
-											className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 bg-[#1a1a2e] border border-[#3a3aff60] text-[#7c6aff]"
-										>
-											<ExternalLink size={13} />
-											Reinstall to Workspace
-										</button>
-										<button
-											onClick={handleReset}
-											disabled={resetting}
-											className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-50 bg-[#2a1a1a] border border-[#4a1a1a] text-[#f87171]"
-										>
-											{resetting ? <Loader2 size={13} className="animate-spin" /> : null}
-											Reset & Start Over
-										</button>
-									</div>
+					<FormProvider {...methods}>
+						<form onSubmit={handleCreateApp} className="flex flex-col gap-0">
+							<div className="flex items-center gap-3">
+								<span className="text-[15px] font-semibold text-[#f0f0f5]">Setup</span>
+								<div className="flex-1 h-px bg-[#1a1a1f]" />
+								{fullyConfigured && (
+									<button
+										type="button"
+										onClick={() => setShowSetup((v) => !v)}
+										className="text-[11px] transition-opacity hover:opacity-80 shrink-0 text-[#4a4a5a]"
+									>
+										{showSetup ? "Collapse" : "Reconfigure"}
+									</button>
 								)}
+							</div>
+							{fullyConfigured && !showSetup ? null : (
+								<div className="mt-5">
+									{fullyConfigured && showSetup && (
+										<div className="flex items-center gap-3 mb-5 pb-5 border-b border-[#1a1a1f]">
+											<button
+												type="button"
+												onClick={handleInstall}
+												className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 bg-[#1a1a2e] border border-[#3a3aff60] text-[#7c6aff]"
+											>
+												<ExternalLink size={13} />
+												Reinstall to Workspace
+											</button>
+											<button
+												type="button"
+												onClick={handleReset}
+												disabled={resetApp.loading}
+												className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-50 bg-[#2a1a1a] border border-[#4a1a1a] text-[#f87171]"
+											>
+												{resetApp.loading ? <Loader2 size={13} className="animate-spin" /> : null}
+												Reset & Start Over
+											</button>
+										</div>
+									)}
 
-								{/* Step 1: Config token + public URL */}
-								<StepRow n={1} title="Get an App Configuration Token" done={step1Done} active={!step1Done}>
-									<p className="text-[12px] text-[#60607a]">
-										Go to{" "}
-										<a
-											href="https://api.slack.com/apps"
-											target="_blank"
-											rel="noreferrer"
-											className="inline-flex items-center gap-0.5 hover:opacity-80 text-[#7c6aff]"
-										>
-											api.slack.com/apps <ExternalLink size={10} />
-										</a>{" "}
-										— scroll to the bottom of the page to find the{" "}
-										<strong className="text-[#c0c0d0]">Your App Configuration Tokens</strong> section → click{" "}
-										<strong className="text-[#c0c0d0]">Generate Token</strong> → select your workspace → copy the token.
-									</p>
-									<p className="text-[11px] text-[#4a4a5a]">
-										Note: this token expires after 12 hours, but you only need it once to create the app.
-									</p>
-									<div className="flex flex-col gap-2">
-										<label className="text-[11px] font-medium text-[#8888a0]">Bot name</label>
-										<input
-											value={botName}
-											onChange={(e) => setBotName(e.target.value)}
-											placeholder="Whipped"
-											className="font-mono text-[12px] focus:outline-none focus:border-[#7c6aff] px-3 py-[9px] bg-[#0c0c0f] border border-[#2a2a35] rounded-md text-[#c0c0d0]"
-										/>
-										<p className="text-[11px] text-[#4a4a5a]">
-											Shown in Slack as the bot's display name — use something like "OE Office" or "OE Home" to identify
-											the device.
+									{/* Step 1: Config token + public URL */}
+									<StepRow n={1} title="Get an App Configuration Token" done={step1Done} active={!step1Done}>
+										<p className="text-[12px] text-[#60607a]">
+											Go to{" "}
+											<a
+												href="https://api.slack.com/apps"
+												target="_blank"
+												rel="noreferrer"
+												className="inline-flex items-center gap-0.5 hover:opacity-80 text-[#7c6aff]"
+											>
+												api.slack.com/apps <ExternalLink size={10} />
+											</a>{" "}
+											— scroll to the bottom of the page to find the{" "}
+											<strong className="text-[#c0c0d0]">Your App Configuration Tokens</strong> section → click{" "}
+											<strong className="text-[#c0c0d0]">Generate Token</strong> → select your workspace → copy the
+											token.
 										</p>
-									</div>
-									<div className="flex flex-col gap-2">
-										<label className="text-[11px] font-medium text-[#8888a0]">App Configuration Token</label>
-										<SecretInput value={appConfigToken} placeholder="xoxe-..." onChange={setAppConfigToken} />
-									</div>
-									<div className="flex flex-col gap-2">
-										<label className="text-[11px] font-medium text-[#8888a0]">
-											Public URL (Cloudflare Tunnel domain)
-										</label>
-										{publicUrl ? (
-											<div className="flex items-center gap-2 px-3 py-2 rounded font-mono text-[12px] bg-[#0c0c0f] border border-[#2a2a35] text-[#4ade80]">
-												<Check size={12} />
-												{publicUrl}
+										<p className="text-[11px] text-[#4a4a5a]">
+											Note: this token expires after 12 hours, but you only need it once to create the app.
+										</p>
+										<RHFInputGroup
+											label="Bot name"
+											labelClassName="text-[11px] font-medium text-[#8888a0]"
+											className="flex flex-col gap-2"
+										>
+											<RHFInput
+												name="botName"
+												placeholder="Whipped"
+												inputClassName="font-mono text-[12px] focus:outline-none focus:border-[#7c6aff] px-3 py-[9px] bg-[#0c0c0f] border border-[#2a2a35] rounded-md text-[#c0c0d0]"
+											/>
+											<p className="text-[11px] text-[#4a4a5a]">
+												Shown in Slack as the bot's display name — use something like "OE Office" or "OE Home" to
+												identify the device.
+											</p>
+										</RHFInputGroup>
+										<div className="flex flex-col gap-2">
+											<label className="text-[11px] font-medium text-[#8888a0]">App Configuration Token</label>
+											<RHFSecretInput name="appConfigToken" placeholder="xoxe-..." />
+											<RHFError name="appConfigToken" className="text-[11px] text-[#ef4444]" />
+										</div>
+										<div className="flex flex-col gap-2">
+											<label className="text-[11px] font-medium text-[#8888a0]">
+												Public URL (Cloudflare Tunnel domain)
+											</label>
+											{publicUrl ? (
+												<div className="flex items-center gap-2 px-3 py-2 rounded font-mono text-[12px] bg-[#0c0c0f] border border-[#2a2a35] text-[#4ade80]">
+													<Check size={12} />
+													{publicUrl}
+												</div>
+											) : (
+												<div className="flex items-center gap-2 px-3 py-2 rounded text-[12px] bg-[#0c0c0f] border border-[#4a2a1a] text-[#f87171]">
+													No tunnel domain configured —{" "}
+													<button
+														type="button"
+														onClick={() => navigate(`/${workspaceId}/settings/tunnel`)}
+														className="underline hover:opacity-80 transition-opacity text-[#facc15]"
+													>
+														set up Tunnel first
+													</button>
+												</div>
+											)}
+										</div>
+									</StepRow>
+
+									{/* Step 2: Create app */}
+									<StepRow n={2} title="Create the Slack app" done={step2Done} active={step1Done && !step2Done}>
+										{appCreated ? (
+											<div className="flex items-center gap-2 text-[12px] text-[#4ade80]">
+												<Check size={13} />
+												App created — <Mono>{config.slackBotName ?? "Whipped"}</Mono> ({config.slackAppId})
 											</div>
 										) : (
-											<div className="flex items-center gap-2 px-3 py-2 rounded text-[12px] bg-[#0c0c0f] border border-[#4a2a1a] text-[#f87171]">
-												No tunnel domain configured —{" "}
+											<>
+												<p className="text-[12px] text-[#60607a]">
+													We'll call the Slack API to create and configure the app automatically using your token and
+													public URL.
+												</p>
+												{createError && (
+													<div className="flex items-center gap-2 text-[12px] text-[#ef4444]">
+														<AlertCircle size={13} />
+														{createError}
+													</div>
+												)}
 												<button
-													onClick={() => navigate(`/${workspaceId}/settings/tunnel`)}
-													className="underline hover:opacity-80 transition-opacity text-[#facc15]"
+													type="submit"
+													disabled={!step1Done || createApp.loading}
+													className="self-start flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity disabled:opacity-40 hover:opacity-80 bg-[#7c6aff] text-white"
 												>
-													set up Tunnel first
+													{createApp.loading ? (
+														<Loader2 size={14} className="animate-spin" />
+													) : (
+														<ChevronRight size={14} />
+													)}
+													{createApp.loading ? "Creating…" : "Create Slack App"}
 												</button>
-											</div>
+											</>
 										)}
-									</div>
-								</StepRow>
+									</StepRow>
 
-								{/* Step 2: Create app */}
-								<StepRow n={2} title="Create the Slack app" done={step2Done} active={step1Done && !step2Done}>
-									{appCreated ? (
-										<div className="flex items-center gap-2 text-[12px] text-[#4ade80]">
-											<Check size={13} />
-											App created — <Mono>{config.slackBotName ?? "Whipped"}</Mono> ({config.slackAppId})
-										</div>
-									) : (
-										<>
-											<p className="text-[12px] text-[#60607a]">
-												We'll call the Slack API to create and configure the app automatically using your token and
-												public URL.
-											</p>
-											{createError && (
-												<div className="flex items-center gap-2 text-[12px] text-[#ef4444]">
-													<AlertCircle size={13} />
-													{createError}
-												</div>
-											)}
-											<button
-												onClick={handleCreateApp}
-												disabled={!step1Done || creating}
-												className="self-start flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity disabled:opacity-40 hover:opacity-80 bg-[#7c6aff] text-white"
-											>
-												{creating ? <Loader2 size={14} className="animate-spin" /> : <ChevronRight size={14} />}
-												{creating ? "Creating…" : "Create Slack App"}
-											</button>
-										</>
-									)}
-								</StepRow>
-
-								{/* Step 3: Install to workspace */}
-								<StepRow n={3} title="Install to your workspace" done={step3Done} active={step2Done && !step3Done}>
-									{botTokenSaved ? (
-										<div className="flex items-center gap-2 text-[12px] text-[#4ade80]">
-											<Check size={13} />
-											Bot token saved — workspace installation complete
-										</div>
-									) : (
-										<>
-											<p className="text-[12px] text-[#60607a]">
-												Click the button to open Slack's install page. After you click Allow, the bot token is captured
-												automatically and saved here.
-											</p>
-											<p className="text-[12px] text-[#60607a]">
-												Make sure your Cloudflare Tunnel is running (Settings → Tunnel) before clicking — Slack needs to
-												reach the callback URL.
-											</p>
-											<button
-												onClick={handleInstall}
-												disabled={!step2Done}
-												className="self-start flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity disabled:opacity-40 hover:opacity-80 bg-[#1a1a2e] border border-[#3a3aff60] text-[#7c6aff]"
-											>
-												<ExternalLink size={14} />
-												Install to Workspace
-											</button>
-											{waitingForInstall && (
-												<div className="flex items-center gap-2 text-[12px] text-[#facc15]">
-													<Loader2 size={12} className="animate-spin" />
-													Waiting for Slack to redirect back…
-												</div>
-											)}
-										</>
-									)}
-								</StepRow>
-							</div>
-						)}
-					</div>
+									{/* Step 3: Install to workspace */}
+									<StepRow n={3} title="Install to your workspace" done={step3Done} active={step2Done && !step3Done}>
+										{botTokenSaved ? (
+											<div className="flex items-center gap-2 text-[12px] text-[#4ade80]">
+												<Check size={13} />
+												Bot token saved — workspace installation complete
+											</div>
+										) : (
+											<>
+												<p className="text-[12px] text-[#60607a]">
+													Click the button to open Slack's install page. After you click Allow, the bot token is
+													captured automatically and saved here.
+												</p>
+												<p className="text-[12px] text-[#60607a]">
+													Make sure your Cloudflare Tunnel is running (Settings → Tunnel) before clicking — Slack needs
+													to reach the callback URL.
+												</p>
+												<button
+													type="button"
+													onClick={handleInstall}
+													disabled={!step2Done}
+													className="self-start flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity disabled:opacity-40 hover:opacity-80 bg-[#1a1a2e] border border-[#3a3aff60] text-[#7c6aff]"
+												>
+													<ExternalLink size={14} />
+													Install to Workspace
+												</button>
+												{waitingForInstall && (
+													<div className="flex items-center gap-2 text-[12px] text-[#facc15]">
+														<Loader2 size={12} className="animate-spin" />
+														Waiting for Slack to redirect back…
+													</div>
+												)}
+											</>
+										)}
+									</StepRow>
+								</div>
+							)}
+						</form>
+					</FormProvider>
 
 					{/* Manual token override */}
 					{fullyConfigured && (
@@ -524,7 +553,7 @@ export function SlackSettings() {
 								Advanced
 							</button>
 							{showAdvanced && (
-								<AdvancedCredentials config={config} setConfig={setConfig} handleSaveToken={handleSaveToken} />
+								<AdvancedCredentials config={config} onSaveToken={handleSaveToken} savingToken={saveConfig.loading} />
 							)}
 						</div>
 					)}

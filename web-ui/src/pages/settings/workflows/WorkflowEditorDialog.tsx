@@ -1,14 +1,14 @@
-import { Menu, MenuItem, MenuTrigger, toast } from "@geckoui/geckoui";
+import { Menu, MenuItem, MenuTrigger, RHFSwitch, toast } from "@geckoui/geckoui";
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
 	AGENT_BINARY_OPTIONS,
 	EFFORT_OPTIONS,
-	type EffortLevel,
 	EMPTY_INLINE_PROMPT,
 	type PromptValue,
 	type RuntimeAgentId,
 	type Workflow,
-	type WorkflowSlot,
 } from "@runtime-contract";
+import { type WorkflowForm, type WorkflowSlotForm, workflowFormSchema } from "@runtime-validation/workflow";
 import {
 	ArrowRight,
 	Check,
@@ -25,8 +25,9 @@ import {
 	X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { Controller, FormProvider, useFieldArray, useForm } from "react-hook-form";
 import { FilePickerDialog } from "@/components/FilePickerDialog";
-import { trpc } from "@/runtime/trpc-client";
+import { useRead, useWrite } from "@/runtime/api-client";
 import { classNames } from "@/utils/classNames";
 import { ModelSelect } from "./ModelSelect";
 import { defaultPromptPath, showPromptLinkDialog } from "./PromptLinkDialog";
@@ -90,11 +91,25 @@ export function WorkflowEditorDialog({
 	onSave: (wf: Workflow) => void;
 	onClose: () => void;
 }) {
-	const [localWorkflow, setLocalWorkflow] = useState<Workflow>(workflow);
-	const sortedSlots = [...localWorkflow.slots].sort((a, b) => a.order - b.order);
+	// Initial values come straight from the incoming workflow. `values` keeps the
+	// form in sync without a useEffect; we never reset on every render because the
+	// dialog mounts per-workflow (key'd by openWorkflowId in the parent).
+	const methods = useForm<WorkflowForm, unknown, WorkflowForm>({
+		resolver: zodResolver(workflowFormSchema),
+		values: workflow as WorkflowForm,
+	});
+	const { control, watch, setValue, getValues, handleSubmit } = methods;
+	const { append, replace } = useFieldArray({ control, name: "slots", keyName: "_key" });
+
+	const watchedSlots = watch("slots");
+	const isDefault = watch("isDefault");
+	const forStory = watch("forStory");
+
+	const sortedSlots = [...watchedSlots].sort((a, b) => a.order - b.order);
 	const [selectedSlotId, setSelectedSlotId] = useState<string>(sortedSlots[0]?.id ?? "");
 
-	const selectedSlot = localWorkflow.slots.find((s) => s.id === selectedSlotId);
+	const selectedIndex = watchedSlots.findIndex((s) => s.id === selectedSlotId);
+	const selectedSlot = selectedIndex >= 0 ? watchedSlots[selectedIndex] : undefined;
 
 	// File-linked prompt state. The slot only stores {source: "file", path};
 	// the file content lives here in the editor and auto-saves back on edit.
@@ -104,6 +119,14 @@ export function WorkflowEditorDialog({
 	const [browsingPath, setBrowsingPath] = useState(false);
 	const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const pendingSaveRef = useRef<{ path: string; content: string } | null>(null);
+
+	const { trigger: writePromptFile } = useWrite((api) => api("workflows/prompt-file").POST());
+	// Lazy read: the builder needs a query shape, but the actual path is supplied
+	// per-fetch via trigger({ query }).
+	const { trigger: readPromptFile } = useRead(
+		(api) => api("workflows/prompt-file").GET({ query: { workspaceId, path: "" } }),
+		{ enabled: false },
+	);
 
 	const slotKey = `${selectedSlotId}::${selectedSlot?.prompt?.source ?? ""}::${
 		selectedSlot?.prompt?.source === "file" ? selectedSlot.prompt.path : ""
@@ -118,13 +141,14 @@ export function WorkflowEditorDialog({
 		pendingSaveRef.current = null;
 		if (!pending) return;
 		setSaveStatus("saving");
-		void trpc.workflows.writePromptFile
-			.mutate({ workspaceId, path: pending.path, content: pending.content })
-			.then(() => setSaveStatus("saved"))
-			.catch((err: unknown) => {
+		void writePromptFile({ body: { workspaceId, path: pending.path, content: pending.content } }).then((res) => {
+			if (res.error) {
 				setSaveStatus("error");
-				toast.error(`Save failed: ${(err as Error).message}`);
-			});
+				toast.error(`Save failed: ${res.error.message}`);
+			} else {
+				setSaveStatus("saved");
+			}
+		});
 	};
 
 	const scheduleSave = (path: string, content: string) => {
@@ -150,17 +174,16 @@ export function WorkflowEditorDialog({
 			return;
 		}
 		setSaveStatus("loading");
-		void trpc.workflows.readPromptFile
-			.query({ workspaceId, path: selectedSlot.prompt.path })
-			.then((res) => {
-				setLinkedContent(res.content);
-				setSaveStatus("saved");
-			})
-			.catch((err: unknown) => {
+		void readPromptFile({ query: { workspaceId, path: selectedSlot.prompt.path } }).then((res) => {
+			if (res.error) {
 				setLinkedContent("");
 				setSaveStatus("error");
-				toast.error(`Couldn't read file: ${(err as Error).message}`);
-			});
+				toast.error(`Couldn't read file: ${res.error.message}`);
+			} else {
+				setLinkedContent(res.data.content);
+				setSaveStatus("saved");
+			}
+		});
 		// slotKey covers id + source + path
 	}, [slotKey, workspaceId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -177,11 +200,15 @@ export function WorkflowEditorDialog({
 		setSelectedSlotId(newSlotId);
 	};
 
-	const updateSlot = (patch: Partial<WorkflowSlot>) => {
-		setLocalWorkflow((prev) => ({
-			...prev,
-			slots: prev.slots.map((s) => (s.id === selectedSlotId ? { ...s, ...patch } : s)),
-		}));
+	// Patch fields of the currently-selected slot in the RHF field array.
+	const updateSlot = (patch: Partial<WorkflowSlotForm>) => {
+		const idx = getValues("slots").findIndex((s) => s.id === selectedSlotId);
+		if (idx < 0) return;
+		for (const [k, v] of Object.entries(patch)) {
+			setValue(`slots.${idx}.${k}` as `slots.${number}.${keyof WorkflowSlotForm}`, v as never, {
+				shouldDirty: true,
+			});
+		}
 	};
 
 	// Persist a slot's prompt change (link / unlink / path swap) to the backend
@@ -189,12 +216,8 @@ export function WorkflowEditorDialog({
 	// already written by the link flow / auto-save; this keeps the workflow's
 	// prompt linkage in sync so closing without Save can't orphan it.
 	const updateSlotPrompt = (prompt: PromptValue) => {
-		const next: Workflow = {
-			...localWorkflow,
-			slots: localWorkflow.slots.map((s) => (s.id === selectedSlotId ? { ...s, prompt } : s)),
-		};
-		setLocalWorkflow(next);
-		onUpdate(next);
+		updateSlot({ prompt });
+		onUpdate(getValues() as Workflow);
 	};
 
 	const handleEditorChange = (text: string) => {
@@ -218,7 +241,7 @@ export function WorkflowEditorDialog({
 		if (!selectedSlot) return;
 		showPromptLinkDialog({
 			workspaceId,
-			defaultPath: defaultPromptPath(repoPath, localWorkflow.name, selectedSlot.name),
+			defaultPath: defaultPromptPath(repoPath, getValues("name"), selectedSlot.name),
 			currentInline: promptInlineText(selectedSlot.prompt),
 			onLinked: applyLinked,
 		});
@@ -241,26 +264,27 @@ export function WorkflowEditorDialog({
 	const editorText = selectedSlot?.prompt.source === "file" ? linkedContent : promptInlineText(selectedSlot?.prompt);
 	const editorReady = selectedSlot?.prompt.source !== "file" || saveStatus !== "loading";
 
-	const handleSave = () => {
+	const onSubmit = (data: WorkflowForm) => {
 		flushSave();
-		onSave(localWorkflow);
+		onSave(data as Workflow);
 		onClose();
 	};
+	const handleSave = handleSubmit(onSubmit);
 
 	const handleDeleteSlot = () => {
-		const remaining = localWorkflow.slots.filter((s) => s.id !== selectedSlotId);
+		const remaining = getValues("slots").filter((s) => s.id !== selectedSlotId);
 		const devs = remaining.filter((s) => s.type === "dev");
 		const others = remaining.filter((s) => s.type !== "dev").map((s, i) => ({ ...s, order: i + 1 }));
 		const updated = [...devs, ...others];
-		setLocalWorkflow((prev) => ({ ...prev, slots: updated }));
+		replace(updated);
 		setSelectedSlotId(updated[0]?.id ?? "");
 	};
 
-	const hasCR = localWorkflow.slots.some((s) => s.type === "code_review");
-	const hasQA = localWorkflow.slots.some((s) => s.type === "qa");
+	const hasCR = watchedSlots.some((s) => s.type === "code_review");
+	const hasQA = watchedSlots.some((s) => s.type === "qa");
 
 	const addSlot = (type: "code_review" | "qa" | "custom" | "orch") => {
-		const maxOrder = localWorkflow.slots.reduce((m, s) => Math.max(m, s.order), 0);
+		const maxOrder = getValues("slots").reduce((m, s) => Math.max(m, s.order), 0);
 		const defaults: Record<string, { id: string; name: string; enabled: boolean }> = {
 			code_review: { id: "code_review", name: "Code Review", enabled: true },
 			qa: { id: "qa", name: "QA", enabled: false },
@@ -268,7 +292,7 @@ export function WorkflowEditorDialog({
 			orch: { id: `slot_orch_${Date.now()}`, name: "Orch Agent", enabled: true },
 		};
 		const d = defaults[type]!;
-		const newSlot: WorkflowSlot = {
+		const newSlot: WorkflowSlotForm = {
 			id: d.id,
 			name: d.name,
 			type,
@@ -276,14 +300,17 @@ export function WorkflowEditorDialog({
 			order: maxOrder + 1,
 			enabled: d.enabled,
 			prompt: EMPTY_INLINE_PROMPT,
+			effort: null,
+			model: null,
 		};
-		const updated = [...localWorkflow.slots, newSlot];
-		setLocalWorkflow((prev) => ({ ...prev, slots: updated }));
+		append(newSlot);
 		setSelectedSlotId(newSlot.id);
 	};
 
+	const nameEditable = selectedSlot?.type === "custom" || selectedSlot?.type === "orch";
+
 	return (
-		<>
+		<FormProvider {...methods}>
 			<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={onClose}>
 				<div
 					className="flex overflow-hidden bg-[#141418] rounded-xl border border-[#2a2a35] w-[87.5vw] max-w-[1400px] h-[89.5vh] max-h-[850px] shadow-[0_8px_40px_4px_rgba(0,0,0,0.38)]"
@@ -294,22 +321,26 @@ export function WorkflowEditorDialog({
 						{/* Dialog header */}
 						<div className="flex items-center gap-3 shrink-0 px-6 py-4 border-b border-[#2a2a35]">
 							<WorkflowIcon size={18} className="text-[#7c6aff] shrink-0" />
-							<input
-								value={localWorkflow.name}
-								onChange={(e) => setLocalWorkflow((prev) => ({ ...prev, name: e.target.value }))}
-								className="bg-transparent outline-none text-[17px] font-semibold min-w-0 flex-1 text-[#f0f0f5]"
-								placeholder="Workflow name"
+							<Controller
+								control={control}
+								name="name"
+								render={({ field }) => (
+									<input
+										value={field.value}
+										onChange={(e) => field.onChange(e.target.value)}
+										className="bg-transparent outline-none text-[17px] font-semibold min-w-0 flex-1 text-[#f0f0f5]"
+										placeholder="Workflow name"
+									/>
+								)}
 							/>
-							{localWorkflow.isDefault && (
+							{isDefault && (
 								<div className="flex items-center gap-1 shrink-0 bg-[#eab30815] rounded-[4px] px-2 py-[2px]">
 									<Star size={10} className="text-[#eab308]" />
 									<span className="text-[10px] font-medium text-[#eab308]">Default</span>
 								</div>
 							)}
 							<div className="shrink-0 bg-[#3b82f615] rounded-[4px] px-2 py-[2px]">
-								<span className="text-[10px] font-medium text-[#3b82f6]">
-									{localWorkflow.forStory ? "Story" : "Task"}
-								</span>
+								<span className="text-[10px] font-medium text-[#3b82f6]">{forStory ? "Story" : "Task"}</span>
 							</div>
 							<button onClick={onClose} className="hover:opacity-70 transition-opacity shrink-0">
 								<X size={18} className="text-[#60607a]" />
@@ -334,12 +365,10 @@ export function WorkflowEditorDialog({
 											</button>
 										)}
 									</MenuTrigger>
-									{!localWorkflow.forStory && !hasCR && (
-										<MenuItem onClick={() => addSlot("code_review")}>Code Review</MenuItem>
-									)}
-									{!localWorkflow.forStory && !hasQA && <MenuItem onClick={() => addSlot("qa")}>QA</MenuItem>}
-									{!localWorkflow.forStory && <MenuItem onClick={() => addSlot("custom")}>Custom Agent</MenuItem>}
-									{localWorkflow.forStory && <MenuItem onClick={() => addSlot("orch")}>Orch Agent</MenuItem>}
+									{!forStory && !hasCR && <MenuItem onClick={() => addSlot("code_review")}>Code Review</MenuItem>}
+									{!forStory && !hasQA && <MenuItem onClick={() => addSlot("qa")}>QA</MenuItem>}
+									{!forStory && <MenuItem onClick={() => addSlot("custom")}>Custom Agent</MenuItem>}
+									{forStory && <MenuItem onClick={() => addSlot("orch")}>Orch Agent</MenuItem>}
 								</Menu>
 							</div>
 							{/* Slot pills */}
@@ -506,11 +535,11 @@ export function WorkflowEditorDialog({
 										<input
 											value={selectedSlot.name}
 											onChange={(e) => updateSlot({ name: e.target.value })}
-											readOnly={selectedSlot.type !== "custom" && selectedSlot.type !== "orch"}
+											readOnly={!nameEditable}
 											className="flex-1 bg-transparent outline-none text-[12px]"
 											style={{
-												color: selectedSlot.type === "custom" || selectedSlot.type === "orch" ? "#c0c0d0" : "#60607a",
-												cursor: selectedSlot.type === "custom" || selectedSlot.type === "orch" ? "text" : "default",
+												color: nameEditable ? "#c0c0d0" : "#60607a",
+												cursor: nameEditable ? "text" : "default",
 											}}
 										/>
 									</div>
@@ -549,7 +578,7 @@ export function WorkflowEditorDialog({
 									<div className="flex items-center bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-2">
 										<select
 											value={selectedSlot.effort ?? ""}
-											onChange={(e) => updateSlot({ effort: (e.target.value as EffortLevel) || null })}
+											onChange={(e) => updateSlot({ effort: (e.target.value as WorkflowSlotForm["effort"]) || null })}
 											className="flex-1 bg-transparent outline-none text-[12px] text-[#c0c0d0]"
 										>
 											<option value="">Default</option>
@@ -568,16 +597,7 @@ export function WorkflowEditorDialog({
 										<div className="flex items-center">
 											<span className="text-[13px] text-[#c0c0d0]">Enabled</span>
 											<div className="flex-1" />
-											<button
-												type="button"
-												onClick={() => updateSlot({ enabled: !selectedSlot.enabled })}
-												className={classNames(
-													"w-9 h-5 rounded-[10px] p-0.5 flex items-center transition-colors",
-													selectedSlot.enabled ? "bg-[#22c55e] justify-end" : "bg-[#2a2a35] justify-start",
-												)}
-											>
-												<div className="w-4 h-4 rounded-full bg-white" />
-											</button>
+											{selectedIndex >= 0 && <RHFSwitch name={`slots.${selectedIndex}.enabled`} />}
 										</div>
 									</>
 								)}
@@ -624,6 +644,6 @@ export function WorkflowEditorDialog({
 					onClose={() => setBrowsingPath(false)}
 				/>
 			)}
-		</>
+		</FormProvider>
 	);
 }

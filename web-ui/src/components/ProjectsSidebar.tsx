@@ -3,7 +3,7 @@ import type { ProjectsLayout, RuntimeProject } from "@runtime-contract";
 import { ConfirmDialog } from "@geckoui/geckoui";
 import { ChevronDown, ChevronRight, Folder, Pencil, Trash2 } from "lucide-react";
 import React, { useEffect, useImperativeHandle, useRef, useState, useCallback } from "react";
-import { trpc } from "@/runtime/trpc-client";
+import { useRead, useWrite } from "@/runtime/api-client";
 import { classNames } from "@/utils/classNames";
 
 function genId() {
@@ -132,10 +132,12 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(fu
 	const editRef = useRef<HTMLInputElement>(null);
 	const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+	const { trigger: fetchLayout } = useRead((api) => api("projects/layout").GET(), { enabled: false });
+	const { trigger: saveLayout } = useWrite((api) => api("projects/layout").PUT());
+
 	useEffect(() => {
-		trpc.projects.getLayout
-			.query()
-			.then((saved) => setLayout((prev) => syncLayout(saved ?? prev, projects)))
+		fetchLayout()
+			.then((res) => setLayout((prev) => syncLayout(res.data ?? prev, projects)))
 			.catch(() => {});
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
@@ -147,7 +149,7 @@ export const ProjectsSidebar = React.forwardRef<ProjectsSidebarHandle, Props>(fu
 	const persist = (next: ProjectsLayout) => {
 		if (saveTimer.current) clearTimeout(saveTimer.current);
 		saveTimer.current = setTimeout(() => {
-			trpc.projects.saveLayout.mutate(next).catch(() => {});
+			saveLayout({ body: next }).catch(() => {});
 		}, 300);
 	};
 

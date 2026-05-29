@@ -12,8 +12,8 @@ import {
 	RefreshCw,
 	X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { trpc } from "@/runtime/trpc-client";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRead, useWrite } from "@/runtime/api-client";
 import { classNames } from "@/utils/classNames";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -47,14 +47,6 @@ interface PendingComment {
 	lineKey: string;
 	lineNum: number | null;
 	text: string;
-}
-
-interface Commit {
-	hash: string;
-	shortHash: string;
-	message: string;
-	author: string;
-	date: string;
 }
 
 interface TreeNode {
@@ -292,16 +284,11 @@ interface Props {
 }
 
 export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: Props) {
-	const [files, setFiles] = useState<DiffFile[]>([]);
-	const [baseBehindCount, setBaseBehindCount] = useState(0);
-	const [loading, setLoading] = useState(true);
-	const [loadError, setLoadError] = useState<string | null>(null);
 	const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 	const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set());
 	const [pendingComments, setPendingComments] = useState<PendingComment[]>([]);
 	const [openCommentKey, setOpenCommentKey] = useState<string | null>(null);
 	const [commentDraft, setCommentDraft] = useState("");
-	const [commits, setCommits] = useState<Commit[]>([]);
 	const [selectedCommit, setSelectedCommit] = useState<string | null>(null);
 	const [showCommitDropdown, setShowCommitDropdown] = useState(false);
 	const [showReviewPanel, setShowReviewPanel] = useState(false);
@@ -324,48 +311,37 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 	const resizeStartX = useRef(0);
 	const resizeStartWidth = useRef(0);
 
-	const loadDiff = async (commitHash?: string | null) => {
-		setLoading(true);
-		setLoadError(null);
-		try {
-			if (commitHash) {
-				const r = await trpc.cards.getDiffForCommit.query({ workspaceId, cardId, commitHash });
-				if (r.error || r.diff === null) {
-					setLoadError(r.error ?? "No diff available");
-					setFiles([]);
-				} else {
-					setFiles(r.diff ? parseDiff(r.diff) : []);
-				}
-			} else {
-				const r = await trpc.cards.getDiff.query({ workspaceId, cardId });
-				if (r.error || r.diff === null) {
-					setLoadError(r.error ?? "No diff available");
-					setFiles([]);
-				} else {
-					setFiles(r.diff ? parseDiff(r.diff) : []);
-					setBaseBehindCount(r.baseBehindCount ?? 0);
-				}
-			}
-		} catch (e: unknown) {
-			setLoadError(e instanceof Error ? e.message : "Failed to load diff");
-		} finally {
-			setLoading(false);
-		}
-	};
+	const { trigger: addReviewCommentTrigger } = useWrite((api) => api("cards/add-review-comment").POST());
+	const { trigger: submitHumanFeedbackTrigger } = useWrite((api) => api("cards/submit-human-feedback").POST());
 
-	const loadCommits = async () => {
-		try {
-			const r = await trpc.cards.getCommits.query({ workspaceId, cardId });
-			setCommits(r.commits);
-		} catch {
-			// non-fatal
-		}
-	};
+	// Declarative reads — the active one is chosen by selectedCommit and refetches
+	// automatically when it changes. Values are derived below, never mirrored into
+	// state (Spoosh data refs change each render → a setState-in-effect would loop).
+	const { data: commitsData } = useRead((api) => api("cards/commits").GET({ query: { workspaceId, cardId } }));
+	const latestDiffRead = useRead((api) => api("cards/diff").GET({ query: { workspaceId, cardId } }), {
+		enabled: !selectedCommit,
+	});
+	const commitDiffRead = useRead(
+		(api) => api("cards/diff-for-commit").GET({ query: { workspaceId, cardId, commitHash: selectedCommit ?? "" } }),
+		{ enabled: !!selectedCommit },
+	);
 
-	useEffect(() => {
-		void loadDiff(null);
-		void loadCommits();
-	}, [workspaceId, cardId]);
+	const activeDiffRead = selectedCommit ? commitDiffRead : latestDiffRead;
+	const diffResult = activeDiffRead.data;
+	const loading = activeDiffRead.loading;
+	const loadError = activeDiffRead.error
+		? activeDiffRead.error.message
+		: diffResult
+			? (diffResult.error ?? (diffResult.diff === null ? "No diff available" : null))
+			: null;
+	const diffText = diffResult && !diffResult.error ? diffResult.diff : null;
+	const files = useMemo(() => (diffText ? parseDiff(diffText) : []), [diffText]);
+	const baseBehindCount = !selectedCommit ? (latestDiffRead.data?.baseBehindCount ?? 0) : 0;
+	const commits = commitsData?.commits ?? [];
+
+	const refreshDiff = () => {
+		void activeDiffRead.trigger();
+	};
 
 	// Close commit dropdown on outside click
 	useEffect(() => {
@@ -415,7 +391,6 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 	const handleSelectCommit = (hash: string | null) => {
 		setSelectedCommit(hash);
 		setShowCommitDropdown(false);
-		void loadDiff(hash);
 	};
 
 	const toggleCollapse = (path: string) =>
@@ -461,19 +436,18 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 		const c = pendingComments.find((c) => c.id === id);
 		if (!c) return;
 		const summary = c.lineNum !== null ? `**${c.file}** (line ${c.lineNum}):\n${c.text}` : `**${c.file}**:\n${c.text}`;
-		try {
-			await trpc.cards.addReviewComment.mutate({
+		const res = await addReviewCommentTrigger({
+			body: {
 				workspaceId,
 				cardId,
 				type: "human",
 				actor: { type: "human", id: "human" },
 				summary,
-			});
-			removePending(id);
-			onRefresh();
-		} catch {
-			/* keep staged on error */
-		}
+			},
+		});
+		if (res.error) return; // keep staged on error
+		removePending(id);
+		onRefresh();
 	};
 
 	const handleSubmitReview = async () => {
@@ -483,27 +457,33 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 			for (const c of pendingComments) {
 				const summary =
 					c.lineNum !== null ? `**${c.file}** (line ${c.lineNum}):\n${c.text}` : `**${c.file}**:\n${c.text}`;
-				await trpc.cards.addReviewComment.mutate({
-					workspaceId,
-					cardId,
-					type: "human",
-					actor: { type: "human", id: "human" },
-					summary,
+				await addReviewCommentTrigger({
+					body: {
+						workspaceId,
+						cardId,
+						type: "human",
+						actor: { type: "human", id: "human" },
+						summary,
+					},
 				});
 			}
 			if (reviewType === "request_changes") {
-				await trpc.cards.submitHumanFeedback.mutate({
-					workspaceId,
-					cardId,
-					comment: overallFeedback.trim() || undefined,
+				await submitHumanFeedbackTrigger({
+					body: {
+						workspaceId,
+						cardId,
+						comment: overallFeedback.trim() || undefined,
+					},
 				});
 			} else if (overallFeedback.trim()) {
-				await trpc.cards.addReviewComment.mutate({
-					workspaceId,
-					cardId,
-					type: "human",
-					actor: { type: "human", id: "human" },
-					summary: overallFeedback.trim(),
+				await addReviewCommentTrigger({
+					body: {
+						workspaceId,
+						cardId,
+						type: "human",
+						actor: { type: "human", id: "human" },
+						summary: overallFeedback.trim(),
+					},
 				});
 			}
 			setPendingComments([]);
@@ -525,10 +505,7 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 		return (
 			<div className="flex-1 flex flex-col items-center justify-center gap-3 text-gray-500">
 				<p className="text-sm">{loadError}</p>
-				<button
-					onClick={() => void loadDiff(selectedCommit)}
-					className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300"
-				>
+				<button onClick={refreshDiff} className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300">
 					<RefreshCw size={12} /> Retry
 				</button>
 			</div>
@@ -539,10 +516,7 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 		return (
 			<div className="flex-1 flex flex-col items-center justify-center gap-3 text-gray-500">
 				<p className="text-sm">No changes yet</p>
-				<button
-					onClick={() => void loadDiff(selectedCommit)}
-					className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300"
-				>
+				<button onClick={refreshDiff} className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300">
 					<RefreshCw size={12} /> Refresh
 				</button>
 			</div>
@@ -623,7 +597,7 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 				<div className="flex-1" />
 
 				<button
-					onClick={() => void loadDiff(selectedCommit)}
+					onClick={refreshDiff}
 					className="text-gray-600 hover:text-gray-300 transition-colors p-1 rounded hover:bg-gray-800"
 					title="Refresh diff"
 				>

@@ -7,7 +7,7 @@ import { AddProjectDialog } from "@/components/AddProjectDialog";
 import { type ProjectsSidebarHandle, ProjectsSidebar } from "@/components/ProjectsSidebar";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
 import { useWorkspaceState } from "@/stores/board-store";
-import { trpc } from "@/runtime/trpc-client";
+import { useRead, useWrite } from "@/runtime/api-client";
 import { firstSortedProjectId } from "@/utils/projects";
 
 interface Props {
@@ -23,6 +23,10 @@ export function BoardPage({ onOpenAgent }: Props) {
 	const [showAddProject, setShowAddProject] = useState(false);
 	const sidebarRef = useRef<ProjectsSidebarHandle>(null);
 
+	const { trigger: fetchProjects } = useRead((api) => api("projects").GET(), { enabled: false });
+	const { trigger: fetchLayout } = useRead((api) => api("projects/layout").GET(), { enabled: false });
+	const { trigger: removeProject } = useWrite((api) => api("projects/:workspaceId").DELETE());
+
 	const activeProject = projects.find((p) => p.workspaceId === workspaceId) ?? null;
 
 	useEffect(() => {
@@ -31,12 +35,13 @@ export function BoardPage({ onOpenAgent }: Props) {
 
 	const loadProjects = async () => {
 		try {
-			const [list, layout] = await Promise.all([trpc.projects.list.query(), trpc.projects.getLayout.query()]);
-			setProjects(list);
-			if (list.length > 0) {
-				const valid = list.some((p) => p.workspaceId === workspaceId);
+			const [{ data: list }, { data: layout }] = await Promise.all([fetchProjects(), fetchLayout()]);
+			const projectList = list ?? [];
+			setProjects(projectList);
+			if (projectList.length > 0) {
+				const valid = projectList.some((p) => p.workspaceId === workspaceId);
 				if (!valid) {
-					const id = (layout ? firstSortedProjectId(layout, list) : null) ?? list[0]!.workspaceId;
+					const id = (layout ? firstSortedProjectId(layout, projectList) : null) ?? projectList[0]!.workspaceId;
 					navigate(`/${encodeURIComponent(id)}/board`, { replace: true });
 				}
 			}
@@ -50,13 +55,13 @@ export function BoardPage({ onOpenAgent }: Props) {
 	};
 
 	const handleRemoveProject = async (wsId: string) => {
-		await trpc.projects.remove.mutate({ workspaceId: wsId });
+		await removeProject({ params: { workspaceId: wsId } });
 		const updated = projects.filter((p) => p.workspaceId !== wsId);
 		setProjects(updated);
 		if (wsId === workspaceId) {
-			const [first, layout] = await Promise.all([
+			const [first, { data: layout }] = await Promise.all([
 				Promise.resolve(updated),
-				trpc.projects.getLayout.query().catch(() => null),
+				fetchLayout().catch(() => ({ data: null })),
 			]);
 			const nextId = (layout ? firstSortedProjectId(layout, first) : null) ?? first[0]?.workspaceId;
 			if (nextId) {

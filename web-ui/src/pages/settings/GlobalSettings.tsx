@@ -1,8 +1,10 @@
-import { toast } from "@geckoui/geckoui";
+import { Button, RHFNumberInput, RHFSelect, SelectOption, toast } from "@geckoui/geckoui";
+import { zodResolver } from "@hookform/resolvers/zod";
 import type { RuntimeGlobalConfig } from "@runtime-contract";
 import { AGENT_BINARY_OPTIONS } from "@runtime-contract";
-import { useEffect, useState } from "react";
-import { trpc } from "@/runtime/trpc-client";
+import { type GlobalConfigForm, type GlobalConfigFormInput, globalConfigFormSchema } from "@runtime-validation/config";
+import { FormProvider, useForm } from "react-hook-form";
+import { useRead, useWrite } from "@/runtime/api-client";
 import type { GlobalSection } from "./_shared";
 
 function PageHeader({ title, description }: { title: string; description: string }) {
@@ -35,91 +37,29 @@ function FieldRow({ label, description, children }: { label: string; description
 	);
 }
 
-function NumberInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
-	return (
-		<input
-			type="number"
-			value={value}
-			onChange={(e) => onChange(Number(e.target.value))}
-			className="w-20 text-center font-mono text-[12px] focus:outline-none focus:border-[#7c6aff] bg-[#0c0c0f] border border-[#2a2a35] rounded-md text-[#c0c0d0] px-3 py-[9px]"
-		/>
-	);
-}
-
-function SelectInput({
-	value,
-	onChange,
-	options,
-	placeholder,
-}: {
-	value: string;
-	onChange: (v: string) => void;
-	options: ReadonlyArray<{ value: string; label: string }>;
-	placeholder?: string;
-}) {
-	return (
-		<select
-			value={value}
-			onChange={(e) => onChange(e.target.value)}
-			className="w-[240px] appearance-none bg-no-repeat bg-[right_12px_center] font-mono text-[12px] focus:outline-none focus:border-[#7c6aff] cursor-pointer text-[#c0c0d0] bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 pr-9 py-[9px]"
-			style={{
-				backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2360607a' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-			}}
-		>
-			{placeholder && <option value="">{placeholder}</option>}
-			{options.map((o) => (
-				<option key={o.value} value={o.value}>
-					{o.label}
-				</option>
-			))}
-		</select>
-	);
-}
-
-function SaveButton({ saving, onSave }: { saving: boolean; onSave: () => void }) {
-	return (
-		<div className="flex justify-end pt-2">
-			<button
-				onClick={onSave}
-				disabled={saving}
-				className="text-sm font-medium px-4 py-2 rounded-lg transition-opacity disabled:opacity-50 bg-[#7c6aff] text-white"
-			>
-				{saving ? "Saving..." : "Save"}
-			</button>
-		</div>
-	);
-}
+const selectClassName =
+	"w-[240px] font-mono text-[12px] focus:outline-none focus:border-[#7c6aff] cursor-pointer text-[#c0c0d0] bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-[9px]";
 
 // biome-ignore lint/correctness/noUnusedFunctionParameters: required by caller interface
 export function GlobalSettings({ section }: { section: GlobalSection }) {
-	const [config, setConfig] = useState<RuntimeGlobalConfig | null>(null);
-	const [saving, setSaving] = useState(false);
-	const [terminals, setTerminals] = useState<Array<{ id: string; label: string }>>([]);
+	const { data: config } = useRead((api) => api("config").GET());
+	const { data: terminals } = useRead((api) => api("fs/terminals").GET());
+	const { trigger: saveConfig, loading: saving } = useWrite((api) => api("config").PUT());
 
-	useEffect(() => {
-		trpc.config.get
-			.query()
-			.then(setConfig)
-			.catch(() => {});
-		trpc.fs.listTerminals
-			.query()
-			.then(setTerminals)
-			.catch(() => {});
-	}, []);
+	const methods = useForm<GlobalConfigFormInput, unknown, GlobalConfigForm>({
+		resolver: zodResolver(globalConfigFormSchema),
+		values: config as GlobalConfigFormInput | undefined,
+	});
 
-	const handleSave = async () => {
-		if (!config) return;
-		setSaving(true);
-		try {
-			const updated = await trpc.config.save.mutate(config);
-			setConfig(updated);
-			toast.success("Settings saved");
-		} catch {
+	const onSubmit = methods.handleSubmit(async (values) => {
+		const res = await saveConfig({ body: values });
+		if (res.error) {
 			toast.error("Failed to save settings");
-		} finally {
-			setSaving(false);
+			return;
 		}
-	};
+		methods.reset(res.data as RuntimeGlobalConfig);
+		toast.success("Settings saved");
+	});
 
 	if (!config) {
 		return (
@@ -130,72 +70,99 @@ export function GlobalSettings({ section }: { section: GlobalSection }) {
 		);
 	}
 
-	const terminalOptions = terminals.map((t) => ({ value: t.id, label: t.label }));
+	const terminalOptions = (terminals ?? []).map((t) => ({
+		value: t.id,
+		label: t.label,
+	}));
 
 	return (
 		<div className="flex-1 flex flex-col overflow-hidden">
 			<PageHeader title="Global Runtime Config" description="Settings that apply across all projects" />
 			<div className="flex-1 overflow-y-auto px-10 py-6">
-				<div className="flex flex-col gap-6">
-					{/* Defaults */}
-					<div className="flex flex-col gap-4">
-						<SectionDivider title="Defaults" />
-						<FieldRow label="Default Agent" description="Agent binary for new workflow slots">
-							<SelectInput
-								value={config.defaultAgent}
-								onChange={(v) => setConfig({ ...config, defaultAgent: v as typeof config.defaultAgent })}
-								options={AGENT_BINARY_OPTIONS}
-							/>
-						</FieldRow>
-						<FieldRow label="Terminal App" description="Application for opening terminals">
-							<SelectInput
-								value={config.terminalApp ?? ""}
-								onChange={(v) => setConfig({ ...config, terminalApp: v || undefined })}
-								options={terminalOptions}
-								placeholder="System default"
-							/>
-						</FieldRow>
-					</div>
+				<FormProvider {...methods}>
+					<form onSubmit={onSubmit} className="flex flex-col gap-6">
+						{/* Defaults */}
+						<div className="flex flex-col gap-4">
+							<SectionDivider title="Defaults" />
+							<FieldRow label="Default Agent" description="Agent binary for new workflow slots">
+								<RHFSelect wrapperClassName="w-fit" name="defaultAgent" className={selectClassName}>
+									{AGENT_BINARY_OPTIONS.map((o) => (
+										<SelectOption key={o.value} value={o.value} label={o.label} />
+									))}
+								</RHFSelect>
+							</FieldRow>
+							<FieldRow label="Terminal App" description="Application for opening terminals">
+								<RHFSelect
+									wrapperClassName="w-fit"
+									name="terminalApp"
+									placeholder="System default"
+									clearable
+									className={selectClassName}
+								>
+									{terminalOptions.map((o) => (
+										<SelectOption key={o.value} value={o.value} label={o.label} />
+									))}
+								</RHFSelect>
+							</FieldRow>
+						</div>
 
-					{/* Concurrency & Limits */}
-					<div className="flex flex-col gap-4">
-						<SectionDivider title="Concurrency & Limits" />
-						<FieldRow label="Max Parallel Tasks" description="Concurrent task executions">
-							<NumberInput
-								value={config.maxParallelTasks}
-								onChange={(v) => setConfig({ ...config, maxParallelTasks: v })}
-							/>
-						</FieldRow>
-						<FieldRow label="Max Parallel QA" description="Concurrent QA slot runs">
-							<NumberInput value={config.maxParallelQA} onChange={(v) => setConfig({ ...config, maxParallelQA: v })} />
-						</FieldRow>
-						<FieldRow label="Max Auto-Fix Attempts" description="Retries before marking blocked">
-							<NumberInput
-								value={config.maxAutoFixAttempts}
-								onChange={(v) => setConfig({ ...config, maxAutoFixAttempts: v })}
-							/>
-						</FieldRow>
-					</div>
+						{/* Concurrency & Limits */}
+						<div className="flex flex-col gap-4">
+							<SectionDivider title="Concurrency & Limits" />
+							<FieldRow label="Max Parallel Tasks" description="Concurrent task executions">
+								<RHFNumberInput
+									name="maxParallelTasks"
+									maxFractionDigits={0}
+									className="w-14"
+									inputClassName="text-center"
+								/>
+							</FieldRow>
+							<FieldRow label="Max Parallel QA" description="Concurrent QA slot runs">
+								<RHFNumberInput
+									name="maxParallelQA"
+									maxFractionDigits={0}
+									className="w-14"
+									inputClassName="text-center"
+								/>
+							</FieldRow>
+							<FieldRow label="Max Auto-Fix Attempts" description="Retries before marking blocked">
+								<RHFNumberInput
+									name="maxAutoFixAttempts"
+									maxFractionDigits={0}
+									className="w-14"
+									inputClassName="text-center"
+								/>
+							</FieldRow>
+						</div>
 
-					{/* Polling */}
-					<div className="flex flex-col gap-4">
-						<SectionDivider title="Polling" />
-						<FieldRow label="Polling Interval" description="Board refresh interval (seconds)">
-							<NumberInput
-								value={config.pollingIntervalSeconds}
-								onChange={(v) => setConfig({ ...config, pollingIntervalSeconds: v })}
-							/>
-						</FieldRow>
-						<FieldRow label="PR Poll Interval" description="PR status check interval (seconds)">
-							<NumberInput
-								value={config.prPollingIntervalSeconds}
-								onChange={(v) => setConfig({ ...config, prPollingIntervalSeconds: v })}
-							/>
-						</FieldRow>
-					</div>
+						{/* Polling */}
+						<div className="flex flex-col gap-4">
+							<SectionDivider title="Polling" />
+							<FieldRow label="Polling Interval" description="Board refresh interval (seconds)">
+								<RHFNumberInput
+									name="pollingIntervalSeconds"
+									maxFractionDigits={0}
+									className="w-14"
+									inputClassName="text-center"
+								/>
+							</FieldRow>
+							<FieldRow label="PR Poll Interval" description="PR status check interval (seconds)">
+								<RHFNumberInput
+									name="prPollingIntervalSeconds"
+									maxFractionDigits={0}
+									className="w-14"
+									inputClassName="text-center"
+								/>
+							</FieldRow>
+						</div>
 
-					<SaveButton saving={saving} onSave={handleSave} />
-				</div>
+						<div className="flex justify-end pt-2">
+							<Button type="submit" disabled={saving}>
+								{saving ? "Saving..." : "Save"}
+							</Button>
+						</div>
+					</form>
+				</FormProvider>
 			</div>
 		</div>
 	);

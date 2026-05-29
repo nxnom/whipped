@@ -1,5 +1,6 @@
-import { toast } from "@geckoui/geckoui";
-import type { RuntimeGlobalConfig } from "@runtime-contract";
+import { RHFError, RHFInput, RHFInputGroup, toast } from "@geckoui/geckoui";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { type CreateTunnelInput, createTunnelSchema } from "@runtime-validation/slack";
 import {
 	Check,
 	CheckCircle2,
@@ -13,7 +14,8 @@ import {
 	X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { trpc } from "@/runtime/trpc-client";
+import { FormProvider, useForm } from "react-hook-form";
+import { useRead, useWrite } from "@/runtime/api-client";
 import { classNames } from "@/utils/classNames";
 
 function Mono({ children }: { children: React.ReactNode }) {
@@ -108,42 +110,33 @@ const STATUS_STYLES: Record<TunnelStatus, { dot: string; text: string; label: st
 };
 
 function TunnelControl() {
-	const [state, setState] = useState<{ status: TunnelStatus; error?: string } | null>(null);
-	const [acting, setActing] = useState(false);
+	const { data: state, trigger: refreshStatus } = useRead((api) => api("slack/tunnelStatus").GET());
 
-	const refetch = () => {
-		trpc.slack.tunnelStatus
-			.query()
-			.then(setState)
-			.catch(() => {});
-	};
+	const startTunnel = useWrite((api) => api("slack/startTunnel").POST());
+	const stopTunnel = useWrite((api) => api("slack/stopTunnel").POST());
 
+	// Poll the tunnel status every 3s (preserves the original setInterval cadence).
 	useEffect(() => {
-		refetch();
-		const id = setInterval(refetch, 3000);
+		const id = setInterval(() => {
+			void refreshStatus();
+		}, 3000);
 		return () => clearInterval(id);
-	}, []);
+	}, [refreshStatus]);
 
+	// startTunnel/stopTunnel return the new status; refetch to pick it up.
 	const handleStart = async () => {
-		setActing(true);
-		try {
-			setState(await trpc.slack.startTunnel.mutate());
-		} finally {
-			setActing(false);
-		}
+		const res = await startTunnel.trigger({});
+		if (res.data) await refreshStatus();
 	};
 	const handleStop = async () => {
-		setActing(true);
-		try {
-			setState(await trpc.slack.stopTunnel.mutate());
-		} finally {
-			setActing(false);
-		}
+		const res = await stopTunnel.trigger({});
+		if (res.data) await refreshStatus();
 	};
 
 	const status = (state?.status ?? "stopped") as TunnelStatus;
 	const style = STATUS_STYLES[status];
 	const isRunning = status === "running" || status === "starting";
+	const acting = startTunnel.loading || stopTunnel.loading;
 
 	return (
 		<div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-[#0c0c0f] border border-[#2a2a35]">
@@ -176,134 +169,101 @@ function TunnelControl() {
 }
 
 export function TunnelSettings() {
-	const [config, setConfig] = useState<RuntimeGlobalConfig | null>(null);
-	const [saving, setSaving] = useState(false);
 	const [showSetup, setShowSetup] = useState(false);
-
-	const [cloudflaredStatus, setCloudflaredStatus] = useState<{
-		installed: boolean;
-		version?: string;
-		authed?: boolean;
-	} | null>(null);
-	const [checkingInstall, setCheckingInstall] = useState(false);
-	const [loggingIn, setLoggingIn] = useState(false);
 	const [loginUrl, setLoginUrl] = useState<string | null>(null);
 	const [waitingForAuth, setWaitingForAuth] = useState(false);
-	const [domain, setDomain] = useState("");
-	const [creatingTunnel, setCreatingTunnel] = useState(false);
-	const [tunnelConfig, setTunnelConfig] = useState<{ tunnelId?: string; domain?: string; tunnelName: string } | null>(
-		null,
-	);
-	const [resetting, setResetting] = useState(false);
 
-	useEffect(() => {
-		trpc.config.get
-			.query()
-			.then(setConfig)
-			.catch(() => {});
-		trpc.slack.tunnelConfig
-			.query()
-			.then(setTunnelConfig)
-			.catch(() => {});
-	}, []);
+	const { data: config, trigger: refetchConfig } = useRead((api) => api("config").GET());
+	const { data: tunnelConfig, trigger: refetchTunnelConfig } = useRead((api) => api("slack/tunnelConfig").GET());
 
-	useEffect(() => {
-		if (tunnelConfig?.domain) setDomain(tunnelConfig.domain);
-	}, [tunnelConfig]);
+	// cloudflared install/auth status. Fetched on demand (Check installation /
+	// login flow), so the read is lazy + manually triggered.
+	const {
+		data: cloudflaredStatus,
+		fetching: checkingInstall,
+		trigger: checkCloudflared,
+	} = useRead((api) => api("slack/checkCloudflared").GET(), { enabled: false });
+
+	const saveConfig = useWrite((api) => api("config").PUT());
+	const cloudflaredLogin = useWrite((api) => api("slack/cloudflaredLogin").POST());
+	const createTunnel = useWrite((api) => api("slack/createTunnel").POST());
+	const resetTunnel = useWrite((api) => api("slack/resetTunnel").POST());
+
+	const methods = useForm({
+		resolver: zodResolver(createTunnelSchema),
+		values: { domain: tunnelConfig?.domain ?? "" } satisfies CreateTunnelInput,
+	});
 
 	const isConfigured = !!(tunnelConfig?.tunnelId && tunnelConfig?.domain);
 
+	// While waiting for browser auth, poll cloudflared status every 2s until it
+	// reports authenticated (preserves the original interval behavior).
 	useEffect(() => {
 		if (!waitingForAuth) return;
-		const id = setInterval(async () => {
-			const result = await trpc.slack.checkCloudflared.query().catch(() => null);
-			if (result?.authed) {
-				setCloudflaredStatus(result);
-				setWaitingForAuth(false);
-				setLoginUrl(null);
-				toast.success("Authenticated with Cloudflare");
-			}
+		const id = setInterval(() => {
+			void checkCloudflared();
 		}, 2000);
 		return () => clearInterval(id);
-	}, [waitingForAuth]);
+	}, [waitingForAuth, checkCloudflared]);
 
-	const checkInstall = async () => {
-		setCheckingInstall(true);
-		try {
-			const result = await trpc.slack.checkCloudflared.query();
-			setCloudflaredStatus(result);
-		} finally {
-			setCheckingInstall(false);
+	// Stop polling for auth once cloudflared reports authenticated.
+	useEffect(() => {
+		if (waitingForAuth && cloudflaredStatus?.authed) {
+			setWaitingForAuth(false);
+			setLoginUrl(null);
+			toast.success("Authenticated with Cloudflare");
 		}
-	};
+	}, [waitingForAuth, cloudflaredStatus?.authed]);
 
 	const handleLogin = async (force = false) => {
-		setLoggingIn(true);
 		setLoginUrl(null);
-		try {
-			const result = await trpc.slack.cloudflaredLogin.mutate({ force });
-			if (result.alreadyLoggedIn) {
-				toast.success("Already authenticated with Cloudflare");
-				setCloudflaredStatus((prev) => (prev ? { ...prev, authed: true } : { installed: true, authed: true }));
-			} else if (result.loginUrl) {
-				setLoginUrl(result.loginUrl);
-				setCloudflaredStatus((prev) => (prev ? { ...prev, authed: false } : null));
-				setWaitingForAuth(true);
-			} else {
-				toast.error("Could not get login URL — run 'cloudflared tunnel login' in your terminal");
-			}
-		} catch {
+		const res = await cloudflaredLogin.trigger({ body: { force } });
+		if (res.error) {
 			toast.error("Failed to start login");
-		} finally {
-			setLoggingIn(false);
+			return;
+		}
+		const result = res.data;
+		if (result.alreadyLoggedIn) {
+			toast.success("Already authenticated with Cloudflare");
+			checkCloudflared();
+		} else if (result.loginUrl) {
+			setLoginUrl(result.loginUrl);
+			setWaitingForAuth(true);
+		} else {
+			toast.error("Could not get login URL — run 'cloudflared tunnel login' in your terminal");
 		}
 	};
 
-	const handleCreateTunnel = async () => {
-		if (!domain.trim()) return;
-		setCreatingTunnel(true);
-		try {
-			await trpc.slack.createTunnel.mutate({ domain: domain.trim() });
-			const updated = await trpc.slack.tunnelConfig.query();
-			setTunnelConfig(updated);
-			toast.success("Tunnel created and config file written");
-		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Failed to create tunnel");
-		} finally {
-			setCreatingTunnel(false);
+	const handleCreateTunnel = methods.handleSubmit(async (values) => {
+		const res = await createTunnel.trigger({ body: { domain: values.domain.trim() } });
+		if (res.error) {
+			toast.error(res.error.message ?? "Failed to create tunnel");
+			return;
 		}
-	};
+		await refetchTunnelConfig();
+		toast.success("Tunnel created and config file written");
+	});
 
 	const handleReset = async () => {
-		setResetting(true);
-		try {
-			await trpc.slack.resetTunnel.mutate();
-			const updated = await trpc.config.get.query();
-			setConfig(updated);
-			setTunnelConfig(null);
-			setDomain("");
-			setCloudflaredStatus(null);
-			setShowSetup(false);
-			toast.success("Tunnel config cleared");
-		} catch {
+		const res = await resetTunnel.trigger({});
+		if (res.error) {
 			toast.error("Failed to reset");
-		} finally {
-			setResetting(false);
+			return;
 		}
+		await Promise.all([refetchConfig(), refetchTunnelConfig()]);
+		methods.reset({ domain: "" });
+		setShowSetup(false);
+		toast.success("Tunnel config cleared");
 	};
 
 	const toggle = async () => {
 		if (!config) return;
-		setSaving(true);
-		try {
-			const next = { ...config, autoStartTunnel: !config.autoStartTunnel };
-			const updated = await trpc.config.save.mutate(next);
-			setConfig(updated);
-		} catch {
+		const res = await saveConfig.trigger({ body: { ...config, autoStartTunnel: !config.autoStartTunnel } });
+		if (res.error) {
 			toast.error("Failed to save");
-		} finally {
-			setSaving(false);
+			return;
 		}
+		await refetchConfig();
 	};
 
 	if (!config) {
@@ -357,7 +317,7 @@ export function TunnelSettings() {
 								role="switch"
 								aria-checked={config.autoStartTunnel}
 								onClick={toggle}
-								disabled={saving}
+								disabled={saveConfig.loading}
 								className={classNames(
 									"relative shrink-0 transition-colors disabled:opacity-50 w-9 h-5 rounded-[10px]",
 									config.autoStartTunnel ? "bg-[#7c6aff]" : "bg-[#2a2a35]",
@@ -375,196 +335,218 @@ export function TunnelSettings() {
 					</div>
 
 					{/* Setup wizard */}
-					<div className="flex flex-col gap-0">
-						<div className="flex items-center gap-3">
-							<span className="text-[15px] font-semibold text-[#f0f0f5]">Setup</span>
-							<div className="flex-1 h-px bg-[#1a1a1f]" />
-							{isConfigured && (
-								<button
-									onClick={() => setShowSetup((v) => !v)}
-									className="text-[11px] transition-opacity hover:opacity-80 shrink-0 text-[#4a4a5a]"
-								>
-									{showSetup ? "Collapse" : "Reconfigure"}
-								</button>
-							)}
-						</div>
-
-						{(!isConfigured || showSetup) && (
-							<div className="mt-5">
-								{isConfigured && showSetup && (
-									<div className="flex items-center gap-3 mb-5 pb-5 border-b border-[#1a1a1f]">
-										<button
-											onClick={handleCreateTunnel}
-											disabled={!domain.trim() || creatingTunnel}
-											className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-40 bg-[#1a1a2e] border border-[#3a3aff60] text-[#7c6aff]"
-										>
-											{creatingTunnel ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-											Recreate Tunnel
-										</button>
-										<button
-											onClick={handleReset}
-											disabled={resetting}
-											className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-40 bg-[#1a1a1a] border border-[#4a1a1a] text-[#f87171]"
-										>
-											{resetting ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
-											Reset & Start Over
-										</button>
-									</div>
-								)}
-
-								{/* Step 1: Install */}
-								<StepRow n={1} title="Install cloudflared" done={step1Done} active={!step1Done}>
-									<a
-										href="https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/"
-										target="_blank"
-										rel="noreferrer"
-										className="self-start flex items-center gap-1.5 text-[12px] hover:opacity-80 transition-opacity text-[#7c6aff]"
+					<FormProvider {...methods}>
+						<form onSubmit={handleCreateTunnel} className="flex flex-col gap-0">
+							<div className="flex items-center gap-3">
+								<span className="text-[15px] font-semibold text-[#f0f0f5]">Setup</span>
+								<div className="flex-1 h-px bg-[#1a1a1f]" />
+								{isConfigured && (
+									<button
+										type="button"
+										onClick={() => setShowSetup((v) => !v)}
+										className="text-[11px] transition-opacity hover:opacity-80 shrink-0 text-[#4a4a5a]"
 									>
-										<ExternalLink size={12} />
-										Download cloudflared from Cloudflare
-									</a>
-									<div className="flex items-center gap-2">
-										<button
-											onClick={checkInstall}
-											disabled={checkingInstall}
-											className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[12px] font-medium transition-opacity hover:opacity-80 disabled:opacity-50 bg-[#1a1a2e] border border-[#3a3aff40] text-[#7c6aff]"
-										>
-											{checkingInstall ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-											Check installation
-										</button>
-										{cloudflaredStatus && (
-											<span
-												className={classNames(
-													"flex items-center gap-1 text-[12px]",
-													cloudflaredStatus.installed ? "text-[#4ade80]" : "text-[#ef4444]",
-												)}
-											>
-												{cloudflaredStatus.installed ? <Check size={12} /> : <X size={12} />}
-												{cloudflaredStatus.installed ? `Installed — ${cloudflaredStatus.version}` : "Not found"}
-											</span>
-										)}
-									</div>
-								</StepRow>
-
-								{/* Step 2: Login */}
-								<StepRow n={2} title="Authenticate with Cloudflare" done={step2Done} active={step1Done}>
-									{step2Done ? (
-										<div className="flex items-center gap-2 text-[12px]">
-											<Check size={13} className="text-[#4ade80]" />
-											<span className="text-[#4ade80]">
-												Already authenticated — <Mono>~/.cloudflared/cert.pem</Mono> found
-											</span>
-											<button
-												onClick={() => handleLogin(true)}
-												disabled={loggingIn}
-												className="ml-2 text-[11px] opacity-40 hover:opacity-70 transition-opacity disabled:opacity-20 text-[#7c6aff]"
-											>
-												{loggingIn ? "Opening…" : "Re-authenticate"}
-											</button>
-										</div>
-									) : (
-										<>
-											<p className="text-[12px] text-[#60607a]">
-												Opens a browser window to log in to your Cloudflare account. Only needed once.
-											</p>
-											<button
-												onClick={() => handleLogin(false)}
-												disabled={loggingIn || !step1Done}
-												className="self-start flex items-center gap-2 px-3 py-1.5 rounded text-[12px] font-medium transition-opacity hover:opacity-80 disabled:opacity-40 bg-[#1a1a2e] border border-[#3a3aff40] text-[#7c6aff]"
-											>
-												{loggingIn ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
-												{loggingIn ? "Waiting for login URL…" : "Login to Cloudflare"}
-											</button>
-											{loginUrl && (
-												<div className="flex flex-col gap-1.5">
-													{waitingForAuth && (
-														<div className="flex items-center gap-2 text-[12px] text-[#facc15]">
-															<Loader2 size={12} className="animate-spin" />
-															Waiting for authentication in browser…
-														</div>
-													)}
-													<p className="text-[11px] text-[#60607a]">If the browser didn't open, click below:</p>
-													<a
-														href={loginUrl}
-														target="_blank"
-														rel="noreferrer"
-														className="flex items-center gap-1.5 text-[11px] font-mono hover:opacity-80 transition-opacity truncate text-[#7c6aff]"
-													>
-														<ExternalLink size={10} />
-														{loginUrl}
-													</a>
-												</div>
-											)}
-										</>
-									)}
-								</StepRow>
-
-								{/* Step 3: Create tunnel */}
-								<StepRow n={3} title="Create tunnel & config file" done={step3Done} active={step2Done}>
-									{step3Done ? (
-										<div className="flex flex-col gap-2">
-											<div className="flex items-center gap-2 text-[12px] text-[#4ade80]">
-												<Check size={13} />
-												Tunnel ID: <Mono>{tunnelConfig?.tunnelId}</Mono>
-											</div>
-											<div className="text-[12px] text-[#60607a]">
-												Config written to <Mono>~/.cloudflared/config.yml</Mono>
-											</div>
-										</div>
-									) : (
-										<>
-											<p className="text-[12px] text-[#60607a]">
-												Enter your public domain, then click Create — we'll run{" "}
-												<Mono>cloudflared tunnel create whipped</Mono> and write <Mono>~/.cloudflared/config.yml</Mono>{" "}
-												automatically.
-											</p>
-											<div className="flex flex-col gap-1.5">
-												<label className="text-[11px] font-medium text-[#8888a0]">Your public domain</label>
-												<input
-													value={domain}
-													onChange={(e) => setDomain(e.target.value)}
-													placeholder="e.g. slack.yourdomain.com"
-													className="font-mono text-[12px] focus:outline-none focus:border-[#7c6aff] px-3 py-2 bg-[#0c0c0f] border border-[#2a2a35] rounded-md text-[#c0c0d0]"
-												/>
-											</div>
-											<button
-												onClick={handleCreateTunnel}
-												disabled={!domain.trim() || creatingTunnel || !step2Done}
-												className="self-start flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-40 bg-[#7c6aff] text-white"
-											>
-												{creatingTunnel ? <Loader2 size={14} className="animate-spin" /> : <ChevronRight size={14} />}
-												{creatingTunnel ? "Creating…" : "Create Tunnel"}
-											</button>
-										</>
-									)}
-								</StepRow>
-
-								{/* Step 4: DNS */}
-								<StepRow n={4} title="DNS record" done={step3Done} active={step3Done}>
-									{step3Done && (
-										<div className="flex flex-col gap-1.5">
-											<div className="flex items-center gap-2 text-[12px] text-[#4ade80]">
-												<Check size={13} />
-												Auto-created via <Mono>cloudflared tunnel route dns</Mono>
-											</div>
-											<p className="text-[11px] text-[#4a4a5a]">
-												CNAME <Mono>{tunnelConfig?.domain}</Mono> →{" "}
-												<Mono>{tunnelConfig?.tunnelId}.cfargotunnel.com</Mono>
-											</p>
-										</div>
-									)}
-								</StepRow>
-
-								{/* Step 5: Auto-start */}
-								<StepRow n={5} title="Enable auto-start" done={config.autoStartTunnel} active={step3Done}>
-									<p className="text-[12px] text-[#60607a]">
-										Toggle <span className="text-[#c0c0d0] font-medium">Auto-start tunnel</span> above — the tunnel
-										starts automatically on every server start. No separate terminal needed.
-									</p>
-								</StepRow>
+										{showSetup ? "Collapse" : "Reconfigure"}
+									</button>
+								)}
 							</div>
-						)}
-					</div>
+
+							{(!isConfigured || showSetup) && (
+								<div className="mt-5">
+									{isConfigured && showSetup && (
+										<div className="flex items-center gap-3 mb-5 pb-5 border-b border-[#1a1a1f]">
+											<button
+												type="submit"
+												disabled={createTunnel.loading}
+												className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-40 bg-[#1a1a2e] border border-[#3a3aff60] text-[#7c6aff]"
+											>
+												{createTunnel.loading ? (
+													<Loader2 size={13} className="animate-spin" />
+												) : (
+													<RefreshCw size={13} />
+												)}
+												Recreate Tunnel
+											</button>
+											<button
+												type="button"
+												onClick={handleReset}
+												disabled={resetTunnel.loading}
+												className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-40 bg-[#1a1a1a] border border-[#4a1a1a] text-[#f87171]"
+											>
+												{resetTunnel.loading ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
+												Reset & Start Over
+											</button>
+										</div>
+									)}
+
+									{/* Step 1: Install */}
+									<StepRow n={1} title="Install cloudflared" done={step1Done} active={!step1Done}>
+										<a
+											href="https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/"
+											target="_blank"
+											rel="noreferrer"
+											className="self-start flex items-center gap-1.5 text-[12px] hover:opacity-80 transition-opacity text-[#7c6aff]"
+										>
+											<ExternalLink size={12} />
+											Download cloudflared from Cloudflare
+										</a>
+										<div className="flex items-center gap-2">
+											<button
+												type="button"
+												onClick={() => checkCloudflared()}
+												disabled={checkingInstall}
+												className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[12px] font-medium transition-opacity hover:opacity-80 disabled:opacity-50 bg-[#1a1a2e] border border-[#3a3aff40] text-[#7c6aff]"
+											>
+												{checkingInstall ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+												Check installation
+											</button>
+											{cloudflaredStatus && (
+												<span
+													className={classNames(
+														"flex items-center gap-1 text-[12px]",
+														cloudflaredStatus.installed ? "text-[#4ade80]" : "text-[#ef4444]",
+													)}
+												>
+													{cloudflaredStatus.installed ? <Check size={12} /> : <X size={12} />}
+													{cloudflaredStatus.installed ? `Installed — ${cloudflaredStatus.version}` : "Not found"}
+												</span>
+											)}
+										</div>
+									</StepRow>
+
+									{/* Step 2: Login */}
+									<StepRow n={2} title="Authenticate with Cloudflare" done={step2Done} active={step1Done}>
+										{step2Done ? (
+											<div className="flex items-center gap-2 text-[12px]">
+												<Check size={13} className="text-[#4ade80]" />
+												<span className="text-[#4ade80]">
+													Already authenticated — <Mono>~/.cloudflared/cert.pem</Mono> found
+												</span>
+												<button
+													type="button"
+													onClick={() => handleLogin(true)}
+													disabled={cloudflaredLogin.loading}
+													className="ml-2 text-[11px] opacity-40 hover:opacity-70 transition-opacity disabled:opacity-20 text-[#7c6aff]"
+												>
+													{cloudflaredLogin.loading ? "Opening…" : "Re-authenticate"}
+												</button>
+											</div>
+										) : (
+											<>
+												<p className="text-[12px] text-[#60607a]">
+													Opens a browser window to log in to your Cloudflare account. Only needed once.
+												</p>
+												<button
+													type="button"
+													onClick={() => handleLogin(false)}
+													disabled={cloudflaredLogin.loading || !step1Done}
+													className="self-start flex items-center gap-2 px-3 py-1.5 rounded text-[12px] font-medium transition-opacity hover:opacity-80 disabled:opacity-40 bg-[#1a1a2e] border border-[#3a3aff40] text-[#7c6aff]"
+												>
+													{cloudflaredLogin.loading ? (
+														<Loader2 size={12} className="animate-spin" />
+													) : (
+														<ExternalLink size={12} />
+													)}
+													{cloudflaredLogin.loading ? "Waiting for login URL…" : "Login to Cloudflare"}
+												</button>
+												{loginUrl && (
+													<div className="flex flex-col gap-1.5">
+														{waitingForAuth && (
+															<div className="flex items-center gap-2 text-[12px] text-[#facc15]">
+																<Loader2 size={12} className="animate-spin" />
+																Waiting for authentication in browser…
+															</div>
+														)}
+														<p className="text-[11px] text-[#60607a]">If the browser didn't open, click below:</p>
+														<a
+															href={loginUrl}
+															target="_blank"
+															rel="noreferrer"
+															className="flex items-center gap-1.5 text-[11px] font-mono hover:opacity-80 transition-opacity truncate text-[#7c6aff]"
+														>
+															<ExternalLink size={10} />
+															{loginUrl}
+														</a>
+													</div>
+												)}
+											</>
+										)}
+									</StepRow>
+
+									{/* Step 3: Create tunnel */}
+									<StepRow n={3} title="Create tunnel & config file" done={step3Done} active={step2Done}>
+										{step3Done ? (
+											<div className="flex flex-col gap-2">
+												<div className="flex items-center gap-2 text-[12px] text-[#4ade80]">
+													<Check size={13} />
+													Tunnel ID: <Mono>{tunnelConfig?.tunnelId}</Mono>
+												</div>
+												<div className="text-[12px] text-[#60607a]">
+													Config written to <Mono>~/.cloudflared/config.yml</Mono>
+												</div>
+											</div>
+										) : (
+											<>
+												<p className="text-[12px] text-[#60607a]">
+													Enter your public domain, then click Create — we'll run{" "}
+													<Mono>cloudflared tunnel create whipped</Mono> and write{" "}
+													<Mono>~/.cloudflared/config.yml</Mono> automatically.
+												</p>
+												<RHFInputGroup
+													label="Your public domain"
+													labelClassName="text-[11px] font-medium text-[#8888a0]"
+													className="flex flex-col gap-1.5"
+												>
+													<RHFInput
+														name="domain"
+														placeholder="e.g. slack.yourdomain.com"
+														inputClassName="font-mono text-[12px] focus:outline-none focus:border-[#7c6aff] px-3 py-2 bg-[#0c0c0f] border border-[#2a2a35] rounded-md text-[#c0c0d0]"
+													/>
+												</RHFInputGroup>
+												<RHFError name="domain" className="text-[11px] text-[#ef4444]" />
+												<button
+													type="submit"
+													disabled={createTunnel.loading || !step2Done}
+													className="self-start flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-40 bg-[#7c6aff] text-white"
+												>
+													{createTunnel.loading ? (
+														<Loader2 size={14} className="animate-spin" />
+													) : (
+														<ChevronRight size={14} />
+													)}
+													{createTunnel.loading ? "Creating…" : "Create Tunnel"}
+												</button>
+											</>
+										)}
+									</StepRow>
+
+									{/* Step 4: DNS */}
+									<StepRow n={4} title="DNS record" done={step3Done} active={step3Done}>
+										{step3Done && (
+											<div className="flex flex-col gap-1.5">
+												<div className="flex items-center gap-2 text-[12px] text-[#4ade80]">
+													<Check size={13} />
+													Auto-created via <Mono>cloudflared tunnel route dns</Mono>
+												</div>
+												<p className="text-[11px] text-[#4a4a5a]">
+													CNAME <Mono>{tunnelConfig?.domain}</Mono> →{" "}
+													<Mono>{tunnelConfig?.tunnelId}.cfargotunnel.com</Mono>
+												</p>
+											</div>
+										)}
+									</StepRow>
+
+									{/* Step 5: Auto-start */}
+									<StepRow n={5} title="Enable auto-start" done={config.autoStartTunnel} active={step3Done}>
+										<p className="text-[12px] text-[#60607a]">
+											Toggle <span className="text-[#c0c0d0] font-medium">Auto-start tunnel</span> above — the tunnel
+											starts automatically on every server start. No separate terminal needed.
+										</p>
+									</StepRow>
+								</div>
+							)}
+						</form>
+					</FormProvider>
 				</div>
 			</div>
 		</div>

@@ -1,14 +1,32 @@
 import type { RuntimeStateEvent, RuntimeWorkspaceStateResponse } from "@runtime-contract";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { trpc } from "@/runtime/trpc-client";
+import type { ApiSchema } from "@/runtime/api-client";
+import { optimistic, useRead } from "@/runtime/api-client";
+
+// Spoosh caches Hono's JSON-serialized shape, which differs from the raw
+// contract type only at the serialization boundary (e.g. `unknown` → JSONValue).
+type WorkspaceStateData = ApiSchema["workspace/state"]["GET"]["data"];
 
 export function useWorkspaceState(workspaceId: string) {
-	const [state, setState] = useState<RuntimeWorkspaceStateResponse | null>(null);
+	const { data, trigger: refetch } = useRead((api) => api("workspace/state").GET({ query: { workspaceId } }));
 	const [connected, setConnected] = useState(false);
 	const wsRef = useRef<WebSocket | null>(null);
 	const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const reconnectDelayRef = useRef(1000);
 	const mountedRef = useRef(true);
+
+	// Push a full state snapshot from the WebSocket straight into the Spoosh
+	// cache for this workspace's query — no refetch (the message already carries it).
+	const applyState = useCallback(
+		(next: RuntimeWorkspaceStateResponse) => {
+			optimistic((cache) =>
+				cache("workspace/state")
+					.filter((entry) => entry.query.workspaceId === workspaceId)
+					.set(() => next as unknown as WorkspaceStateData),
+			);
+		},
+		[workspaceId],
+	);
 
 	const connect = useCallback(() => {
 		if (!mountedRef.current) return;
@@ -43,22 +61,25 @@ export function useWorkspaceState(workspaceId: string) {
 				switch (msg.type) {
 					case "snapshot":
 					case "workspace_updated":
-						setState(msg.state);
+						applyState(msg.state);
 						break;
 					case "autonomous_mode_changed":
-						setState((prev) => (prev ? { ...prev, autonomousModeEnabled: msg.enabled } : prev));
+						optimistic((cache) =>
+							cache("workspace/state")
+								.filter((entry) => entry.query.workspaceId === workspaceId)
+								.set((prev) => (prev ? { ...prev, autonomousModeEnabled: msg.enabled } : prev)),
+						);
 						break;
 				}
 			} catch {
 				// ignore
 			}
 		};
-	}, [workspaceId]);
+	}, [workspaceId, applyState]);
 
 	useEffect(() => {
 		mountedRef.current = true;
 		reconnectDelayRef.current = 1000;
-		setState(null);
 		connect();
 		return () => {
 			mountedRef.current = false;
@@ -66,30 +87,36 @@ export function useWorkspaceState(workspaceId: string) {
 			wsRef.current?.close();
 			wsRef.current = null;
 		};
-	}, [workspaceId, connect]);
+	}, [connect]);
 
-	const refetch = useCallback(async () => {
-		const fresh = await trpc.workspace.state.query({ workspaceId });
-		setState(fresh);
-	}, [workspaceId]);
+	const optimisticDeleteCard = useCallback(
+		(cardId: string) => {
+			optimistic((cache) =>
+				cache("workspace/state")
+					.filter((entry) => entry.query.workspaceId === workspaceId)
+					.set((prev) => {
+						if (!prev) return prev;
+						const { [cardId]: _removed, ...cards } = prev.board.cards;
+						return {
+							...prev,
+							board: {
+								...prev.board,
+								cards,
+								columns: prev.board.columns.map((col) => ({
+									...col,
+									taskIds: col.taskIds.filter((id) => id !== cardId),
+								})),
+							},
+						};
+					}),
+			);
+		},
+		[workspaceId],
+	);
 
-	const optimisticDeleteCard = useCallback((cardId: string) => {
-		setState((prev) => {
-			if (!prev) return prev;
-			const { [cardId]: _, ...cards } = prev.board.cards;
-			return {
-				...prev,
-				board: {
-					...prev.board,
-					cards,
-					columns: prev.board.columns.map((col) => ({
-						...col,
-						taskIds: col.taskIds.filter((id) => id !== cardId),
-					})),
-				},
-			};
-		});
-	}, []);
+	// Consumers are written against the contract type; the inferred (serialized)
+	// cache type widens to it cleanly.
+	const state: RuntimeWorkspaceStateResponse | null = data ?? null;
 
 	return { state, connected, refetch, optimisticDeleteCard, ws: wsRef };
 }

@@ -22,15 +22,15 @@
     "format": "biome format --write ."
   },
   "dependencies": {
+    "@hono/zod-validator": "^0.8.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@octokit/graphql": "^8.1.2",
     "@octokit/rest": "^21.1.1",
-    "@trpc/client": "^11.11.0",
-    "@trpc/server": "^11.11.0",
     "@xterm/addon-serialize": "^0.14.0",
     "@xterm/headless": "^6.0.0",
     "better-sqlite3": "^12.10.0",
     "commander": "^14.0.3",
+    "hono": "^4.12.23",
     "node-pty": "^1.2.0-beta.11",
     "open": "^11.0.0",
     "ora": "^9.3.0",
@@ -56,6 +56,9 @@
       "better-sqlite3",
       "esbuild",
       "node-pty"
-    ]
+    ],
+    "overrides": {
+      "hono": "4.12.23"
+    }
   }
 }

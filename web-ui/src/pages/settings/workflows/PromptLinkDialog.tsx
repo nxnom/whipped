@@ -1,9 +1,12 @@
-import { Button, Dialog, Input, toast } from "@geckoui/geckoui";
+import { Button, Dialog, RHFError, RHFInput, toast } from "@geckoui/geckoui";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { type PromptLinkForm, promptLinkFormSchema } from "@runtime-validation/workflow";
 import { FileText, FolderOpen, X } from "lucide-react";
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { FormProvider, useForm } from "react-hook-form";
 import { FilePickerDialog } from "@/components/FilePickerDialog";
-import { trpc } from "@/runtime/trpc-client";
+import { useRead, useWrite } from "@/runtime/api-client";
 
 // Sanitise a workflow/slot name into a filesystem-safe slug.
 function slug(name: string): string {
@@ -34,53 +37,61 @@ function PromptLinkContent({
 	dismiss: () => void;
 	onLinked: (path: string, content: string) => void;
 }) {
-	const [path, setPath] = useState(defaultPath);
+	const methods = useForm<PromptLinkForm, unknown, PromptLinkForm>({
+		resolver: zodResolver(promptLinkFormSchema),
+		values: { path: defaultPath },
+	});
+	const { handleSubmit, setValue, watch } = methods;
+	const path = watch("path");
+
 	const [browsing, setBrowsing] = useState(false);
 	const [busy, setBusy] = useState(false);
 	// When the chosen file already has content that differs from the current
 	// inline prompt, ask the user which one wins.
 	const [conflict, setConflict] = useState<{ fileContent: string } | null>(null);
 
+	const { trigger: writePromptFile } = useWrite((api) => api("workflows/prompt-file").POST());
+	// Lazy read: the builder needs a query shape, but the actual path is supplied
+	// per-fetch via trigger({ query }).
+	const { trigger: readPromptFile } = useRead(
+		(api) => api("workflows/prompt-file").GET({ query: { workspaceId, path: "" } }),
+		{ enabled: false },
+	);
+
 	const link = async (content: string, write: boolean) => {
-		try {
-			if (write) {
-				await trpc.workflows.writePromptFile.mutate({
-					workspaceId,
-					path,
-					content,
-				});
+		if (write) {
+			const res = await writePromptFile({ body: { workspaceId, path, content } });
+			if (res.error) {
+				toast.error(`Link failed: ${res.error.message}`);
+				return;
 			}
-			onLinked(path, content);
-			toast(`Linked to ${path}`);
-			dismiss();
-		} catch (err) {
-			toast.error(`Link failed: ${(err as Error).message}`);
 		}
+		onLinked(path, content);
+		toast(`Linked to ${path}`);
+		dismiss();
 	};
 
-	const handleLink = async () => {
-		if (!path.trim()) return;
+	const handleLink = async ({ path: target }: PromptLinkForm) => {
 		setBusy(true);
 		try {
-			const res = await trpc.workflows.readPromptFile.query({
-				workspaceId,
-				path,
-			});
+			const res = await readPromptFile({ query: { workspaceId, path: target } });
+			if (res.error) {
+				toast.error(`Couldn't read file: ${res.error.message}`);
+				return;
+			}
 			const hasInline = currentInline.trim().length > 0;
-			const hasFile = res.exists && res.content.trim().length > 0;
+			const hasFile = res.data.exists && res.data.content.trim().length > 0;
 
 			if (!hasFile) {
 				// File missing or empty → seed it with the current inline prompt.
 				await link(currentInline, true);
 			} else if (!hasInline) {
 				// Nothing to lose → adopt the file's existing content.
-				await link(res.content, false);
+				await link(res.data.content, false);
 			} else {
 				// Both sides have content → ask which to keep.
-				setConflict({ fileContent: res.content });
+				setConflict({ fileContent: res.data.content });
 			}
-		} catch (err) {
-			toast.error(`Couldn't read file: ${(err as Error).message}`);
 		} finally {
 			setBusy(false);
 		}
@@ -155,8 +166,8 @@ function PromptLinkContent({
 	}
 
 	return (
-		<>
-			<div className="flex flex-col gap-4">
+		<FormProvider {...methods}>
+			<form onSubmit={handleSubmit(handleLink)} className="flex flex-col gap-4">
 				<div className="flex items-center gap-2">
 					<FileText size={16} className="text-[#7c6aff]" />
 					<h3 className="text-[15px] font-semibold text-[#f0f0f5]">Link prompt to a file</h3>
@@ -168,42 +179,42 @@ function PromptLinkContent({
 				<div className="flex flex-col gap-1.5">
 					<span className="text-[12px] font-medium text-[#c0c0d0]">File path</span>
 					<div className="flex gap-2">
-						<Input
-							value={path}
-							onChange={(e) => setPath(e.target.value)}
+						<RHFInput
+							name="path"
 							placeholder="/path/to/repo/.whipped/prompts/dev.md"
 							inputClassName="font-mono text-[12px]"
 							className="flex-1"
 						/>
-						<Button variant="outlined" onClick={() => setBrowsing(true)}>
+						<Button type="button" variant="outlined" onClick={() => setBrowsing(true)}>
 							<span className="flex items-center gap-1.5">
 								<FolderOpen size={13} />
 								Browse
 							</span>
 						</Button>
 					</div>
+					<RHFError name="path" className="text-xs text-red-400" />
 				</div>
 				<div className="flex justify-end gap-2">
-					<Button variant="ghost" onClick={dismiss}>
+					<Button type="button" variant="ghost" onClick={dismiss}>
 						Cancel
 					</Button>
-					<Button onClick={handleLink} disabled={busy || !path.trim()}>
+					<Button type="submit" disabled={busy || !path.trim()}>
 						Link
 					</Button>
 				</div>
-			</div>
+			</form>
 
 			{browsing && (
 				<FilePickerDialog
 					initialPath={path.replace(/\/[^/]*$/, "") || undefined}
 					onSelect={(p) => {
-						setPath(p);
+						setValue("path", p, { shouldValidate: true });
 						setBrowsing(false);
 					}}
 					onClose={() => setBrowsing(false)}
 				/>
 			)}
-		</>
+		</FormProvider>
 	);
 }
 

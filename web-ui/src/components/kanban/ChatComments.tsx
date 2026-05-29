@@ -7,7 +7,7 @@ import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
 import { attachmentUrl, uploadAttachmentFile } from "@/runtime/attachments";
-import { trpc } from "@/runtime/trpc-client";
+import { useWrite } from "@/runtime/api-client";
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
 
@@ -235,6 +235,9 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 	const isReadyForReview = card.columnId === "ready_for_review";
 	const isStory = card.type === "story";
 
+	const { trigger: submitHumanFeedbackTrigger } = useWrite((api) => api("cards/submit-human-feedback").POST());
+	const { trigger: addReviewCommentTrigger } = useWrite((api) => api("cards/add-review-comment").POST());
+
 	const commentEntries: CommentEntry[] = useMemo(() => {
 		if (!isStory) {
 			return (card.reviewComments ?? []).map((c) => ({ comment: c }));
@@ -288,20 +291,24 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 			const attachments = uploaded.length > 0 ? uploaded : undefined;
 
 			if (requestChanges) {
-				await trpc.cards.submitHumanFeedback.mutate({
-					workspaceId,
-					cardId: card.id,
-					comment: text || undefined,
-					attachments,
+				await submitHumanFeedbackTrigger({
+					body: {
+						workspaceId,
+						cardId: card.id,
+						comment: text || undefined,
+						attachments,
+					},
 				});
 			} else {
-				await trpc.cards.addReviewComment.mutate({
-					workspaceId,
-					cardId: card.id,
-					type: "human",
-					actor: { type: "human", id: "human" },
-					summary: text || (uploaded.length > 0 ? `${uploaded.map((a) => a.name).join(", ")}` : ""),
-					attachments,
+				await addReviewCommentTrigger({
+					body: {
+						workspaceId,
+						cardId: card.id,
+						type: "human",
+						actor: { type: "human", id: "human" },
+						summary: text || (uploaded.length > 0 ? `${uploaded.map((a) => a.name).join(", ")}` : ""),
+						attachments,
+					},
 				});
 			}
 			setMessage("");

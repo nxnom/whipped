@@ -29,7 +29,7 @@ import { useEffect, useRef, useState } from "react";
 import { RunBar } from "@/components/RunBar";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { attachmentUrl } from "@/runtime/attachments";
-import { trpc } from "@/runtime/trpc-client";
+import { useWrite } from "@/runtime/api-client";
 import { useRunSession } from "@/stores/run-session-store";
 import { CardMemoryTab } from "./CardMemoryTab";
 import { ChatComments } from "./ChatComments";
@@ -272,6 +272,13 @@ export function CardDetailPanel({
 	onDeleteCard,
 }: Props) {
 	const { session: runSession, start: startRun, stop: stopRun } = useRunSession(workspaceId);
+	const { trigger: startAgentTrigger } = useWrite((api) => api("cards/start-agent").POST());
+	const { trigger: stopAgentTrigger } = useWrite((api) => api("cards/stop-agent").POST());
+	const { trigger: commitAndMergeTrigger } = useWrite((api) => api("cards/commit-and-merge").POST());
+	const { trigger: commitAndPRTrigger } = useWrite((api) => api("cards/commit-and-pr").POST());
+	const { trigger: updateCardTrigger } = useWrite((api) => api("cards/:id").PATCH());
+	const { trigger: deleteCardTrigger } = useWrite((api) => api("cards/:id").DELETE());
+	const { trigger: openTerminalTrigger } = useWrite((api) => api("fs/open-terminal").POST());
 	const [activeStreamId, setActiveStreamId] = useState<string>(
 		() => card.terminalSessions?.at(-1)?.streamId ?? card.id,
 	);
@@ -349,12 +356,12 @@ export function CardDetailPanel({
 
 	// ── Handlers ───────────────────────────────────────────────────────────
 	const _handleStart = async () => {
-		try {
-			await trpc.cards.startAgent.mutate({ workspaceId, cardId: card.id });
-			onRefresh();
-		} catch {
+		const res = await startAgentTrigger({ body: { workspaceId, cardId: card.id } });
+		if (res.error) {
 			toast.error("Failed to start agent");
+			return;
 		}
+		onRefresh();
 	};
 
 	const handleStop = () => {
@@ -364,13 +371,13 @@ export function CardDetailPanel({
 			confirmButtonLabel: "Stop",
 			cancelButtonLabel: "Cancel",
 			onConfirm: async ({ dismiss }) => {
-				try {
-					await trpc.cards.stopAgent.mutate({ workspaceId, cardId: card.id });
-					dismiss();
-					onRefresh();
-				} catch {
+				const res = await stopAgentTrigger({ body: { workspaceId, cardId: card.id } });
+				if (res.error) {
 					toast.error("Failed to stop agent");
+					return;
 				}
+				dismiss();
+				onRefresh();
 			},
 			onCancel: ({ dismiss }) => dismiss(),
 		});
@@ -389,7 +396,12 @@ export function CardDetailPanel({
 	const doMerge = async (commitMessage?: string) => {
 		setMerging(true);
 		try {
-			const result = await trpc.cards.commitAndMerge.mutate({ workspaceId, cardId: card.id, commitMessage });
+			const res = await commitAndMergeTrigger({ body: { workspaceId, cardId: card.id, commitMessage } });
+			if (res.error) {
+				toast.error(`Merge failed: ${res.error.message}`);
+				return;
+			}
+			const result = res.data;
 			if (result.status === "needs_commit") {
 				showCommitMsgDialog((msg) => doMerge(msg), "merge");
 				return;
@@ -402,8 +414,6 @@ export function CardDetailPanel({
 				toast.success("Merge conflicts detected — resolving with AI agent...");
 				onRefresh();
 			}
-		} catch (err: unknown) {
-			toast.error(`Merge failed: ${err instanceof Error ? err.message : String(err)}`);
 		} finally {
 			setMerging(false);
 		}
@@ -412,7 +422,12 @@ export function CardDetailPanel({
 	const doPR = async (commitMessage?: string) => {
 		setCreatingPR(true);
 		try {
-			const result = await trpc.cards.commitAndPR.mutate({ workspaceId, cardId: card.id, commitMessage });
+			const res = await commitAndPRTrigger({ body: { workspaceId, cardId: card.id, commitMessage } });
+			if (res.error) {
+				toast.error(`PR creation failed: ${res.error.message}`);
+				return;
+			}
+			const result = res.data;
 			if (result.status === "needs_commit") {
 				showCommitMsgDialog((msg) => doPR(msg), "pr");
 				return;
@@ -424,8 +439,6 @@ export function CardDetailPanel({
 			toast.success("PR created");
 			window.open(result.prUrl, "_blank");
 			onRefresh();
-		} catch (err: unknown) {
-			toast.error(`PR creation failed: ${err instanceof Error ? err.message : String(err)}`);
 		} finally {
 			setCreatingPR(false);
 		}
@@ -480,12 +493,17 @@ export function CardDetailPanel({
 		}
 		setSavingBranch(true);
 		try {
-			await trpc.cards.update.mutate({ workspaceId, cardId: card.id, branchName: next || undefined, revision: 0 });
+			const res = await updateCardTrigger({
+				params: { id: card.id },
+				body: { workspaceId, cardId: card.id, branchName: next || undefined, revision: 0 },
+			});
+			if (res.error) {
+				toast.error("Failed to update branch name");
+				return;
+			}
 			toast.success("Branch name updated");
 			cancelEditBranch();
 			onRefresh();
-		} catch {
-			toast.error("Failed to update branch name");
 		} finally {
 			setSavingBranch(false);
 		}
@@ -498,16 +516,14 @@ export function CardDetailPanel({
 			confirmButtonLabel: "Delete",
 			cancelButtonLabel: "Cancel",
 			onConfirm: async ({ dismiss }) => {
-				try {
-					onDeleteCard(card.id);
-					dismiss();
-					onClose();
-					await trpc.cards.delete.mutate({ workspaceId, cardId: card.id });
-					onRefresh();
-				} catch {
+				onDeleteCard(card.id);
+				dismiss();
+				onClose();
+				const res = await deleteCardTrigger({ params: { id: card.id }, body: { workspaceId } });
+				if (res.error) {
 					toast.error("Failed to delete task");
-					onRefresh();
 				}
+				onRefresh();
 			},
 			onCancel: ({ dismiss }) => dismiss(),
 		});
@@ -701,7 +717,7 @@ export function CardDetailPanel({
 				)}
 				{card.worktreePath && (
 					<button
-						onClick={() => trpc.fs.openTerminal.mutate({ path: card.worktreePath! })}
+						onClick={() => void openTerminalTrigger({ body: { path: card.worktreePath! } })}
 						className="flex items-center gap-1.5 px-2.5 py-[3px] rounded-md text-[11px] text-[#8888a0] bg-[#1a1a1f] border border-[#2a2a35] hover:border-[#3a3a48] transition-colors"
 					>
 						<FolderOpen size={11} />

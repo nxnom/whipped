@@ -1,7 +1,7 @@
 import { Button, Dialog, Input, toast } from "@geckoui/geckoui";
 import { ExternalLink, Globe } from "lucide-react";
 import { useEffect, useState } from "react";
-import { trpc } from "@/runtime/trpc-client";
+import { useRead, useWrite } from "@/runtime/api-client";
 
 interface CardContext {
 	id: string;
@@ -33,11 +33,15 @@ function PreviewUrlDialogBody({ workspaceId, card, dismiss }: Props) {
 	const [loading, setLoading] = useState(true);
 	const [submitting, setSubmitting] = useState(false);
 
+	const { trigger: fetchConfig } = useRead((api) => api("project-config").GET({ query: { workspaceId } }), {
+		enabled: false,
+	});
+	const { trigger: setPreviewUrlTrigger } = useWrite((api) => api("project-config/preview-url").POST());
+
 	useEffect(() => {
-		trpc.projectConfig.get
-			.query({ workspaceId })
-			.then((config) => {
-				setUrl(config.previewUrl ?? "");
+		fetchConfig()
+			.then((res) => {
+				setUrl(res.data?.previewUrl ?? "");
 				setLoading(false);
 			})
 			.catch(() => setLoading(false));
@@ -50,7 +54,7 @@ function PreviewUrlDialogBody({ workspaceId, card, dismiss }: Props) {
 		if (!isValid) return;
 		setSubmitting(true);
 		try {
-			await trpc.projectConfig.setPreviewUrl.mutate({ workspaceId, url: trimmed });
+			await setPreviewUrlTrigger({ body: { workspaceId, url: trimmed } });
 			const target = card
 				? appendAnnotateHash(trimmed, {
 						serverUrl: window.location.origin,

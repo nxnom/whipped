@@ -17,7 +17,7 @@ import {
 	Workflow,
 	Zap,
 } from "lucide-react";
-import { trpc } from "@/runtime/trpc-client";
+import { useWrite } from "@/runtime/api-client";
 import { showPreviewUrlDialog } from "./PreviewUrlDialog";
 
 interface KanbanCardProps {
@@ -74,6 +74,7 @@ export function KanbanCard({
 	onRun,
 	onStop,
 }: KanbanCardProps) {
+	const { trigger: openPath } = useWrite((api) => api("fs/open").POST());
 	const isRunning = card.terminalSessions?.some((ts) => !ts.endedAt) ?? false;
 	const _agentLabel = card.agentId ? AGENT_LABELS[card.agentId] : null;
 	const lastTs = card.terminalSessions?.at(-1);
@@ -319,7 +320,7 @@ export function KanbanCard({
 							<button
 								onClick={(e) => {
 									e.stopPropagation();
-									trpc.fs.openPath.mutate({ path: card.worktreePath! });
+									void openPath({ body: { path: card.worktreePath! } });
 								}}
 								className="px-2.5 py-1.5 rounded text-xs text-gray-500 hover:text-blue-400 hover:bg-[#252530] transition-colors cursor-pointer"
 								title="Open worktree folder"

@@ -1,7 +1,7 @@
 import { Check, Copy, ExternalLink, FolderOpen, Monitor, Puzzle, Smartphone } from "lucide-react";
 import { useEffect, useState } from "react";
 import { classNames } from "@/utils/classNames";
-import { trpc } from "@/runtime/trpc-client";
+import { useRead, useWrite } from "@/runtime/api-client";
 import { toast } from "@geckoui/geckoui";
 
 function CopyField({ label, value }: { label: string; value: string }) {
@@ -77,24 +77,18 @@ function InlineCode({ children }: { children: string }) {
 }
 
 export function ExtensionSettings() {
-	const [tunnelDomain, setTunnelDomain] = useState<string | null>(null);
-	const [tunnelStatus, setTunnelStatus] = useState<string>("stopped");
 	const [port, setPort] = useState<number | null>(null);
-	const [extensionPath, setExtensionPath] = useState<string | null>(null);
+
+	const { data: tunnelConfig } = useRead((api) => api("slack/tunnelConfig").GET());
+	const { data: tunnelStatusData } = useRead((api) => api("slack/tunnelStatus").GET());
+	const { data: extensionPathData } = useRead((api) => api("fs/extension-path").GET());
+	const { trigger: openPath } = useWrite((api) => api("fs/open").POST());
+
+	const tunnelDomain = tunnelConfig?.domain ?? null;
+	const tunnelStatus = tunnelStatusData?.status ?? "stopped";
+	const extensionPath = extensionPathData?.path ?? null;
 
 	useEffect(() => {
-		trpc.slack.tunnelConfig
-			.query()
-			.then((c) => setTunnelDomain(c.domain ?? null))
-			.catch(() => {});
-		trpc.slack.tunnelStatus
-			.query()
-			.then((s) => setTunnelStatus(s.status))
-			.catch(() => {});
-		trpc.fs.extensionPath
-			.query()
-			.then((r) => setExtensionPath(r.path))
-			.catch(() => {});
 		setPort(Number(window.location.port) || 50007);
 	}, []);
 
@@ -104,8 +98,8 @@ export function ExtensionSettings() {
 
 	const openExtensionFolder = () => {
 		if (!extensionPath) return;
-		trpc.fs.openPath.mutate({ path: extensionPath }).catch(() => {
-			toast.error("Could not open folder");
+		openPath({ body: { path: extensionPath } }).then((res) => {
+			if (res.error) toast.error("Could not open folder");
 		});
 	};
 

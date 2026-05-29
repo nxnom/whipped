@@ -2,9 +2,9 @@ import { ConfirmDialog, toast } from "@geckoui/geckoui";
 import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
 import type { RuntimeBoardCard, RuntimeBoardColumnId, RuntimeWorkspaceStateResponse } from "@runtime-contract";
 import { ChevronDown, GitBranch, Layers, MessageSquare, Play, Plus, Settings, Square } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { trpc } from "@/runtime/trpc-client";
+import { useRead, useWrite } from "@/runtime/api-client";
 import { useRunSession } from "@/stores/run-session-store";
 import { CardDetailPanel } from "./CardDetailPanel";
 import { CreateTaskDialog, EditTaskDialog } from "./CreateTaskDialog";
@@ -61,14 +61,13 @@ export function KanbanBoard({
 	const [createDialogOpen, setCreateDialogOpen] = useState(false);
 	const [createDialogMode, setCreateDialogMode] = useState<"task" | "story">("task");
 	const [editDialogCard, setEditDialogCard] = useState<RuntimeBoardCard | null>(null);
-	const [currentBranch, setCurrentBranch] = useState<string>("");
 
-	useEffect(() => {
-		trpc.cards.listBranches
-			.query({ workspaceId })
-			.then(({ defaultBranch }) => setCurrentBranch(defaultBranch))
-			.catch(() => {});
-	}, [workspaceId]);
+	const { data: branchesData } = useRead((api) => api("cards/branches").GET({ query: { workspaceId } }));
+	const { trigger: deleteCard } = useWrite((api) => api("cards/:id").DELETE());
+	const { trigger: updateCard } = useWrite((api) => api("cards/:id").PATCH());
+	const { trigger: moveCard } = useWrite((api) => api("cards/move").POST());
+
+	const currentBranch = branchesData?.defaultBranch ?? "";
 
 	const openCard = (id: string) =>
 		navigate(`/${encodeURIComponent(workspaceId)}/board/${encodeURIComponent(id)}`, { replace: true });
@@ -84,10 +83,7 @@ export function KanbanBoard({
 				try {
 					onDeleteCard(card.id);
 					dismiss();
-					await trpc.cards.delete.mutate({
-						workspaceId: workspaceId,
-						cardId: card.id,
-					});
+					await deleteCard({ params: { id: card.id }, body: { workspaceId } });
 					onRefresh();
 				} catch {
 					toast.error("Failed to delete task");
@@ -100,11 +96,14 @@ export function KanbanBoard({
 
 	const handleToggleReady = async (card: RuntimeBoardCard) => {
 		try {
-			await trpc.cards.update.mutate({
-				workspaceId,
-				cardId: card.id,
-				readyForDev: !card.readyForDev,
-				revision: 0,
+			await updateCard({
+				params: { id: card.id },
+				body: {
+					workspaceId,
+					cardId: card.id,
+					readyForDev: !card.readyForDev,
+					revision: 0,
+				},
 			});
 			onRefresh();
 		} catch {
@@ -132,11 +131,14 @@ export function KanbanBoard({
 				dismiss();
 				try {
 					for (const card of todoCards) {
-						await trpc.cards.update.mutate({
-							workspaceId: workspaceId,
-							cardId: card!.id,
-							readyForDev: true,
-							revision: 0,
+						await updateCard({
+							params: { id: card!.id },
+							body: {
+								workspaceId,
+								cardId: card!.id,
+								readyForDev: true,
+								revision: 0,
+							},
 						});
 					}
 					onRefresh();
@@ -158,12 +160,14 @@ export function KanbanBoard({
 			return;
 
 		try {
-			await trpc.cards.move.mutate({
-				workspaceId: workspaceId,
-				cardId: result.draggableId,
-				targetColumnId: result.destination.droppableId as RuntimeBoardColumnId,
-				targetIndex: result.destination.index,
-				revision: state.revision,
+			await moveCard({
+				body: {
+					workspaceId,
+					cardId: result.draggableId,
+					targetColumnId: result.destination.droppableId as RuntimeBoardColumnId,
+					targetIndex: result.destination.index,
+					revision: state.revision,
+				},
 			});
 			onRefresh();
 		} catch {

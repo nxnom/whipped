@@ -1,6 +1,8 @@
-import { Button, Input, Select, SelectOption, Textarea } from "@geckoui/geckoui";
+import { Button, RHFError, RHFInput, RHFSelect, RHFTextarea, SelectOption } from "@geckoui/geckoui";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { AGENT_BINARY_OPTIONS, EFFORT_OPTIONS, type EffortLevel, type RuntimeAgentId } from "@runtime-contract";
-import { useState } from "react";
+import { type AddCustomAgentForm, addCustomAgentSchema } from "@runtime-validation/workflow";
+import { Controller, FormProvider, useForm } from "react-hook-form";
 import { Field } from "../_shared";
 import { ModelSelect } from "./ModelSelect";
 
@@ -21,20 +23,15 @@ export function AddCustomAgentDialog({
 	) => void;
 	onClose: () => void;
 }) {
-	const [name, setName] = useState("");
-	const [binary, setBinary] = useState<RuntimeAgentId>(defaultBinary);
-	const [model, setModel] = useState<string>("");
-	const [effort, setEffort] = useState<EffortLevel | "">("");
-	const [prompt, setPrompt] = useState("");
-	const [promptError, setPromptError] = useState("");
+	const methods = useForm<AddCustomAgentForm, unknown, AddCustomAgentForm>({
+		resolver: zodResolver(addCustomAgentSchema),
+		values: { name: "", binary: defaultBinary, model: "", effort: "", prompt: "" },
+	});
+	const { control, handleSubmit, setValue, watch } = methods;
+	const binary = watch("binary");
 
-	const handleAdd = () => {
-		if (!name.trim()) return;
-		if (prompt.trim().length < 50) {
-			setPromptError("Instructions must be at least 50 characters.");
-			return;
-		}
-		onAdd(name.trim(), binary, model || null, effort || null, prompt);
+	const onSubmit = (data: AddCustomAgentForm) => {
+		onAdd(data.name.trim(), data.binary, data.model || null, data.effort || null, data.prompt);
 	};
 
 	return (
@@ -44,63 +41,58 @@ export function AddCustomAgentDialog({
 				onClick={(e) => e.stopPropagation()}
 			>
 				<h3 className="text-sm font-semibold text-gray-100">{title}</h3>
-				<div className="grid grid-cols-2 gap-3">
-					<Field label="Name">
-						<Input
-							value={name}
-							onChange={(e) => setName(e.target.value)}
-							placeholder="e.g. Security Review"
-							autoFocus
-						/>
-					</Field>
-					<Field label="Agent">
-						<Select
-							value={binary}
-							onChange={(v) => {
-								setBinary(v as RuntimeAgentId);
-								setModel("");
-							}}
-						>
-							{AGENT_BINARY_OPTIONS.map((o) => (
-								<SelectOption key={o.value} value={o.value} label={o.label} />
-							))}
-						</Select>
-					</Field>
-				</div>
-				<div className="grid grid-cols-2 gap-3">
-					<Field label="Model (optional)">
-						<ModelSelect key={binary} agentId={binary} value={model} onChange={setModel} />
-					</Field>
-					<Field label="Effort (optional)">
-						<Select value={effort} onChange={(v) => setEffort(v as EffortLevel | "")}>
-							<SelectOption value="" label="Default" />
-							{EFFORT_OPTIONS.map((o) => (
-								<SelectOption key={o.value} value={o.value} label={o.label} />
-							))}
-						</Select>
-					</Field>
-				</div>
-				<Field label="Instructions (min 50 chars)">
-					<Textarea
-						value={prompt}
-						onChange={(e) => {
-							setPrompt(e.target.value);
-							if (promptError) setPromptError("");
-						}}
-						placeholder="Describe what this agent should check or do..."
-						maxRows={20}
-						autoResize
-					/>
-					{promptError && <p className="text-xs text-red-400 mt-1">{promptError}</p>}
-				</Field>
-				<div className="flex gap-2 justify-end">
-					<Button variant="ghost" onClick={onClose}>
-						Cancel
-					</Button>
-					<Button onClick={handleAdd} disabled={!name.trim()}>
-						Add
-					</Button>
-				</div>
+				<FormProvider {...methods}>
+					<form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+						<div className="grid grid-cols-2 gap-3">
+							<Field label="Name">
+								<RHFInput name="name" placeholder="e.g. Security Review" autoFocus />
+								<RHFError name="name" className="text-xs text-red-400 mt-1" />
+							</Field>
+							<Field label="Agent">
+								<RHFSelect name="binary" onChange={() => setValue("model", "")}>
+									{AGENT_BINARY_OPTIONS.map((o) => (
+										<SelectOption key={o.value} value={o.value} label={o.label} />
+									))}
+								</RHFSelect>
+							</Field>
+						</div>
+						<div className="grid grid-cols-2 gap-3">
+							<Field label="Model (optional)">
+								{/* ModelSelect manages its own preset/custom UI; bridge it to RHF. */}
+								<Controller
+									control={control}
+									name="model"
+									render={({ field }) => (
+										<ModelSelect key={binary} agentId={binary} value={field.value} onChange={field.onChange} />
+									)}
+								/>
+							</Field>
+							<Field label="Effort (optional)">
+								<RHFSelect name="effort">
+									<SelectOption value="" label="Default" />
+									{EFFORT_OPTIONS.map((o) => (
+										<SelectOption key={o.value} value={o.value} label={o.label} />
+									))}
+								</RHFSelect>
+							</Field>
+						</div>
+						<Field label="Instructions (min 50 chars)">
+							<RHFTextarea
+								name="prompt"
+								placeholder="Describe what this agent should check or do..."
+								maxRows={20}
+								autoResize
+							/>
+							<RHFError name="prompt" className="text-xs text-red-400 mt-1" />
+						</Field>
+						<div className="flex gap-2 justify-end">
+							<Button type="button" variant="ghost" onClick={onClose}>
+								Cancel
+							</Button>
+							<Button type="submit">Add</Button>
+						</div>
+					</form>
+				</FormProvider>
 			</div>
 		</div>
 	);

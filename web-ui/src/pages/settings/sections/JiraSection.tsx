@@ -1,10 +1,15 @@
-import { Button, Checkbox, Input, toast } from "@geckoui/geckoui";
+import { Button, Checkbox, RHFInput, toast } from "@geckoui/geckoui";
+import { zodResolver } from "@hookform/resolvers/zod";
 import type { RuntimeJiraTicket, RuntimeProjectConfig } from "@runtime-contract";
+import { type JiraConfigValues, jiraConfigSchema } from "@runtime-validation/jira";
 import { Download, RefreshCw } from "lucide-react";
 import { useState } from "react";
+import { FormProvider, useForm } from "react-hook-form";
+import { useRead, useWrite } from "@/runtime/api-client";
 import { classNames } from "@/utils/classNames";
-import { trpc } from "@/runtime/trpc-client";
 import { Field, SaveRow, SectionHeader } from "../_shared";
+
+const EMPTY_JIRA: JiraConfigValues = { host: "", email: "", token: "", projectKey: "" };
 
 export function JiraSection({
 	workspaceId,
@@ -21,74 +26,67 @@ export function JiraSection({
 }) {
 	const [jiraTickets, setJiraTickets] = useState<RuntimeJiraTicket[] | null>(null);
 	const [selectedTickets, setSelectedTickets] = useState<Set<string>>(new Set());
-	const [fetchingJira, setFetchingJira] = useState(false);
-	const [importing, setImporting] = useState(false);
+
+	const methods = useForm<JiraConfigValues>({
+		resolver: zodResolver(jiraConfigSchema),
+		values: { ...EMPTY_JIRA, ...config.jira },
+	});
+
+	// Push edits back into the parent-owned project config so the existing
+	// Save flow persists them. RHF `values` keeps the form in sync the other way.
+	const updateJira = (patch: Partial<JiraConfigValues>) =>
+		onUpdate({ ...config, jira: { ...EMPTY_JIRA, ...config.jira, ...patch } });
+
+	const { trigger: fetchTicketsTrigger, loading: fetchingJira } = useRead(
+		(api) => api("jira/tickets").GET({ query: { workspaceId } }),
+		{ enabled: false },
+	);
+	const { trigger: importTrigger, loading: importing } = useWrite((api) => api("jira/import").POST());
 
 	const handleFetchJira = async () => {
-		setFetchingJira(true);
 		setJiraTickets(null);
-		try {
-			const tickets = await trpc.jira.fetchTickets.query({ workspaceId });
-			setJiraTickets(tickets);
-		} catch {
+		const res = await fetchTicketsTrigger();
+		if (res.error || !res.data) {
 			toast.error("Failed to fetch Jira tickets. Check your Jira configuration.");
-		} finally {
-			setFetchingJira(false);
+			return;
 		}
+		setJiraTickets(res.data);
 	};
 
 	const handleImport = async () => {
 		if (selectedTickets.size === 0) return;
-		setImporting(true);
-		try {
-			const result = await trpc.jira.importTickets.mutate({
-				workspaceId,
-				ticketKeys: Array.from(selectedTickets),
-			});
-			toast.success(`Imported ${result.created.length} tickets`);
-			setJiraTickets(null);
-			setSelectedTickets(new Set());
-		} catch {
+		const res = await importTrigger({ body: { workspaceId, ticketKeys: Array.from(selectedTickets) } });
+		if (res.error || !res.data) {
 			toast.error("Failed to import tickets");
-		} finally {
-			setImporting(false);
+			return;
 		}
+		toast.success(`Imported ${res.data.created.length} tickets`);
+		setJiraTickets(null);
+		setSelectedTickets(new Set());
 	};
 
 	return (
-		<>
+		<FormProvider {...methods}>
 			<SectionHeader title="Jira" description="Connect your Jira project to import tickets directly onto the board." />
 			<div className="space-y-4">
 				<Field label="Host">
-					<Input
-						value={config.jira?.host ?? ""}
-						onChange={(e) => onUpdate({ ...config, jira: { ...config.jira!, host: e.target.value } })}
-						placeholder="company.atlassian.net"
-					/>
+					<RHFInput name="host" placeholder="company.atlassian.net" onChange={(v) => updateJira({ host: v ?? "" })} />
 				</Field>
 				<div className="grid grid-cols-2 gap-3">
 					<Field label="Email">
-						<Input
-							value={config.jira?.email ?? ""}
-							onChange={(e) => onUpdate({ ...config, jira: { ...config.jira!, email: e.target.value } })}
-							placeholder="you@company.com"
-						/>
+						<RHFInput name="email" placeholder="you@company.com" onChange={(v) => updateJira({ email: v ?? "" })} />
 					</Field>
 					<Field label="API Token">
-						<Input
+						<RHFInput
+							name="token"
 							type="password"
-							value={config.jira?.token ?? ""}
-							onChange={(e) => onUpdate({ ...config, jira: { ...config.jira!, token: e.target.value } })}
 							placeholder="••••••••"
+							onChange={(v) => updateJira({ token: v ?? "" })}
 						/>
 					</Field>
 				</div>
 				<Field label="Project Key">
-					<Input
-						value={config.jira?.projectKey ?? ""}
-						onChange={(e) => onUpdate({ ...config, jira: { ...config.jira!, projectKey: e.target.value } })}
-						placeholder="ENG"
-					/>
+					<RHFInput name="projectKey" placeholder="ENG" onChange={(v) => updateJira({ projectKey: v ?? "" })} />
 				</Field>
 			</div>
 			<SaveRow saving={saving} onSave={onSave} />
@@ -153,6 +151,6 @@ export function JiraSection({
 					)}
 				</div>
 			</div>
-		</>
+		</FormProvider>
 	);
 }

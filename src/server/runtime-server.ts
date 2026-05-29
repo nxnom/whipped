@@ -2,7 +2,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import * as nodePty from "node-pty";
 import { WebSocketServer } from "ws";
 import { writeClaudeTaskHookSettings } from "../agents/agent-hooks.js";
@@ -32,7 +31,8 @@ import {
 	saveAttachment,
 	updateCard,
 } from "../state/workspace-state.js";
-import { type AppContext, appRouter, type RunSession } from "../trpc/app-router.js";
+import { createApiApp } from "../api/index.js";
+import type { AppContext, RunSession } from "../api/types/context.js";
 import { RuntimeStateHub } from "./runtime-state-hub.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
@@ -320,6 +320,8 @@ export async function createRuntimeServer(options: ServerOptions) {
 			getRunSession,
 		};
 	}
+
+	const apiApp = createApiApp(createContext());
 
 	const webUiDistPath = join(__dirname, "..", "web-ui");
 	const webUiIndexPath = join(webUiDistPath, "index.html");
@@ -655,22 +657,16 @@ export async function createRuntimeServer(options: ServerOptions) {
 			return;
 		}
 
-		if (url.pathname.startsWith("/api/trpc")) {
+		if (url.pathname.startsWith("/api/")) {
 			const fetchReq = new Request(`http://${host}${req.url}`, {
 				method: req.method,
 				headers: Object.fromEntries(Object.entries(req.headers).map(([k, v]) => [k, String(v)])),
 				body: req.method !== "GET" && req.method !== "HEAD" ? await readBody(req) : undefined,
 			});
 
-			const response = await fetchRequestHandler({
-				endpoint: "/api/trpc",
-				req: fetchReq,
-				router: appRouter,
-				createContext,
-			});
-
+			const response = await apiApp.fetch(fetchReq);
 			res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
-			res.end(await response.text());
+			res.end(Buffer.from(await response.arrayBuffer()));
 			return;
 		}
 

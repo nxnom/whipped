@@ -12,7 +12,7 @@ import {
 	Workflow as WorkflowIcon,
 } from "lucide-react";
 import { useRef, useState } from "react";
-import { trpc } from "@/runtime/trpc-client";
+import { useWrite } from "@/runtime/api-client";
 import { classNames } from "@/utils/classNames";
 import { WorkflowEditorDialog } from "./WorkflowEditorDialog";
 
@@ -129,6 +129,9 @@ export function WorkflowsSection({
 
 	const importFileRef = useRef<HTMLInputElement>(null);
 
+	const { trigger: upsertWorkflow } = useWrite((api) => api("workflows").POST());
+	const { trigger: deleteWorkflowRequest } = useWrite((api) => api("workflows/:workflowId").DELETE());
+
 	const visibleWorkflows = activeTab === "task" ? taskWorkflows : storyWorkflows;
 	const openWorkflow = openWorkflowId ? (workflows.find((w) => w.id === openWorkflowId) ?? null) : null;
 
@@ -141,8 +144,8 @@ export function WorkflowsSection({
 			cancelButtonLabel: "Cancel",
 			onConfirm: ({ dismiss }) => {
 				onChange(workflows.filter((w) => w.id !== workflowId));
-				trpc.workflows.delete.mutate({ workspaceId, workflowId }).catch(() => {
-					toast.error("Failed to delete workflow");
+				void deleteWorkflowRequest({ params: { workflowId }, query: { workspaceId } }).then((res) => {
+					if (res.error) toast.error("Failed to delete workflow");
 				});
 				dismiss();
 			},
@@ -151,8 +154,8 @@ export function WorkflowsSection({
 	};
 
 	const patchWorkflow = (wf: Workflow) => {
-		trpc.workflows.upsert.mutate({ workspaceId, workflow: wf }).catch(() => {
-			toast.error("Failed to save workflow");
+		void upsertWorkflow({ body: { workspaceId, workflow: wf } }).then((res) => {
+			if (res.error) toast.error("Failed to save workflow");
 		});
 	};
 

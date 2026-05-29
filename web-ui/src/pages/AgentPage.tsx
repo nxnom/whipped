@@ -2,7 +2,7 @@ import { Button } from "@geckoui/geckoui";
 import { Bot, RefreshCw, Square } from "lucide-react";
 import { useEffect, useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
-import { trpc } from "@/runtime/trpc-client";
+import { useRead, useWrite } from "@/runtime/api-client";
 
 interface Props {
 	workspaceId: string;
@@ -12,12 +12,17 @@ export function AgentPage({ workspaceId }: Props) {
 	const [taskId, setTaskId] = useState<string | null>(null);
 	const [starting, setStarting] = useState(false);
 
+	const { trigger: fetchSessionStatus } = useRead((api) => api("agent/session").GET({ query: { workspaceId } }), {
+		enabled: false,
+	});
+	const { trigger: startSessionRequest } = useWrite((api) => api("agent/session").POST());
+	const { trigger: stopSessionRequest } = useWrite((api) => api("agent/session").DELETE());
+
 	useEffect(() => {
 		// Check if a session is already running when we mount
-		trpc.agent.sessionStatus
-			.query({ workspaceId })
-			.then((status) => {
-				if (status.running && status.taskId) {
+		fetchSessionStatus()
+			.then(({ data: status }) => {
+				if (status?.running && status.taskId) {
 					setTaskId(status.taskId);
 				}
 			})
@@ -27,15 +32,15 @@ export function AgentPage({ workspaceId }: Props) {
 	const startSession = async () => {
 		setStarting(true);
 		try {
-			const result = await trpc.agent.startSession.mutate({ workspaceId });
-			setTaskId(result.taskId);
+			const { data: result } = await startSessionRequest({ body: { workspaceId } });
+			setTaskId(result?.taskId ?? null);
 		} finally {
 			setStarting(false);
 		}
 	};
 
 	const stopSession = async () => {
-		await trpc.agent.stopSession.mutate({ workspaceId });
+		await stopSessionRequest({ query: { workspaceId } });
 		setTaskId(null);
 	};
 

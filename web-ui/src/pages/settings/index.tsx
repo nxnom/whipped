@@ -16,7 +16,7 @@ import {
 import { classNames } from "@/utils/classNames";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { trpc } from "@/runtime/trpc-client";
+import { useRead } from "@/runtime/api-client";
 import { useWorkspaceState } from "@/stores/board-store";
 import { ExtensionSettings } from "./ExtensionSettings";
 import { GlobalSettings } from "./GlobalSettings";
@@ -43,15 +43,10 @@ const GLOBAL_NAV: Array<{ id: GlobalSection; label: string; icon: React.ReactNod
 
 function ProjectDropdown({ workspaceId, onSwitch }: { workspaceId: string; onSwitch: (id: string) => void }) {
 	const [open, setOpen] = useState(false);
-	const [workspaces, setWorkspaces] = useState<{ workspaceId: string; name: string; repoPath: string }[]>([]);
 	const ref = useRef<HTMLDivElement>(null);
 
-	useEffect(() => {
-		trpc.projects.list
-			.query()
-			.then(setWorkspaces)
-			.catch(() => {});
-	}, [workspaceId]);
+	const { data } = useRead((api) => api("projects").GET());
+	const workspaces = data ?? [];
 
 	useEffect(() => {
 		if (!open) return;

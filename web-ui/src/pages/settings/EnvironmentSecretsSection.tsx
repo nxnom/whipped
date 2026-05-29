@@ -1,8 +1,11 @@
+import { RHFInput, toast } from "@geckoui/geckoui";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { BUILTIN_SECRET_KEYS, type RuntimeProjectConfig, type RuntimeProjectSecret } from "@runtime-contract";
+import { type EnvironmentForm, type EnvironmentFormInput, environmentFormSchema } from "@runtime-validation/config";
 import { ClipboardPaste, Eye, EyeOff, Lock, Plus, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { trpc } from "@/runtime/trpc-client";
-import { toast } from "@geckoui/geckoui";
+import { useEffect, useState } from "react";
+import { FormProvider, useForm, useWatch } from "react-hook-form";
+import { useRead } from "@/runtime/api-client";
 import { classNames } from "@/utils/classNames";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -36,30 +39,6 @@ function SectionDivider({ title }: { title: string }) {
 	);
 }
 
-function MonoInput({
-	value,
-	onChange,
-	placeholder,
-	className,
-}: {
-	value: string;
-	onChange: (v: string) => void;
-	placeholder?: string;
-	className?: string;
-}) {
-	return (
-		<input
-			value={value}
-			onChange={(e) => onChange(e.target.value)}
-			placeholder={placeholder}
-			className={classNames(
-				"bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-[9px] text-[#c0c0d0] font-mono text-[12px] outline-none w-full",
-				className,
-			)}
-		/>
-	);
-}
-
 // ─── Worktree Setup ───────────────────────────────────────────────────────────
 
 function LabelCol({ label, description }: { label: string; description?: string }) {
@@ -71,6 +50,8 @@ function LabelCol({ label, description }: { label: string; description?: string 
 	);
 }
 
+const monoInputClassName = "text-[#c0c0d0] font-mono text-[12px]";
+
 function FilesBox({
 	workspaceId,
 	filesToCopy,
@@ -80,17 +61,15 @@ function FilesBox({
 	filesToCopy: string[];
 	onChange: (files: string[]) => void;
 }) {
-	const [rootFiles, setRootFiles] = useState<string[] | null>(null);
 	const [addInput, setAddInput] = useState("");
-	const addInputRef = useRef<HTMLInputElement>(null);
+
+	const { data, error: filesError } = useRead((api) => api("workspace/root-files").GET({ query: { workspaceId } }));
 
 	useEffect(() => {
-		trpc.workspace.listRootFiles
-			.query({ workspaceId })
-			.then(({ files }) => setRootFiles(files))
-			.catch(() => toast.error("Failed to list repo files"));
-	}, [workspaceId]);
+		if (filesError) toast.error("Failed to list repo files");
+	}, [filesError]);
 
+	const rootFiles = data?.files ?? null;
 	const discoveredSet = new Set(rootFiles ?? []);
 	const allFiles = [...new Set([...(rootFiles ?? []), ...filesToCopy])].sort();
 
@@ -137,12 +116,8 @@ function FilesBox({
 
 			{/* Add file row */}
 			<div className="flex items-center gap-2 pt-1">
-				<div
-					className="shrink-0 cursor-pointer w-4 h-4 border border-[#2a2a35] rounded-[3px]"
-					onClick={() => addInputRef.current?.focus()}
-				/>
+				<div className="shrink-0 w-4 h-4 border border-[#2a2a35] rounded-[3px]" />
 				<input
-					ref={addInputRef}
 					value={addInput}
 					onChange={(e) => setAddInput(e.target.value)}
 					onKeyDown={(e) => e.key === "Enter" && addManual()}
@@ -258,6 +233,79 @@ function NewSecretRow({ onAdd }: { onAdd: (key: string) => void }) {
 	);
 }
 
+// ─── Worktree setup form ──────────────────────────────────────────────────────
+//
+// Split into its own component so the RHF instance lives at the top level and is
+// fed `values` from the parent-owned config. Field changes flow back through the
+// parent's onUpdate, preserving the existing config-update contract.
+
+function WorktreeSetupForm({
+	workspaceId,
+	config,
+	onUpdate,
+}: {
+	workspaceId: string;
+	config: RuntimeProjectConfig;
+	onUpdate: (next: RuntimeProjectConfig) => void;
+}) {
+	const setup = config.worktreeSetup ?? { filesToCopy: [], installCommand: "" };
+
+	const methods = useForm<EnvironmentFormInput, unknown, EnvironmentForm>({
+		resolver: zodResolver(environmentFormSchema),
+		values: {
+			filesToCopy: setup.filesToCopy,
+			installCommand: setup.installCommand,
+			startCommand: config.startCommand ?? "",
+		},
+	});
+	const { control, setValue } = methods;
+
+	const filesToCopy = useWatch({ control, name: "filesToCopy" }) ?? [];
+
+	const setFiles = (files: string[]) => {
+		setValue("filesToCopy", files, { shouldDirty: true });
+		onUpdate({ ...config, worktreeSetup: { ...setup, filesToCopy: files } });
+	};
+
+	return (
+		<FormProvider {...methods}>
+			<div className="flex flex-col gap-4">
+				<SectionDivider title="Worktree Setup" />
+
+				{/* Install Command */}
+				<div className="flex items-center gap-4">
+					<LabelCol label="Install Command" />
+					<RHFInput
+						name="installCommand"
+						placeholder="pnpm install --frozen-lockfile"
+						inputClassName={monoInputClassName}
+						className="flex-1"
+						onChange={(v) => onUpdate({ ...config, worktreeSetup: { ...setup, installCommand: v ?? "" } })}
+					/>
+				</div>
+
+				{/* Start Command */}
+				<div className="flex items-center gap-4">
+					<LabelCol label="Start Command" />
+					<RHFInput
+						name="startCommand"
+						placeholder="pnpm dev"
+						inputClassName={monoInputClassName}
+						className="flex-1"
+						onChange={(v) => onUpdate({ ...config, startCommand: v ?? "" })}
+					/>
+				</div>
+
+				{/* Files to Copy */}
+				<div className="flex gap-4">
+					<LabelCol label="Files to Copy" description="Copied into worktrees" />
+					<FilesBox workspaceId={workspaceId} filesToCopy={filesToCopy} onChange={setFiles} />
+				</div>
+			</div>
+		</FormProvider>
+	);
+}
+
 // ─── Root component ───────────────────────────────────────────────────────────
 
 export function EnvironmentSecretsSection({
@@ -279,8 +327,6 @@ export function EnvironmentSecretsSection({
 	const [addingSecret, setAddingSecret] = useState(false);
 	const [pasteOpen, setPasteOpen] = useState(false);
 	const [envText, setEnvText] = useState("");
-
-	const setup = config.worktreeSetup ?? { filesToCopy: [], installCommand: "" };
 
 	const allSecrets: RuntimeProjectSecret[] = [
 		...BUILTIN_SECRET_KEYS.map((key) => config.secrets?.find((s) => s.key === key) ?? { key, value: "" }),
@@ -321,41 +367,7 @@ export function EnvironmentSecretsSection({
 	return (
 		<div className="flex flex-col gap-7">
 			{/* ── Worktree Setup ── */}
-			<div className="flex flex-col gap-4">
-				<SectionDivider title="Worktree Setup" />
-
-				{/* Install Command */}
-				<div className="flex items-center gap-4">
-					<LabelCol label="Install Command" />
-					<MonoInput
-						value={setup.installCommand}
-						onChange={(v) => onUpdate({ ...config, worktreeSetup: { ...setup, installCommand: v } })}
-						placeholder="pnpm install --frozen-lockfile"
-						className="flex-1"
-					/>
-				</div>
-
-				{/* Start Command */}
-				<div className="flex items-center gap-4">
-					<LabelCol label="Start Command" />
-					<MonoInput
-						value={config.startCommand ?? ""}
-						onChange={(v) => onUpdate({ ...config, startCommand: v })}
-						placeholder="pnpm dev"
-						className="flex-1"
-					/>
-				</div>
-
-				{/* Files to Copy */}
-				<div className="flex gap-4">
-					<LabelCol label="Files to Copy" description="Copied into worktrees" />
-					<FilesBox
-						workspaceId={workspaceId}
-						filesToCopy={setup.filesToCopy}
-						onChange={(files) => onUpdate({ ...config, worktreeSetup: { ...setup, filesToCopy: files } })}
-					/>
-				</div>
-			</div>
+			<WorktreeSetupForm workspaceId={workspaceId} config={config} onUpdate={onUpdate} />
 
 			{/* ── Secrets ── */}
 			<div className="flex flex-col gap-4">

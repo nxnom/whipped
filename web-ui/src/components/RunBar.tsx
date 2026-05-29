@@ -1,8 +1,8 @@
 import { toast } from "@geckoui/geckoui";
 import { Square, Terminal } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { RunTerminal } from "@/components/terminal/RunTerminal";
-import { trpc } from "@/runtime/trpc-client";
+import { useWorkspaceState } from "@/stores/board-store";
 import { useRunSession } from "@/stores/run-session-store";
 import { classNames } from "@/utils/classNames";
 
@@ -12,25 +12,12 @@ interface RunBarProps {
 
 export function RunBar({ workspaceId }: RunBarProps) {
 	const { session, stop } = useRunSession(workspaceId);
+	const { state } = useWorkspaceState(workspaceId);
 	const [expanded, setExpanded] = useState(true);
-	const [cardTitle, setCardTitle] = useState<string | null>(null);
-	const [cardAgentId, setCardAgentId] = useState<string | null>(null);
 
-	useEffect(() => {
-		if (!session.cardId) {
-			setCardTitle(null);
-			setCardAgentId(null);
-			return;
-		}
-		trpc.workspace.state
-			.query({ workspaceId })
-			.then((s) => {
-				const card = s.board.cards[session.cardId!];
-				setCardTitle(card?.description?.split("\n")[0] ?? session.cardId!);
-				setCardAgentId(card?.agentId ?? null);
-			})
-			.catch(() => setCardTitle(session.cardId));
-	}, [session.cardId, workspaceId]);
+	const card = session.cardId ? (state?.board.cards[session.cardId] ?? null) : null;
+	const cardTitle = session.cardId ? (card?.description?.split("\n")[0] ?? session.cardId) : null;
+	const cardAgentId = card?.agentId ?? null;
 
 	const isVisible =
 		session.status === "running" ||

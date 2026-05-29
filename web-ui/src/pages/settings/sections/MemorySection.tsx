@@ -1,8 +1,21 @@
-import { Button, ConfirmDialog, Dialog, Input, Select, SelectOption, Textarea, toast } from "@geckoui/geckoui";
+import {
+	Button,
+	ConfirmDialog,
+	Dialog,
+	RHFInput,
+	RHFInputGroup,
+	RHFSelect,
+	RHFTextarea,
+	SelectOption,
+	toast,
+} from "@geckoui/geckoui";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { MEMORY_TYPE_OPTIONS, type MemoryScope, type MemoryType, type RuntimeMemory } from "@runtime-contract";
+import { type MemoryFormValues, memoryFormSchema } from "@runtime-validation/memory";
 import { Check, Plus, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import { trpc } from "@/runtime/trpc-client";
+import { useState } from "react";
+import { FormProvider, useForm } from "react-hook-form";
+import { useRead, useWrite } from "@/runtime/api-client";
 import { classNames } from "@/utils/classNames";
 
 const TYPE_LABEL: Record<MemoryType, string> = Object.fromEntries(
@@ -11,17 +24,10 @@ const TYPE_LABEL: Record<MemoryType, string> = Object.fromEntries(
 
 // ── Add / edit dialog ─────────────────────────────────────────────────────────
 
-interface MemoryDraft {
-	type: MemoryType;
-	title: string;
-	content: string;
-	importance: number;
-}
-
 function showMemoryDialog(opts: {
 	existing?: RuntimeMemory;
 	scope: MemoryScope;
-	onSubmit: (draft: MemoryDraft) => Promise<void>;
+	onSubmit: (draft: MemoryFormValues) => Promise<void>;
 }) {
 	Dialog.show({
 		className: "max-w-lg w-full",
@@ -37,75 +43,73 @@ function MemoryForm({
 }: {
 	existing?: RuntimeMemory;
 	scope: MemoryScope;
-	onSubmit: (draft: MemoryDraft) => Promise<void>;
+	onSubmit: (draft: MemoryFormValues) => Promise<void>;
 	dismiss: () => void;
 }) {
-	const [type, setType] = useState<MemoryType>(existing?.type ?? "fact");
-	const [title, setTitle] = useState(existing?.title ?? "");
-	const [content, setContent] = useState(existing?.content ?? "");
-	const [importance, setImportance] = useState(existing?.importance ?? 1);
-	const [busy, setBusy] = useState(false);
+	const methods = useForm<MemoryFormValues>({
+		resolver: zodResolver(memoryFormSchema),
+		values: {
+			type: existing?.type ?? "fact",
+			title: existing?.title ?? "",
+			content: existing?.content ?? "",
+			importance: existing?.importance ?? 1,
+			scope,
+		},
+	});
+	const {
+		handleSubmit,
+		formState: { isSubmitting },
+	} = methods;
 
-	const submit = async () => {
-		if (!title.trim() || !content.trim()) return;
-		setBusy(true);
+	const submit = handleSubmit(async (values) => {
 		try {
-			await onSubmit({ type, title: title.trim(), content: content.trim(), importance });
+			await onSubmit({ ...values, title: values.title.trim(), content: values.content.trim() });
 			dismiss();
 		} catch (err) {
 			toast.error((err as Error).message);
-		} finally {
-			setBusy(false);
 		}
-	};
+	});
 
 	return (
-		<div className="flex flex-col gap-4">
-			<h3 className="text-[15px] font-semibold text-[#f0f0f5]">{existing ? "Edit memory" : `New ${scope} memory`}</h3>
+		<FormProvider {...methods}>
+			<form onSubmit={submit} className="flex flex-col gap-4">
+				<h3 className="text-[15px] font-semibold text-[#f0f0f5]">{existing ? "Edit memory" : `New ${scope} memory`}</h3>
 
-			<div className="grid grid-cols-2 gap-3">
-				<div className="flex flex-col gap-1.5">
-					<span className="text-[12px] font-medium text-[#c0c0d0]">Type</span>
-					<Select value={type} onChange={(v) => setType(v as MemoryType)}>
-						{MEMORY_TYPE_OPTIONS.map((o) => (
-							<SelectOption key={o.value} value={o.value} label={o.label} />
-						))}
-					</Select>
+				<div className="grid grid-cols-2 gap-3">
+					<RHFInputGroup label="Type" labelClassName="text-[12px] font-medium text-[#c0c0d0]">
+						<RHFSelect<MemoryType> name="type">
+							{MEMORY_TYPE_OPTIONS.map((o) => (
+								<SelectOption key={o.value} value={o.value} label={o.label} />
+							))}
+						</RHFSelect>
+					</RHFInputGroup>
+					<RHFInputGroup label="Importance" labelClassName="text-[12px] font-medium text-[#c0c0d0]">
+						<RHFSelect<number> name="importance">
+							<SelectOption value={1} label="1 — normal" />
+							<SelectOption value={2} label="2 — high" />
+							<SelectOption value={3} label="3 — critical" />
+						</RHFSelect>
+					</RHFInputGroup>
 				</div>
-				<div className="flex flex-col gap-1.5">
-					<span className="text-[12px] font-medium text-[#c0c0d0]">Importance</span>
-					<Select value={String(importance)} onChange={(v) => setImportance(Number(v))}>
-						<SelectOption value="1" label="1 — normal" />
-						<SelectOption value="2" label="2 — high" />
-						<SelectOption value="3" label="3 — critical" />
-					</Select>
+
+				<RHFInputGroup label="Title" labelClassName="text-[12px] font-medium text-[#c0c0d0]">
+					<RHFInput name="title" placeholder="Short summary" />
+				</RHFInputGroup>
+
+				<RHFInputGroup label="Content" labelClassName="text-[12px] font-medium text-[#c0c0d0]">
+					<RHFTextarea name="content" placeholder="The durable fact / convention / lesson…" rows={6} />
+				</RHFInputGroup>
+
+				<div className="flex justify-end gap-2">
+					<Button type="button" variant="ghost" onClick={dismiss}>
+						Cancel
+					</Button>
+					<Button type="submit" disabled={isSubmitting}>
+						{existing ? "Save" : "Add"}
+					</Button>
 				</div>
-			</div>
-
-			<div className="flex flex-col gap-1.5">
-				<span className="text-[12px] font-medium text-[#c0c0d0]">Title</span>
-				<Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Short summary" />
-			</div>
-
-			<div className="flex flex-col gap-1.5">
-				<span className="text-[12px] font-medium text-[#c0c0d0]">Content</span>
-				<Textarea
-					value={content}
-					onChange={(e) => setContent(e.target.value)}
-					placeholder="The durable fact / convention / lesson…"
-					rows={6}
-				/>
-			</div>
-
-			<div className="flex justify-end gap-2">
-				<Button variant="ghost" onClick={dismiss}>
-					Cancel
-				</Button>
-				<Button onClick={submit} disabled={busy || !title.trim() || !content.trim()}>
-					{existing ? "Save" : "Add"}
-				</Button>
-			</div>
-		</div>
+			</form>
+		</FormProvider>
 	);
 }
 
@@ -164,25 +168,20 @@ function MemoryRow({
 
 export function MemorySection({ workspaceId }: { workspaceId: string }) {
 	const [scope, setScope] = useState<MemoryScope>("project");
-	const [memories, setMemories] = useState<RuntimeMemory[]>([]);
-	const [loading, setLoading] = useState(true);
 
-	const load = useCallback(async () => {
-		setLoading(true);
-		try {
-			const list = await trpc.memory.list.query({
-				scope,
-				workspaceId: scope === "project" ? workspaceId : undefined,
-			});
-			setMemories(list);
-		} finally {
-			setLoading(false);
-		}
-	}, [scope, workspaceId]);
+	const {
+		data,
+		loading,
+		trigger: load,
+	} = useRead((api) =>
+		api("memory").GET({ query: { scope, workspaceId: scope === "project" ? workspaceId : undefined } }),
+	);
+	const memories: RuntimeMemory[] = data ?? [];
 
-	useEffect(() => {
-		void load();
-	}, [load]);
+	const { trigger: createTrigger } = useWrite((api) => api("memory").POST());
+	const { trigger: updateTrigger } = useWrite((api) => api("memory/:id").PATCH());
+	const { trigger: approveTrigger } = useWrite((api) => api("memory/:id/approve").POST());
+	const { trigger: removeTrigger } = useWrite((api) => api("memory/:id").DELETE());
 
 	const pending = memories.filter((m) => m.status === "pending");
 	const approved = memories.filter((m) => m.status === "approved");
@@ -191,11 +190,17 @@ export function MemorySection({ workspaceId }: { workspaceId: string }) {
 		showMemoryDialog({
 			scope,
 			onSubmit: async (draft) => {
-				await trpc.memory.create.mutate({
-					scope,
-					workspaceId: scope === "project" ? workspaceId : undefined,
-					...draft,
+				const res = await createTrigger({
+					body: {
+						scope,
+						workspaceId: scope === "project" ? workspaceId : undefined,
+						type: draft.type,
+						title: draft.title,
+						content: draft.content,
+						importance: draft.importance,
+					},
 				});
+				if (res.error) throw new Error(res.error.message);
 				toast("Memory added");
 				await load();
 			},
@@ -207,7 +212,16 @@ export function MemorySection({ workspaceId }: { workspaceId: string }) {
 			existing: memory,
 			scope,
 			onSubmit: async (draft) => {
-				await trpc.memory.update.mutate({ id: memory.id, ...draft });
+				const res = await updateTrigger({
+					params: { id: memory.id },
+					body: {
+						type: draft.type,
+						title: draft.title,
+						content: draft.content,
+						importance: draft.importance,
+					},
+				});
+				if (res.error) throw new Error(res.error.message);
 				toast("Memory updated");
 				await load();
 			},
@@ -221,7 +235,7 @@ export function MemorySection({ workspaceId }: { workspaceId: string }) {
 			confirmButtonLabel: "Delete",
 			cancelButtonLabel: "Cancel",
 			onConfirm: async ({ dismiss }) => {
-				await trpc.memory.remove.mutate({ id: memory.id });
+				await removeTrigger({ params: { id: memory.id } });
 				dismiss();
 				await load();
 			},
@@ -230,7 +244,7 @@ export function MemorySection({ workspaceId }: { workspaceId: string }) {
 	};
 
 	const handleApprove = async (memory: RuntimeMemory) => {
-		await trpc.memory.approve.mutate({ id: memory.id });
+		await approveTrigger({ params: { id: memory.id } });
 		toast("Approved");
 		await load();
 	};

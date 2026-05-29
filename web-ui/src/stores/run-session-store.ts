@@ -1,6 +1,6 @@
 import type { RunSessionStatus, RuntimeStateEvent } from "@runtime-contract";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { trpc } from "@/runtime/trpc-client";
+import { useCallback, useEffect, useRef } from "react";
+import { optimistic, useRead, useWrite } from "@/runtime/api-client";
 
 export interface RunSessionState {
 	cardId: string | null;
@@ -9,26 +9,16 @@ export interface RunSessionState {
 }
 
 export function useRunSession(workspaceId: string) {
-	const [session, setSession] = useState<RunSessionState>({ cardId: null, status: "stopped" });
+	const { data, trigger: refetchStatus } = useRead((api) => api("run/status").GET({ query: { workspaceId } }));
 	const wsRef = useRef<WebSocket | null>(null);
 	const mountedRef = useRef(true);
 
-	// Load initial state via tRPC
-	useEffect(() => {
-		trpc.run.status
-			.query({ workspaceId })
-			.then((s) => {
-				if (mountedRef.current)
-					setSession({
-						cardId: s.cardId,
-						status: s.status,
-						errorMessage: "errorMessage" in s ? s.errorMessage : undefined,
-					});
-			})
-			.catch(() => {});
-	}, [workspaceId]);
+	// Hold the latest trigger in a ref so the WebSocket effect depends only on
+	// workspaceId. The trigger's identity changes every render, so depending on
+	// it directly would tear down and re-open the socket each render (request storm).
+	const refetchRef = useRef(refetchStatus);
+	refetchRef.current = refetchStatus;
 
-	// Subscribe to workspace WebSocket for live updates
 	const connect = useCallback(() => {
 		if (!mountedRef.current) return;
 		const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -41,18 +31,8 @@ export function useRunSession(workspaceId: string) {
 				return;
 			}
 			ws.send(JSON.stringify({ type: "subscribe", workspaceId }));
-			// Re-sync run status on every (re)connect in case server restarted
-			trpc.run.status
-				.query({ workspaceId })
-				.then((s) => {
-					if (mountedRef.current)
-						setSession({
-							cardId: s.cardId,
-							status: s.status,
-							errorMessage: "errorMessage" in s ? s.errorMessage : undefined,
-						});
-				})
-				.catch(() => {});
+			// Re-sync run status on every (re)connect in case the server restarted
+			refetchRef.current();
 		};
 
 		ws.onmessage = (event) => {
@@ -60,7 +40,11 @@ export function useRunSession(workspaceId: string) {
 			try {
 				const msg = JSON.parse(event.data as string) as RuntimeStateEvent;
 				if (msg.type === "run_session_changed") {
-					setSession({ cardId: msg.cardId, status: msg.status, errorMessage: msg.errorMessage });
+					optimistic((cache) =>
+						cache("run/status")
+							.filter((entry) => entry.query.workspaceId === workspaceId)
+							.set(() => ({ cardId: msg.cardId, status: msg.status, errorMessage: msg.errorMessage })),
+					);
 				}
 			} catch {
 				/* ignore */
@@ -83,22 +67,30 @@ export function useRunSession(workspaceId: string) {
 			wsRef.current?.close();
 			wsRef.current = null;
 		};
-	}, [workspaceId, connect]);
+	}, [connect]);
+
+	const { trigger: startTrigger } = useWrite((api) => api("run/start").POST());
+	const { trigger: startBaseTrigger } = useWrite((api) => api("run/start-base").POST());
+	const { trigger: stopTrigger } = useWrite((api) => api("run/stop").POST());
 
 	const start = useCallback(
 		async (cardId: string) => {
-			await trpc.run.start.mutate({ workspaceId, cardId });
+			await startTrigger({ body: { workspaceId, cardId } });
 		},
-		[workspaceId],
+		[startTrigger, workspaceId],
 	);
 
 	const startBase = useCallback(async () => {
-		await trpc.run.startBase.mutate({ workspaceId });
-	}, [workspaceId]);
+		await startBaseTrigger({ body: { workspaceId } });
+	}, [startBaseTrigger, workspaceId]);
 
 	const stop = useCallback(async () => {
-		await trpc.run.stop.mutate({ workspaceId });
-	}, [workspaceId]);
+		await stopTrigger({ body: { workspaceId } });
+	}, [stopTrigger, workspaceId]);
+
+	const session: RunSessionState = data
+		? { cardId: data.cardId, status: data.status, errorMessage: "errorMessage" in data ? data.errorMessage : undefined }
+		: { cardId: null, status: "stopped" };
 
 	return { session, start, startBase, stop };
 }

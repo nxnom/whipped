@@ -1,7 +1,7 @@
 import { ArrowLeft, ChevronRight, File, Folder, FolderOpen, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
-import { trpc } from "@/runtime/trpc-client";
+import { useRead } from "@/runtime/api-client";
 import { classNames } from "@/utils/classNames";
 
 interface Props {
@@ -18,24 +18,19 @@ interface DirListing {
 }
 
 export function FilePickerDialog({ initialPath, onSelect, onClose }: Props) {
-	const [listing, setListing] = useState<DirListing | null>(null);
-	const [loading, setLoading] = useState(false);
+	const [path, setPath] = useState(initialPath ?? "");
 	const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
-	const navigate = async (path: string) => {
-		setLoading(true);
-		setSelectedFile(null);
-		try {
-			const result = await trpc.fs.listDir.query({ path, includeFiles: true, showHidden: true });
-			setListing({ ...result, files: result.files ?? [] });
-		} finally {
-			setLoading(false);
-		}
-	};
+	// Declarative read keyed on `path` — refetches automatically as you navigate.
+	const { data, fetching: loading } = useRead((api) =>
+		api("fs/list-dir").GET({ query: { path, includeFiles: "true", showHidden: "true" } }),
+	);
+	const listing: DirListing | null = data ? { ...data, files: data.files ?? [] } : null;
 
-	useEffect(() => {
-		navigate(initialPath ?? "");
-	}, []); // eslint-disable-line react-hooks/exhaustive-deps
+	const navigate = (next: string) => {
+		setSelectedFile(null);
+		setPath(next);
+	};
 
 	return createPortal(
 		<div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/70" onClick={onClose}>

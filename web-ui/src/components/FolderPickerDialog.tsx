@@ -1,6 +1,6 @@
 import { ArrowLeft, ChevronRight, Folder, FolderOpen, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { trpc } from "@/runtime/trpc-client";
+import { useRef, useState } from "react";
+import { useRead } from "@/runtime/api-client";
 import { classNames } from "@/utils/classNames";
 
 interface Props {
@@ -9,32 +9,19 @@ interface Props {
 	onClose: () => void;
 }
 
-interface DirListing {
-	current: string;
-	parent: string | null;
-	dirs: Array<{ name: string; path: string }>;
-}
-
 export function FolderPickerDialog({ initialPath, onSelect, onClose }: Props) {
-	const [listing, setListing] = useState<DirListing | null>(null);
-	const [loading, setLoading] = useState(false);
+	const [path, setPath] = useState(initialPath ?? "");
 	const [selected, setSelected] = useState<string | null>(null);
 	const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-	const navigate = async (path: string) => {
-		setLoading(true);
-		setSelected(null);
-		try {
-			const result = await trpc.fs.listDir.query({ path });
-			setListing(result);
-		} finally {
-			setLoading(false);
-		}
-	};
+	// Declarative read keyed on `path` — refetches automatically as you navigate.
+	const { data, fetching: loading } = useRead((api) => api("fs/list-dir").GET({ query: { path } }));
+	const listing = data ?? null;
 
-	useEffect(() => {
-		navigate(initialPath ?? "");
-	}, []);
+	const navigate = (next: string) => {
+		setSelected(null);
+		setPath(next);
+	};
 
 	const handleConfirm = () => {
 		const path = selected ?? listing?.current;

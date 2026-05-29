@@ -1,8 +1,11 @@
-import { Button, Checkbox, Input, toast } from "@geckoui/geckoui";
+import { Button, RHFCheckbox, RHFInput, toast } from "@geckoui/geckoui";
+import { zodResolver } from "@hookform/resolvers/zod";
 import type { RuntimeWorktreeSetup } from "@runtime-contract";
+import { type EnvironmentForm, type EnvironmentFormInput, environmentFormSchema } from "@runtime-validation/config";
 import { Plus, RefreshCw, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { trpc } from "@/runtime/trpc-client";
+import { FormProvider, useForm, useWatch } from "react-hook-form";
+import { useRead } from "@/runtime/api-client";
 import { Field, SaveRow, SectionHeader } from "./_shared";
 
 export function EnvironmentSection({
@@ -22,48 +25,56 @@ export function EnvironmentSection({
 	onSave: () => void;
 	saving: boolean;
 }) {
-	const [rootFiles, setRootFiles] = useState<string[] | null>(null);
-	const [loadingFiles, setLoadingFiles] = useState(false);
 	const [manualInput, setManualInput] = useState("");
 
-	const fetchFiles = async () => {
-		setLoadingFiles(true);
-		try {
-			const { files } = await trpc.workspace.listRootFiles.query({ workspaceId });
-			setRootFiles(files);
-		} catch {
-			toast.error("Failed to list repo files");
-		} finally {
-			setLoadingFiles(false);
-		}
-	};
+	const {
+		data: rootFilesData,
+		loading: loadingFiles,
+		error: filesError,
+		trigger: fetchFiles,
+	} = useRead((api) => api("workspace/root-files").GET({ query: { workspaceId } }));
 
 	useEffect(() => {
-		fetchFiles();
-	}, [workspaceId]);
+		if (filesError) toast.error("Failed to list repo files");
+	}, [filesError]);
 
-	const toggleFile = (file: string, checked: boolean) => {
-		const next = checked ? [...new Set([...setup.filesToCopy, file])] : setup.filesToCopy.filter((f) => f !== file);
-		onChange({ ...setup, filesToCopy: next });
+	const methods = useForm<EnvironmentFormInput, unknown, EnvironmentForm>({
+		resolver: zodResolver(environmentFormSchema),
+		values: { ...setup, startCommand },
+	});
+	const { control, setValue } = methods;
+
+	// Mirror RHF state back into the parent-owned config on every change so the
+	// existing onChange / onStartCommandChange contract is preserved.
+	const filesToCopy = useWatch({ control, name: "filesToCopy" }) ?? [];
+	const installCommand = useWatch({ control, name: "installCommand" }) ?? "";
+
+	const propagateSetup = (next: { filesToCopy: string[]; installCommand: string }) => {
+		onChange({ ...setup, ...next });
 	};
+
+	const rootFiles = rootFilesData?.files ?? null;
+	const discoveredSet = new Set(rootFiles ?? []);
+	const allFiles = [...new Set([...(rootFiles ?? []), ...filesToCopy])].sort();
+	const manualOnly = filesToCopy.filter((f) => !discoveredSet.has(f));
 
 	const addManual = () => {
 		const val = manualInput.trim();
 		if (!val) return;
-		onChange({ ...setup, filesToCopy: [...new Set([...setup.filesToCopy, val])] });
+		const next = [...new Set([...filesToCopy, val])];
+		setValue("filesToCopy", next, { shouldDirty: true });
+		propagateSetup({ filesToCopy: next, installCommand });
 		setManualInput("");
 	};
 
 	const removeFile = (file: string) => {
-		onChange({ ...setup, filesToCopy: setup.filesToCopy.filter((f) => f !== file) });
+		const next = filesToCopy.filter((f) => f !== file);
+		setValue("filesToCopy", next, { shouldDirty: true });
+		propagateSetup({ filesToCopy: next, installCommand });
 	};
 
-	const discoveredSet = new Set(rootFiles ?? []);
-	const allFiles = [...new Set([...(rootFiles ?? []), ...setup.filesToCopy])].sort();
-	const manualOnly = setup.filesToCopy.filter((f) => !discoveredSet.has(f));
-
 	return (
-		<>
+		<FormProvider {...methods}>
 			<SectionHeader
 				title="Environment"
 				description="Configure how each new worktree is set up before the agent starts. Runs once per task on first creation."
@@ -74,7 +85,7 @@ export function EnvironmentSection({
 				<div className="flex items-center justify-between">
 					<p className="text-xs font-medium text-gray-300">Files to Copy</p>
 					<button
-						onClick={fetchFiles}
+						onClick={() => fetchFiles()}
 						disabled={loadingFiles}
 						className="text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1 transition-colors"
 					>
@@ -96,14 +107,19 @@ export function EnvironmentSection({
 
 					{!loadingFiles &&
 						allFiles.map((file) => {
-							const isChecked = setup.filesToCopy.includes(file);
 							const isManual = manualOnly.includes(file);
 							return (
 								<label
 									key={file}
 									className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-800/50 cursor-pointer border-b border-gray-800 last:border-0 transition-colors"
 								>
-									<Checkbox checked={isChecked} onChange={(e) => toggleFile(file, e.target.checked)} />
+									<RHFCheckbox
+										name="filesToCopy"
+										value={file}
+										onChange={(next) =>
+											propagateSetup({ filesToCopy: (next as string[] | undefined) ?? [], installCommand })
+										}
+									/>
 									<span className="flex-1 text-xs font-mono text-gray-200">{file}</span>
 									{isManual && (
 										<span className="text-[10px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">manual</span>
@@ -126,12 +142,12 @@ export function EnvironmentSection({
 
 				{/* Manual path input */}
 				<div className="flex gap-2">
-					<Input
+					<input
 						value={manualInput}
 						onChange={(e) => setManualInput(e.target.value)}
 						onKeyDown={(e) => e.key === "Enter" && addManual()}
 						placeholder="Add path manually (e.g. .env.local)"
-						inputClassName="font-mono text-xs"
+						className="flex-1 bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-[9px] text-[#c0c0d0] font-mono text-xs outline-none"
 					/>
 					<Button variant="outlined" size="sm" onClick={addManual} disabled={!manualInput.trim()}>
 						<Plus size={12} className="mr-1" />
@@ -142,11 +158,11 @@ export function EnvironmentSection({
 
 			{/* Install command */}
 			<Field label="Install Command">
-				<Input
-					value={setup.installCommand}
-					onChange={(e) => onChange({ ...setup, installCommand: e.target.value })}
+				<RHFInput
+					name="installCommand"
 					placeholder="pnpm install --frozen-lockfile"
 					inputClassName="font-mono text-xs"
+					onChange={(v) => propagateSetup({ filesToCopy, installCommand: v ?? "" })}
 				/>
 				<p className="text-xs text-gray-500 mt-1">
 					Runs in the worktree directory. Use{" "}
@@ -156,11 +172,11 @@ export function EnvironmentSection({
 
 			{/* Start command */}
 			<Field label="Start Command">
-				<Input
-					value={startCommand}
-					onChange={(e) => onStartCommandChange(e.target.value)}
+				<RHFInput
+					name="startCommand"
 					placeholder="pnpm dev"
 					inputClassName="font-mono text-xs"
+					onChange={(v) => onStartCommandChange(v ?? "")}
 				/>
 				<p className="text-xs text-gray-500 mt-1">
 					Command to run when you press ▶ on a ticket. Runs in the ticket's worktree (or repo root if no worktree exists
@@ -169,6 +185,6 @@ export function EnvironmentSection({
 			</Field>
 
 			<SaveRow saving={saving} onSave={onSave} />
-		</>
+		</FormProvider>
 	);
 }
