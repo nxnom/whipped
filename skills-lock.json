@@ -6,6 +6,12 @@
       "sourceType": "github",
       "skillPath": "skills/geckoui/SKILL.md",
       "computedHash": "2085730089b659024dcbd65b12f521b6f61136ba0eed466bb4061740fdf0175b"
+    },
+    "spoosh-react": {
+      "source": "spooshdev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/spoosh-react/SKILL.md",
+      "computedHash": "a12dc51b6d0c52ceefd1c86c69e530f4e4ddc91e8d5c09f9499bf2f3d63e872b"
     }
   }
 }
