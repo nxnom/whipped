@@ -12,10 +12,16 @@ const DEFAULT_DB_PATH = join(WHIPPED_HOME_DIR, "whipped.db");
 
 let cachedDb: Database.Database | null = null;
 
+// Resolved SQLite path. The single-instance lock (see instance-lock.ts) is taken
+// against this path — it's the shared resource two servers would otherwise corrupt.
+export function getDbPath(): string {
+	return process.env.WHIPPED_DB_PATH ?? DEFAULT_DB_PATH;
+}
+
 export function openDb(): Database.Database {
 	if (cachedDb) return cachedDb;
 
-	const dbPath = process.env.WHIPPED_DB_PATH ?? DEFAULT_DB_PATH;
+	const dbPath = getDbPath();
 	mkdirSync(dirname(dbPath), { recursive: true });
 
 	const db = new Database(dbPath);

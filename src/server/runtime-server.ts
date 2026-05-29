@@ -10,11 +10,12 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { tunnelManager } from "../slack/cloudflare-tunnel.js";
 import { exchangeCodeForBotToken } from "../slack/slack-setup.js";
 import { slackNotifier } from "../slack/slack-notifier.js";
-import { clearState, isAlive, readState, writeState } from "../cli/daemon-state.js";
+import { clearState, readState, writeState } from "../cli/daemon-state.js";
 import { ATTACHMENTS_DIR, DEFAULT_PORT, loadGlobalConfig, WHIPPED_HOME_DIR } from "../config/runtime-config.js";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 import { BoardPoller } from "../daemon/poller.js";
+import { acquireInstanceLock, isInstanceLockError } from "../state/instance-lock.js";
 import { runReviewPipeline } from "../daemon/review-pipeline.js";
 import { getMcpServerPath, TaskScheduler } from "../daemon/scheduler.js";
 import { createGithubClient } from "../github/github-client.js";
@@ -74,19 +75,23 @@ interface ServerOptions {
 export async function createRuntimeServer(options: ServerOptions) {
 	const { port = DEFAULT_PORT, host = "127.0.0.1", repoPath } = options;
 
-	// Single-instance guard. Only ONE server may run against a given WHIPPED_HOME_DIR
-	// (= one SQLite database). Two servers — e.g. one accidentally started on a second
-	// port — would each run their own poller + scheduler against the shared DB and
-	// dispatch the same cards, spawning duplicate dev agents. The guard is keyed to the
-	// home dir (the shared database), not the port, so independent instances pointed at
-	// a different WHIPPED_HOME_DIR still run fine.
-	const existing = readState();
-	if (existing && existing.pid !== process.pid && isAlive(existing.pid)) {
-		throw new Error(
-			`whipped is already running against ${WHIPPED_HOME_DIR} at ${existing.url} (pid ${existing.pid}). ` +
-				`Stop it with \`whipped stop\` before starting another instance, or run a separate isolated ` +
-				`instance against its own data dir, e.g. WHIPPED_HOME_DIR=~/.whipped-other whipped --port 50009.`,
-		);
+	// Single-instance lock — exactly one server may own this database. proper-lockfile
+	// uses an atomic, stale-aware lock (see instance-lock.ts), robust against PID reuse and
+	// the start races that scripts/hooks/editor integrations/auto-restart can trigger. The
+	// lock is the ownership decision; daemon.pid (written below) is metadata only.
+	let releaseInstanceLock: (() => Promise<void>) | null = null;
+	try {
+		releaseInstanceLock = await acquireInstanceLock();
+	} catch (err) {
+		if (isInstanceLockError(err)) {
+			const meta = readState();
+			throw new Error(
+				`whipped is already running against ${WHIPPED_HOME_DIR}${meta ? ` at ${meta.url} (pid ${meta.pid})` : ""}. ` +
+					`Stop it with \`whipped stop\`, or run a separate isolated instance against its own data dir, ` +
+					`e.g. WHIPPED_HOME_DIR=~/.whipped-other whipped --port 50009.`,
+			);
+		}
+		throw err;
 	}
 	writeState({ pid: process.pid, host, port, url: `http://${host}:${port}`, startedAt: new Date().toISOString() });
 
@@ -879,8 +884,9 @@ export async function createRuntimeServer(options: ServerOptions) {
 			for (const ws of stateWss.clients) ws.terminate();
 			for (const ws of terminalWss.clients) ws.terminate();
 			await new Promise<void>((resolve) => httpServer.close(() => resolve()));
-			// Release single-instance ownership, but only if it's still ours — a
-			// restart may have already claimed it.
+			// Release single-instance ownership: drop the lock, then clear our metadata
+			// (only if it's still ours — a restart may have already claimed it).
+			await releaseInstanceLock?.().catch(() => {});
 			const owner = readState();
 			if (owner && owner.pid === process.pid) clearState();
 		},

@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdirSync, openSync } from "node:fs";
 import { join } from "node:path";
 import { WHIPPED_HOME_DIR } from "../config/runtime-config.js";
+import { forceReleaseInstanceLock, isInstanceRunning } from "../state/instance-lock.js";
 import {
 	clearState,
 	type DaemonState,
@@ -23,13 +24,15 @@ interface StartOptions {
 
 export async function startDaemon(options: StartOptions): Promise<void> {
 	const { port, host } = options;
-	const existing = readState();
-	if (existing && isAlive(existing.pid)) {
-		console.log(`whipped is already running at ${existing.url} (pid ${existing.pid})`);
+	// Authoritative running check is the db lock, not pid liveness (which a recycled
+	// pid can fool). daemon.pid is only read for the URL/pid to display.
+	if (await isInstanceRunning()) {
+		const existing = readState();
+		console.log(`whipped is already running${existing ? ` at ${existing.url} (pid ${existing.pid})` : ""}`);
 		console.log("Use `whipped restart` to restart, or `whipped stop` to stop.");
 		return;
 	}
-	if (existing) clearState();
+	if (readState()) clearState();
 
 	mkdirSync(DAEMON_LOG_DIR, { recursive: true });
 	const out = openSync(DAEMON_LOG_PATH, "a");
@@ -85,6 +88,7 @@ export async function stopDaemon(): Promise<void> {
 	}
 	if (!isAlive(state.pid)) {
 		console.log(`Stale state at ${getStatePath()} (pid ${state.pid} not running). Clearing.`);
+		forceReleaseInstanceLock();
 		clearState();
 		return;
 	}
@@ -108,6 +112,9 @@ export async function stopDaemon(): Promise<void> {
 		await waitForExit(state.pid, 3_000);
 	}
 
+	// Owner is dead — drop its lock now rather than waiting for the stale timeout, so a
+	// follow-on start (e.g. `whipped restart`) isn't blocked by a SIGKILLed owner's lock.
+	forceReleaseInstanceLock();
 	clearState();
 	console.log("Stopped.");
 }

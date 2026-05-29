@@ -1,10 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { createServer } from "node:net";
 import { Command } from "commander";
-import open from "open";
 import ora from "ora";
 import { getDaemonLogPath, restartDaemon, startDaemon, statusDaemon, stopDaemon } from "./cli/daemon-commands.js";
-import { isAlive, readState } from "./cli/daemon-state.js";
+import { readState } from "./cli/daemon-state.js";
+import { isInstanceRunning } from "./state/instance-lock.js";
 import { runLogs } from "./cli/logs-command.js";
 import { DEFAULT_PORT } from "./config/runtime-config.js";
 import { installGracefulShutdownHandlers } from "./core/graceful-shutdown.js";
@@ -45,7 +45,7 @@ interface RunOptions {
 }
 
 async function runServerForeground(options: RunOptions): Promise<void> {
-	const { port, host, noOpen } = options;
+	const { port, host } = options;
 	const repoPath = process.cwd();
 
 	if (!hasGitRepository(repoPath)) {
@@ -71,14 +71,8 @@ async function runServerForeground(options: RunOptions): Promise<void> {
 		process.exit(1);
 	}
 
-	if (!noOpen) {
-		try {
-			await open(server.url);
-		} catch {
-			// non-fatal
-		}
-	}
-
+	// The server never opens a browser — it only serves the API/UI. The frontend (vite in
+	// dev, or you navigating to the URL above) is responsible for opening, not the backend.
 	logger.info("Press Ctrl+C to stop. Tip: run `whipped start` to background.");
 
 	let shuttingDown = false;
@@ -109,16 +103,9 @@ async function runServerForeground(options: RunOptions): Promise<void> {
 // Bare invocation: open the browser if the daemon is already running, else
 // run in the foreground.
 async function runDefault(options: RunOptions): Promise<void> {
-	const state = readState();
-	if (state && isAlive(state.pid)) {
-		console.log(`whipped is already running at ${state.url} (pid ${state.pid}).`);
-		if (!options.noOpen) {
-			try {
-				await open(state.url);
-			} catch {
-				// non-fatal
-			}
-		}
+	if (await isInstanceRunning()) {
+		const state = readState();
+		console.log(`whipped is already running${state ? ` at ${state.url} (pid ${state.pid})` : ""}.`);
 		console.log("Use `whipped stop` to stop, `whipped logs -f` to tail logs.");
 		return;
 	}

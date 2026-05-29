@@ -22,6 +22,9 @@ export default defineConfig({
 		host: "127.0.0.1",
 		port: 50007,
 		strictPort: true,
+		// Open the frontend (this dev server) on start — not the backend API port.
+		// In dev the backend runs with --no-open; the UI lives here and proxies /api → 50008.
+		open: true,
 		allowedHosts: true,
 		proxy: {
 			"/api": {
