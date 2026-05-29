@@ -52,7 +52,7 @@ export async function openCloudflaredLogin(force = false): Promise<{ alreadyLogg
 			const match = buffer.match(/(https:\/\/[^\s\r\n]+)/);
 			if (match) {
 				resolved = true;
-				const loginUrl = match[1].trim();
+				const loginUrl = match[1]!.trim();
 				logger.info(`[cloudflared-login] Auth URL: ${loginUrl}`);
 				spawn("open", [loginUrl], { stdio: "ignore" });
 				proc.unref();
@@ -99,7 +99,7 @@ export async function createTunnel(tunnelName: string): Promise<{ tunnelId: stri
 		const output = stdout + stderr;
 		const match = output.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
 		if (!match) throw new Error("Could not parse tunnel ID from output");
-		return { tunnelId: match[1] };
+		return { tunnelId: match[1]! };
 	} catch (err: unknown) {
 		const msg = err instanceof Error ? err.message : String(err);
 		if (msg.includes("already exists")) {

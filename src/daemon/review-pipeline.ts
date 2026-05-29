@@ -794,7 +794,7 @@ function groupIntoIterations(card: RuntimeBoardCard): Iteration[] {
 	const findIterIdx = (timestamp: number): number => {
 		let idx = 0; // orphan AI before any user input → iter 0
 		for (let i = 0; i < boundaries.length; i++) {
-			if (boundaries[i] <= timestamp) idx = i;
+			if (boundaries[i]! <= timestamp) idx = i;
 			else break;
 		}
 		return idx;
@@ -804,8 +804,9 @@ function groupIntoIterations(card: RuntimeBoardCard): Iteration[] {
 		const isAI = c.actor.type === "ai";
 		const ts = isAI ? aiStartTime(c) : c.createdAt;
 		const idx = findIterIdx(ts);
-		if (isAI) iterations[idx].work.push(c);
-		else iterations[idx].input.push(c);
+		const iter = iterations[idx]!;
+		if (isAI) iter.work.push(c);
+		else iter.input.push(c);
 	}
 
 	return iterations.filter((it) => it.input.length > 0 || it.work.length > 0);
