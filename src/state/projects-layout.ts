@@ -1,10 +1,4 @@
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { getDb } from "./db.js";
-
-// Legacy JSON path — kept exported for the future one-time JSON→SQLite import.
-// Live reads/writes now go through SQLite via projects_layout singleton row.
-export const LAYOUT_PATH = join(homedir(), ".whipped", "projects-layout.json");
 
 export interface ProjectFolder {
 	id: string;

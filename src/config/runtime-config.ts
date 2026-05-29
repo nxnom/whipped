@@ -6,9 +6,6 @@ import { WHIPPED_HOME_DIR } from "./paths.js";
 // Re-exported here so existing callers keep working after the path constants
 // moved into a dependency-free module (see ./paths.ts for the rationale).
 export { WHIPPED_HOME_DIR };
-// Legacy JSON path — kept exported for the future one-time JSON→SQLite import.
-// Live reads/writes now go through SQLite via global_config singleton row.
-export const CONFIG_FILE = join(WHIPPED_HOME_DIR, "config.json");
 export const WORKSPACES_DIR = join(WHIPPED_HOME_DIR, "workspaces");
 export const ATTACHMENTS_DIR = join(WHIPPED_HOME_DIR, "attachments");
 export const DEFAULT_PORT = 50008;
