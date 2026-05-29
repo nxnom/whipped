@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import { WHIPPED_HOME_DIR } from "../config/paths.js";
 import { logger } from "../core/logger.js";
+import { initSecretKey } from "./secrets-crypto.js";
 
 const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), "migrations");
 
@@ -24,6 +25,10 @@ export function openDb(): Database.Database {
 	db.pragma("busy_timeout = 5000");
 
 	runMigrations(db);
+
+	// Load (or generate) the secret key into memory once so every subsequent
+	// encrypt/decrypt is a pure in-memory operation, no file reads.
+	initSecretKey();
 
 	cachedDb = db;
 	return db;

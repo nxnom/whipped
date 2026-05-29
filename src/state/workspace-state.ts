@@ -20,6 +20,7 @@ import {
 } from "../core/api-contract.js";
 import { generateTaskId } from "../core/task-id.js";
 import { getDb } from "./db.js";
+import { decrypt, encrypt } from "./secrets-crypto.js";
 
 // ─── Workspace paths ──────────────────────────────────────────────────────────
 
@@ -446,7 +447,7 @@ function loadProjectConfigInternal(workspaceId: string): RuntimeProjectConfig {
 	const secretRows = db
 		.prepare("SELECT key, value FROM workspace_secrets WHERE workspace_id = ?")
 		.all(workspaceId) as Array<{ key: string; value: string }>;
-	const secrets = secretRows.map((r) => ({ key: r.key, value: r.value }));
+	const secrets = secretRows.map((r) => ({ key: r.key, value: decrypt(r.value) }));
 
 	const integrationRows = db
 		.prepare("SELECT type, config_json FROM workspace_integrations WHERE workspace_id = ? AND enabled = 1")
@@ -455,7 +456,7 @@ function loadProjectConfigInternal(workspaceId: string): RuntimeProjectConfig {
 	let jira: unknown;
 	for (const row of integrationRows) {
 		try {
-			const cfg = JSON.parse(row.config_json);
+			const cfg = JSON.parse(decrypt(row.config_json));
 			if (row.type === "github") github = cfg;
 			else if (row.type === "jira") jira = cfg;
 		} catch {
@@ -507,15 +508,15 @@ function saveProjectConfigInternal(workspaceId: string, config: RuntimeProjectCo
 	db.prepare("DELETE FROM workspace_secrets WHERE workspace_id = ?").run(workspaceId);
 	const insertSec = db.prepare("INSERT INTO workspace_secrets (workspace_id, key, value) VALUES (?, ?, ?)");
 	for (const s of secrets) {
-		insertSec.run(workspaceId, s.key, s.value);
+		insertSec.run(workspaceId, s.key, encrypt(s.value));
 	}
 
 	db.prepare("DELETE FROM workspace_integrations WHERE workspace_id = ?").run(workspaceId);
 	const insertInt = db.prepare(
 		"INSERT INTO workspace_integrations (workspace_id, type, enabled, config_json, updated_at) VALUES (?, ?, 1, ?, ?)",
 	);
-	if (github) insertInt.run(workspaceId, "github", JSON.stringify(github), now);
-	if (jira) insertInt.run(workspaceId, "jira", JSON.stringify(jira), now);
+	if (github) insertInt.run(workspaceId, "github", encrypt(JSON.stringify(github)), now);
+	if (jira) insertInt.run(workspaceId, "jira", encrypt(JSON.stringify(jira)), now);
 }
 
 export async function loadProjectConfig(workspaceId: string): Promise<RuntimeProjectConfig> {

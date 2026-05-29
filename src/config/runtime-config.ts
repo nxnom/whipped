@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { type RuntimeGlobalConfig, runtimeGlobalConfigSchema } from "../core/api-contract.js";
 import { getDb } from "../state/db.js";
+import { decrypt, encrypt } from "../state/secrets-crypto.js";
 import { WHIPPED_HOME_DIR } from "./paths.js";
 
 // Re-exported here so existing callers keep working after the path constants
@@ -12,8 +13,9 @@ export const DEFAULT_PORT = 50008;
 export const DEFAULT_WEB_UI_PORT = 50007;
 
 function parseConfig(rawJson: string): RuntimeGlobalConfig {
+	const decoded = decrypt(rawJson);
 	try {
-		const parsed = runtimeGlobalConfigSchema.safeParse(JSON.parse(rawJson));
+		const parsed = runtimeGlobalConfigSchema.safeParse(JSON.parse(decoded));
 		if (parsed.success) return parsed.data;
 	} catch {
 		// fall through to defaults
@@ -33,7 +35,7 @@ export async function loadGlobalConfig(): Promise<RuntimeGlobalConfig> {
 export async function saveGlobalConfig(config: RuntimeGlobalConfig): Promise<void> {
 	const db = getDb();
 	db.prepare("UPDATE global_config SET config_json = ?, updated_at = ? WHERE id = 1").run(
-		JSON.stringify(config),
+		encrypt(JSON.stringify(config)),
 		Date.now(),
 	);
 }
@@ -47,7 +49,7 @@ export async function updateGlobalConfig(patch: Partial<RuntimeGlobalConfig>): P
 		const current = row ? parseConfig(row.config_json) : runtimeGlobalConfigSchema.parse({});
 		const updated = runtimeGlobalConfigSchema.parse({ ...current, ...p });
 		db.prepare("UPDATE global_config SET config_json = ?, updated_at = ? WHERE id = 1").run(
-			JSON.stringify(updated),
+			encrypt(JSON.stringify(updated)),
 			Date.now(),
 		);
 		return updated;

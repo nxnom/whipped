@@ -177,8 +177,6 @@ export const BOARD_COLUMNS: Array<{ id: RuntimeBoardColumnId; title: string }> =
 
 // ─── Review ───────────────────────────────────────────────────────────────────
 
-export const SCHEMA_VERSION = 2;
-
 export const reviewActorSchema = z.object({
 	type: z.enum(["ai", "human", "external"]),
 	id: z.string(),
@@ -310,7 +308,6 @@ export type RuntimeBoardColumn = z.infer<typeof runtimeBoardColumnSchema>;
 export const runtimeBoardDataSchema = z.object({
 	columns: z.array(runtimeBoardColumnSchema),
 	cards: z.record(z.string(), runtimeBoardCardSchema),
-	schemaVersion: z.number().optional(),
 });
 export type RuntimeBoardData = z.infer<typeof runtimeBoardDataSchema>;
 
