@@ -225,12 +225,19 @@ export class BoardPoller {
 		const board = state.board;
 		const pendingCards: RuntimeBoardCard[] = [];
 
+		// Gate pickup on the scheduler's in-memory state (running OR mid-launch), not the
+		// board's terminalSessions. A card being launched is moved to in_progress only after
+		// the slow worktree-create + install step, and the dev session is recorded later still
+		// — so for that whole window it sits in todo/reopened with no session, and a session
+		// based check re-dispatches it, spawning a second dev agent for the same card.
+		// isHandlingTask covers that window via startingTasks.
+
 		// Todo cards explicitly marked ready by the user
 		const todoColumn = board.columns.find((c) => c.id === "todo");
 		if (todoColumn) {
 			for (const taskId of todoColumn.taskIds) {
 				const card = board.cards[taskId];
-				if (card?.readyForDev && !card.terminalSessions?.some((ts) => !ts.endedAt)) pendingCards.push(card);
+				if (card?.readyForDev && !scheduler.isHandlingTask(taskId)) pendingCards.push(card);
 			}
 		}
 
@@ -239,7 +246,7 @@ export class BoardPoller {
 		if (reopenedColumn) {
 			for (const taskId of reopenedColumn.taskIds) {
 				const card = board.cards[taskId];
-				if (card && !card.terminalSessions?.some((ts) => !ts.endedAt)) pendingCards.push(card);
+				if (card && !scheduler.isHandlingTask(taskId)) pendingCards.push(card);
 			}
 		}
 

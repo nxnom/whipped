@@ -1,8 +1,8 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
+import { WHIPPED_HOME_DIR } from "../config/paths.js";
 
-const HOOKS_DIR = join(homedir(), ".whipped", "hooks");
+const HOOKS_DIR = join(WHIPPED_HOME_DIR, "hooks");
 export const CLAUDE_TASK_SETTINGS_PATH = join(HOOKS_DIR, "claude-task-settings.json");
 export const CLAUDE_HOME_MCP_CONFIG_PATH = join(HOOKS_DIR, "claude-home-mcp-config.json");
 export const CLAUDE_REVIEW_MCP_CONFIG_PATH = join(HOOKS_DIR, "claude-review-mcp-config.json");

@@ -1,14 +1,14 @@
 import { execFile, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { rm } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { WHIPPED_HOME_DIR } from "../config/paths.js";
 import { logger } from "../core/logger.js";
 
 const execFileAsync = promisify(execFile);
 
-const WORKTREES_DIR = join(homedir(), ".whipped", "worktrees");
+const WORKTREES_DIR = join(WHIPPED_HOME_DIR, "worktrees");
 
 function git(args: string[], cwd: string): { stdout: string; stderr: string; ok: boolean } {
 	const result = spawnSync("git", args, {

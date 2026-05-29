@@ -10,7 +10,8 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { tunnelManager } from "../slack/cloudflare-tunnel.js";
 import { exchangeCodeForBotToken } from "../slack/slack-setup.js";
 import { slackNotifier } from "../slack/slack-notifier.js";
-import { ATTACHMENTS_DIR, DEFAULT_PORT, loadGlobalConfig } from "../config/runtime-config.js";
+import { clearState, isAlive, readState, writeState } from "../cli/daemon-state.js";
+import { ATTACHMENTS_DIR, DEFAULT_PORT, loadGlobalConfig, WHIPPED_HOME_DIR } from "../config/runtime-config.js";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 import { BoardPoller } from "../daemon/poller.js";
@@ -72,6 +73,22 @@ interface ServerOptions {
 
 export async function createRuntimeServer(options: ServerOptions) {
 	const { port = DEFAULT_PORT, host = "127.0.0.1", repoPath } = options;
+
+	// Single-instance guard. Only ONE server may run against a given WHIPPED_HOME_DIR
+	// (= one SQLite database). Two servers — e.g. one accidentally started on a second
+	// port — would each run their own poller + scheduler against the shared DB and
+	// dispatch the same cards, spawning duplicate dev agents. The guard is keyed to the
+	// home dir (the shared database), not the port, so independent instances pointed at
+	// a different WHIPPED_HOME_DIR still run fine.
+	const existing = readState();
+	if (existing && existing.pid !== process.pid && isAlive(existing.pid)) {
+		throw new Error(
+			`whipped is already running against ${WHIPPED_HOME_DIR} at ${existing.url} (pid ${existing.pid}). ` +
+				`Stop it with \`whipped stop\` before starting another instance, or run a separate isolated ` +
+				`instance against its own data dir, e.g. WHIPPED_HOME_DIR=~/.whipped-other whipped --port 50009.`,
+		);
+	}
+	writeState({ pid: process.pid, host, port, url: `http://${host}:${port}`, startedAt: new Date().toISOString() });
 
 	// Open SQLite DB and run pending migrations before anything else touches state.
 	openDb();
@@ -862,6 +879,10 @@ export async function createRuntimeServer(options: ServerOptions) {
 			for (const ws of stateWss.clients) ws.terminate();
 			for (const ws of terminalWss.clients) ws.terminate();
 			await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+			// Release single-instance ownership, but only if it's still ours — a
+			// restart may have already claimed it.
+			const owner = readState();
+			if (owner && owner.pid === process.pid) clearState();
 		},
 	};
 }
