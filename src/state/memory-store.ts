@@ -169,9 +169,7 @@ export function deleteMemory(id: string): void {
 // Remove still-pending proposals that originated from a card (called when a
 // card is closed/failed/deleted). Approved memories are kept.
 export function deletePendingMemoriesForCard(cardId: string): number {
-	const result = getDb()
-		.prepare("DELETE FROM memories WHERE origin_card_id = ? AND status = 'pending'")
-		.run(cardId);
+	const result = getDb().prepare("DELETE FROM memories WHERE origin_card_id = ? AND status = 'pending'").run(cardId);
 	return result.changes;
 }
 
@@ -261,13 +259,9 @@ export function searchMemories(query: string, workspaceId?: string | null, limit
 export function buildMemoryContext(workspaceId: string, projectMemoryLimit = 40): string {
 	const sections: string[] = [];
 
-	const fmt = (m: RuntimeMemory) =>
-		`- [${m.id}] (${m.type}) **${m.title}** — ${m.content.replace(/\s+/g, " ").trim()}`;
+	const fmt = (m: RuntimeMemory) => `- [${m.id}] (${m.type}) **${m.title}** — ${m.content.replace(/\s+/g, " ").trim()}`;
 
-	const projectMem = listMemories({ scope: "project", workspaceId, status: "approved" }).slice(
-		0,
-		projectMemoryLimit,
-	);
+	const projectMem = listMemories({ scope: "project", workspaceId, status: "approved" }).slice(0, projectMemoryLimit);
 	if (projectMem.length > 0) {
 		sections.push(`### Project memory\n${projectMem.map(fmt).join("\n")}`);
 	}

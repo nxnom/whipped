@@ -15,10 +15,7 @@ export function resolvePromptText(prompt: PromptValue | undefined | null, repoPa
 	try {
 		return readFileSync(path, "utf-8");
 	} catch (err) {
-		logger.warn(
-			{ err: (err as Error).message, path },
-			"Slot prompt file unreadable — falling back to empty prompt",
-		);
+		logger.warn({ err: (err as Error).message, path }, "Slot prompt file unreadable — falling back to empty prompt");
 		return "";
 	}
 }

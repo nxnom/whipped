@@ -92,7 +92,10 @@ export function FilePickerDialog({ initialPath, onSelect, onClose }: Props) {
 									onClick={() => setSelectedFile(file.path)}
 									onDoubleClick={() => onSelect(file.path)}
 								>
-									<File size={13} className={classNames("shrink-0", isSelected ? "text-[#7c6aff]" : "text-[#4a4a5a]")} />
+									<File
+										size={13}
+										className={classNames("shrink-0", isSelected ? "text-[#7c6aff]" : "text-[#4a4a5a]")}
+									/>
 									<span
 										className={classNames(
 											"flex-1 truncate text-[13px]",

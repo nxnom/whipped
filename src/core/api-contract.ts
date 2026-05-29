@@ -545,12 +545,7 @@ export const MEMORY_TYPE_OPTIONS: ReadonlyArray<{ value: MemoryType; label: stri
 	{ value: "sharp_edge", label: "Sharp edge" },
 ];
 
-export const memorySourceTypeSchema = z.enum([
-	"user_correction",
-	"explicit_save",
-	"task_lesson",
-	"manual_human",
-]);
+export const memorySourceTypeSchema = z.enum(["user_correction", "explicit_save", "task_lesson", "manual_human"]);
 export type MemorySourceType = z.infer<typeof memorySourceTypeSchema>;
 
 export const memoryStatusSchema = z.enum(["pending", "approved"]);

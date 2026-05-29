@@ -122,9 +122,9 @@ function loadCardChildren(
 	).map((r) => r.depends_on_id);
 
 	const activityLog = (
-		db.prepare("SELECT timestamp, message FROM activity_log WHERE card_id = ? ORDER BY timestamp, id").all(
-			cardId,
-		) as Array<{ timestamp: number; message: string }>
+		db
+			.prepare("SELECT timestamp, message FROM activity_log WHERE card_id = ? ORDER BY timestamp, id")
+			.all(cardId) as Array<{ timestamp: number; message: string }>
 	).map((r) => ({ timestamp: r.timestamp, message: r.message }));
 
 	const reviewRows = db
@@ -313,15 +313,7 @@ function replaceCardChildren(db: Database.Database, card: RuntimeBoardCard): voi
 			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 	);
 	for (const s of card.terminalSessions ?? []) {
-		insertSession.run(
-			card.id,
-			s.streamId,
-			s.type,
-			s.startedAt,
-			s.endedAt ?? null,
-			s.agentId ?? null,
-			s.state ?? null,
-		);
+		insertSession.run(card.id, s.streamId, s.type, s.startedAt, s.endedAt ?? null, s.agentId ?? null, s.state ?? null);
 	}
 }
 
@@ -688,17 +680,13 @@ export async function moveCard(
 		const sameColumn = sourceColumnId === targetColumnId;
 
 		const sourceCards = db
-			.prepare(
-				"SELECT id FROM cards WHERE workspace_id = ? AND column_id = ? AND id != ? ORDER BY column_position",
-			)
+			.prepare("SELECT id FROM cards WHERE workspace_id = ? AND column_id = ? AND id != ? ORDER BY column_position")
 			.all(workspaceId, sourceColumnId, cardId) as Array<{ id: string }>;
 
 		const targetCards: Array<{ id: string }> = sameColumn
 			? sourceCards
 			: (db
-					.prepare(
-						"SELECT id FROM cards WHERE workspace_id = ? AND column_id = ? ORDER BY column_position",
-					)
+					.prepare("SELECT id FROM cards WHERE workspace_id = ? AND column_id = ? ORDER BY column_position")
 					.all(workspaceId, targetColumnId) as Array<{ id: string }>);
 
 		const insertAt = typeof targetIndex === "number" ? targetIndex : targetCards.length;
@@ -706,9 +694,7 @@ export async function moveCard(
 		finalTarget.splice(insertAt, 0, { id: cardId });
 
 		const now = Date.now();
-		const updateTarget = db.prepare(
-			"UPDATE cards SET column_id = ?, column_position = ?, updated_at = ? WHERE id = ?",
-		);
+		const updateTarget = db.prepare("UPDATE cards SET column_id = ?, column_position = ?, updated_at = ? WHERE id = ?");
 		for (let i = 0; i < finalTarget.length; i++) {
 			updateTarget.run(targetColumnId, i, now, finalTarget[i]!.id);
 		}
@@ -802,11 +788,7 @@ export async function appendActivityLog(workspaceId: string, cardId: string, mes
 		const exists = db.prepare("SELECT 1 FROM cards WHERE id = ? AND workspace_id = ?").get(cardId, workspaceId);
 		if (!exists) return;
 		const now = Date.now();
-		db.prepare("INSERT INTO activity_log (card_id, timestamp, message) VALUES (?, ?, ?)").run(
-			cardId,
-			now,
-			message,
-		);
+		db.prepare("INSERT INTO activity_log (card_id, timestamp, message) VALUES (?, ?, ?)").run(cardId, now, message);
 		db.prepare("UPDATE cards SET updated_at = ? WHERE id = ?").run(now, cardId);
 	});
 	tx();
@@ -1021,9 +1003,9 @@ export async function updateCard(
 ): Promise<RuntimeBoardCard> {
 	const db = getDb();
 	const tx = db.transaction(() => {
-		const row = db
-			.prepare("SELECT * FROM cards WHERE id = ? AND workspace_id = ?")
-			.get(cardId, workspaceId) as CardRow | undefined;
+		const row = db.prepare("SELECT * FROM cards WHERE id = ? AND workspace_id = ?").get(cardId, workspaceId) as
+			| CardRow
+			| undefined;
 		if (!row) return null;
 
 		const existing = cardFromRow(row, loadCardChildren(db, cardId));

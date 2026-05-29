@@ -263,9 +263,7 @@ function SlotCard({
 						</span>
 					)}
 					{slot.prompt &&
-						(slot.prompt.source === "inline"
-							? slot.prompt.text.length > 0
-							: slot.prompt.path.length > 0) && (
+						(slot.prompt.source === "inline" ? slot.prompt.text.length > 0 : slot.prompt.path.length > 0) && (
 							<span className="text-[10px] text-blue-500 bg-blue-500/10 px-1.5 py-0.5 rounded">
 								{slot.prompt.source === "file" ? "prompt file" : "custom prompt"}
 							</span>

@@ -851,9 +851,7 @@ server.registerTool(
 			if (!results || results.length === 0) {
 				return { content: [{ type: "text", text: "No matching memory." }] };
 			}
-			const text = results
-				.map((m) => `- [${m.id}] (${m.scope}/${m.type}) ${m.title}\n  ${m.content}`)
-				.join("\n");
+			const text = results.map((m) => `- [${m.id}] (${m.scope}/${m.type}) ${m.title}\n  ${m.content}`).join("\n");
 			return { content: [{ type: "text", text }] };
 		} catch (err) {
 			return { content: [{ type: "text", text: `Search failed: ${(err as Error).message}` }] };
@@ -914,10 +912,7 @@ if (agentSlot === "dev") {
 					originCardId: memoryCardId || undefined,
 					originAgent: { agent: agentId, ...(memoryModel ? { model: memoryModel } : {}) },
 				});
-				const note =
-					saved.status === "approved"
-						? "saved (approved)."
-						: "submitted for the user's review (pending).";
+				const note = saved.status === "approved" ? "saved (approved)." : "submitted for the user's review (pending).";
 				return { content: [{ type: "text", text: `Memory ${note}` }] };
 			} catch (err) {
 				return { content: [{ type: "text", text: `Save failed: ${(err as Error).message}` }] };
@@ -934,9 +929,7 @@ if (agentSlot === "dev") {
 				id: z.string().describe("Memory id (from the memory list or whipped_search_memory)"),
 				title: z.string().optional().describe("New title"),
 				content: z.string().optional().describe("New content"),
-				type: z
-					.enum(["fact", "convention", "decision", "preference", "rule", "lesson", "sharp_edge"])
-					.optional(),
+				type: z.enum(["fact", "convention", "decision", "preference", "rule", "lesson", "sharp_edge"]).optional(),
 				importance: z.number().int().min(1).max(3).optional(),
 				sourceType: z
 					.enum(["user_correction", "explicit_save", "task_lesson"])
@@ -955,9 +948,7 @@ if (agentSlot === "dev") {
 					sourceType,
 				});
 				const note =
-					updated.status === "approved"
-						? "updated (approved)."
-						: "update submitted for the user's review (pending).";
+					updated.status === "approved" ? "updated (approved)." : "update submitted for the user's review (pending).";
 				return { content: [{ type: "text", text: `Memory ${note}` }] };
 			} catch (err) {
 				return { content: [{ type: "text", text: `Update failed: ${(err as Error).message}` }] };

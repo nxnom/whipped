@@ -238,10 +238,8 @@ export function WorkflowEditorDialog({
 		updateSlotPrompt({ source: "file", path: pathDraft });
 	};
 
-	const editorText =
-		selectedSlot?.prompt.source === "file" ? linkedContent : promptInlineText(selectedSlot?.prompt);
-	const editorReady =
-		selectedSlot?.prompt.source !== "file" || saveStatus !== "loading";
+	const editorText = selectedSlot?.prompt.source === "file" ? linkedContent : promptInlineText(selectedSlot?.prompt);
+	const editorReady = selectedSlot?.prompt.source !== "file" || saveStatus !== "loading";
 
 	const handleSave = () => {
 		flushSave();
