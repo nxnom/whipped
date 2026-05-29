@@ -66,11 +66,15 @@ export class RuntimeStateHub {
 		this.workspaceClients.get(client.workspaceId)?.delete(clientId);
 	}
 
+	// repoPath is a fallback only; prefer the per-workspace path registered via
+	// registerWorkspace so a snapshot reflects the requested workspace's repo
+	// (not the daemon's cwd repo, which differs when managing multiple projects).
 	async sendSnapshot(clientId: ClientId, workspaceId: WorkspaceId, repoPath: string): Promise<void> {
 		const client = this.clients.get(clientId);
 		if (!client) return;
 
-		const state = await loadWorkspaceState(workspaceId, repoPath);
+		const resolvedRepoPath = this.workspaceMeta.get(workspaceId)?.repoPath ?? repoPath;
+		const state = await loadWorkspaceState(workspaceId, resolvedRepoPath);
 		this.sendToClient(client, { type: "snapshot", state });
 	}
 

@@ -529,7 +529,7 @@ server.registerTool(
 					agentBinary: string;
 					order: number;
 					enabled: boolean;
-					prompt: string;
+					prompt: { source: "inline"; text: string } | { source: "file"; path: string };
 					effort?: string | null;
 					model?: string | null;
 				}>;
@@ -545,7 +545,13 @@ server.registerTool(
 				const status = slot.enabled ? "enabled" : "disabled";
 				const modelTag = slot.model ? `, model: ${slot.model}` : "";
 				const effortTag = slot.effort ? `, effort: ${slot.effort}` : "";
-				const prompt = slot.prompt ? `\n    prompt: ${slot.prompt}` : "";
+				const promptText =
+					slot.prompt && typeof slot.prompt === "object"
+						? slot.prompt.source === "inline"
+							? slot.prompt.text
+							: `[file: ${slot.prompt.path}]`
+						: "";
+				const prompt = promptText ? `\n    prompt: ${promptText}` : "";
 				lines.push(
 					`  - [${slot.id}] ${slot.name} (${slot.type}, ${slot.agentBinary}${modelTag}, ${status}${effortTag})${prompt}`,
 				);

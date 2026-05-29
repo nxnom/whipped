@@ -6,7 +6,7 @@ import {
 	Droppable,
 	type DropResult,
 } from "@hello-pangea/dnd";
-import type { RuntimeAgentId, Workflow, WorkflowSlot } from "@runtime-contract";
+import { EMPTY_INLINE_PROMPT, type RuntimeAgentId, type Workflow, type WorkflowSlot } from "@runtime-contract";
 import { GripVertical, Plus, Settings2, Trash2 } from "lucide-react";
 import { classNames } from "@/utils/classNames";
 
@@ -69,7 +69,13 @@ export function WorkflowEditor({
 			qa: { id: "qa", name: "QA", enabled: false },
 		};
 		const d = defaults[type];
-		const newSlot: WorkflowSlot = { ...d, type, agentBinary: defaultBinary, order: maxOrder + 1, prompt: "" };
+		const newSlot: WorkflowSlot = {
+			...d,
+			type,
+			agentBinary: defaultBinary,
+			order: maxOrder + 1,
+			prompt: EMPTY_INLINE_PROMPT,
+		};
 		onUpdate({ ...workflow, slots: [...workflow.slots, newSlot] });
 	};
 
@@ -256,9 +262,14 @@ function SlotCard({
 							{slot.effort}
 						</span>
 					)}
-					{slot.prompt && (
-						<span className="text-[10px] text-blue-500 bg-blue-500/10 px-1.5 py-0.5 rounded">custom prompt</span>
-					)}
+					{slot.prompt &&
+						(slot.prompt.source === "inline"
+							? slot.prompt.text.length > 0
+							: slot.prompt.path.length > 0) && (
+							<span className="text-[10px] text-blue-500 bg-blue-500/10 px-1.5 py-0.5 rounded">
+								{slot.prompt.source === "file" ? "prompt file" : "custom prompt"}
+							</span>
+						)}
 					{onRemove && (
 						<button onClick={onRemove} className="ml-auto text-gray-600 hover:text-red-400 transition-colors">
 							<Trash2 size={13} />

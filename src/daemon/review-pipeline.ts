@@ -28,6 +28,7 @@ import type {
 } from "../core/api-contract.js";
 import { DEFAULT_GIT_INSTRUCTIONS } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
+import { resolvePromptText } from "../core/prompt-resolver.js";
 import { commitIfDirty, createGithubPR, pushBranch } from "../git/merge-operations.js";
 import type { GithubClient } from "../github/github-client.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
@@ -116,7 +117,7 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 	let skipPassed = isResume;
 
 	for (const slot of options.reviewSlots) {
-		const customPrompt = slot.prompt ?? "";
+		const customPrompt = resolvePromptText(slot.prompt, options.repoPath);
 		const streamId = `${card.id}-${slot.id}-${runId}`;
 
 		if (skipPassed) {

@@ -145,6 +145,7 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 			<WorkflowsSection
 				workflows={config.workflows}
 				workspaceId={workspaceId}
+				repoPath={wsState?.repoPath ?? ""}
 				defaultBinary={globalDefaultBinary}
 				onChange={(workflows) => updateConfig({ ...config, workflows })}
 			/>

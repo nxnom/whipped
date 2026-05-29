@@ -26,11 +26,13 @@ import type { AgentProcess } from "../agents/agent-runner.js";
 import { spawnAgent } from "../agents/agent-runner.js";
 import {
 	DEFAULT_GIT_INSTRUCTIONS,
+	EMPTY_INLINE_PROMPT,
 	type RuntimeAgentId,
 	type RuntimeBoardCard,
 	type WorkflowSlot,
 } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
+import { resolvePromptText } from "../core/prompt-resolver.js";
 import { commitIfDirty, pushBranch } from "../git/merge-operations.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import {
@@ -257,7 +259,7 @@ export class TaskScheduler {
 			agentBinary: "claude" as const,
 			order: 0,
 			enabled: true,
-			prompt: "",
+			prompt: EMPTY_INLINE_PROMPT,
 		};
 		const agentId = card.agentId ?? devSlotEarly.agentBinary;
 
@@ -485,7 +487,7 @@ export class TaskScheduler {
 			const devSystemPromptResult = buildDevAgentSystemPrompt(
 				devSlotEarly,
 				card,
-				devSlotEarly.prompt ?? "",
+				resolvePromptText(devSlotEarly.prompt, repoPath),
 				worktree.path,
 				secrets,
 				parentCards,

@@ -55,6 +55,24 @@ export const MODEL_OPTIONS: Record<RuntimeAgentId, ReadonlyArray<{ value: string
 export const workflowSlotTypeSchema = z.enum(["dev", "code_review", "qa", "custom", "orch"]);
 export type WorkflowSlotType = z.infer<typeof workflowSlotTypeSchema>;
 
+// Prompt value: either inline text or a path to a file (relative to repo root,
+// or absolute). The zod preprocess accepts a bare string for legacy data and
+// normalises it to the inline shape, so old workflow rows transparently
+// upgrade on first read.
+export const promptValueSchema = z.preprocess(
+	(v) => {
+		if (typeof v === "string") return { source: "inline", text: v };
+		return v;
+	},
+	z.discriminatedUnion("source", [
+		z.object({ source: z.literal("inline"), text: z.string() }),
+		z.object({ source: z.literal("file"), path: z.string() }),
+	]),
+);
+export type PromptValue = z.infer<typeof promptValueSchema>;
+
+export const EMPTY_INLINE_PROMPT: PromptValue = { source: "inline", text: "" };
+
 export const workflowSlotSchema = z.object({
 	id: z.string(),
 	type: workflowSlotTypeSchema,
@@ -62,7 +80,7 @@ export const workflowSlotSchema = z.object({
 	agentBinary: runtimeAgentIdSchema,
 	order: z.number().int().nonnegative(),
 	enabled: z.boolean(),
-	prompt: z.string().default(""),
+	prompt: promptValueSchema.default(EMPTY_INLINE_PROMPT),
 	effort: effortLevelSchema.nullable().optional(),
 	model: z.string().nullable().optional(),
 });
@@ -83,7 +101,15 @@ export const DEFAULT_WORKFLOW: Workflow = {
 	isDefault: true,
 	forStory: false,
 	slots: [
-		{ id: "dev", type: "dev", name: "Dev", agentBinary: "claude", order: 0, enabled: true, prompt: "" },
+		{
+			id: "dev",
+			type: "dev",
+			name: "Dev",
+			agentBinary: "claude",
+			order: 0,
+			enabled: true,
+			prompt: EMPTY_INLINE_PROMPT,
+		},
 		{
 			id: "code_review",
 			type: "code_review",
@@ -91,9 +117,17 @@ export const DEFAULT_WORKFLOW: Workflow = {
 			agentBinary: "claude",
 			order: 1,
 			enabled: true,
-			prompt: "",
+			prompt: EMPTY_INLINE_PROMPT,
 		},
-		{ id: "qa", type: "qa", name: "QA", agentBinary: "claude", order: 2, enabled: false, prompt: "" },
+		{
+			id: "qa",
+			type: "qa",
+			name: "QA",
+			agentBinary: "claude",
+			order: 2,
+			enabled: false,
+			prompt: EMPTY_INLINE_PROMPT,
+		},
 	],
 };
 
@@ -103,7 +137,15 @@ export const DEFAULT_STORY_WORKFLOW: Workflow = {
 	isDefault: true,
 	forStory: true,
 	slots: [
-		{ id: "orch", type: "orch", name: "Orchestrator", agentBinary: "claude", order: 0, enabled: true, prompt: "" },
+		{
+			id: "orch",
+			type: "orch",
+			name: "Orchestrator",
+			agentBinary: "claude",
+			order: 0,
+			enabled: true,
+			prompt: EMPTY_INLINE_PROMPT,
+		},
 	],
 };
 

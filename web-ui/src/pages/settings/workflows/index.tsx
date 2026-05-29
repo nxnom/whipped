@@ -1,6 +1,6 @@
 import { ConfirmDialog, toast } from "@geckoui/geckoui";
 import type { RuntimeAgentId, Workflow } from "@runtime-contract";
-import { workflowSchema } from "@runtime-contract";
+import { EMPTY_INLINE_PROMPT, workflowSchema } from "@runtime-contract";
 import {
 	ArrowRight,
 	ChevronRight,
@@ -110,11 +110,13 @@ function WorkflowCard({
 export function WorkflowsSection({
 	workflows,
 	workspaceId,
+	repoPath,
 	defaultBinary,
 	onChange,
 }: {
 	workflows: Workflow[];
 	workspaceId: string;
+	repoPath: string;
 	defaultBinary: RuntimeAgentId;
 	onChange: (workflows: Workflow[]) => void;
 }) {
@@ -188,10 +190,20 @@ export function WorkflowsSection({
 							agentBinary: defaultBinary,
 							order: 0,
 							enabled: true,
-							prompt: "",
+							prompt: EMPTY_INLINE_PROMPT,
 						},
 					]
-				: [{ id: "dev", type: "dev", name: "Dev", agentBinary: defaultBinary, order: 0, enabled: true, prompt: "" }],
+				: [
+						{
+							id: "dev",
+							type: "dev",
+							name: "Dev",
+							agentBinary: defaultBinary,
+							order: 0,
+							enabled: true,
+							prompt: EMPTY_INLINE_PROMPT,
+						},
+					],
 		};
 		setDraftWorkflow(newWf);
 	};
@@ -348,6 +360,8 @@ export function WorkflowsSection({
 				<WorkflowEditorDialog
 					workflow={openWorkflow}
 					defaultBinary={defaultBinary}
+					workspaceId={workspaceId}
+					repoPath={repoPath}
 					onUpdate={updateWorkflow}
 					onSave={updateWorkflow}
 					onClose={() => setOpenWorkflowId(null)}
@@ -359,6 +373,8 @@ export function WorkflowsSection({
 				<WorkflowEditorDialog
 					workflow={draftWorkflow}
 					defaultBinary={defaultBinary}
+					workspaceId={workspaceId}
+					repoPath={repoPath}
 					isNew
 					onUpdate={() => {}}
 					onSave={(wf) => {

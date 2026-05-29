@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tunnelManager } from "../slack/cloudflare-tunnel.js";
 import { createSlackApp } from "../slack/slack-setup.js";
@@ -133,6 +134,24 @@ export interface AppContext {
 const t = initTRPC.context<AppContext>().create();
 const router = t.router;
 const publicProcedure = t.procedure;
+
+// Resolves a user-supplied prompt-file path to an absolute path.
+// - Absolute paths are used as-is (the user explicitly chose them via the file
+//   picker or typed them; this is a single-user local/self-hosted daemon).
+// - Relative paths resolve against the workspace repo root and must not use
+//   parent-traversal to escape it.
+async function resolvePromptPath(workspaceId: string, requestedPath: string): Promise<string> {
+	const workspaces = await listWorkspaces();
+	const ws = workspaces.find((w) => w.workspaceId === workspaceId);
+	if (!ws) throw new TRPCError({ code: "NOT_FOUND", message: "Workspace not found" });
+
+	if (isAbsolute(requestedPath)) return requestedPath;
+
+	if (requestedPath.split("/").includes("..")) {
+		throw new TRPCError({ code: "BAD_REQUEST", message: "Relative path must not use '..'" });
+	}
+	return resolve(ws.repoPath, requestedPath);
+}
 
 function requireWorkspace(ctx: AppContext): { workspaceId: string; repoPath: string } {
 	if (!ctx.currentWorkspaceId || !ctx.currentRepoPath) {
@@ -436,6 +455,35 @@ export const appRouter = router({
 				}));
 				ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
 				return { ok: true };
+			}),
+
+		// Resolve a path inside a workspace's repo with full validation. Used by
+		// both writePromptFile and readPromptFile below.
+		writePromptFile: publicProcedure
+			.input(
+				z.object({
+					workspaceId: z.string(),
+					path: z.string().min(1),
+					content: z.string(),
+				}),
+			)
+			.mutation(async ({ input }) => {
+				const targetPath = await resolvePromptPath(input.workspaceId, input.path);
+				await mkdir(dirname(targetPath), { recursive: true });
+				await writeFile(targetPath, input.content, "utf-8");
+				return { path: input.path };
+			}),
+
+		// Read a prompt file's content. Returns {content: "", exists: false} if
+		// the file doesn't exist yet, so the editor can show an empty textarea
+		// that will create the file on first save.
+		readPromptFile: publicProcedure
+			.input(z.object({ workspaceId: z.string(), path: z.string().min(1) }))
+			.query(async ({ input }) => {
+				const targetPath = await resolvePromptPath(input.workspaceId, input.path);
+				if (!existsSync(targetPath)) return { content: "", exists: false };
+				const content = await readFile(targetPath, "utf-8");
+				return { content, exists: true };
 			}),
 	}),
 
@@ -1096,23 +1144,45 @@ export const appRouter = router({
 			return { ok: true };
 		}),
 
-		listDir: publicProcedure.input(z.object({ path: z.string() })).query(async ({ input }) => {
-			const { readdirSync } = await import("node:fs");
-			const { join: pathJoin, dirname, resolve } = await import("node:path");
-			const { homedir } = await import("node:os");
-			const target = input.path || homedir();
-			const parent = dirname(resolve(target));
-			try {
-				const entries = readdirSync(target, { withFileTypes: true });
-				const dirs = entries
-					.filter((e) => e.isDirectory() && !e.name.startsWith("."))
-					.map((e) => ({ name: e.name, path: pathJoin(target, e.name) }))
-					.sort((a, b) => a.name.localeCompare(b.name));
-				return { current: target, parent: parent !== target ? parent : null, dirs };
-			} catch {
-				return { current: target, parent: null, dirs: [] };
-			}
-		}),
+		listDir: publicProcedure
+			.input(
+				z.object({
+					path: z.string(),
+					includeFiles: z.boolean().optional(),
+					showHidden: z.boolean().optional(),
+				}),
+			)
+			.query(async ({ input }) => {
+				const { existsSync, readdirSync, statSync } = await import("node:fs");
+				const { join: pathJoin, dirname, resolve } = await import("node:path");
+				const { homedir } = await import("node:os");
+
+				// Walk up to the nearest existing directory so a not-yet-created path
+				// (e.g. .whipped/prompts/ before first save) never dead-ends the picker.
+				let target = resolve(input.path || homedir());
+				while (target !== dirname(target) && !(existsSync(target) && statSync(target).isDirectory())) {
+					target = dirname(target);
+				}
+
+				const parent = dirname(target);
+				const visible = (name: string) => input.showHidden || !name.startsWith(".");
+				try {
+					const entries = readdirSync(target, { withFileTypes: true });
+					const dirs = entries
+						.filter((e) => e.isDirectory() && visible(e.name))
+						.map((e) => ({ name: e.name, path: pathJoin(target, e.name) }))
+						.sort((a, b) => a.name.localeCompare(b.name));
+					const files = input.includeFiles
+						? entries
+								.filter((e) => e.isFile() && visible(e.name))
+								.map((e) => ({ name: e.name, path: pathJoin(target, e.name) }))
+								.sort((a, b) => a.name.localeCompare(b.name))
+						: [];
+					return { current: target, parent: parent !== target ? parent : null, dirs, files };
+				} catch {
+					return { current: target, parent: parent !== target ? parent : null, dirs: [], files: [] };
+				}
+			}),
 	}),
 
 	// ─── Global config ─────────────────────────────────────────────────────────
