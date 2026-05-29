@@ -273,12 +273,21 @@ export class BoardPoller {
 
 		// Fallback for server restarts: in_progress cards with no active process (idle) that have
 		// a dev comment mean the dev agent finished but review never started. Re-trigger review.
+		// Skip cards the scheduler is mid-launch on: startTask moves the card to in_progress and
+		// runs worktree setup/install before registering the dev terminal session, so a re-run card
+		// (which already carries a prior dev comment) would otherwise match here and start review
+		// concurrently with the launching dev agent.
 		const inProgressCol = board.columns.find((c) => c.id === "in_progress");
 		if (inProgressCol) {
 			for (const taskId of inProgressCol.taskIds) {
 				const card = board.cards[taskId];
 				const hasDevComment = (card?.reviewComments ?? []).some((c) => c.type === "dev");
-				if (card && hasDevComment && !card.terminalSessions?.some((ts) => !ts.endedAt)) {
+				if (
+					card &&
+					hasDevComment &&
+					!card.terminalSessions?.some((ts) => !ts.endedAt) &&
+					!scheduler.isHandlingTask(taskId)
+				) {
 					onCardReadyForReview(card);
 				}
 			}

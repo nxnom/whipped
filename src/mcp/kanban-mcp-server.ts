@@ -820,5 +820,151 @@ server.registerTool(
 	},
 );
 
+// ─── Memory ───────────────────────────────────────────────────────────────────
+// Slot + card context are inherited from the agent process env (the MCP server
+// is a stdio child). Read tools are available to every slot; the write tool is
+// registered only for the dev slot.
+const agentSlot = process.env.WHIPPED_SLOT ?? "";
+const memoryCardId = process.env.WHIPPED_HOOK_TASK_ID ?? "";
+const memoryModel = process.env.WHIPPED_MODEL ?? "";
+
+interface MemoryResult {
+	id: string;
+	scope: string;
+	type: string;
+	title: string;
+	content: string;
+}
+
+server.registerTool(
+	"whipped_search_memory",
+	{
+		description:
+			"Search durable project + global memory (conventions, decisions, lessons, sharp edges) for this workspace. Use before re-discovering how something works. Returns matching memories with their ids.",
+		inputSchema: {
+			query: z.string().describe("Keywords to search memory titles and content"),
+		},
+	},
+	async ({ query }) => {
+		try {
+			const results = await trpcQuery<MemoryResult[]>("memory.search", { query, workspaceId });
+			if (!results || results.length === 0) {
+				return { content: [{ type: "text", text: "No matching memory." }] };
+			}
+			const text = results
+				.map((m) => `- [${m.id}] (${m.scope}/${m.type}) ${m.title}\n  ${m.content}`)
+				.join("\n");
+			return { content: [{ type: "text", text }] };
+		} catch (err) {
+			return { content: [{ type: "text", text: `Search failed: ${(err as Error).message}` }] };
+		}
+	},
+);
+
+server.registerTool(
+	"whipped_get_memory",
+	{
+		description: "Fetch the full content of a single memory by its id (from whipped_search_memory results).",
+		inputSchema: {
+			id: z.string().describe("Memory id"),
+		},
+	},
+	async ({ id }) => {
+		try {
+			const m = await trpcQuery<MemoryResult | null>("memory.get", { id });
+			if (!m) return { content: [{ type: "text", text: "Memory not found." }] };
+			return { content: [{ type: "text", text: `(${m.scope}/${m.type}) ${m.title}\n\n${m.content}` }] };
+		} catch (err) {
+			return { content: [{ type: "text", text: `Fetch failed: ${(err as Error).message}` }] };
+		}
+	},
+);
+
+// Write tool — dev slot only.
+if (agentSlot === "dev") {
+	server.registerTool(
+		"whipped_save_memory",
+		{
+			description:
+				"Save a durable memory so future agents don't re-discover it. Use for conventions, architecture facts, decisions, gotchas, or user corrections worth remembering across tasks. Scope 'project' = specific to this repo; 'global' = applies to all your projects (style/preferences/org rules). Keep each memory to one focused fact. The user may review project task-lessons; global lessons go to a review queue.",
+			inputSchema: {
+				scope: z.enum(["project", "global"]).describe("'project' (this repo) or 'global' (all projects)"),
+				type: z
+					.enum(["fact", "convention", "decision", "preference", "rule", "lesson", "sharp_edge"])
+					.describe("Kind of memory"),
+				title: z.string().describe("Short one-line summary"),
+				content: z.string().describe("The durable fact, in 1-3 sentences"),
+				sourceType: z
+					.enum(["user_correction", "explicit_save", "task_lesson"])
+					.default("task_lesson")
+					.describe("Why this is being saved — 'user_correction' if the user explicitly told you, else 'task_lesson'"),
+				importance: z.number().int().min(1).max(3).optional().describe("1 normal, 2 high, 3 critical"),
+			},
+		},
+		async ({ scope, type, title, content, sourceType, importance }) => {
+			try {
+				const saved = await trpc<{ status: string }>("memory.propose", {
+					scope,
+					workspaceId: scope === "project" ? workspaceId : undefined,
+					type,
+					title,
+					content,
+					sourceType,
+					importance,
+					originCardId: memoryCardId || undefined,
+					originAgent: { agent: agentId, ...(memoryModel ? { model: memoryModel } : {}) },
+				});
+				const note =
+					saved.status === "approved"
+						? "saved (approved)."
+						: "submitted for the user's review (pending).";
+				return { content: [{ type: "text", text: `Memory ${note}` }] };
+			} catch (err) {
+				return { content: [{ type: "text", text: `Save failed: ${(err as Error).message}` }] };
+			}
+		},
+	);
+
+	server.registerTool(
+		"whipped_update_memory",
+		{
+			description:
+				"Update an existing memory when it is now inaccurate or out of date (e.g. a convention changed). Get the memory's id from the injected memory list or whipped_search_memory. Prefer updating over saving a near-duplicate. Approval follows the same policy as saving.",
+			inputSchema: {
+				id: z.string().describe("Memory id (from the memory list or whipped_search_memory)"),
+				title: z.string().optional().describe("New title"),
+				content: z.string().optional().describe("New content"),
+				type: z
+					.enum(["fact", "convention", "decision", "preference", "rule", "lesson", "sharp_edge"])
+					.optional(),
+				importance: z.number().int().min(1).max(3).optional(),
+				sourceType: z
+					.enum(["user_correction", "explicit_save", "task_lesson"])
+					.default("task_lesson")
+					.describe("'user_correction' if the user told you to change it, else 'task_lesson'"),
+			},
+		},
+		async ({ id, title, content, type, importance, sourceType }) => {
+			try {
+				const updated = await trpc<{ status: string }>("memory.proposeUpdate", {
+					id,
+					title,
+					content,
+					type,
+					importance,
+					sourceType,
+				});
+				const note =
+					updated.status === "approved"
+						? "updated (approved)."
+						: "update submitted for the user's review (pending).";
+				return { content: [{ type: "text", text: `Memory ${note}` }] };
+			} catch (err) {
+				return { content: [{ type: "text", text: `Update failed: ${(err as Error).message}` }] };
+			}
+		},
+	);
+}
+
 const transport = new StdioServerTransport();
 await server.connect(transport);

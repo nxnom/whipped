@@ -519,6 +519,66 @@ export const runtimeJiraImportRequestSchema = z.object({
 });
 export type RuntimeJiraImportRequest = z.infer<typeof runtimeJiraImportRequestSchema>;
 
+// ─── Memory ───────────────────────────────────────────────────────────────────
+
+export const memoryScopeSchema = z.enum(["global", "project"]);
+export type MemoryScope = z.infer<typeof memoryScopeSchema>;
+
+export const memoryTypeSchema = z.enum([
+	"fact",
+	"convention",
+	"decision",
+	"preference",
+	"rule",
+	"lesson",
+	"sharp_edge",
+]);
+export type MemoryType = z.infer<typeof memoryTypeSchema>;
+
+export const MEMORY_TYPE_OPTIONS: ReadonlyArray<{ value: MemoryType; label: string }> = [
+	{ value: "fact", label: "Fact" },
+	{ value: "convention", label: "Convention" },
+	{ value: "decision", label: "Decision" },
+	{ value: "preference", label: "Preference" },
+	{ value: "rule", label: "Rule" },
+	{ value: "lesson", label: "Lesson" },
+	{ value: "sharp_edge", label: "Sharp edge" },
+];
+
+export const memorySourceTypeSchema = z.enum([
+	"user_correction",
+	"explicit_save",
+	"task_lesson",
+	"manual_human",
+]);
+export type MemorySourceType = z.infer<typeof memorySourceTypeSchema>;
+
+export const memoryStatusSchema = z.enum(["pending", "approved"]);
+export type MemoryStatus = z.infer<typeof memoryStatusSchema>;
+
+export const runtimeMemoryOriginAgentSchema = z.object({
+	agent: z.string(),
+	model: z.string().optional(),
+});
+export type RuntimeMemoryOriginAgent = z.infer<typeof runtimeMemoryOriginAgentSchema>;
+
+export const runtimeMemorySchema = z.object({
+	id: z.string(),
+	scope: memoryScopeSchema,
+	workspaceId: z.string().nullable(),
+	type: memoryTypeSchema,
+	title: z.string(),
+	content: z.string(),
+	sourceType: memorySourceTypeSchema,
+	importance: z.number().int().min(1).max(3).default(1),
+	originCardId: z.string().nullable().optional(),
+	originAgent: runtimeMemoryOriginAgentSchema.nullable().optional(),
+	status: memoryStatusSchema.default("approved"),
+	createdAt: z.number(),
+	updatedAt: z.number(),
+});
+export type RuntimeMemory = z.infer<typeof runtimeMemorySchema>;
+
 // ─── WebSocket events ─────────────────────────────────────────────────────────
 
 export type RunSessionStatus = "running" | "stopped" | "error";

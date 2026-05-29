@@ -1083,6 +1083,11 @@ export async function deleteCard(workspaceId: string, cardId: string): Promise<v
 			.get(cardId, workspaceId) as { column_id: RuntimeBoardColumnId } | undefined;
 		if (!cardRow) return;
 
+		// Drop still-pending memory proposals from this card before it's gone
+		// (memories.origin_card_id is ON DELETE SET NULL, so approved memories
+		// survive but pending proposals would otherwise orphan).
+		db.prepare("DELETE FROM memories WHERE origin_card_id = ? AND status = 'pending'").run(cardId);
+
 		db.prepare("DELETE FROM cards WHERE id = ?").run(cardId);
 
 		// Renumber remaining cards in the column to keep positions contiguous.

@@ -6,6 +6,7 @@ import { useWorkspaceState } from "@/stores/board-store";
 import type { ProjectSection } from "./_shared";
 import { WorkflowsSection } from "./workflows";
 import { EnvironmentSecretsSection } from "./EnvironmentSecretsSection";
+import { MemorySection } from "./sections/MemorySection";
 import { GeneralAutomationSection } from "./sections/GeneralAutomationSection";
 import { InstructionsSection } from "./sections/InstructionsSection";
 import { IntegrationsSection } from "./sections/IntegrationsSection";
@@ -35,6 +36,10 @@ const SECTION_META: Record<ProjectSection, { title: string; description: string 
 	instructions: {
 		title: "Instructions",
 		description: "Configure shared prompts and conventions for all agents.",
+	},
+	memory: {
+		title: "Memory",
+		description: "Durable knowledge agents recall so they stop re-discovering the same facts.",
 	},
 	integrations: {
 		title: "Integrations",
@@ -158,6 +163,15 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 			<div className="flex-1 flex flex-col overflow-hidden">
 				<PageHeader title={meta.title} description={meta.description} />
 				<InstructionsSection config={config} saving={saving} onUpdate={updateConfig} onSave={handleSave} />
+			</div>
+		);
+	}
+
+	if (section === "memory") {
+		return (
+			<div className="flex-1 flex flex-col overflow-hidden">
+				<PageHeader title={meta.title} description={meta.description} />
+				<MemorySection workspaceId={workspaceId} />
 			</div>
 		);
 	}

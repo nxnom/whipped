@@ -29,6 +29,7 @@ import type {
 import { DEFAULT_GIT_INSTRUCTIONS } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 import { resolvePromptText } from "../core/prompt-resolver.js";
+import { buildMemoryContext } from "../state/memory-store.js";
 import { commitIfDirty, createGithubPR, pushBranch } from "../git/merge-operations.js";
 import type { GithubClient } from "../github/github-client.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
@@ -226,12 +227,15 @@ async function runReviewSlot(
 		options.autoCommit,
 		subtaskCards,
 	);
+	// Prepend durable memory so review/QA/orch agents share the dev agent's context.
+	const memContext = buildMemoryContext(workspaceId);
+	const withMemory = memContext ? `${memContext}\n\n${rawSystemPrompt}` : rawSystemPrompt;
 	// Cursor Agent CLI does not fire a settings.json stop hook reliably.
 	// Tell it to call the task_complete MCP tool explicitly when done.
 	const systemPrompt =
 		slot.agentBinary === "cursor"
-			? `${rawSystemPrompt}\n\nAfter calling \`kanban_add_comment\`, call the \`task_complete\` MCP tool to signal that you are done.`
-			: rawSystemPrompt;
+			? `${withMemory}\n\nAfter calling \`kanban_add_comment\`, call the \`task_complete\` MCP tool to signal that you are done.`
+			: withMemory;
 	const triggerWord = getSlotTriggerWord(slot.type);
 
 	const mcpConfigPath =
@@ -276,6 +280,7 @@ async function runReviewSlot(
 		hookServerPort,
 		mcpServer,
 		slot.model,
+		slot.type,
 	);
 	logger.info(`[review:${streamId}] ${slot.name} agent done (${Date.now() - startTime}ms)`);
 
@@ -542,6 +547,7 @@ function runAgentOnce(
 	hookServerPort?: number,
 	mcpServer?: { command: string; args: string[] },
 	model?: string | null,
+	slotType?: string,
 ): Promise<string> {
 	if (agentId === "opencode" && hookServerPort != null && mcpServer) {
 		void writeOpencodeFiles(streamId, hookServerPort, mcpServer, { appendSystemPrompt }).catch(() => {});
@@ -573,6 +579,7 @@ function runAgentOnce(
 			env: {
 				...buildTaskHookEnv(streamId, workspaceId),
 				...secretsEnv,
+				...(slotType ? { WHIPPED_SLOT: slotType } : {}),
 				...(agentId === "opencode" ? { [OPENCODE_CONFIG_DIR_ENV]: getOpencodeConfigDir(streamId) } : {}),
 				...(agentId === "cursor" ? { [CURSOR_CONFIG_DIR_ENV]: getCursorConfigDir(streamId) } : {}),
 			},
@@ -981,11 +988,12 @@ ${VISUAL_COMMENT_HINT}
 
 When you finish your work:
 
-1. Call the \`kanban_add_comment\` MCP tool with:
+1. Call the \`kanban_add_comment\` MCP tool **exactly once**, as your final step:
    - cardId: "${card.id}"
    - type: "dev"
    - status: "pass" if successful, "fail" if you were unable to complete the task
    - summary: 2–5 sentences for the next reviewer agent in this pipeline (NOT the PR description — that already went to set_pr_meta). Mention key decisions and any known limitations.
+   Finalize and double-check your summary BEFORE calling it. Do not post a draft and then a correction — make all your checks first, then write one accurate comment. Calling it more than once creates duplicate comments.
 
 2. Call the \`kanban_set_pr_meta\` MCP tool with:
    - cardId: "${card.id}"
@@ -993,7 +1001,19 @@ When you finish your work:
    - description: PR description body following the git conventions below
    This is what the daemon will use when it creates the PR. **Skip this call only when you genuinely made no code changes** (e.g. you concluded the task was already done).${priorPrSection}
 
-${commitInstruction.replace(/^1\. /, "3. ")}`);
+${commitInstruction.replace(/^1\. /, "3. ")}
+
+4. Reconcile memory. Review this task's description, the user's comments, and any decision or correction that came up while you worked. If something **changed, contradicted, reversed, or superseded** an entry in the Memory list above, call \`whipped_update_memory\` on that entry's id so future tasks don't act on stale knowledge (e.g. the user says "stop using short ids, use full kebab-case" → update the id-convention memory, don't leave the old one). If a durable new fact came up with no matching memory, call \`whipped_save_memory\`. If nothing memory-worthy changed, skip this step. Do NOT create a second memory that conflicts with an existing one — update the existing one instead.`);
+
+	parts.push(`## Memory
+
+This project has its own persistent memory. The \`whipped_save_memory\` / \`whipped_update_memory\` MCP tools ARE this project's memory — do NOT use your own notes, scratch files, CLAUDE.md, or any other memory system for durable facts.
+
+When you are asked to "remember", "save to memory", "note for next time" — or you discover/decide a durable fact (a convention, architecture decision, gotcha, or a correction the user made) — record it in memory.
+
+Before recording, check the memory list injected above (each entry shows its \`[id]\`) and \`whipped_search_memory\`. If what you're recording **contradicts, reverses, supersedes, corrects, or is a near-duplicate of** an existing memory, call \`whipped_update_memory\` with that memory's id and overwrite it — do NOT create a second, conflicting entry. Only \`whipped_save_memory\` when there is genuinely no existing memory about the same thing. Use \`whipped_get_memory\` to read one in full.
+
+Scope a memory \`project\` for facts specific to this repo, or \`global\` for things that apply across all the user's projects (style/preferences).`);
 
 	if (customPrompt.trim()) parts.push(`## Project-specific instructions\n\n${customPrompt.trim()}`);
 

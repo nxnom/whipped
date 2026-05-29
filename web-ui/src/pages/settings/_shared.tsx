@@ -1,6 +1,12 @@
 import { Button } from "@geckoui/geckoui";
 
-export type ProjectSection = "general-automation" | "workflows" | "environment" | "instructions" | "integrations";
+export type ProjectSection =
+	| "general-automation"
+	| "workflows"
+	| "environment"
+	| "instructions"
+	| "memory"
+	| "integrations";
 export type GlobalSection = "runtime" | "tunnel" | "slack" | "extension";
 export type SettingsSection = ProjectSection | GlobalSection;
 

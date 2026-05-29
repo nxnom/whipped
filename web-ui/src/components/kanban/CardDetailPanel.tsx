@@ -9,6 +9,7 @@ import {
 	ChevronRight,
 	Circle,
 	Clock,
+	Brain,
 	ExternalLink,
 	FolderOpen,
 	GitBranch,
@@ -30,6 +31,7 @@ import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { attachmentUrl } from "@/runtime/attachments";
 import { trpc } from "@/runtime/trpc-client";
 import { useRunSession } from "@/stores/run-session-store";
+import { CardMemoryTab } from "./CardMemoryTab";
 import { ChatComments } from "./ChatComments";
 import { DiffView } from "./DiffView";
 import { showPreviewUrlDialog } from "./PreviewUrlDialog";
@@ -181,7 +183,7 @@ function slotDuration(startedAt: string | number, endedAt?: string | number | nu
 	return `${Math.floor(sec / 60)}m ${(sec % 60).toString().padStart(2, "0")}s`;
 }
 
-type RightTab = "terminal" | "diff" | "comments";
+type RightTab = "terminal" | "diff" | "comments" | "memory";
 
 function DescAttachment({ path, name, mimeType }: { path: string; name: string; mimeType?: string }) {
 	const [expanded, setExpanded] = useState(false);
@@ -730,6 +732,7 @@ export function CardDetailPanel({
 									label: `Comments${commentCount > 0 ? ` (${commentCount})` : ""}`,
 									Icon: null,
 								},
+								{ id: "memory" as RightTab, label: "Memory", Icon: Brain },
 							] as { id: RightTab; label: string; Icon: React.FC<{ size: number }> | null }[]
 						).map(({ id, label, Icon }) => (
 							<button
@@ -774,6 +777,7 @@ export function CardDetailPanel({
 							onRefresh={onRefresh}
 						/>
 					)}
+					{rightTab === "memory" && <CardMemoryTab cardId={card.id} />}
 				</div>
 
 				{/* ── Right sidebar ── */}

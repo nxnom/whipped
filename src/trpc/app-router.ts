@@ -19,6 +19,10 @@ import { z } from "zod";
 import { getAvailableAgents, getCursorModels, getOpencodeModels } from "../agents/agent-registry.js";
 import { loadGlobalConfig, updateGlobalConfig, WORKSPACES_DIR, ATTACHMENTS_DIR } from "../config/runtime-config.js";
 import {
+	memoryScopeSchema,
+	memorySourceTypeSchema,
+	memoryStatusSchema,
+	memoryTypeSchema,
 	projectsLayoutSchema,
 	type RuntimeBoardCard,
 	type RuntimeGlobalConfig,
@@ -47,6 +51,18 @@ import {
 	pushBranch,
 } from "../git/merge-operations.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
+import {
+	approveMemory,
+	createMemory,
+	deleteMemory,
+	getMemory,
+	listMemories,
+	listMemoriesForCard,
+	proposeMemory,
+	proposeMemoryUpdate,
+	searchMemories,
+	updateMemory,
+} from "../state/memory-store.js";
 import { loadProjectsLayout, saveProjectsLayout } from "../state/projects-layout.js";
 import {
 	appendActivityLog,
@@ -485,6 +501,148 @@ export const appRouter = router({
 				const content = await readFile(targetPath, "utf-8");
 				return { content, exists: true };
 			}),
+	}),
+
+	// ─── Memory ──────────────────────────────────────────────────────────────
+	memory: router({
+		// scope='project' requires workspaceId; scope='global' ignores it.
+		list: publicProcedure
+			.input(
+				z.object({
+					scope: memoryScopeSchema,
+					workspaceId: z.string().optional(),
+					status: memoryStatusSchema.optional(),
+				}),
+			)
+			.query(({ input }) => {
+				return listMemories({
+					scope: input.scope,
+					workspaceId: input.scope === "project" ? input.workspaceId : null,
+					status: input.status,
+				});
+			}),
+
+		search: publicProcedure
+			.input(z.object({ query: z.string(), workspaceId: z.string().optional() }))
+			.query(({ input }) => {
+				return searchMemories(input.query, input.workspaceId ?? null);
+			}),
+
+		get: publicProcedure.input(z.object({ id: z.string() })).query(({ input }) => {
+			return getMemory(input.id);
+		}),
+
+		listForCard: publicProcedure.input(z.object({ cardId: z.string() })).query(({ input }) => {
+			return listMemoriesForCard(input.cardId);
+		}),
+
+		// Agent-facing create. Status decided by the auto-approve policy.
+		// source_type defaults to task_lesson (what a dev agent typically records).
+		propose: publicProcedure
+			.input(
+				z.object({
+					scope: memoryScopeSchema,
+					workspaceId: z.string().optional(),
+					type: memoryTypeSchema,
+					title: z.string().min(1),
+					content: z.string().min(1),
+					sourceType: memorySourceTypeSchema.default("task_lesson"),
+					importance: z.number().int().min(1).max(3).optional(),
+					originCardId: z.string().optional(),
+					originAgent: z.object({ agent: z.string(), model: z.string().optional() }).optional(),
+				}),
+			)
+			.mutation(({ input }) => {
+				if (input.scope === "project" && !input.workspaceId) {
+					throw new TRPCError({ code: "BAD_REQUEST", message: "project memory requires a workspaceId" });
+				}
+				return proposeMemory({
+					scope: input.scope,
+					workspaceId: input.scope === "project" ? input.workspaceId : null,
+					type: input.type,
+					title: input.title,
+					content: input.content,
+					sourceType: input.sourceType,
+					importance: input.importance,
+					originCardId: input.originCardId ?? null,
+					originAgent: input.originAgent ?? null,
+				});
+			}),
+
+		// Agent-facing update of an existing memory. Same approval policy as propose.
+		proposeUpdate: publicProcedure
+			.input(
+				z.object({
+					id: z.string(),
+					type: memoryTypeSchema.optional(),
+					title: z.string().min(1).optional(),
+					content: z.string().min(1).optional(),
+					importance: z.number().int().min(1).max(3).optional(),
+					sourceType: memorySourceTypeSchema.default("task_lesson"),
+				}),
+			)
+			.mutation(({ input }) => {
+				const { id, sourceType, ...patch } = input;
+				const updated = proposeMemoryUpdate(id, patch, sourceType);
+				if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Memory not found" });
+				return updated;
+			}),
+
+		// Human-authored memories are created already approved.
+		create: publicProcedure
+			.input(
+				z.object({
+					scope: memoryScopeSchema,
+					workspaceId: z.string().optional(),
+					type: memoryTypeSchema,
+					title: z.string().min(1),
+					content: z.string().min(1),
+					importance: z.number().int().min(1).max(3).optional(),
+				}),
+			)
+			.mutation(({ input }) => {
+				if (input.scope === "project" && !input.workspaceId) {
+					throw new TRPCError({ code: "BAD_REQUEST", message: "project memory requires a workspaceId" });
+				}
+				return createMemory({
+					scope: input.scope,
+					workspaceId: input.scope === "project" ? input.workspaceId : null,
+					type: input.type,
+					title: input.title,
+					content: input.content,
+					sourceType: "manual_human",
+					importance: input.importance,
+					status: "approved",
+				});
+			}),
+
+		update: publicProcedure
+			.input(
+				z.object({
+					id: z.string(),
+					type: memoryTypeSchema.optional(),
+					title: z.string().min(1).optional(),
+					content: z.string().min(1).optional(),
+					importance: z.number().int().min(1).max(3).optional(),
+				}),
+			)
+			.mutation(({ input }) => {
+				const { id, ...patch } = input;
+				const updated = updateMemory(id, patch);
+				if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Memory not found" });
+				return updated;
+			}),
+
+		approve: publicProcedure.input(z.object({ id: z.string() })).mutation(({ input }) => {
+			const approved = approveMemory(input.id);
+			if (!approved) throw new TRPCError({ code: "NOT_FOUND", message: "Memory not found" });
+			return approved;
+		}),
+
+		remove: publicProcedure.input(z.object({ id: z.string() })).mutation(({ input }) => {
+			deleteMemory(input.id);
+			return { ok: true };
+		}),
 	}),
 
 	// ─── Cards ─────────────────────────────────────────────────────────────────

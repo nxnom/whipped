@@ -1,6 +1,7 @@
 import {
 	ArrowLeft,
 	BookOpen,
+	Brain,
 	ChevronDown,
 	FolderGit2,
 	Globe,
@@ -29,6 +30,7 @@ const PROJECT_NAV: Array<{ id: ProjectSection; label: string; icon: React.ReactN
 	{ id: "workflows", label: "Workflows", icon: <Workflow size={15} /> },
 	{ id: "environment", label: "Environment & Secrets", icon: <Terminal size={15} /> },
 	{ id: "instructions", label: "Instructions", icon: <BookOpen size={15} /> },
+	{ id: "memory", label: "Memory", icon: <Brain size={15} /> },
 	{ id: "integrations", label: "Integrations", icon: <Plug size={15} /> },
 ];
 
@@ -132,6 +134,7 @@ const PROJECT_SECTIONS = new Set<SettingsSection>([
 	"workflows",
 	"environment",
 	"instructions",
+	"memory",
 	"integrations",
 ]);
 

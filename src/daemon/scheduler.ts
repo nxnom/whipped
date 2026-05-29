@@ -35,6 +35,7 @@ import { logger } from "../core/logger.js";
 import { resolvePromptText } from "../core/prompt-resolver.js";
 import { commitIfDirty, pushBranch } from "../git/merge-operations.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
+import { buildMemoryContext } from "../state/memory-store.js";
 import {
 	appendActivityLog,
 	appendTerminalSession,
@@ -111,6 +112,11 @@ export class TaskScheduler {
 	// Shared worktree IDs currently in use by a dev agent — prevents sibling cards from
 	// running concurrently in the same worktree directory.
 	private runningSharedWorktrees = new Set<string>();
+	// Tasks whose startTask() is mid-flight. `running` is only populated after the
+	// async worktree-create + spawn setup, so this set is the synchronous guard
+	// that stops the poller from dispatching the same card multiple times while it
+	// is still being launched.
+	private startingTasks = new Set<string>();
 	// Set during graceful shutdown — onExit becomes a no-op to preserve cleanup state.
 	private isShuttingDown = false;
 
@@ -240,7 +246,32 @@ export class TaskScheduler {
 		return count < this.options.maxParallelTasks;
 	}
 
+	// True while the scheduler is launching or running a dev agent for this card.
+	// `running` is only populated after the (slow) worktree-create + install setup,
+	// and the dev terminal session isn't registered until then either — so during the
+	// launch window the card is already in_progress with no open session. The poller's
+	// restart-recovery fallback uses this to avoid triggering the review pipeline mid-launch.
+	isHandlingTask(taskId: string): boolean {
+		return this.running.has(taskId) || this.startingTasks.has(taskId);
+	}
+
+	// Public entry — synchronous in-flight guard wraps the real launch. The poller
+	// can dispatch the same card again before it has moved out of `todo` (worktree
+	// creation is slow); this prevents that from spawning duplicate dev agents.
 	async startTask(card: RuntimeBoardCard): Promise<void> {
+		const taskId = card.id;
+		if (this.running.has(taskId) || this.startingTasks.has(taskId)) {
+			return;
+		}
+		this.startingTasks.add(taskId);
+		try {
+			await this.startTaskInner(card);
+		} finally {
+			this.startingTasks.delete(taskId);
+		}
+	}
+
+	private async startTaskInner(card: RuntimeBoardCard): Promise<void> {
 		const { workspaceId, repoPath, stateHub } = this.options;
 		const taskId = card.id;
 
@@ -497,6 +528,9 @@ export class TaskScheduler {
 				undefined, // effectiveBaseRef: no longer needed — shared worktrees use card.baseRef
 				siblingCards,
 			);
+			// Prepend durable memory so the dev agent doesn't re-discover known facts.
+			const memContext = buildMemoryContext(workspaceId);
+			if (memContext) devSystemPromptResult.text = `${memContext}\n\n${devSystemPromptResult.text}`;
 			const secretsEnv = buildSecretsEnv(secrets);
 
 			if (agentId === "claude") {
@@ -543,6 +577,8 @@ export class TaskScheduler {
 					env: {
 						...buildTaskHookEnv(taskId, workspaceId),
 						...secretsEnv,
+						WHIPPED_SLOT: "dev",
+						...(devSlotEarly.model ? { WHIPPED_MODEL: devSlotEarly.model } : {}),
 						...(agentId === "opencode" ? { [OPENCODE_CONFIG_DIR_ENV]: getOpencodeConfigDir(taskId) } : {}),
 						...(agentId === "cursor" ? { [CURSOR_CONFIG_DIR_ENV]: getCursorConfigDir(taskId) } : {}),
 					},
