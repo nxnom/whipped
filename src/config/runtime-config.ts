@@ -34,7 +34,8 @@ export async function loadGlobalConfig(): Promise<RuntimeGlobalConfig> {
 
 export async function saveGlobalConfig(config: RuntimeGlobalConfig): Promise<void> {
 	const db = getDb();
-	db.prepare("UPDATE global_config SET config_json = ?, updated_at = ? WHERE id = 1").run(
+	// INSERT OR REPLACE so the save survives the singleton row going missing.
+	db.prepare("INSERT OR REPLACE INTO global_config (id, config_json, updated_at) VALUES (1, ?, ?)").run(
 		encrypt(JSON.stringify(config)),
 		Date.now(),
 	);
@@ -48,7 +49,7 @@ export async function updateGlobalConfig(patch: Partial<RuntimeGlobalConfig>): P
 			| undefined;
 		const current = row ? parseConfig(row.config_json) : runtimeGlobalConfigSchema.parse({});
 		const updated = runtimeGlobalConfigSchema.parse({ ...current, ...p });
-		db.prepare("UPDATE global_config SET config_json = ?, updated_at = ? WHERE id = 1").run(
+		db.prepare("INSERT OR REPLACE INTO global_config (id, config_json, updated_at) VALUES (1, ?, ?)").run(
 			encrypt(JSON.stringify(updated)),
 			Date.now(),
 		);

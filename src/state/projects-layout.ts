@@ -40,7 +40,8 @@ export function loadProjectsLayout(): ProjectsLayout {
 
 export function saveProjectsLayout(layout: ProjectsLayout): void {
 	const db = getDb();
-	db.prepare("UPDATE projects_layout SET layout_json = ?, updated_at = ? WHERE id = 1").run(
+	// INSERT OR REPLACE so the save survives the singleton row going missing.
+	db.prepare("INSERT OR REPLACE INTO projects_layout (id, layout_json, updated_at) VALUES (1, ?, ?)").run(
 		JSON.stringify(layout),
 		Date.now(),
 	);

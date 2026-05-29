@@ -266,10 +266,18 @@ function upsertCardRow(
 	);
 }
 
+// Insert a dependency only if the target card exists, so stale references in
+// the input array (e.g. dep on a card that was deleted) don't trip the FK and
+// roll back the whole save. The dependency is meaningless without the target.
+const INSERT_CARD_DEPENDENCY_IF_EXISTS = `
+	INSERT INTO card_dependencies (card_id, depends_on_id)
+	SELECT ?, ? WHERE EXISTS (SELECT 1 FROM cards WHERE id = ?) AND ? != ?
+`;
+
 function replaceCardChildren(db: Database.Database, card: RuntimeBoardCard): void {
 	db.prepare("DELETE FROM card_dependencies WHERE card_id = ?").run(card.id);
-	const insertDep = db.prepare("INSERT INTO card_dependencies (card_id, depends_on_id) VALUES (?, ?)");
-	for (const depId of card.dependsOn ?? []) insertDep.run(card.id, depId);
+	const insertDep = db.prepare(INSERT_CARD_DEPENDENCY_IF_EXISTS);
+	for (const depId of card.dependsOn ?? []) insertDep.run(card.id, depId, depId, card.id, depId);
 
 	db.prepare("DELETE FROM activity_log WHERE card_id = ?").run(card.id);
 	const insertActivity = db.prepare("INSERT INTO activity_log (card_id, timestamp, message) VALUES (?, ?, ?)");
@@ -488,11 +496,19 @@ function saveProjectConfigInternal(workspaceId: string, config: RuntimeProjectCo
 		workspaceId,
 	);
 
+	// Dedup workflows by id (PK collision) and by name (UNIQUE collision);
+	// last entry in the input array wins. Saves the user from a constraint
+	// error if the array somehow has duplicates.
+	const workflowsById = new Map<string, (typeof workflows)[number]>();
+	for (const wf of workflows) workflowsById.set(wf.id, wf);
+	const workflowsByName = new Map<string, (typeof workflows)[number]>();
+	for (const wf of workflowsById.values()) workflowsByName.set(wf.name, wf);
+
 	db.prepare("DELETE FROM workflows WHERE workspace_id = ?").run(workspaceId);
 	const insertWf = db.prepare(
 		"INSERT INTO workflows (id, workspace_id, name, is_default, for_story, slots_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
 	);
-	for (const wf of workflows) {
+	for (const wf of workflowsByName.values()) {
 		insertWf.run(
 			wf.id,
 			workspaceId,
@@ -505,9 +521,13 @@ function saveProjectConfigInternal(workspaceId: string, config: RuntimeProjectCo
 		);
 	}
 
+	// Dedup secrets by key; last entry wins.
+	const secretsByKey = new Map<string, (typeof secrets)[number]>();
+	for (const s of secrets) secretsByKey.set(s.key, s);
+
 	db.prepare("DELETE FROM workspace_secrets WHERE workspace_id = ?").run(workspaceId);
 	const insertSec = db.prepare("INSERT INTO workspace_secrets (workspace_id, key, value) VALUES (?, ?, ?)");
-	for (const s of secrets) {
+	for (const s of secretsByKey.values()) {
 		insertSec.run(workspaceId, s.key, encrypt(s.value));
 	}
 
@@ -524,7 +544,9 @@ export async function loadProjectConfig(workspaceId: string): Promise<RuntimePro
 }
 
 export async function saveProjectConfig(workspaceId: string, config: RuntimeProjectConfig): Promise<void> {
-	saveProjectConfigInternal(workspaceId, config);
+	const db = getDb();
+	const tx = db.transaction(() => saveProjectConfigInternal(workspaceId, config));
+	tx();
 }
 
 // Atomic read-modify-write inside a SQLite transaction.
@@ -765,8 +787,8 @@ export async function createCard(
 			.get(workspaceId, columnId) as { n: number };
 		upsertCardRow(db, workspaceId, card, countRow.n);
 		// Only insert dependencies (other child rows are empty for a new card).
-		const insertDep = db.prepare("INSERT INTO card_dependencies (card_id, depends_on_id) VALUES (?, ?)");
-		for (const depId of card.dependsOn ?? []) insertDep.run(card.id, depId);
+		const insertDep = db.prepare(INSERT_CARD_DEPENDENCY_IF_EXISTS);
+		for (const depId of card.dependsOn ?? []) insertDep.run(card.id, depId, depId, card.id, depId);
 		bumpBoardRevision(db, workspaceId);
 	});
 	tx();
@@ -1013,8 +1035,8 @@ export async function updateCard(
 		// Replace dependsOn rows if it was in the update (otherwise leave them untouched).
 		if (update.dependsOn !== undefined) {
 			db.prepare("DELETE FROM card_dependencies WHERE card_id = ?").run(cardId);
-			const insertDep = db.prepare("INSERT INTO card_dependencies (card_id, depends_on_id) VALUES (?, ?)");
-			for (const depId of update.dependsOn ?? []) insertDep.run(cardId, depId);
+			const insertDep = db.prepare(INSERT_CARD_DEPENDENCY_IF_EXISTS);
+			for (const depId of update.dependsOn ?? []) insertDep.run(cardId, depId, depId, cardId, depId);
 		}
 
 		// Replace reviewComments rows if it was in the update.
