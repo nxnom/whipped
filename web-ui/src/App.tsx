@@ -6,7 +6,7 @@ import { AddProjectDialog } from "@/components/AddProjectDialog";
 import { AssistantPanel } from "@/components/AssistantPanel";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { RunBar } from "@/components/RunBar";
-import { BoardPage } from "@/pages/Board";
+import { BoardPage } from "@/pages/board";
 import { SettingsPage } from "@/pages/settings";
 import { useRead } from "@/runtime/api-client";
 import { firstSortedProjectId } from "@/utils/projects";

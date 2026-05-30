@@ -1,6 +1,6 @@
 import type { RuntimeBoardCard } from "@runtime-contract";
 import { Clock, ExternalLink, GitPullRequest } from "lucide-react";
-import { CardDetailPanel } from "@/components/kanban/CardDetailPanel";
+import { CardDetailPanel } from "@/pages/board/components/CardDetailPanel";
 import { useUrlParam } from "@/runtime/url-state";
 import { useWorkspaceState } from "@/stores/board-store";
 

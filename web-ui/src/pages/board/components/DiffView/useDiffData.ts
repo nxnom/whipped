@@ -1,0 +1,40 @@
+import { useMemo, useState } from "react";
+import { useRead } from "@/runtime/api-client";
+import { parseDiff } from "./parser";
+
+// Declarative reads — the active one is chosen by selectedCommit and refetches
+// automatically when it changes. Values are derived, never mirrored into state
+// (Spoosh data refs change each render → a setState-in-effect would loop).
+export function useDiffData(workspaceId: string, cardId: string) {
+	const [selectedCommit, setSelectedCommit] = useState<string | null>(null);
+
+	const { data: commitsData } = useRead((api) => api("cards/commits").GET({ query: { workspaceId, cardId } }));
+	const latestDiffRead = useRead((api) => api("cards/diff").GET({ query: { workspaceId, cardId } }), {
+		enabled: !selectedCommit,
+	});
+	const commitDiffRead = useRead(
+		(api) => api("cards/diff-for-commit").GET({ query: { workspaceId, cardId, commitHash: selectedCommit ?? "" } }),
+		{ enabled: !!selectedCommit },
+	);
+
+	const activeDiffRead = selectedCommit ? commitDiffRead : latestDiffRead;
+	const diffResult = activeDiffRead.data;
+	const loading = activeDiffRead.loading;
+	const loadError = activeDiffRead.error
+		? activeDiffRead.error.message
+		: diffResult
+			? (diffResult.error ?? (diffResult.diff === null ? "No diff available" : null))
+			: null;
+	const diffText = diffResult && !diffResult.error ? diffResult.diff : null;
+	const files = useMemo(() => (diffText ? parseDiff(diffText) : []), [diffText]);
+	const baseBehindCount = !selectedCommit ? (latestDiffRead.data?.baseBehindCount ?? 0) : 0;
+	const commits = commitsData?.commits ?? [];
+
+	const refreshDiff = () => {
+		void activeDiffRead.trigger();
+	};
+
+	return { selectedCommit, setSelectedCommit, files, loading, loadError, commits, baseBehindCount, refreshDiff };
+}
+
+export type DiffCommit = ReturnType<typeof useDiffData>["commits"][number];
