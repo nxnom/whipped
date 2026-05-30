@@ -10,15 +10,6 @@ export type ProjectSection =
 export type GlobalSection = "runtime" | "tunnel" | "slack" | "extension";
 export type SettingsSection = ProjectSection | GlobalSection;
 
-export function SectionHeader({ title, description }: { title: string; description: string }) {
-	return (
-		<div>
-			<h2 className="text-base font-semibold text-gray-100">{title}</h2>
-			<p className="text-sm text-gray-500 mt-1">{description}</p>
-		</div>
-	);
-}
-
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
 	return (
 		<div>

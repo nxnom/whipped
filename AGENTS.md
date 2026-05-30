@@ -35,6 +35,12 @@
 - Components ≤ ~200 lines; split when larger.
 - Placement: shared components in `web-ui/src/components/`; page-specific components co-located under the
   page in `web-ui/src/pages/<page>/`, prefixed with the page name (e.g. `SettingsHeader`).
+- Splitting a large component: make a folder named after it with the entry in `index.tsx` (keep the exact
+  public export so existing imports still resolve), and extract siblings — `types.ts`, `constants.ts`,
+  pure `helpers.ts`, sub-components as their own `.tsx`, and fetch/mutation logic into a `useXxx` hook.
+- A split-out child may call `useRead`/`useWrite` (Spoosh) directly instead of receiving fetched data via
+  props — Spoosh caches and auto-invalidates, so this avoids prop-drilling. Don't change which endpoints
+  are called or when.
 - Routing: `react-router-dom`. Toasts: `sonner`.
 - Forms (none yet): if you add one, use `react-hook-form` + `FormProvider` + GeckoUI `RHF*` components,
   with the `zod` schema in its own file — never inline in the component.

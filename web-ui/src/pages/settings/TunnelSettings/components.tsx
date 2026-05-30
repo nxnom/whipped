@@ -1,34 +1,8 @@
-import { Check, Copy } from "lucide-react";
-import { useState } from "react";
+import { Check } from "lucide-react";
 import { classNames } from "@/utils/classNames";
 
 export function Mono({ children }: { children: React.ReactNode }) {
 	return <span className="font-mono text-[11px] text-[#a0a0c0]">{children}</span>;
-}
-
-export function CodeBlock({ children }: { children: string }) {
-	return (
-		<code className="block px-3 py-2 rounded font-mono text-[11px] bg-[#0c0c0f] border border-[#2a2a35] text-[#a0a0c0]">
-			{children}
-		</code>
-	);
-}
-
-export function CopyBlock({ value }: { value: string }) {
-	const [copied, setCopied] = useState(false);
-	const handleCopy = async () => {
-		await navigator.clipboard.writeText(value);
-		setCopied(true);
-		setTimeout(() => setCopied(false), 2000);
-	};
-	return (
-		<div className="flex items-center gap-2 px-3 py-2 rounded font-mono text-[11px] bg-[#0c0c0f] border border-[#2a2a35] text-[#a0a0c0]">
-			<span className="flex-1 truncate">{value}</span>
-			<button onClick={handleCopy} className="shrink-0 opacity-40 hover:opacity-80 transition-opacity text-[#c0c0d0]">
-				{copied ? <Check size={12} /> : <Copy size={12} />}
-			</button>
-		</div>
-	);
 }
 
 function StepBadge({ n, done, active }: { n: number; done: boolean; active: boolean }) {
