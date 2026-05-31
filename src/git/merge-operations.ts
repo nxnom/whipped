@@ -164,6 +164,10 @@ export interface YoloMergeHandle {
 	// Where the merge happened / where the conflict agent must work — the main repo
 	// (inPlace) or the scratch worktree.
 	worktreePath: string;
+	// Set when no merge was attempted because the base checkout has uncommitted
+	// tracked changes. Nothing was touched; the caller should block the card.
+	blocked?: boolean;
+	reason?: string;
 }
 
 // Creates a fresh detached worktree at baseRef and returns its path. Detached so
@@ -199,9 +203,27 @@ export function startYoloMerge(
 	taskBranch: string,
 ): YoloMergeHandle {
 	const currentBranch = git(["rev-parse", "--abbrev-ref", "HEAD"], repoPath);
-	const clean = git(["status", "--porcelain"], repoPath).stdout === "";
+	const onBase = currentBranch.ok && currentBranch.stdout === baseRef;
+	// Ignore untracked files — they don't conflict with a merge. Only tracked
+	// staged/unstaged changes make an in-place merge unsafe. (If the merge does need
+	// to overwrite an untracked file, git refuses cleanly and we block.)
+	const noTrackedChanges = git(["status", "--porcelain", "--untracked-files=no"], repoPath).stdout === "";
 
-	if (currentBranch.ok && currentBranch.stdout === baseRef && clean) {
+	// On the base branch with uncommitted tracked work: refuse outright rather than
+	// merge over it (unsafe) or advance the ref behind it (leaves the checkout in a
+	// confusing stale/mixed state). Block the card so the user can commit/stash.
+	if (onBase && !noTrackedChanges) {
+		return {
+			ok: false,
+			conflictedFiles: [],
+			inPlace: false,
+			worktreePath: repoPath,
+			blocked: true,
+			reason: `base branch ${baseRef} has uncommitted changes`,
+		};
+	}
+
+	if (onBase) {
 		return mergeResult(repoPath, taskBranch, true);
 	}
 

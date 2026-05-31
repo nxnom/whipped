@@ -235,7 +235,7 @@ export function CreateTaskDialog({
 									}}
 									placeholder="Describe what the agent should do..."
 									className={classNames(
-										"bg-transparent text-[15px] text-[#c0c0d0] placeholder-[#2a2a35] outline-none resize-none leading-[1.7] shrink-0",
+										"border-transparent! bg-transparent! text-[15px] text-[#c0c0d0] placeholder-[#2a2a35] outline-none resize-none leading-[1.7] shrink-0",
 										isTask ? "flex-1 min-h-0" : "h-36",
 									)}
 								/>

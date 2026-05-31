@@ -115,7 +115,7 @@ export function CreateSubtaskDialog({
 									if (!branchNameEdited) setValue("branchName", deriveBranchName((v ?? "").split("\n")[0] ?? ""));
 								}}
 								placeholder="Describe what the agent should do..."
-								className="flex-1 min-h-0 bg-transparent text-[15px] text-[#c0c0d0] placeholder-[#2a2a35] outline-none resize-none leading-[1.7]"
+								className="border-transparent! bg-transparent! flex-1 min-h-0 text-[15px] text-[#c0c0d0] placeholder-[#2a2a35] outline-none resize-none leading-[1.7]"
 							/>
 							<ImagePicker pending={pendingImages} onChange={setPendingImages} />
 							<div className="flex items-center gap-2 shrink-0 mt-auto pt-1">

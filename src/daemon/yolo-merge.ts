@@ -93,6 +93,15 @@ async function runYoloMerge(
 	logger.info(`[yolo] Merging "${desc60(card)}" (${taskBranch}) into ${baseRef}`);
 	const handle = startYoloMerge(repoPath, workspaceId, card.id, baseRef, taskBranch);
 
+	// Refused before touching anything (e.g. base checkout has uncommitted changes).
+	if (handle.blocked) {
+		await moveCard(workspaceId, card.id, "blocked");
+		await appendActivityLog(workspaceId, card.id, `YOLO merge skipped — ${handle.reason} → Blocked`);
+		await clearCardSession(workspaceId, card.id);
+		stateHub.broadcastWorkspaceUpdate(workspaceId);
+		return;
+	}
+
 	if (handle.ok) {
 		completeYoloMerge(repoPath, baseRef, handle);
 		await finishYoloSuccess(repoPath, card, workspaceId, baseRef, stateHub);
