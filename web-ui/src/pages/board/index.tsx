@@ -1,8 +1,7 @@
-import { Menu, MenuItem, MenuTrigger, toast } from "@geckoui/geckoui";
+import { Menu, MenuItem, MenuTrigger } from "@geckoui/geckoui";
 import { FolderOpen, FolderPlus, Plus, Settings, WifiOff } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import type { RuntimeProject } from "@runtime-contract";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
 import { type ProjectsSidebarHandle, ProjectsSidebar } from "@/components/ProjectsSidebar";
 import { KanbanBoard } from "./components/KanbanBoard";
@@ -19,36 +18,25 @@ export function BoardPage({ onOpenAgent }: Props) {
 	const { workspaceId } = useParams<{ workspaceId: string }>();
 	const { state, connected, refetch, optimisticDeleteCard } = useWorkspaceState(workspaceId!);
 
-	const [projects, setProjects] = useState<RuntimeProject[]>([]);
 	const [showAddProject, setShowAddProject] = useState(false);
 	const sidebarRef = useRef<ProjectsSidebarHandle>(null);
 
-	const { trigger: fetchProjects } = useRead((api) => api("projects").GET(), { enabled: false });
-	const { trigger: fetchLayout } = useRead((api) => api("projects/layout").GET(), { enabled: false });
+	// Declarative reads — adding/removing a project is a `projects` write, so the
+	// list (and layout) auto-invalidate and refetch; no manual reload needed.
+	const { data: projectList } = useRead((api) => api("projects").GET());
+	const { data: layout } = useRead((api) => api("projects/layout").GET());
 	const { trigger: removeProject } = useWrite((api) => api("projects/:workspaceId").DELETE());
 
+	const projects = projectList ?? [];
 	const activeProject = projects.find((p) => p.workspaceId === workspaceId) ?? null;
 
+	// Redirect to a valid project whenever the current workspaceId isn't one of them.
 	useEffect(() => {
-		loadProjects();
-	}, []);
-
-	const loadProjects = async () => {
-		try {
-			const [{ data: list }, { data: layout }] = await Promise.all([fetchProjects(), fetchLayout()]);
-			const projectList = list ?? [];
-			setProjects(projectList);
-			if (projectList.length > 0) {
-				const valid = projectList.some((p) => p.workspaceId === workspaceId);
-				if (!valid) {
-					const id = (layout ? firstSortedProjectId(layout, projectList) : null) ?? projectList[0]!.workspaceId;
-					navigate(`/${encodeURIComponent(id)}/board`, { replace: true });
-				}
-			}
-		} catch {
-			toast.error("Failed to load projects");
-		}
-	};
+		if (projects.length === 0) return;
+		if (projects.some((p) => p.workspaceId === workspaceId)) return;
+		const id = (layout ? firstSortedProjectId(layout, projects) : null) ?? projects[0]!.workspaceId;
+		navigate(`/${encodeURIComponent(id)}/board`, { replace: true });
+	}, [projectList, layout, workspaceId, navigate]);
 
 	const switchProject = (wsId: string) => {
 		navigate(`/${encodeURIComponent(wsId)}/board`);
@@ -56,20 +44,10 @@ export function BoardPage({ onOpenAgent }: Props) {
 
 	const handleRemoveProject = async (wsId: string) => {
 		await removeProject({ params: { workspaceId: wsId } });
-		const updated = projects.filter((p) => p.workspaceId !== wsId);
-		setProjects(updated);
-		if (wsId === workspaceId) {
-			const [first, { data: layout }] = await Promise.all([
-				Promise.resolve(updated),
-				fetchLayout().catch(() => ({ data: null })),
-			]);
-			const nextId = (layout ? firstSortedProjectId(layout, first) : null) ?? first[0]?.workspaceId;
-			if (nextId) {
-				navigate(`/${encodeURIComponent(nextId)}/board`, { replace: true });
-			} else {
-				navigate("/", { replace: true });
-			}
-		}
+		if (wsId !== workspaceId) return;
+		const remaining = projects.filter((p) => p.workspaceId !== wsId);
+		const nextId = (layout ? firstSortedProjectId(layout, remaining) : null) ?? remaining[0]?.workspaceId;
+		navigate(nextId ? `/${encodeURIComponent(nextId)}/board` : "/", { replace: true });
 	};
 
 	return (
@@ -185,7 +163,6 @@ export function BoardPage({ onOpenAgent }: Props) {
 				<AddProjectDialog
 					onClose={() => setShowAddProject(false)}
 					onAdded={(wsId) => {
-						loadProjects();
 						navigate(`/${encodeURIComponent(wsId)}/board`);
 						setShowAddProject(false);
 					}}
