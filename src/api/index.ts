@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { errorHandler } from "./errors/error-handler.js";
 import { agentController } from "./routes/agent.js";
 import { agentsController } from "./routes/agents.js";
+import { authController } from "./routes/auth.js";
 import { cardsController } from "./routes/cards.js";
 import { configController } from "./routes/config.js";
 import { fsController } from "./routes/fs.js";
@@ -27,6 +28,7 @@ export function createApiApp(ctx: AppContext) {
 			await next();
 		})
 		.get("/health", (c) => c.json({ ok: true }))
+		.route("/auth", authController)
 		.route("/agent", agentController)
 		.route("/agents", agentsController)
 		.route("/cards", cardsController)

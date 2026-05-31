@@ -385,6 +385,10 @@ export const runtimeGlobalConfigSchema = z.object({
 	tunnelId: z.string().optional(),
 	tunnelDomain: z.string().optional(),
 	tunnelName: z.string().default("whipped"),
+	// Auth: single shared password (scrypt hash) + HMAC secret for signed session
+	// cookies. Never expose these over the API — see configController's response.
+	authPasswordHash: z.string().optional(),
+	authSessionSecret: z.string().optional(),
 });
 export type RuntimeGlobalConfig = z.infer<typeof runtimeGlobalConfigSchema>;
 

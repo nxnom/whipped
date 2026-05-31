@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { createServer } from "node:net";
 import { Command } from "commander";
 import ora from "ora";
+import { setPasswordCommand } from "./cli/auth-command.js";
 import { getDaemonLogPath, restartDaemon, startDaemon, statusDaemon, stopDaemon } from "./cli/daemon-commands.js";
 import { readState } from "./cli/daemon-state.js";
 import { isInstanceRunning } from "./state/instance-lock.js";
@@ -186,6 +187,14 @@ program
 			process.exit(1);
 		}
 		target.outputHelp();
+	});
+
+const auth = program.command("auth").description("Manage web UI authentication");
+auth
+	.command("set-password")
+	.description("Set or change the web login password")
+	.action(async () => {
+		await setPasswordCommand();
 	});
 
 // Internal: actually run the server (used by `start` after detaching).

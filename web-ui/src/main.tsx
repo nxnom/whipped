@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import "./index.css";
 import "./override.css";
 import App from "./App";
+import { AuthGate } from "@/components/AuthGate";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("No #root element");
@@ -11,7 +12,9 @@ if (!root) throw new Error("No #root element");
 createRoot(root).render(
 	<StrictMode>
 		<BrowserRouter>
-			<App />
+			<AuthGate>
+				<App />
+			</AuthGate>
 		</BrowserRouter>
 	</StrictMode>,
 );

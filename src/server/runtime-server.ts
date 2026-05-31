@@ -32,6 +32,7 @@ import {
 	updateCard,
 } from "../state/workspace-state.js";
 import { createApiApp } from "../api/index.js";
+import { isLocalRequest, isRequestAuthenticated, LOCAL_REQUEST_HEADER } from "../auth/request-auth.js";
 import type { AppContext, RunSession } from "../api/types/context.js";
 import { RuntimeStateHub } from "./runtime-state-hub.js";
 
@@ -514,6 +515,13 @@ export async function createRuntimeServer(options: ServerOptions) {
 		}
 
 		if (url.pathname === "/api/hook") {
+			// Hooks are fired by local agent subprocesses (curl/fetch to loopback).
+			// A tunnelled request carries forwarding headers and is rejected here.
+			if (!isLocalRequest(req)) {
+				res.writeHead(403, { "Content-Type": "text/plain" });
+				res.end("Forbidden");
+				return;
+			}
 			const event = url.searchParams.get("event") as "stop" | "user_prompt" | null;
 			const taskId = url.searchParams.get("taskId");
 			const workspaceId = url.searchParams.get("workspaceId");
@@ -525,6 +533,24 @@ export async function createRuntimeServer(options: ServerOptions) {
 			}
 			res.writeHead(200, { "Content-Type": "text/plain" });
 			res.end("ok");
+			return;
+		}
+
+		// ── Auth gate ───────────────────────────────────────────────────────────
+		// Local requests (trusted machine) pass; remote/tunnelled requests need a
+		// valid session cookie. Exempt: the auth endpoints themselves, the health
+		// probe, and CORS preflight. Slack webhooks, the OAuth callback, and
+		// /api/hook are verified above and have already returned.
+		if (
+			url.pathname.startsWith("/api/") &&
+			url.pathname !== "/api/health" &&
+			!url.pathname.startsWith("/api/auth/") &&
+			req.method !== "OPTIONS" &&
+			!isLocalRequest(req) &&
+			!(await isRequestAuthenticated(req))
+		) {
+			res.writeHead(401, { "Content-Type": "application/json" });
+			res.end(JSON.stringify({ message: "Unauthorized" }));
 			return;
 		}
 
@@ -661,9 +687,14 @@ export async function createRuntimeServer(options: ServerOptions) {
 		}
 
 		if (url.pathname.startsWith("/api/")) {
+			const headers = Object.fromEntries(Object.entries(req.headers).map(([k, v]) => [k, String(v)]));
+			// Strip any client-supplied value before stamping the trusted one so the
+			// auth/setup route can rely on it (see request-auth.ts).
+			delete headers[LOCAL_REQUEST_HEADER];
+			headers[LOCAL_REQUEST_HEADER] = isLocalRequest(req) ? "1" : "0";
 			const fetchReq = new Request(`http://${host}${req.url}`, {
 				method: req.method,
-				headers: Object.fromEntries(Object.entries(req.headers).map(([k, v]) => [k, String(v)])),
+				headers,
 				body: req.method !== "GET" && req.method !== "HEAD" ? await readBody(req) : undefined,
 			});
 
@@ -702,6 +733,21 @@ export async function createRuntimeServer(options: ServerOptions) {
 	const runTerminalWss = new WebSocketServer({ noServer: true });
 
 	httpServer.on("upgrade", (req, socket, head) => {
+		void (async () => {
+			try {
+				if (!isLocalRequest(req) && !(await isRequestAuthenticated(req))) {
+					socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
+					socket.destroy();
+					return;
+				}
+				handleUpgrade(req, socket as import("node:net").Socket, head);
+			} catch {
+				socket.destroy();
+			}
+		})();
+	});
+
+	function handleUpgrade(req: import("node:http").IncomingMessage, socket: import("node:net").Socket, head: Buffer) {
 		try {
 			const url = new URL(req.url ?? "/", `http://${host}`);
 			if (url.pathname === "/ws") {
@@ -717,12 +763,12 @@ export async function createRuntimeServer(options: ServerOptions) {
 					runTerminalWss.emit("connection", ws, req);
 				});
 			} else {
-				(socket as import("node:net").Socket).end("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
+				socket.end("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
 			}
 		} catch {
 			socket.destroy();
 		}
-	});
+	}
 
 	terminalWss.on("connection", (ws, req) => {
 		try {

@@ -45,6 +45,7 @@ export function GlobalSettings({ section }: { section: GlobalSection }) {
 	const { data: config } = useRead((api) => api("config").GET());
 	const { data: terminals } = useRead((api) => api("fs/terminals").GET());
 	const { trigger: saveConfig, loading: saving } = useWrite((api) => api("config").PUT());
+	const { trigger: logout } = useWrite((api) => api("auth/logout").POST());
 
 	const methods = useForm<GlobalConfigFormInput, unknown, GlobalConfigForm>({
 		resolver: zodResolver(globalConfigFormSchema),
@@ -163,6 +164,15 @@ export function GlobalSettings({ section }: { section: GlobalSection }) {
 						</div>
 					</form>
 				</FormProvider>
+
+				<div className="flex flex-col gap-4 pt-6 mt-6 border-t border-[#1a1a1f]">
+					<SectionDivider title="Session" />
+					<FieldRow label="Sign out" description="End your session on this browser. Local access stays open.">
+						<Button variant="outlined" onClick={() => logout()}>
+							Sign out
+						</Button>
+					</FieldRow>
+				</div>
 			</div>
 		</div>
 	);
