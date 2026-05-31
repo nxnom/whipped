@@ -1,5 +1,5 @@
 import { execFile, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -158,18 +158,6 @@ export function createWorktree(
 
 	logger.info(`[worktree:create] Done — new worktree at ${worktreePath} on branch ${branch}`);
 	return { taskId, path: worktreePath, branch, isNew: true, conflictedFiles: [] };
-}
-
-export function removeWorktree(taskId: string, repoPath: string, branchName?: string): void {
-	const worktreePath = join(WORKTREES_DIR, taskId);
-	const branch = branchName ?? `task/${taskId}`;
-
-	const removeResult = git(["worktree", "remove", "--force", worktreePath], repoPath);
-	if (!removeResult.ok && existsSync(worktreePath)) {
-		rmSync(worktreePath, { recursive: true, force: true });
-	}
-	git(["worktree", "prune"], repoPath);
-	git(["branch", "-D", branch], repoPath); // ignore result — branch may not exist
 }
 
 export async function removeWorktreeAsync(taskId: string, repoPath: string, branchName?: string): Promise<void> {

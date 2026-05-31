@@ -15,7 +15,7 @@ import { appendActivityLog, clearCardSession, loadBoard, moveCard } from "../sta
 import {
 	getCardBranch,
 	getWorktreePath,
-	removeWorktree,
+	removeWorktreeAsync,
 	resolveWorktreeOwnerId,
 } from "../worktree/worktree-manager.js";
 import { enqueueMerge } from "./merge-queue.js";
@@ -244,7 +244,7 @@ async function finishYoloSuccess(
 	);
 	if (groupCards.every((c) => c.columnId === "done")) {
 		try {
-			removeWorktree(ownerId, repoPath, boardAfter.cards[ownerId]?.branchName);
+			await removeWorktreeAsync(ownerId, repoPath, boardAfter.cards[ownerId]?.branchName);
 		} catch (err) {
 			logger.error({ err }, `[yolo] worktree cleanup failed for ${ownerId}:`);
 		}

@@ -17,7 +17,7 @@ import {
 	createWorktree,
 	getCardBranch,
 	getWorktreePath,
-	removeWorktree,
+	removeWorktreeAsync,
 	resolveWorktreeOwnerId,
 } from "../worktree/worktree-manager.js";
 import type { TaskScheduler } from "./scheduler.js";
@@ -28,9 +28,9 @@ function git(args: string[], cwd: string): string {
 	return r.stdout?.trim() ?? "";
 }
 
-function cleanupWorktree(taskId: string, repoPath: string, branchName?: string): void {
+async function cleanupWorktree(taskId: string, repoPath: string, branchName?: string): Promise<void> {
 	try {
-		removeWorktree(taskId, repoPath, branchName);
+		await removeWorktreeAsync(taskId, repoPath, branchName);
 	} catch (err) {
 		logger.error({ err }, `[poller] cleanupWorktree failed for ${taskId}:`);
 	}
@@ -417,7 +417,7 @@ export class BoardPoller {
 					(c) => resolveWorktreeOwnerId(c.id, boardAfterDone.cards) === ownerId,
 				);
 				if (groupCards.every((c) => c.columnId === "done")) {
-					cleanupWorktree(ownerId, repoPath, boardAfterDone.cards[ownerId]?.branchName);
+					await cleanupWorktree(ownerId, repoPath, boardAfterDone.cards[ownerId]?.branchName);
 				}
 				void syncMainRepoAfterPRMerge(repoPath, card.baseRef, card, workspaceId, scheduler, stateHub);
 				updated = true;
