@@ -167,7 +167,9 @@ export class TaskScheduler {
 		const projectConfig = await loadProjectConfig(workspaceId);
 		const secrets = projectConfig.secrets ?? [];
 		const secretsEnv = buildSecretsEnv(secrets);
-		const appendSystemPrompt = buildHomeAgentSystemPrompt(repoPath, secrets, projectConfig.systemPrompt);
+		const homeSystemPrompt = buildHomeAgentSystemPrompt(repoPath, secrets, projectConfig.systemPrompt);
+		const memContext = buildMemoryContext(workspaceId);
+		const appendSystemPrompt = memContext ? `${memContext}\n\n${homeSystemPrompt}` : homeSystemPrompt;
 
 		if (agentId === "claude") {
 			await writeClaudeHomeSettings(getMcpServerPath(), serverUrl, workspaceId).catch((err) => {
@@ -196,6 +198,7 @@ export class TaskScheduler {
 				env: {
 					...secretsEnv,
 					...buildTaskHookEnv(taskId, workspaceId),
+					WHIPPED_SLOT: "home",
 					...(agentId === "opencode" ? { [OPENCODE_CONFIG_DIR_ENV]: getOpencodeConfigDir(taskId) } : {}),
 					...(agentId === "cursor" ? { [CURSOR_CONFIG_DIR_ENV]: getCursorConfigDir(taskId) } : {}),
 				},
@@ -1171,6 +1174,14 @@ You are a conversational project assistant. You can discuss the project, help pl
 ## Workflows
 - \`kanban_get_workflows\` — list all workflows (task and story/orch) with their agent slots, models, and prompts
 - \`kanban_upsert_workflow\` — create or fully replace a workflow (pass complete workflow object)
+
+## Memory
+- \`whipped_search_memory\` — search durable project + global memory before re-discovering how something works
+- \`whipped_get_memory\` — fetch one memory's full content by id
+- \`whipped_save_memory\` — record a durable fact (convention, decision, preference, gotcha, or user correction)
+- \`whipped_update_memory\` — correct an existing memory by id when it's now wrong; prefer this over saving a near-duplicate
+
+The Memory section injected above this prompt lists existing memories with their \`[id]\`. When the developer asks you to "remember" something, or states a durable preference/decision, save it. Before saving, check the injected list and \`whipped_search_memory\`; if it contradicts or supersedes an existing entry, \`whipped_update_memory\` that id instead of creating a duplicate.
 
 # Card types
 

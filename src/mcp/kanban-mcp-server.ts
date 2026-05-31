@@ -863,8 +863,8 @@ server.registerTool(
 
 // ─── Memory ───────────────────────────────────────────────────────────────────
 // Slot + card context are inherited from the agent process env (the MCP server
-// is a stdio child). Read tools are available to every slot; the write tool is
-// registered only for the dev slot.
+// is a stdio child). Read tools are available to every slot; write tools are
+// registered for the dev and home (assistant) slots.
 const agentSlot = process.env.WHIPPED_SLOT ?? "";
 const memoryCardId = process.env.WHIPPED_HOOK_TASK_ID ?? "";
 const memoryModel = process.env.WHIPPED_MODEL ?? "";
@@ -919,8 +919,8 @@ server.registerTool(
 	},
 );
 
-// Write tool — dev slot only.
-if (agentSlot === "dev") {
+// Write tools — dev and home (assistant) slots.
+if (agentSlot === "dev" || agentSlot === "home") {
 	server.registerTool(
 		"whipped_save_memory",
 		{
