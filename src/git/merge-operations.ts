@@ -165,8 +165,9 @@ export interface YoloMergeHandle {
 	// (inPlace) or the scratch worktree.
 	worktreePath: string;
 	// Set when no merge was attempted because the base checkout has uncommitted
-	// tracked changes. Nothing was touched; the caller should block the card.
-	blocked?: boolean;
+	// tracked changes. Nothing was touched; the caller should leave the card pending
+	// and retry later (the condition is transient — it clears when the base is clean).
+	deferred?: boolean;
 	reason?: string;
 }
 
@@ -209,16 +210,16 @@ export function startYoloMerge(
 	// to overwrite an untracked file, git refuses cleanly and we block.)
 	const noTrackedChanges = git(["status", "--porcelain", "--untracked-files=no"], repoPath).stdout === "";
 
-	// On the base branch with uncommitted tracked work: refuse outright rather than
-	// merge over it (unsafe) or advance the ref behind it (leaves the checkout in a
-	// confusing stale/mixed state). Block the card so the user can commit/stash.
+	// On the base branch with uncommitted tracked work: don't merge over it (unsafe)
+	// or advance the ref behind it (leaves the checkout in a confusing stale state).
+	// Defer — the caller keeps the card pending and retries once the base is clean.
 	if (onBase && !noTrackedChanges) {
 		return {
 			ok: false,
 			conflictedFiles: [],
 			inPlace: false,
 			worktreePath: repoPath,
-			blocked: true,
+			deferred: true,
 			reason: `base branch ${baseRef} has uncommitted changes`,
 		};
 	}
@@ -266,6 +267,12 @@ export function removeYoloWorktree(repoPath: string, tmpPath: string): void {
 	}
 	git(["worktree", "remove", tmpPath, "--force"], repoPath);
 	git(["worktree", "prune"], repoPath);
+}
+
+// Current commit sha of the local base branch (empty if it can't be resolved).
+// Used to detect whether a retry could plausibly differ from a prior attempt.
+export function baseRefSha(repoPath: string, baseRef: string): string {
+	return git(["rev-parse", `refs/heads/${baseRef}`], repoPath).stdout;
 }
 
 // True if the base branch exists on origin (so a push is meaningful). False for

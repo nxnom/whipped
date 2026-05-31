@@ -21,6 +21,7 @@ import {
 	resolveWorktreeOwnerId,
 } from "../worktree/worktree-manager.js";
 import type { TaskScheduler } from "./scheduler.js";
+import { enqueueYoloMerge } from "./yolo-merge.js";
 
 function git(args: string[], cwd: string): string {
 	const r = spawnSync("git", args, { cwd, encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] });
@@ -225,7 +226,7 @@ export class BoardPoller {
 	}
 
 	async poll(): Promise<void> {
-		const { workspaceId, repoPath, scheduler, onCardReadyForReview } = this.options;
+		const { workspaceId, repoPath, scheduler, stateHub, onCardReadyForReview } = this.options;
 		const state = await loadWorkspaceState(workspaceId, repoPath);
 
 		const board = state.board;
@@ -306,6 +307,21 @@ export class BoardPoller {
 					!scheduler.isHandlingTask(taskId)
 				) {
 					onCardReadyForReview(card);
+				}
+			}
+		}
+
+		// YOLO auto-delivery: in YOLO mode a card sitting in ready_for_review is
+		// awaiting its merge — either the first attempt, or a deferred retry from
+		// when the base branch was dirty. Re-attempt each tick; enqueueYoloMerge is
+		// idempotent (in-flight guard) and defers cheaply if the base still isn't
+		// ready, so the pile drains itself the moment the base is clean.
+		if (state.projectConfig.deliveryMode === "yolo") {
+			const readyCol = board.columns.find((c) => c.id === "ready_for_review");
+			for (const taskId of readyCol?.taskIds ?? []) {
+				const card = board.cards[taskId];
+				if (card && card.type !== "subtask") {
+					enqueueYoloMerge(repoPath, card, workspaceId, scheduler, stateHub);
 				}
 			}
 		}

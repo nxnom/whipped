@@ -3,6 +3,7 @@ import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 import {
 	abortYoloMerge,
+	baseRefSha,
 	commitIfDirty,
 	completeYoloMerge,
 	pushBaseRef,
@@ -57,9 +58,35 @@ async function markGroupDone(
 	}
 }
 
-// Enqueues a YOLO merge for a review-passed card. Fire-and-forget: the card is
-// already in ready_for_review and moves to done once the merge lands. Merges into
-// the same base ref run serially; different base refs run in parallel.
+// Cards whose merge is currently queued or running. Lets the poller re-attempt
+// delivery every tick (for pending cards) without stacking duplicate merges.
+const inFlight = new Set<string>();
+
+// Cards whose merge attempt failed (conflict the agent couldn't resolve, or a
+// non-conflict failure), keyed to the base sha at that attempt. While the base
+// sits at the same sha there's nothing new to try, so we skip re-attempting (and
+// crucially never re-spawn the conflict agent). The entry clears when the base
+// advances — e.g. another card merges in — giving the card a fresh, free retry.
+const attemptFailedAt = new Map<string, string>();
+
+// Appends an activity entry only if it differs from the latest one, so repeated
+// pending states don't spam the timeline. Broadcasts when it actually logs.
+async function logPending(
+	workspaceId: string,
+	card: RuntimeBoardCard,
+	board: { cards: Record<string, RuntimeBoardCard> },
+	message: string,
+	stateHub: RuntimeStateHub,
+): Promise<void> {
+	if (board.cards[card.id]?.activityLog?.at(-1)?.message === message) return;
+	await appendActivityLog(workspaceId, card.id, message);
+	stateHub.broadcastWorkspaceUpdate(workspaceId);
+}
+
+// Enqueues a YOLO merge for a review-passed card. Fire-and-forget and idempotent:
+// the card is already in ready_for_review and moves to done once the merge lands.
+// A no-op if this card is already queued/running. Merges into the same base ref
+// run serially; different base refs run in parallel.
 export function enqueueYoloMerge(
 	repoPath: string,
 	card: RuntimeBoardCard,
@@ -67,9 +94,14 @@ export function enqueueYoloMerge(
 	resolver: ConflictResolver,
 	stateHub: RuntimeStateHub,
 ): void {
+	const key = `${workspaceId}:${card.id}`;
+	if (inFlight.has(key)) return;
+	inFlight.add(key);
 	void enqueueMerge(`${workspaceId}:${card.baseRef}`, () =>
 		runYoloMerge(repoPath, card, workspaceId, resolver, stateHub),
-	).catch((err) => logger.error({ err }, `[yolo] merge failed for "${desc60(card)}":`));
+	)
+		.catch((err) => logger.error({ err }, `[yolo] merge failed for "${desc60(card)}":`))
+		.finally(() => inFlight.delete(key));
 }
 
 async function runYoloMerge(
@@ -80,6 +112,14 @@ async function runYoloMerge(
 	stateHub: RuntimeStateHub,
 ): Promise<void> {
 	const baseRef = card.baseRef;
+	const key = `${workspaceId}:${card.id}`;
+	const baseSha = baseRefSha(repoPath, baseRef);
+
+	// A prior attempt already failed against this exact base — nothing has changed,
+	// so don't re-merge or (worse) re-spawn the conflict agent. Wait for the base to
+	// advance, which clears this guard and grants a fresh retry.
+	if (baseSha && attemptFailedAt.get(key) === baseSha) return;
+
 	const board = await loadBoard(workspaceId);
 	const ownerId = resolveWorktreeOwnerId(card.id, board.cards);
 	const ownerWorktree = getWorktreePath(ownerId);
@@ -93,35 +133,40 @@ async function runYoloMerge(
 	logger.info(`[yolo] Merging "${desc60(card)}" (${taskBranch}) into ${baseRef}`);
 	const handle = startYoloMerge(repoPath, workspaceId, card.id, baseRef, taskBranch);
 
-	// Refused before touching anything (e.g. base checkout has uncommitted changes).
-	if (handle.blocked) {
-		await moveCard(workspaceId, card.id, "blocked");
-		await appendActivityLog(workspaceId, card.id, `YOLO merge skipped — ${handle.reason} → Blocked`);
-		await clearCardSession(workspaceId, card.id);
-		stateHub.broadcastWorkspaceUpdate(workspaceId);
+	// Deferred without touching anything (base checkout has uncommitted changes).
+	// Stay in ready_for_review; the poller retries each tick and it merges the moment
+	// the base is clean. Not recorded as a failure — this is cheap to keep checking.
+	if (handle.deferred) {
+		await logPending(workspaceId, card, board, `Delivery pending — ${handle.reason}`, stateHub);
 		return;
 	}
 
 	if (handle.ok) {
 		completeYoloMerge(repoPath, baseRef, handle);
+		attemptFailedAt.delete(key);
 		await finishYoloSuccess(repoPath, card, workspaceId, baseRef, stateHub);
 		return;
 	}
 
-	// A non-conflict merge failure (e.g. the in-place tree couldn't be written) has
-	// no files to resolve — abort and bail rather than spawn an agent on nothing.
+	// A non-conflict merge failure (e.g. an untracked file would be overwritten) has
+	// no files for an agent to resolve. Stay pending and retry only when the base moves.
 	if (handle.conflictedFiles.length === 0) {
 		abortYoloMerge(repoPath, handle);
-		await moveCard(workspaceId, card.id, "blocked");
-		await appendActivityLog(workspaceId, card.id, "YOLO merge failed (no conflicts to resolve) → Blocked");
-		await clearCardSession(workspaceId, card.id);
-		stateHub.broadcastWorkspaceUpdate(workspaceId);
+		if (baseSha) attemptFailedAt.set(key, baseSha);
+		await logPending(
+			workspaceId,
+			card,
+			board,
+			"Delivery pending — merge failed (retries when the base changes)",
+			stateHub,
+		);
 		return;
 	}
 
-	// Conflict — hand the merge worktree to the resolution agent. Hold the queue
-	// slot (don't resolve) until the agent finishes, so no other card merges into
-	// this base ref meanwhile.
+	// Conflict — hand the merge worktree to the resolution agent. Hold the queue slot
+	// (don't resolve) until the agent finishes, so no other card merges into this base
+	// ref meanwhile. On failure: stay pending, recording the base sha so we don't
+	// re-run the agent until the base advances.
 	await appendActivityLog(
 		workspaceId,
 		card.id,
@@ -135,13 +180,19 @@ async function runYoloMerge(
 				try {
 					if (!success) {
 						abortYoloMerge(repoPath, handle);
-						await moveCard(workspaceId, card.id, "blocked");
-						await appendActivityLog(workspaceId, card.id, "Could not resolve YOLO merge conflicts → Blocked");
-						await clearCardSession(workspaceId, card.id);
-						stateHub.broadcastWorkspaceUpdate(workspaceId);
+						if (baseSha) attemptFailedAt.set(key, baseSha);
+						const reopened = await loadBoard(workspaceId);
+						await logPending(
+							workspaceId,
+							card,
+							reopened,
+							"Delivery pending — unresolved merge conflict (retries when the base changes)",
+							stateHub,
+						);
 						return;
 					}
 					completeYoloMerge(repoPath, baseRef, handle);
+					attemptFailedAt.delete(key);
 					await finishYoloSuccess(repoPath, card, workspaceId, baseRef, stateHub);
 				} catch (err) {
 					logger.error({ err }, `[yolo] conflict finalize failed for "${desc60(card)}":`);

@@ -2,6 +2,8 @@ import { Draggable } from "@hello-pangea/dnd";
 import type { RuntimeBoardCard } from "@runtime-contract";
 import { classNames } from "@/utils/classNames";
 import {
+	AlertTriangle,
+	Clock,
 	ExternalLink,
 	FolderOpen,
 	GitBranch,
@@ -82,6 +84,7 @@ export function KanbanCard({
 	const sessionColor = sessionState ? (SESSION_STATE_COLORS[sessionState] ?? "text-gray-400") : null;
 	const isStory = card.type === "story";
 	const isSubtask = card.type === "subtask";
+	const lastActivity = card.activityLog?.at(-1)?.message;
 
 	const deps = card.dependsOn ? [card.dependsOn] : (card.waitsFor ?? []);
 	const metDeps = deps.filter((id) => {
@@ -143,6 +146,20 @@ export function KanbanCard({
 							<p className="mt-1.5 text-xs text-gray-400 line-clamp-2">
 								{card.description.split("\n").slice(1).join("\n").trim()}
 							</p>
+						)}
+
+						{/* Why a card is stuck — surfaced from the latest activity entry */}
+						{card.columnId === "blocked" && lastActivity && (
+							<div className="mt-2 flex items-start gap-1.5 px-2 py-1.5 rounded bg-red-500/10 border border-red-500/30">
+								<AlertTriangle size={11} className="text-red-400 shrink-0 mt-px" />
+								<span className="text-[11px] text-red-300/90 leading-snug line-clamp-2">{lastActivity}</span>
+							</div>
+						)}
+						{card.columnId === "ready_for_review" && lastActivity?.startsWith("Delivery pending") && (
+							<div className="mt-2 flex items-start gap-1.5 px-2 py-1.5 rounded bg-amber-500/10 border border-amber-500/30">
+								<Clock size={11} className="text-amber-400 shrink-0 mt-px" />
+								<span className="text-[11px] text-amber-300/90 leading-snug line-clamp-2">{lastActivity}</span>
+							</div>
 						)}
 
 						{/* Story progress bar */}
