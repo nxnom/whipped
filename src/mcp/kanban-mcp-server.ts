@@ -925,9 +925,9 @@ if (agentSlot === "dev") {
 		"whipped_save_memory",
 		{
 			description:
-				"Save a durable memory so future agents don't re-discover it. Use for conventions, architecture facts, decisions, gotchas, or user corrections worth remembering across tasks. Scope 'project' = specific to this repo; 'global' = applies to all your projects (style/preferences/org rules). Keep each memory to one focused fact. The user may review project task-lessons; global lessons go to a review queue.",
+				"Save a durable memory so future agents don't re-discover it. Use for conventions, architecture facts, decisions, gotchas, or user corrections worth remembering across tasks. Scope 'project' = specific to this repo; 'global' = a fact shareable across projects (e.g. a framework/library convention). Keep each memory to one focused fact. The user may review project task-lessons; global lessons go to a review queue.\n\nGlobal memory REQUIRES tags — it only reaches another project that subscribes to one of its tags. Tag with the framework-qualified form when the knowledge is ecosystem-specific, and the bare form only when the fact is truly tool-level and framework-agnostic: Spoosh used via its React bindings → 'spoosh-react'; a fact about Spoosh itself → 'spoosh'; React hooks → 'react-hook' (not bare 'hook'). Reuse an existing tag from the injected memory's tag list before inventing a near-duplicate.",
 			inputSchema: {
-				scope: z.enum(["project", "global"]).describe("'project' (this repo) or 'global' (all projects)"),
+				scope: z.enum(["project", "global"]).describe("'project' (this repo) or 'global' (shareable across projects)"),
 				type: z
 					.enum(["fact", "convention", "decision", "preference", "rule", "lesson", "sharp_edge"])
 					.describe("Kind of memory"),
@@ -938,18 +938,26 @@ if (agentSlot === "dev") {
 					.default("task_lesson")
 					.describe("Why this is being saved — 'user_correction' if the user explicitly told you, else 'task_lesson'"),
 				importance: z.number().int().min(1).max(3).optional().describe("1 normal, 2 high, 3 critical"),
+				tags: z
+					.array(z.string())
+					.optional()
+					.describe(
+						"Required for 'global' scope (≥1). Canonical kebab-case, framework-qualified when ecosystem-specific (e.g. 'spoosh-react', 'react-hook'). Reuse existing tags.",
+					),
 			},
 		},
-		async ({ scope, type, title, content, sourceType, importance }) => {
+		async ({ scope, type, title, content, sourceType, importance, tags }) => {
 			try {
 				const saved = await apiMutate<{ status: string }>("memory.propose", {
 					scope,
 					workspaceId: scope === "project" ? workspaceId : undefined,
+					originWorkspaceId: workspaceId,
 					type,
 					title,
 					content,
 					sourceType,
 					importance,
+					tags,
 					originCardId: memoryCardId || undefined,
 					originAgent: { agent: agentId, ...(memoryModel ? { model: memoryModel } : {}) },
 				});

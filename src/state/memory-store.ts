@@ -6,6 +6,7 @@ import type {
 	RuntimeMemory,
 	RuntimeMemoryOriginAgent,
 } from "../core/api-contract.js";
+import { normalizeTag } from "../core/api-contract.js";
 import { generateTaskId } from "../core/task-id.js";
 import { getDb } from "./db.js";
 
@@ -15,6 +16,7 @@ interface MemoryRow {
 	id: string;
 	scope: MemoryScope;
 	workspace_id: string | null;
+	origin_workspace_id: string | null;
 	type: MemoryType;
 	title: string;
 	content: string;
@@ -40,11 +42,14 @@ function rowToMemory(row: MemoryRow): RuntimeMemory {
 		id: row.id,
 		scope: row.scope,
 		workspaceId: row.workspace_id,
+		originWorkspaceId: row.origin_workspace_id,
 		type: row.type,
 		title: row.title,
 		content: row.content,
 		sourceType: row.source_type,
 		importance: row.importance,
+		tags: [],
+		boundWorkspaceIds: [],
 		originCardId: row.origin_card_id,
 		originAgent,
 		status: row.status,
@@ -53,16 +58,109 @@ function rowToMemory(row: MemoryRow): RuntimeMemory {
 	};
 }
 
+function groupValues(rows: { key: string; value: string }[]): Map<string, string[]> {
+	const map = new Map<string, string[]>();
+	for (const r of rows) {
+		const arr = map.get(r.key);
+		if (arr) arr.push(r.value);
+		else map.set(r.key, [r.value]);
+	}
+	return map;
+}
+
+// Hydrate tags + explicit bindings onto a set of memories in two batched queries
+// (avoids N+1 when listing).
+function hydrate(memories: RuntimeMemory[]): RuntimeMemory[] {
+	if (memories.length === 0) return memories;
+	const db = getDb();
+	const ids = memories.map((m) => m.id);
+	const placeholders = ids.map(() => "?").join(",");
+	const tagRows = db
+		.prepare(`SELECT memory_id AS key, tag AS value FROM memory_tags WHERE memory_id IN (${placeholders})`)
+		.all(...ids) as { key: string; value: string }[];
+	const bindRows = db
+		.prepare(
+			`SELECT memory_id AS key, workspace_id AS value FROM memory_workspace_bindings WHERE memory_id IN (${placeholders})`,
+		)
+		.all(...ids) as { key: string; value: string }[];
+	const tagsByMem = groupValues(tagRows);
+	const bindsByMem = groupValues(bindRows);
+	for (const m of memories) {
+		m.tags = tagsByMem.get(m.id) ?? [];
+		m.boundWorkspaceIds = bindsByMem.get(m.id) ?? [];
+	}
+	return memories;
+}
+
+// ─── Tags ─────────────────────────────────────────────────────────────────────
+
+function ensureTags(tags: string[]): string[] {
+	const db = getDb();
+	const normalized = [...new Set(tags.map(normalizeTag).filter(Boolean))];
+	const insert = db.prepare("INSERT OR IGNORE INTO tags (name) VALUES (?)");
+	for (const name of normalized) insert.run(name);
+	return normalized;
+}
+
+export function listTags(): string[] {
+	const rows = getDb().prepare("SELECT name FROM tags ORDER BY name").all() as { name: string }[];
+	return rows.map((r) => r.name);
+}
+
+export function setMemoryTags(memoryId: string, tags: string[]): void {
+	const db = getDb();
+	const normalized = ensureTags(tags);
+	const tx = db.transaction(() => {
+		db.prepare("DELETE FROM memory_tags WHERE memory_id = ?").run(memoryId);
+		const insert = db.prepare("INSERT OR IGNORE INTO memory_tags (memory_id, tag) VALUES (?, ?)");
+		for (const tag of normalized) insert.run(memoryId, tag);
+	});
+	tx();
+}
+
+export function setMemoryBindings(memoryId: string, workspaceIds: string[]): void {
+	const db = getDb();
+	const tx = db.transaction(() => {
+		db.prepare("DELETE FROM memory_workspace_bindings WHERE memory_id = ?").run(memoryId);
+		const insert = db.prepare(
+			"INSERT OR IGNORE INTO memory_workspace_bindings (memory_id, workspace_id) VALUES (?, ?)",
+		);
+		for (const ws of [...new Set(workspaceIds)]) insert.run(memoryId, ws);
+	});
+	tx();
+}
+
+export function getWorkspaceTags(workspaceId: string): string[] {
+	const rows = getDb()
+		.prepare("SELECT tag FROM workspace_tags WHERE workspace_id = ? ORDER BY tag")
+		.all(workspaceId) as { tag: string }[];
+	return rows.map((r) => r.tag);
+}
+
+export function setWorkspaceTags(workspaceId: string, tags: string[]): void {
+	const db = getDb();
+	const normalized = ensureTags(tags);
+	const tx = db.transaction(() => {
+		db.prepare("DELETE FROM workspace_tags WHERE workspace_id = ?").run(workspaceId);
+		const insert = db.prepare("INSERT OR IGNORE INTO workspace_tags (workspace_id, tag) VALUES (?, ?)");
+		for (const tag of normalized) insert.run(workspaceId, tag);
+	});
+	tx();
+}
+
 // ─── Create / update / delete ─────────────────────────────────────────────────
 
 export interface CreateMemoryInput {
 	scope: MemoryScope;
 	workspaceId?: string | null; // required when scope === 'project'
+	originWorkspaceId?: string | null; // workspace that produced it (origin safety net)
 	type: MemoryType;
 	title: string;
 	content: string;
 	sourceType: MemorySourceType;
 	importance?: number;
+	tags?: string[]; // required (≥1) when scope === 'global'
+	boundWorkspaceIds?: string[]; // explicit project bindings (human-set)
 	originCardId?: string | null;
 	originAgent?: RuntimeMemoryOriginAgent | null;
 	status?: MemoryStatus;
@@ -76,26 +174,37 @@ export function createMemory(input: CreateMemoryInput): RuntimeMemory {
 	if (input.scope === "project" && !workspaceId) {
 		throw new Error("project-scoped memory requires a workspaceId");
 	}
-	db.prepare(
-		`INSERT INTO memories (
-			id, scope, workspace_id, type, title, content, source_type,
-			importance, origin_card_id, origin_agent, status, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-	).run(
-		id,
-		input.scope,
-		workspaceId,
-		input.type,
-		input.title,
-		input.content,
-		input.sourceType,
-		input.importance ?? 1,
-		input.originCardId ?? null,
-		input.originAgent ? JSON.stringify(input.originAgent) : null,
-		input.status ?? "approved",
-		now,
-		now,
-	);
+	const tags = [...new Set((input.tags ?? []).map(normalizeTag).filter(Boolean))];
+	if (input.scope === "global" && tags.length === 0) {
+		throw new Error("global-scoped memory requires at least one tag");
+	}
+	const originWorkspaceId = input.originWorkspaceId ?? workspaceId;
+	const tx = db.transaction(() => {
+		db.prepare(
+			`INSERT INTO memories (
+				id, scope, workspace_id, origin_workspace_id, type, title, content, source_type,
+				importance, origin_card_id, origin_agent, status, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		).run(
+			id,
+			input.scope,
+			workspaceId,
+			originWorkspaceId,
+			input.type,
+			input.title,
+			input.content,
+			input.sourceType,
+			input.importance ?? 1,
+			input.originCardId ?? null,
+			input.originAgent ? JSON.stringify(input.originAgent) : null,
+			input.status ?? "approved",
+			now,
+			now,
+		);
+		if (tags.length > 0) setMemoryTags(id, tags);
+		if (input.boundWorkspaceIds && input.boundWorkspaceIds.length > 0) setMemoryBindings(id, input.boundWorkspaceIds);
+	});
+	tx();
 	return getMemory(id)!;
 }
 
@@ -177,7 +286,8 @@ export function deletePendingMemoriesForCard(cardId: string): number {
 
 export function getMemory(id: string): RuntimeMemory | null {
 	const row = getDb().prepare("SELECT * FROM memories WHERE id = ?").get(id) as MemoryRow | undefined;
-	return row ? rowToMemory(row) : null;
+	if (!row) return null;
+	return hydrate([rowToMemory(row)])[0] ?? null;
 }
 
 export interface ListMemoriesFilter {
@@ -209,7 +319,7 @@ export function listMemories(filter: ListMemoriesFilter = {}): RuntimeMemory[] {
 	const rows = getDb()
 		.prepare(`SELECT * FROM memories ${where} ORDER BY importance DESC, updated_at DESC`)
 		.all(...params) as MemoryRow[];
-	return rows.map(rowToMemory);
+	return hydrate(rows.map(rowToMemory));
 }
 
 // All memories that originated from a specific card (any scope/status), newest first.
@@ -217,11 +327,39 @@ export function listMemoriesForCard(cardId: string): RuntimeMemory[] {
 	const rows = getDb()
 		.prepare("SELECT * FROM memories WHERE origin_card_id = ? ORDER BY created_at DESC")
 		.all(cardId) as MemoryRow[];
-	return rows.map(rowToMemory);
+	return hydrate(rows.map(rowToMemory));
 }
 
-// FTS search scoped to global + an optional project workspace. Only approved
-// memories are returned. `query` is matched against title + content.
+// Visibility predicate for a global memory reaching a workspace: shared tag,
+// origin workspace, or explicit binding. Project memory routes by workspace_id.
+const VISIBLE_WHERE = `(
+	(m.scope = 'project' AND m.workspace_id = @ws)
+	OR (m.scope = 'global' AND (
+		m.origin_workspace_id = @ws
+		OR EXISTS (SELECT 1 FROM memory_tags mt JOIN workspace_tags wt
+		           ON wt.tag = mt.tag
+		           WHERE mt.memory_id = m.id AND wt.workspace_id = @ws)
+		OR EXISTS (SELECT 1 FROM memory_workspace_bindings b
+		           WHERE b.memory_id = m.id AND b.workspace_id = @ws)
+	))
+)`;
+
+// Approved memories actually visible to a workspace (project + routed global),
+// ordered by importance.
+export function listVisibleMemories(workspaceId: string): RuntimeMemory[] {
+	const rows = getDb()
+		.prepare(
+			`SELECT m.* FROM memories m
+			 WHERE m.status = 'approved' AND ${VISIBLE_WHERE}
+			 ORDER BY m.importance DESC, m.updated_at DESC`,
+		)
+		.all({ ws: workspaceId }) as MemoryRow[];
+	return hydrate(rows.map(rowToMemory));
+}
+
+// FTS search. With a workspaceId, results are scoped to what's visible to that
+// workspace; without one, all approved memories are searched (admin/debug).
+// `query` is matched against title + content.
 export function searchMemories(query: string, workspaceId?: string | null, limit = 20): RuntimeMemory[] {
 	const trimmed = query.trim();
 	if (!trimmed) return [];
@@ -231,51 +369,63 @@ export function searchMemories(query: string, workspaceId?: string | null, limit
 		.map((t) => `"${t.replace(/"/g, '""')}"`)
 		.join(" ");
 
-	const scopeClause = workspaceId
-		? "(m.scope = 'global' OR (m.scope = 'project' AND m.workspace_id = ?))"
-		: "m.scope = 'global'";
-	const params: unknown[] = [ftsQuery];
-	if (workspaceId) params.push(workspaceId);
-	params.push(limit);
+	if (!workspaceId) {
+		const rows = getDb()
+			.prepare(
+				`SELECT m.* FROM memories_fts f
+				 JOIN memories m ON m.rowid = f.rowid
+				 WHERE memories_fts MATCH @q AND m.status = 'approved'
+				 ORDER BY rank LIMIT @limit`,
+			)
+			.all({ q: ftsQuery, limit }) as MemoryRow[];
+		return hydrate(rows.map(rowToMemory));
+	}
 
 	const rows = getDb()
 		.prepare(
 			`SELECT m.* FROM memories_fts f
 			 JOIN memories m ON m.rowid = f.rowid
-			 WHERE memories_fts MATCH ? AND m.status = 'approved' AND ${scopeClause}
-			 ORDER BY rank
-			 LIMIT ?`,
+			 WHERE memories_fts MATCH @q AND m.status = 'approved' AND ${VISIBLE_WHERE}
+			 ORDER BY rank LIMIT @limit`,
 		)
-		.all(...params) as MemoryRow[];
-	return rows.map(rowToMemory);
+		.all({ q: ftsQuery, ws: workspaceId, limit }) as MemoryRow[];
+	return hydrate(rows.map(rowToMemory));
 }
 
 // ─── Prompt injection ─────────────────────────────────────────────────────────
 
 // Build a markdown block of memory to inject into an agent's system prompt.
-// Includes approved project memory (top by importance) and global preferences.
-// Returns an empty string when there's nothing to inject. Each memory carries
-// its id so the agent can target it with whipped_update_memory.
-export function buildMemoryContext(workspaceId: string, projectMemoryLimit = 40): string {
+// Includes approved project memory and global memory routed to this workspace
+// (top by importance). Returns an empty string when there's nothing to inject.
+// Each memory carries its id so the agent can target it with whipped_update_memory.
+export function buildMemoryContext(workspaceId: string, memoryLimit = 40): string {
 	const sections: string[] = [];
 
-	const fmt = (m: RuntimeMemory) => `- [${m.id}] (${m.type}) **${m.title}** — ${m.content.replace(/\s+/g, " ").trim()}`;
+	const fmt = (m: RuntimeMemory) => {
+		const tagSuffix = m.tags.length > 0 ? ` _(tags: ${m.tags.join(", ")})_` : "";
+		return `- [${m.id}] (${m.type}) **${m.title}** — ${m.content.replace(/\s+/g, " ").trim()}${tagSuffix}`;
+	};
 
-	const projectMem = listMemories({ scope: "project", workspaceId, status: "approved" }).slice(0, projectMemoryLimit);
+	const visible = listVisibleMemories(workspaceId).slice(0, memoryLimit);
+	const projectMem = visible.filter((m) => m.scope === "project");
+	const globalMem = visible.filter((m) => m.scope === "global");
+
 	if (projectMem.length > 0) {
 		sections.push(`### Project memory\n${projectMem.map(fmt).join("\n")}`);
 	}
-
-	const globalMem = listMemories({ scope: "global", status: "approved" });
 	if (globalMem.length > 0) {
-		sections.push(`### Global preferences\n${globalMem.map(fmt).join("\n")}`);
+		sections.push(`### Global memory (routed to this project by tag)\n${globalMem.map(fmt).join("\n")}`);
 	}
 
 	if (sections.length === 0) return "";
 
+	const knownTags = listTags();
+	const tagLine =
+		knownTags.length > 0 ? `\n\nExisting tags (reuse before inventing new ones): ${knownTags.join(", ")}.` : "";
+
 	return [
 		"## Memory",
-		"This is whipped's persistent project memory — durable knowledge from past work. Each entry is prefixed with its id. Use `whipped_search_memory` / `whipped_get_memory` to recall more, and `whipped_update_memory` to correct an entry that's now wrong. Treat these as hints, not gospel: if a memory references a file, symbol, or rule, verify it still holds before relying on it.",
+		`This is whipped's persistent project memory — durable knowledge from past work. Each entry is prefixed with its id. Use \`whipped_search_memory\` / \`whipped_get_memory\` to recall more, and \`whipped_update_memory\` to correct an entry that's now wrong. Treat these as hints, not gospel: if a memory references a file, symbol, or rule, verify it still holds before relying on it.${tagLine}`,
 		...sections,
 	].join("\n\n");
 }

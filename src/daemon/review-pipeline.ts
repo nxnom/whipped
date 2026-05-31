@@ -3,12 +3,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { unlink } from "node:fs/promises";
 import { join } from "node:path";
 import {
-	buildWhippedMcpServerSpec,
 	buildTaskHookEnv,
+	buildWhippedMcpServerSpec,
 	CLAUDE_TASK_SETTINGS_PATH,
+	CURSOR_CONFIG_DIR_ENV,
 	cleanupCursorConfigDir,
 	cleanupOpencodeFiles,
-	CURSOR_CONFIG_DIR_ENV,
 	getCursorConfigDir,
 	getMcpConfigPath,
 	getOpencodeConfigDir,
@@ -29,10 +29,10 @@ import type {
 import { DEFAULT_GIT_INSTRUCTIONS } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 import { resolvePromptText } from "../core/prompt-resolver.js";
-import { buildMemoryContext } from "../state/memory-store.js";
 import { commitIfDirty, createGithubPR, pushBranch } from "../git/merge-operations.js";
 import type { GithubClient } from "../github/github-client.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
+import { buildMemoryContext } from "../state/memory-store.js";
 import {
 	appendActivityLog,
 	appendTerminalSession,

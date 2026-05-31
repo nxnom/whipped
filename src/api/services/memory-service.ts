@@ -1,18 +1,23 @@
 import type { MemorySourceType } from "../../core/api-contract.js";
 import {
 	approveMemory,
-	createMemory,
 	type CreateMemoryInput,
+	createMemory,
 	deleteMemory,
 	getMemory,
-	listMemories,
+	getWorkspaceTags,
 	type ListMemoriesFilter,
+	listMemories,
 	listMemoriesForCard,
+	listTags,
 	proposeMemory,
 	proposeMemoryUpdate,
 	searchMemories,
-	updateMemory,
+	setMemoryBindings,
+	setMemoryTags,
+	setWorkspaceTags,
 	type UpdateMemoryInput,
+	updateMemory,
 } from "../../state/memory-store.js";
 
 export const listMemoryEntries = async (filter: ListMemoriesFilter) => listMemories(filter);
@@ -36,3 +41,21 @@ export const updateMemoryEntry = async (id: string, patch: UpdateMemoryInput) =>
 export const approveMemoryEntry = async (id: string) => approveMemory(id);
 
 export const removeMemoryEntry = async (id: string) => deleteMemory(id);
+
+export const listTagsEntries = async () => listTags();
+
+export const setMemoryTagsEntry = async (id: string, tags: string[]) => {
+	if (!getMemory(id)) return null;
+	setMemoryTags(id, tags);
+	return getMemory(id);
+};
+
+export const setMemoryBindingsEntry = async (id: string, workspaceIds: string[]) => {
+	if (!getMemory(id)) return null;
+	setMemoryBindings(id, workspaceIds);
+	return getMemory(id);
+};
+
+export const getWorkspaceTagsEntry = async (workspaceId: string) => getWorkspaceTags(workspaceId);
+
+export const setWorkspaceTagsEntry = async (workspaceId: string, tags: string[]) => setWorkspaceTags(workspaceId, tags);

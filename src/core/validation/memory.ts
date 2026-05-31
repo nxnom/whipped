@@ -2,7 +2,8 @@ import { z } from "zod";
 import { memoryScopeSchema, memoryTypeSchema } from "../api-contract.js";
 
 // Form schema for the human-authored memory create/edit dialog. Mirrors the
-// fields accepted by POST /api/memory and PATCH /api/memory/:id.
+// fields accepted by POST /api/memory and PATCH /api/memory/:id. Tags +
+// bindings are managed by dedicated controls in the dialog, not this schema.
 export const memoryFormSchema = z.object({
 	type: memoryTypeSchema,
 	title: z.string().min(1, "Title is required"),

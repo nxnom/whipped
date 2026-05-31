@@ -561,11 +561,14 @@ export const runtimeMemorySchema = z.object({
 	id: z.string(),
 	scope: memoryScopeSchema,
 	workspaceId: z.string().nullable(),
+	originWorkspaceId: z.string().nullable().optional(),
 	type: memoryTypeSchema,
 	title: z.string(),
 	content: z.string(),
 	sourceType: memorySourceTypeSchema,
 	importance: z.number().int().min(1).max(3).default(1),
+	tags: z.array(z.string()).default([]),
+	boundWorkspaceIds: z.array(z.string()).default([]),
 	originCardId: z.string().nullable().optional(),
 	originAgent: runtimeMemoryOriginAgentSchema.nullable().optional(),
 	status: memoryStatusSchema.default("approved"),
@@ -573,6 +576,16 @@ export const runtimeMemorySchema = z.object({
 	updatedAt: z.number(),
 });
 export type RuntimeMemory = z.infer<typeof runtimeMemorySchema>;
+
+// Canonical, kebab-case tag names. Routing of global memory to projects is by
+// tag intersection — see docs/memory-tags.md.
+export function normalizeTag(raw: string): string {
+	return raw
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "");
+}
 
 // ─── WebSocket events ─────────────────────────────────────────────────────────
 

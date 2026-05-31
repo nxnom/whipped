@@ -13,12 +13,17 @@ import {
 	approveMemoryEntry,
 	createMemoryEntry,
 	getMemoryEntry,
+	getWorkspaceTagsEntry,
 	listMemoryEntries,
 	listMemoryEntriesForCard,
+	listTagsEntries,
 	proposeMemoryEntry,
 	proposeMemoryEntryUpdate,
 	removeMemoryEntry,
 	searchMemoryEntries,
+	setMemoryBindingsEntry,
+	setMemoryTagsEntry,
+	setWorkspaceTagsEntry,
 	updateMemoryEntry,
 } from "../services/memory-service.js";
 import type { AppEnv } from "../types/context.js";
@@ -54,6 +59,13 @@ export const memoryController = new Hono<AppEnv>()
 		const input = c.req.valid("query");
 		return c.json(await listMemoryEntriesForCard(input.cardId));
 	})
+	// Canonical tag vocabulary (reuse-first). Must precede "/:id".
+	.get("/tags", async (c) => c.json(await listTagsEntries()))
+	// A workspace's subscribed tags. Must precede "/:id".
+	.get("/workspace-tags", zv("query", z.object({ workspaceId: z.string() })), async (c) => {
+		const { workspaceId } = c.req.valid("query");
+		return c.json(await getWorkspaceTagsEntry(workspaceId));
+	})
 	.get("/:id", zv("param", z.object({ id: z.string() })), async (c) => {
 		const { id } = c.req.valid("param");
 		return c.json(await getMemoryEntry(id));
@@ -67,11 +79,13 @@ export const memoryController = new Hono<AppEnv>()
 			z.object({
 				scope: memoryScopeSchema,
 				workspaceId: z.string().optional(),
+				originWorkspaceId: z.string().optional(),
 				type: memoryTypeSchema,
 				title: z.string().min(1),
 				content: z.string().min(1),
 				sourceType: memorySourceTypeSchema.default("task_lesson"),
 				importance: z.number().int().min(1).max(3).optional(),
+				tags: z.array(z.string()).optional(),
 				originCardId: z.string().optional(),
 				originAgent: runtimeMemoryOriginAgentSchema.optional(),
 			}),
@@ -81,15 +95,20 @@ export const memoryController = new Hono<AppEnv>()
 			if (input.scope === "project" && !input.workspaceId) {
 				throw BadRequestError("project memory requires a workspaceId");
 			}
+			if (input.scope === "global" && (input.tags?.length ?? 0) === 0) {
+				throw BadRequestError("global memory requires at least one tag");
+			}
 			return c.json(
 				await proposeMemoryEntry({
 					scope: input.scope,
 					workspaceId: input.scope === "project" ? input.workspaceId : null,
+					originWorkspaceId: input.originWorkspaceId ?? input.workspaceId ?? null,
 					type: input.type,
 					title: input.title,
 					content: input.content,
 					sourceType: input.sourceType,
 					importance: input.importance,
+					tags: input.tags,
 					originCardId: input.originCardId ?? null,
 					originAgent: input.originAgent ?? null,
 				}),
@@ -125,10 +144,13 @@ export const memoryController = new Hono<AppEnv>()
 			z.object({
 				scope: memoryScopeSchema,
 				workspaceId: z.string().optional(),
+				originWorkspaceId: z.string().optional(),
 				type: memoryTypeSchema,
 				title: z.string().min(1),
 				content: z.string().min(1),
 				importance: z.number().int().min(1).max(3).optional(),
+				tags: z.array(z.string()).optional(),
+				boundWorkspaceIds: z.array(z.string()).optional(),
 			}),
 		),
 		async (c) => {
@@ -136,15 +158,21 @@ export const memoryController = new Hono<AppEnv>()
 			if (input.scope === "project" && !input.workspaceId) {
 				throw BadRequestError("project memory requires a workspaceId");
 			}
+			if (input.scope === "global" && (input.tags?.length ?? 0) === 0) {
+				throw BadRequestError("global memory requires at least one tag");
+			}
 			return c.json(
 				await createMemoryEntry({
 					scope: input.scope,
 					workspaceId: input.scope === "project" ? input.workspaceId : null,
+					originWorkspaceId: input.originWorkspaceId ?? input.workspaceId ?? null,
 					type: input.type,
 					title: input.title,
 					content: input.content,
 					sourceType: "manual_human",
 					importance: input.importance,
+					tags: input.tags,
+					boundWorkspaceIds: input.boundWorkspaceIds,
 					status: "approved",
 				}),
 			);
@@ -178,5 +206,37 @@ export const memoryController = new Hono<AppEnv>()
 	.delete("/:id", zv("param", z.object({ id: z.string() })), async (c) => {
 		const { id } = c.req.valid("param");
 		await removeMemoryEntry(id);
+		return c.json({ ok: true });
+	})
+	// Set a memory's tags (human curation).
+	.patch(
+		"/:id/tags",
+		zv("param", z.object({ id: z.string() })),
+		zv("json", z.object({ tags: z.array(z.string()) })),
+		async (c) => {
+			const { id } = c.req.valid("param");
+			const { tags } = c.req.valid("json");
+			const updated = await setMemoryTagsEntry(id, tags);
+			if (!updated) throw NotFoundError("Memory");
+			return c.json(updated);
+		},
+	)
+	// Bind a global memory to specific workspaces by id (human curation).
+	.patch(
+		"/:id/bindings",
+		zv("param", z.object({ id: z.string() })),
+		zv("json", z.object({ workspaceIds: z.array(z.string()) })),
+		async (c) => {
+			const { id } = c.req.valid("param");
+			const { workspaceIds } = c.req.valid("json");
+			const updated = await setMemoryBindingsEntry(id, workspaceIds);
+			if (!updated) throw NotFoundError("Memory");
+			return c.json(updated);
+		},
+	)
+	// Set a workspace's subscribed tags (human curation in project settings).
+	.put("/workspace-tags", zv("json", z.object({ workspaceId: z.string(), tags: z.array(z.string()) })), async (c) => {
+		const { workspaceId, tags } = c.req.valid("json");
+		await setWorkspaceTagsEntry(workspaceId, tags);
 		return c.json({ ok: true });
 	});

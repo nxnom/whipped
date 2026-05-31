@@ -1,5 +1,6 @@
 import {
 	Button,
+	Checkbox,
 	ConfirmDialog,
 	Dialog,
 	RHFInput,
@@ -17,18 +18,26 @@ import { useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { useRead, useWrite } from "@/runtime/api-client";
 import { classNames } from "@/utils/classNames";
+import { ProjectMultiSelect, type ProjectOption, ProjectTagsBar, TagInput } from "./MemoryTagControls";
 
 const TYPE_LABEL: Record<MemoryType, string> = Object.fromEntries(
 	MEMORY_TYPE_OPTIONS.map((o) => [o.value, o.label]),
 ) as Record<MemoryType, string>;
 
+type MemoryDraft = MemoryFormValues & { tags: string[]; boundWorkspaceIds: string[] };
+
 // ── Add / edit dialog ─────────────────────────────────────────────────────────
 
-function showMemoryDialog(opts: {
+interface DialogOpts {
 	existing?: RuntimeMemory;
 	scope: MemoryScope;
-	onSubmit: (draft: MemoryFormValues) => Promise<void>;
-}) {
+	suggestions: string[];
+	projects: ProjectOption[];
+	currentWorkspaceId: string;
+	onSubmit: (draft: MemoryDraft) => Promise<void>;
+}
+
+function showMemoryDialog(opts: DialogOpts) {
 	Dialog.show({
 		className: "max-w-lg w-full",
 		content: ({ dismiss }) => <MemoryForm {...opts} dismiss={dismiss} />,
@@ -38,14 +47,12 @@ function showMemoryDialog(opts: {
 function MemoryForm({
 	existing,
 	scope,
+	suggestions,
+	projects,
+	currentWorkspaceId,
 	onSubmit,
 	dismiss,
-}: {
-	existing?: RuntimeMemory;
-	scope: MemoryScope;
-	onSubmit: (draft: MemoryFormValues) => Promise<void>;
-	dismiss: () => void;
-}) {
+}: DialogOpts & { dismiss: () => void }) {
 	const methods = useForm<MemoryFormValues>({
 		resolver: zodResolver(memoryFormSchema),
 		values: {
@@ -61,9 +68,22 @@ function MemoryForm({
 		formState: { isSubmitting },
 	} = methods;
 
+	const [tags, setTags] = useState<string[]>(existing?.tags ?? []);
+	const [bindings, setBindings] = useState<string[]>(existing?.boundWorkspaceIds ?? []);
+
 	const submit = handleSubmit(async (values) => {
+		if (values.scope === "global" && tags.length === 0) {
+			toast.error("Global memory needs at least one tag");
+			return;
+		}
 		try {
-			await onSubmit({ ...values, title: values.title.trim(), content: values.content.trim() });
+			await onSubmit({
+				...values,
+				title: values.title.trim(),
+				content: values.content.trim(),
+				tags,
+				boundWorkspaceIds: bindings,
+			});
 			dismiss();
 		} catch (err) {
 			toast.error((err as Error).message);
@@ -100,6 +120,27 @@ function MemoryForm({
 					<RHFTextarea name="content" placeholder="The durable fact / convention / lesson…" rows={6} />
 				</RHFInputGroup>
 
+				{scope === "global" && (
+					<>
+						<div className="flex flex-col gap-1.5">
+							<span className="text-[12px] font-medium text-[#c0c0d0]">Tags</span>
+							<TagInput value={tags} onChange={setTags} suggestions={suggestions} />
+							<span className="text-[11px] text-[#4a4a5a]">
+								Required. Projects subscribing to one of these tags will see this memory.
+							</span>
+						</div>
+						<div className="flex flex-col gap-1.5">
+							<span className="text-[12px] font-medium text-[#c0c0d0]">Also bind to specific projects (optional)</span>
+							<ProjectMultiSelect
+								value={bindings}
+								onChange={setBindings}
+								projects={projects}
+								currentWorkspaceId={currentWorkspaceId}
+							/>
+						</div>
+					</>
+				)}
+
 				<div className="flex justify-end gap-2">
 					<Button type="button" variant="ghost" onClick={dismiss}>
 						Cancel
@@ -120,12 +161,17 @@ function MemoryRow({
 	onEdit,
 	onDelete,
 	onApprove,
+	boundToCurrent,
+	onToggleBind,
 }: {
 	memory: RuntimeMemory;
 	onEdit: () => void;
 	onDelete: () => void;
 	onApprove?: () => void;
+	boundToCurrent?: boolean;
+	onToggleBind?: (bind: boolean) => void;
 }) {
+	const otherBoundCount = memory.boundWorkspaceIds.length - (boundToCurrent ? 1 : 0);
 	return (
 		<div className="flex flex-col gap-1.5 bg-[#0c0c0f] border border-[#2a2a35] rounded-lg px-4 py-3">
 			<div className="flex items-center gap-2">
@@ -137,6 +183,12 @@ function MemoryRow({
 				)}
 				<span className="text-[13px] font-semibold text-[#f0f0f5] truncate">{memory.title}</span>
 				<div className="flex-1" />
+				{onToggleBind && (
+					<label className="flex items-center gap-1.5 text-[11px] text-[#8888a0] hover:text-[#c0c0d0] cursor-pointer">
+						<Checkbox checked={boundToCurrent ?? false} onChange={(e) => onToggleBind(e.target.checked)} />
+						This project
+					</label>
+				)}
 				{onApprove && (
 					<button
 						onClick={onApprove}
@@ -154,6 +206,23 @@ function MemoryRow({
 				</button>
 			</div>
 			<p className="text-[12px] text-[#8888a0] whitespace-pre-wrap break-words line-clamp-3">{memory.content}</p>
+			{memory.tags.length > 0 && (
+				<div className="flex flex-wrap items-center gap-1">
+					{memory.tags.map((tag) => (
+						<span key={tag} className="text-[10px] text-[#c0c0d0] bg-[#2a2a35] rounded px-1.5 py-0.5">
+							{tag}
+						</span>
+					))}
+					{boundToCurrent && (
+						<span className="text-[10px] text-[#7c6aff] bg-[#7c6aff15] rounded px-1.5 py-0.5">this project</span>
+					)}
+					{otherBoundCount > 0 && (
+						<span className="text-[10px] text-[#60607a]">
+							+ {otherBoundCount} other project{otherBoundCount > 1 ? "s" : ""}
+						</span>
+					)}
+				</div>
+			)}
 			{memory.originAgent && (
 				<span className="text-[10px] text-[#4a4a5a] font-mono">
 					from {memory.originAgent.agent}
@@ -178,8 +247,17 @@ export function MemorySection({ workspaceId }: { workspaceId: string }) {
 	);
 	const memories: RuntimeMemory[] = data ?? [];
 
+	const { data: knownTags } = useRead((api) => api("memory/tags").GET());
+	const { data: workspaceTags } = useRead((api) => api("memory/workspace-tags").GET({ query: { workspaceId } }));
+	const { data: projectsData } = useRead((api) => api("projects").GET());
+
+	const suggestions = knownTags ?? [];
+	const projects: ProjectOption[] = projectsData ?? [];
+
 	const { trigger: createTrigger } = useWrite((api) => api("memory").POST());
 	const { trigger: updateTrigger } = useWrite((api) => api("memory/:id").PATCH());
+	const { trigger: tagsTrigger } = useWrite((api) => api("memory/:id/tags").PATCH());
+	const { trigger: bindingsTrigger } = useWrite((api) => api("memory/:id/bindings").PATCH());
 	const { trigger: approveTrigger } = useWrite((api) => api("memory/:id/approve").POST());
 	const { trigger: removeTrigger } = useWrite((api) => api("memory/:id").DELETE());
 
@@ -189,15 +267,21 @@ export function MemorySection({ workspaceId }: { workspaceId: string }) {
 	const handleAdd = () => {
 		showMemoryDialog({
 			scope,
+			suggestions,
+			projects,
+			currentWorkspaceId: workspaceId,
 			onSubmit: async (draft) => {
 				const res = await createTrigger({
 					body: {
 						scope,
 						workspaceId: scope === "project" ? workspaceId : undefined,
+						originWorkspaceId: workspaceId,
 						type: draft.type,
 						title: draft.title,
 						content: draft.content,
 						importance: draft.importance,
+						tags: scope === "global" ? draft.tags : undefined,
+						boundWorkspaceIds: scope === "global" ? draft.boundWorkspaceIds : undefined,
 					},
 				});
 				if (res.error) throw new Error(res.error.message);
@@ -211,6 +295,9 @@ export function MemorySection({ workspaceId }: { workspaceId: string }) {
 		showMemoryDialog({
 			existing: memory,
 			scope,
+			suggestions,
+			projects,
+			currentWorkspaceId: workspaceId,
 			onSubmit: async (draft) => {
 				const res = await updateTrigger({
 					params: { id: memory.id },
@@ -222,6 +309,10 @@ export function MemorySection({ workspaceId }: { workspaceId: string }) {
 					},
 				});
 				if (res.error) throw new Error(res.error.message);
+				if (scope === "global") {
+					await tagsTrigger({ params: { id: memory.id }, body: { tags: draft.tags } });
+					await bindingsTrigger({ params: { id: memory.id }, body: { workspaceIds: draft.boundWorkspaceIds } });
+				}
 				toast("Memory updated");
 				await load();
 			},
@@ -246,6 +337,19 @@ export function MemorySection({ workspaceId }: { workspaceId: string }) {
 	const handleApprove = async (memory: RuntimeMemory) => {
 		await approveTrigger({ params: { id: memory.id } });
 		toast("Approved");
+		await load();
+	};
+
+	const handleToggleBind = async (memory: RuntimeMemory, bind: boolean) => {
+		const next = bind
+			? [...new Set([...memory.boundWorkspaceIds, workspaceId])]
+			: memory.boundWorkspaceIds.filter((id) => id !== workspaceId);
+		const res = await bindingsTrigger({ params: { id: memory.id }, body: { workspaceIds: next } });
+		if (res.error) {
+			toast.error(res.error.message);
+			return;
+		}
+		toast(bind ? "Bound to this project" : "Unbound from this project");
 		await load();
 	};
 
@@ -274,6 +378,16 @@ export function MemorySection({ workspaceId }: { workspaceId: string }) {
 					</span>
 				</Button>
 			</div>
+
+			{/* Project tag subscriptions (global tab only) */}
+			{scope === "global" && (
+				<ProjectTagsBar
+					key={`${workspaceId}:${(workspaceTags ?? []).join(",")}`}
+					workspaceId={workspaceId}
+					initialTags={workspaceTags ?? []}
+					suggestions={suggestions}
+				/>
+			)}
 
 			{/* Pending inbox */}
 			{pending.length > 0 && (
@@ -307,7 +421,14 @@ export function MemorySection({ workspaceId }: { workspaceId: string }) {
 					</div>
 				) : (
 					approved.map((m) => (
-						<MemoryRow key={m.id} memory={m} onEdit={() => handleEdit(m)} onDelete={() => handleDelete(m)} />
+						<MemoryRow
+							key={m.id}
+							memory={m}
+							onEdit={() => handleEdit(m)}
+							onDelete={() => handleDelete(m)}
+							boundToCurrent={scope === "global" ? m.boundWorkspaceIds.includes(workspaceId) : undefined}
+							onToggleBind={scope === "global" ? (bind) => handleToggleBind(m, bind) : undefined}
+						/>
 					))
 				)}
 			</div>
