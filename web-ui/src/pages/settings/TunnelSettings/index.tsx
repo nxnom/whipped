@@ -6,21 +6,20 @@ import { TunnelControl } from "./TunnelControl";
 import { TunnelSetup } from "./TunnelSetup";
 
 export function TunnelSettings() {
-	const { data: config, trigger: refetchConfig } = useRead((api) => api("config").GET());
-	const { data: tunnelConfig, trigger: refetchTunnelConfig } = useRead((api) => api("slack/tunnelConfig").GET());
+	const { data: config } = useRead((api) => api("config").GET());
+	const { data: tunnelConfig } = useRead((api) => api("slack/tunnelConfig").GET());
 
 	const saveConfig = useWrite((api) => api("config").PUT());
 
 	const isConfigured = !!(tunnelConfig?.tunnelId && tunnelConfig?.domain);
 
+	// saveConfig is a `config` write, so Spoosh auto-invalidates the `config` read.
 	const toggle = async () => {
 		if (!config) return;
 		const res = await saveConfig.trigger({ body: { ...config, autoStartTunnel: !config.autoStartTunnel } });
 		if (res.error) {
 			toast.error("Failed to save");
-			return;
 		}
-		await refetchConfig();
 	};
 
 	if (!config) {
@@ -88,13 +87,7 @@ export function TunnelSettings() {
 					</div>
 
 					{/* Setup wizard */}
-					<TunnelSetup
-						config={config}
-						tunnelConfig={tunnelConfig}
-						isConfigured={isConfigured}
-						refetchConfig={refetchConfig}
-						refetchTunnelConfig={refetchTunnelConfig}
-					/>
+					<TunnelSetup config={config} tunnelConfig={tunnelConfig} isConfigured={isConfigured} />
 				</div>
 			</div>
 		</div>

@@ -18,7 +18,7 @@ export function SlackSettings() {
 	const [showAdvanced, setShowAdvanced] = useState(false);
 	const [showSetup, setShowSetup] = useState(false);
 	const [createError, setCreateError] = useState<string | null>(null);
-	const [waitingForInstall, setWaitingForInstall] = useState(false);
+	const [pendingInstall, setPendingInstall] = useState(false);
 
 	const { data: config, trigger: refetchConfig } = useRead((api) => api("config").GET());
 	const { data: tunnel } = useRead((api) => api("slack/tunnelConfig").GET());
@@ -39,6 +39,10 @@ export function SlackSettings() {
 		} satisfies CreateAppInput,
 	});
 
+	// The user launched the OAuth flow and the bot token hasn't landed yet. Derived
+	// so it flips back to false on its own once the polled config carries the token.
+	const waitingForInstall = pendingInstall && !config?.slackBotToken;
+
 	// While waiting for the OAuth install to complete, poll config every 2s so the
 	// captured bot token shows up automatically (preserves the original interval).
 	useEffect(() => {
@@ -51,13 +55,14 @@ export function SlackSettings() {
 		// changes each render; the captured trigger polls the same endpoint fine.
 	}, [waitingForInstall]);
 
-	// Once the polled config carries a bot token, stop waiting and notify.
+	// Clear the intent flag and notify once the polled config carries a bot token
+	// (the toast is a real side-effect, so it stays in an effect).
 	useEffect(() => {
-		if (waitingForInstall && config?.slackBotToken) {
-			setWaitingForInstall(false);
+		if (pendingInstall && config?.slackBotToken) {
+			setPendingInstall(false);
 			toast.success("Workspace installation complete");
 		}
-	}, [waitingForInstall, config?.slackBotToken]);
+	}, [pendingInstall, config?.slackBotToken]);
 
 	const handleCreateApp = methods.handleSubmit(async (values) => {
 		setCreateError(null);
@@ -67,6 +72,9 @@ export function SlackSettings() {
 				publicUrl: values.publicUrl.trim(),
 				botName: values.botName.trim() || "Whipped",
 			},
+			// Slack app writes live under slack/* but mutate the global config, so
+			// invalidate both segments to refresh the config read.
+			invalidate: ["config", "config/*", "slack", "slack/*"],
 		});
 		if (res.error) {
 			const msg = res.error.message ?? "Failed to create app";
@@ -74,17 +82,15 @@ export function SlackSettings() {
 			toast.error(msg);
 			return;
 		}
-		await refetchConfig();
 		toast.success("Slack app created — now install it to your workspace");
 	});
 
 	const handleReset = async () => {
-		const res = await resetApp.trigger({});
+		const res = await resetApp.trigger({ invalidate: ["config", "config/*", "slack", "slack/*"] });
 		if (res.error) {
 			toast.error("Failed to reset");
 			return;
 		}
-		await refetchConfig();
 		methods.reset({ appConfigToken: "", botName: "", publicUrl: tunnel?.domain ? `https://${tunnel.domain}` : "" });
 		setShowSetup(true);
 		toast.success("Slack configuration cleared");
@@ -93,7 +99,7 @@ export function SlackSettings() {
 	const handleInstall = () => {
 		if (!config?.slackOauthAuthorizeUrl) return;
 		window.open(config.slackOauthAuthorizeUrl, "_blank");
-		setWaitingForInstall(true);
+		setPendingInstall(true);
 	};
 
 	const handleSaveToken = async (botToken: string) => {
@@ -103,7 +109,6 @@ export function SlackSettings() {
 			toast.error("Failed to save");
 			return;
 		}
-		await refetchConfig();
 		toast.success("Saved");
 	};
 
@@ -114,7 +119,6 @@ export function SlackSettings() {
 			toast.error("Failed to save");
 			return;
 		}
-		await refetchConfig();
 	};
 
 	if (!config) {

@@ -7,14 +7,12 @@ import { useRead, useWrite } from "@/runtime/api-client";
 
 type UseTunnelSetupArgs = {
 	domain: string;
-	refetchConfig: () => Promise<unknown>;
-	refetchTunnelConfig: () => Promise<unknown>;
 };
 
-export function useTunnelSetup({ domain, refetchConfig, refetchTunnelConfig }: UseTunnelSetupArgs) {
+export function useTunnelSetup({ domain }: UseTunnelSetupArgs) {
 	const [showSetup, setShowSetup] = useState(false);
 	const [loginUrl, setLoginUrl] = useState<string | null>(null);
-	const [waitingForAuth, setWaitingForAuth] = useState(false);
+	const [pendingAuth, setPendingAuth] = useState(false);
 
 	// cloudflared install/auth status. Fetched on demand (Check installation /
 	// login flow), so the read is lazy + manually triggered.
@@ -33,6 +31,10 @@ export function useTunnelSetup({ domain, refetchConfig, refetchTunnelConfig }: U
 		values: { domain } satisfies CreateTunnelInput,
 	});
 
+	// The user started the browser login and cloudflared hasn't reported authed
+	// yet. Derived so it flips back to false on its own once auth completes.
+	const waitingForAuth = pendingAuth && !cloudflaredStatus?.authed;
+
 	// While waiting for browser auth, poll cloudflared status every 2s until it
 	// reports authenticated (preserves the original interval behavior).
 	useEffect(() => {
@@ -43,14 +45,15 @@ export function useTunnelSetup({ domain, refetchConfig, refetchTunnelConfig }: U
 		return () => clearInterval(id);
 	}, [waitingForAuth, checkCloudflared]);
 
-	// Stop polling for auth once cloudflared reports authenticated.
+	// Clear the intent flag + login URL and notify once authenticated (the toast
+	// is a real side-effect, so it stays in an effect).
 	useEffect(() => {
-		if (waitingForAuth && cloudflaredStatus?.authed) {
-			setWaitingForAuth(false);
+		if (pendingAuth && cloudflaredStatus?.authed) {
+			setPendingAuth(false);
 			setLoginUrl(null);
 			toast.success("Authenticated with Cloudflare");
 		}
-	}, [waitingForAuth, cloudflaredStatus?.authed]);
+	}, [pendingAuth, cloudflaredStatus?.authed]);
 
 	const handleLogin = async (force = false) => {
 		setLoginUrl(null);
@@ -65,29 +68,32 @@ export function useTunnelSetup({ domain, refetchConfig, refetchTunnelConfig }: U
 			checkCloudflared();
 		} else if (result.loginUrl) {
 			setLoginUrl(result.loginUrl);
-			setWaitingForAuth(true);
+			setPendingAuth(true);
 		} else {
 			toast.error("Could not get login URL — run 'cloudflared tunnel login' in your terminal");
 		}
 	};
 
 	const handleCreateTunnel = methods.handleSubmit(async (values) => {
-		const res = await createTunnel.trigger({ body: { domain: values.domain.trim() } });
+		// Tunnel writes live under slack/* but mutate the global config, so invalidate
+		// both segments to refresh the config + tunnelConfig reads.
+		const res = await createTunnel.trigger({
+			body: { domain: values.domain.trim() },
+			invalidate: ["config", "config/*", "slack", "slack/*"],
+		});
 		if (res.error) {
 			toast.error(res.error.message ?? "Failed to create tunnel");
 			return;
 		}
-		await refetchTunnelConfig();
 		toast.success("Tunnel created and config file written");
 	});
 
 	const handleReset = async () => {
-		const res = await resetTunnel.trigger({});
+		const res = await resetTunnel.trigger({ invalidate: ["config", "config/*", "slack", "slack/*"] });
 		if (res.error) {
 			toast.error("Failed to reset");
 			return;
 		}
-		await Promise.all([refetchConfig(), refetchTunnelConfig()]);
 		methods.reset({ domain: "" });
 		setShowSetup(false);
 		toast.success("Tunnel config cleared");

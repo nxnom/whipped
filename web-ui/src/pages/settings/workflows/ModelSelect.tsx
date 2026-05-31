@@ -1,6 +1,6 @@
 import { Input, Select, SelectOption } from "@geckoui/geckoui";
 import { MODEL_OPTIONS, type RuntimeAgentId } from "@runtime-contract";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { classNames } from "@/utils/classNames";
 import { useRead } from "@/runtime/api-client";
 
@@ -14,38 +14,26 @@ export function ModelSelect({
 	onChange: (v: string) => void;
 }) {
 	const staticOptions = MODEL_OPTIONS[agentId];
+	const isDynamic = agentId === "opencode" || agentId === "cursor";
 
-	const [dynamicModels, setDynamicModels] = useState<{ value: string; label: string }[]>([]);
-	const [isFetching, setIsFetching] = useState(false);
+	// opencode/cursor expose their model list at runtime. The read is enabled per
+	// agent, so Spoosh fetches (and caches) it on mount and whenever agentId
+	// changes — no effect, and `data`/`fetching` drive the UI directly.
+	const modelsRead = useRead(
+		(api) => api("agents/models").GET({ query: { agent: agentId === "cursor" ? "cursor" : "opencode" } }),
+		{ enabled: isDynamic },
+	);
+	const dynamicModels = modelsRead.data ?? [];
+	const isFetching = modelsRead.fetching;
 
-	const { trigger: fetchOpencodeModels } = useRead((api) => api("agents/opencode-models").GET(), { enabled: false });
-	const { trigger: fetchCursorModels } = useRead((api) => api("agents/cursor-models").GET(), { enabled: false });
+	const options = isDynamic ? dynamicModels : staticOptions;
 
-	const fetchDynamicModels = () => {
-		setIsFetching(true);
-		if (agentId === "opencode") {
-			fetchOpencodeModels()
-				.then((res) => {
-					if (res.data) setDynamicModels(res.data.map((m) => ({ value: m, label: m })));
-				})
-				.finally(() => setIsFetching(false));
-		} else if (agentId === "cursor") {
-			fetchCursorModels()
-				.then((res) => {
-					if (res.data) setDynamicModels(res.data);
-				})
-				.finally(() => setIsFetching(false));
-		}
-	};
-
-	useEffect(() => {
-		if (agentId === "opencode" || agentId === "cursor") fetchDynamicModels();
-	}, [agentId]);
-
-	const options = agentId === "opencode" || agentId === "cursor" ? dynamicModels : staticOptions;
-
+	// Custom mode is on when the user explicitly picked "Custom…" or the current
+	// value isn't one of the presets (e.g. a previously-saved custom model). Derived
+	// so it stays correct when options load asynchronously or `value` changes.
+	const [customChosen, setCustomChosen] = useState(false);
 	const isPresetValue = value === "" || options.some((o) => o.value === value);
-	const [customMode, setCustomMode] = useState(!isPresetValue);
+	const customMode = customChosen || !isPresetValue;
 
 	return (
 		<div className="space-y-2">
@@ -55,9 +43,9 @@ export function ModelSelect({
 						value={customMode ? "__custom__" : value}
 						onChange={(v) => {
 							if (v === "__custom__") {
-								setCustomMode(true);
+								setCustomChosen(true);
 							} else {
-								setCustomMode(false);
+								setCustomChosen(false);
 								onChange(v);
 							}
 						}}
@@ -70,10 +58,10 @@ export function ModelSelect({
 						<SelectOption value="__custom__" label="Custom..." />
 					</Select>
 				</div>
-				{(agentId === "opencode" || agentId === "cursor") && (
+				{isDynamic && (
 					<button
 						type="button"
-						onClick={fetchDynamicModels}
+						onClick={() => void modelsRead.trigger()}
 						disabled={isFetching}
 						title="Refresh model list"
 						className="flex items-center justify-center px-2 rounded border border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] disabled:opacity-50 transition-colors"

@@ -13,17 +13,15 @@ export interface ApiErrorResponse {
 	details?: unknown;
 }
 
-// Server types inferred straight from the Hono app. StripPrefix drops the "api"
-// segment so api("config") resolves to /api/config (not /api/api/config).
 export type ApiSchema = StripPrefix<HonoToSpoosh<ApiApp>, "api">;
 
 const spoosh = new Spoosh<ApiSchema, ApiErrorResponse>("/api").use([
-	cachePlugin(),
+	cachePlugin({
+		staleTime: 5 * 60 * 1000,
+	}),
 	deduplicationPlugin(),
 	invalidationPlugin(),
 	optimisticPlugin(),
 ]);
 
-// `optimistic` is the standalone cache writer used to push WebSocket state
-// straight into the cache (no mutation); `invalidate` for manual invalidation.
 export const { useRead, useWrite, usePages, useQueue, optimistic, invalidate } = create(spoosh);

@@ -10,17 +10,9 @@ type TunnelSetupProps = {
 	config: GlobalConfigData;
 	tunnelConfig: TunnelConfigData | undefined;
 	isConfigured: boolean;
-	refetchConfig: () => Promise<unknown>;
-	refetchTunnelConfig: () => Promise<unknown>;
 };
 
-export function TunnelSetup({
-	config,
-	tunnelConfig,
-	isConfigured,
-	refetchConfig,
-	refetchTunnelConfig,
-}: TunnelSetupProps) {
+export function TunnelSetup({ config, tunnelConfig, isConfigured }: TunnelSetupProps) {
 	const {
 		methods,
 		showSetup,
@@ -36,11 +28,7 @@ export function TunnelSetup({
 		handleLogin,
 		handleCreateTunnel,
 		handleReset,
-	} = useTunnelSetup({
-		domain: tunnelConfig?.domain ?? "",
-		refetchConfig,
-		refetchTunnelConfig,
-	});
+	} = useTunnelSetup({ domain: tunnelConfig?.domain ?? "" });
 
 	const step1Done = cloudflaredStatus?.installed === true;
 	const step2Done = cloudflaredStatus?.authed === true;

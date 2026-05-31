@@ -19,15 +19,10 @@ export function TunnelControl() {
 		return () => clearInterval(id);
 	}, [refreshStatus]);
 
-	// startTunnel/stopTunnel return the new status; refetch to pick it up.
-	const handleStart = async () => {
-		const res = await startTunnel.trigger({});
-		if (res.data) await refreshStatus();
-	};
-	const handleStop = async () => {
-		const res = await stopTunnel.trigger({});
-		if (res.data) await refreshStatus();
-	};
+	// startTunnel/stopTunnel are slack/* writes, so Spoosh auto-invalidates the
+	// slack/tunnelStatus read; the 3s poll then tracks the starting→running step.
+	const handleStart = () => void startTunnel.trigger({});
+	const handleStop = () => void stopTunnel.trigger({});
 
 	const status = (state?.status ?? "stopped") as TunnelStatus;
 	const style = STATUS_STYLES[status];

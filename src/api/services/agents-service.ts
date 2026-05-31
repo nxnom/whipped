@@ -2,6 +2,7 @@ import { getAvailableAgents, getCursorModels, getOpencodeModels } from "../../ag
 
 export const listAvailableAgents = async () => getAvailableAgents();
 
-export const listOpencodeModels = async () => getOpencodeModels();
-
-export const listCursorModels = async () => getCursorModels();
+// Both runtime agents return a {value,label} list; opencode emits bare model
+// strings, so normalise those to the same shape.
+export const listModels = async (agent: "opencode" | "cursor") =>
+	agent === "opencode" ? getOpencodeModels().map((m) => ({ value: m, label: m })) : getCursorModels();

@@ -209,7 +209,7 @@ export function WorkflowEditorDialog({
 									<span className="text-[10px] font-medium text-[#eab308]">Default</span>
 								</div>
 							)}
-							<div className="shrink-0 bg-[#3b82f615] rounded-[4px] px-2 py-[2px]">
+							<div className="flex shrink-0 bg-[#3b82f615] rounded-[4px] px-2 py-[2px]">
 								<span className="text-[10px] font-medium text-[#3b82f6]">{forStory ? "Story" : "Task"}</span>
 							</div>
 							<button onClick={onClose} className="hover:opacity-70 transition-opacity shrink-0">
