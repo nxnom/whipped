@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { MACHINE_TOKEN_ENV, MACHINE_TOKEN_HEADER } from "../auth/machine-token.js";
 import type { EffortLevel } from "../core/api-contract.js";
 import { HOOK_TASK_ID_ENV, HOOK_WORKSPACE_ID_ENV } from "./agent-hooks.js";
 
@@ -24,7 +25,7 @@ function buildHookCurlCommand(event: string, serverPort: number): string {
 	// emit the server's "ok" response, codex logs "invalid stop hook JSON output"
 	// and treats the hook as failed. Discard the curl output and always print {}.
 	const url = `http://127.0.0.1:${serverPort}/api/hook?event=${event}&taskId=$${HOOK_TASK_ID_ENV}&workspaceId=$${HOOK_WORKSPACE_ID_ENV}`;
-	return `curl -sg "${url}" >/dev/null 2>&1; echo '{}'`;
+	return `curl -sg -H "${MACHINE_TOKEN_HEADER}: $${MACHINE_TOKEN_ENV}" "${url}" >/dev/null 2>&1; echo '{}'`;
 }
 
 function buildCodexHookConfigValue(command: string): string {

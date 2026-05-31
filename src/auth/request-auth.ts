@@ -1,5 +1,6 @@
 import type { IncomingMessage } from "node:http";
 import { getSessionSecret } from "./auth-store.js";
+import { requestHasMachineToken } from "./machine-token.js";
 import { SESSION_COOKIE_NAME, verifySession } from "./session.js";
 
 // Header the raw HTTP layer injects (after stripping any client-supplied value)
@@ -18,6 +19,9 @@ export function parseCookieHeader(header: string | undefined, name: string): str
 }
 
 export async function isRequestAuthenticated(req: IncomingMessage): Promise<boolean> {
+	// Machinery (MCP/hooks) presents the token header — checked first, constant-time
+	// and DB-free. Browsers present the signed session cookie.
+	if (requestHasMachineToken(req)) return true;
 	const secret = await getSessionSecret();
 	if (!secret) return false;
 	const token = parseCookieHeader(req.headers.cookie, SESSION_COOKIE_NAME);

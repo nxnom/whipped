@@ -71,6 +71,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     fetchCards(msg.serverUrl, msg.workspaceId).then(sendResponse).catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }
+  if (msg.type === "LOGIN") {
+    login(msg.serverUrl, msg.password).then(sendResponse).catch((err) => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
   if (msg.type === "OPEN_PANEL") {
     // Called from settings page after initial setup
     chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
@@ -82,32 +86,48 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 });
 
-// ── API calls (cross-origin from background, no CORS issues) ────────────────
+// ── API calls ───────────────────────────────────────────────────────────────
+// host_permissions makes these CORS-exempt; credentials:"include" sends the
+// session cookie set by login() so the daemon's auth gate lets us through.
+
+// Surfaces the daemon's 401 as a clear "needs login" signal for the settings UI.
+async function apiFetch(url, init) {
+  const res = await fetch(url, { ...init, credentials: "include" });
+  if (res.status === 401) throw new Error("Not authenticated — sign in with your Whipped password.");
+  if (!res.ok) throw new Error(`Server returned ${res.status}`);
+  return res;
+}
+
+async function login(serverUrl, password) {
+  const res = await fetch(`${serverUrl}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ password }),
+  });
+  if (!res.ok) throw new Error(res.status === 401 ? "Incorrect password" : `Server returned ${res.status}`);
+  return { ok: true };
+}
 
 async function postComment({ serverUrl, workspaceId, cardId, summary, visualComment }) {
-  const res = await fetch(`${serverUrl}/api/visual-comment`, {
+  await apiFetch(`${serverUrl}/api/visual-comment`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ workspaceId, cardId, summary, visualComment }),
   });
-  if (!res.ok) throw new Error(`Server returned ${res.status}`);
   return { ok: true };
 }
 
 async function fetchWorkspaces(serverUrl) {
-  const res = await fetch(`${serverUrl}/api/trpc/projects.list?batch=1&input=%7B%7D`);
-  if (!res.ok) throw new Error(`Server returned ${res.status}`);
-  const json = await res.json();
-  const workspaces = json?.[0]?.result?.data ?? [];
+  const res = await apiFetch(`${serverUrl}/api/projects`);
+  const workspaces = await res.json();
   return { ok: true, workspaces };
 }
 
 async function fetchCards(serverUrl, workspaceId) {
-  const input = encodeURIComponent(JSON.stringify({ "0": { workspaceId } }));
-  const res = await fetch(`${serverUrl}/api/trpc/workspace.state?batch=1&input=${input}`);
-  if (!res.ok) throw new Error(`Server returned ${res.status}`);
+  const res = await apiFetch(`${serverUrl}/api/workspace/state?workspaceId=${encodeURIComponent(workspaceId)}`);
   const json = await res.json();
-  const board = json?.[0]?.result?.data?.board ?? { cards: {}, columns: [] };
+  const board = json?.board ?? { cards: {}, columns: [] };
   const activeColIds = ["todo", "in_progress", "reopened", "ready_for_review", "blocked"];
   const activeIds = new Set(
     board.columns

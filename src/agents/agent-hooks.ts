@@ -1,5 +1,6 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { getMachineToken, MACHINE_TOKEN_ENV, MACHINE_TOKEN_HEADER } from "../auth/machine-token.js";
 import { WHIPPED_HOME_DIR } from "../config/paths.js";
 
 const HOOKS_DIR = join(WHIPPED_HOME_DIR, "hooks");
@@ -32,11 +33,12 @@ export async function writeClaudeTaskHookSettings(serverPort: number): Promise<v
 	const url = (event: string) =>
 		`http://127.0.0.1:${serverPort}/api/hook?event=${event}&taskId=$${HOOK_TASK_ID_ENV}&workspaceId=$${HOOK_WORKSPACE_ID_ENV}`;
 
+	const auth = `-H "${MACHINE_TOKEN_HEADER}: $${MACHINE_TOKEN_ENV}"`;
 	const settings = {
 		skipDangerousModePermissionPrompt: true,
 		hooks: {
-			Stop: [{ hooks: [{ type: "command", command: `curl -sg "${url("stop")}"` }] }],
-			UserPromptSubmit: [{ hooks: [{ type: "command", command: `curl -sg "${url("user_prompt")}"` }] }],
+			Stop: [{ hooks: [{ type: "command", command: `curl -sg ${auth} "${url("stop")}"` }] }],
+			UserPromptSubmit: [{ hooks: [{ type: "command", command: `curl -sg ${auth} "${url("user_prompt")}"` }] }],
 		},
 	};
 
@@ -111,6 +113,7 @@ export function buildTaskHookEnv(taskId: string, workspaceId: string): Record<st
 	return {
 		[HOOK_TASK_ID_ENV]: taskId,
 		[HOOK_WORKSPACE_ID_ENV]: workspaceId,
+		[MACHINE_TOKEN_ENV]: getMachineToken() ?? "",
 	};
 }
 
@@ -159,8 +162,9 @@ export const WhippedPlugin: Plugin = async () => {
           const taskId = process.env.${HOOK_TASK_ID_ENV}
           const workspaceId = process.env.${HOOK_WORKSPACE_ID_ENV}
           if (taskId && workspaceId) {
-            await fetch(\`http://127.0.0.1:\${port}/api/hook?event=stop&taskId=\${encodeURIComponent(taskId)}&workspaceId=\${encodeURIComponent(workspaceId)}\`)
-              .catch(() => {})
+            await fetch(\`http://127.0.0.1:\${port}/api/hook?event=stop&taskId=\${encodeURIComponent(taskId)}&workspaceId=\${encodeURIComponent(workspaceId)}\`, {
+              headers: { "${MACHINE_TOKEN_HEADER}": process.env.${MACHINE_TOKEN_ENV} ?? "" }
+            }).catch(() => {})
           }
           return "Task marked as complete."
         }
@@ -215,7 +219,7 @@ export async function writeCursorConfigFiles(
 	const hookUrl = `http://127.0.0.1:${serverPort}/api/hook?event=stop&taskId=$${HOOK_TASK_ID_ENV}&workspaceId=$${HOOK_WORKSPACE_ID_ENV}`;
 	const settings = {
 		hooks: {
-			stop: [{ command: `curl -sg "${hookUrl}"` }],
+			stop: [{ command: `curl -sg -H "${MACHINE_TOKEN_HEADER}: $${MACHINE_TOKEN_ENV}" "${hookUrl}"` }],
 		},
 	};
 

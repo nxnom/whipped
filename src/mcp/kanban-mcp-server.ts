@@ -16,6 +16,10 @@ const serverUrl = process.argv[2] ?? process.env.WHIPPED_SERVER_URL ?? "http://1
 const workspaceId = process.argv[3] ?? process.env.WHIPPED_WORKSPACE_ID ?? "";
 const agentId = process.argv[4] ?? "claude";
 
+// Authenticates this machinery process against the daemon's auth gate.
+const apiToken = process.env.WHIPPED_API_TOKEN ?? "";
+const authHeaders: Record<string, string> = apiToken ? { "x-whipped-token": apiToken } : {};
+
 // Maps each logical procedure to its Hono REST route. The home agent runs as a
 // separate process and calls the server over HTTP; responses are unwrapped
 // (Hono returns the value directly, unlike tRPC's { result: { data } }).
@@ -47,7 +51,7 @@ async function apiMutate<T>(procedure: string, input: Record<string, unknown>): 
 	if (!route) throw new Error(`Unknown procedure: ${procedure}`);
 	const res = await fetch(`${serverUrl}/api/${route.path(input)}`, {
 		method: route.method,
-		headers: { "Content-Type": "application/json" },
+		headers: { "Content-Type": "application/json", ...authHeaders },
 		body: JSON.stringify(input),
 		signal: AbortSignal.timeout(15000),
 	});
@@ -65,6 +69,7 @@ async function apiQuery<T>(procedure: string, input: Record<string, unknown>): P
 	}
 	const query = qs.toString();
 	const res = await fetch(`${serverUrl}/api/${route.path(input)}${query ? `?${query}` : ""}`, {
+		headers: authHeaders,
 		signal: AbortSignal.timeout(15000),
 	});
 	if (!res.ok) throw new Error(`${procedure} failed: ${res.status} ${await res.text()}`);
@@ -855,6 +860,7 @@ server.registerTool(
 		if (taskId && wsId) {
 			await fetch(
 				`${serverUrl}/api/hook?event=stop&taskId=${encodeURIComponent(taskId)}&workspaceId=${encodeURIComponent(wsId)}`,
+				{ headers: authHeaders },
 			).catch(() => {});
 		}
 		return { content: [{ type: "text", text: "Task completion signaled. Your session will now end." }] };

@@ -32,6 +32,8 @@ import {
 	updateCard,
 } from "../state/workspace-state.js";
 import { createApiApp } from "../api/index.js";
+import { getOrCreateMachineToken } from "../auth/auth-store.js";
+import { requestHasMachineToken, setMachineToken } from "../auth/machine-token.js";
 import { isLocalRequest, isRequestAuthenticated, LOCAL_REQUEST_HEADER } from "../auth/request-auth.js";
 import type { AppContext, RunSession } from "../api/types/context.js";
 import { RuntimeStateHub } from "./runtime-state-hub.js";
@@ -98,6 +100,9 @@ export async function createRuntimeServer(options: ServerOptions) {
 
 	// Open SQLite DB and run pending migrations before anything else touches state.
 	openDb();
+
+	// Load the machine token into memory before any agent/hook can call back in.
+	setMachineToken(await getOrCreateMachineToken());
 
 	const _globalConfig = await loadGlobalConfig();
 	const initialCtx = await loadWorkspaceContext(repoPath);
@@ -515,9 +520,8 @@ export async function createRuntimeServer(options: ServerOptions) {
 		}
 
 		if (url.pathname === "/api/hook") {
-			// Hooks are fired by local agent subprocesses (curl/fetch to loopback).
-			// A tunnelled request carries forwarding headers and is rejected here.
-			if (!isLocalRequest(req)) {
+			// Hooks are fired by local agent subprocesses carrying the machine token.
+			if (!requestHasMachineToken(req)) {
 				res.writeHead(403, { "Content-Type": "text/plain" });
 				res.end("Forbidden");
 				return;
@@ -537,16 +541,15 @@ export async function createRuntimeServer(options: ServerOptions) {
 		}
 
 		// ── Auth gate ───────────────────────────────────────────────────────────
-		// Local requests (trusted machine) pass; remote/tunnelled requests need a
-		// valid session cookie. Exempt: the auth endpoints themselves, the health
-		// probe, and CORS preflight. Slack webhooks, the OAuth callback, and
-		// /api/hook are verified above and have already returned.
+		// Every /api request needs a valid session cookie (browsers) or the machine
+		// token (local agent machinery) — no loopback bypass. Exempt: the auth
+		// endpoints, the health probe, and CORS preflight. Slack webhooks, the OAuth
+		// callback, and /api/hook are verified above and have already returned.
 		if (
 			url.pathname.startsWith("/api/") &&
 			url.pathname !== "/api/health" &&
 			!url.pathname.startsWith("/api/auth/") &&
 			req.method !== "OPTIONS" &&
-			!isLocalRequest(req) &&
 			!(await isRequestAuthenticated(req))
 		) {
 			res.writeHead(401, { "Content-Type": "application/json" });
@@ -555,17 +558,11 @@ export async function createRuntimeServer(options: ServerOptions) {
 		}
 
 		// ── Visual comment endpoint (used by browser extension) ────────────────
-		// OPTIONS /api/visual-comment — CORS preflight
-		// POST    /api/visual-comment — { workspaceId, cardId, summary, visualComment }
+		// POST /api/visual-comment — { workspaceId, cardId, summary, visualComment }
+		// No CORS headers: the extension reaches this from its background worker via
+		// host_permissions (CORS-exempt), and a wildcard ACAO here would let any web
+		// page post comments. The auth gate above already required a cookie/token.
 		if (url.pathname === "/api/visual-comment") {
-			res.setHeader("Access-Control-Allow-Origin", "*");
-			res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-			res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-			if (req.method === "OPTIONS") {
-				res.writeHead(204);
-				res.end();
-				return;
-			}
 			if (req.method === "POST") {
 				try {
 					const body = await readBody(req);

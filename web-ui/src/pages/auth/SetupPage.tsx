@@ -4,7 +4,7 @@ import { type SetupForm, setupFormSchema } from "@runtime-validation/auth";
 import { useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { useWrite } from "@/runtime/api-client";
-import { AuthLayout, authInputClassName } from "./AuthLayout";
+import { AuthLayout } from "./AuthLayout";
 
 export function SetupPage() {
 	const { trigger, loading } = useWrite((api) => api("auth/setup").POST());
@@ -31,21 +31,11 @@ export function SetupPage() {
 				<form onSubmit={onSubmit} className="flex flex-col gap-4">
 					{formError && <Alert variant="error" title={formError} condensed />}
 					<div className="flex flex-col gap-1.5">
-						<RHFInput
-							name="password"
-							type="password"
-							placeholder="New password"
-							className="w-full"
-						/>
+						<RHFInput name="password" type="password" placeholder="New password" className="w-full" />
 						<RHFError name="password" />
 					</div>
 					<div className="flex flex-col gap-1.5">
-						<RHFInput
-							name="confirmPassword"
-							type="password"
-							placeholder="Confirm password"
-							className="w-full"
-						/>
+						<RHFInput name="confirmPassword" type="password" placeholder="Confirm password" className="w-full" />
 						<RHFError name="confirmPassword" />
 					</div>
 					<LoadingButton type="submit" className="w-full" loading={loading} loadingText="Saving...">

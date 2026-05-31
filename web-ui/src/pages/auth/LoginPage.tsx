@@ -26,13 +26,7 @@ export function LoginPage() {
 			<FormProvider {...methods}>
 				<form onSubmit={onSubmit} className="flex flex-col gap-4">
 					<div className="flex flex-col gap-1.5">
-						<RHFInput
-							name="password"
-							type="password"
-							placeholder="Password"
-							className="w-full"
-							autoFocus
-						/>
+						<RHFInput name="password" type="password" placeholder="Password" className="w-full" autoFocus />
 						<RHFError name="password" />
 					</div>
 					<LoadingButton type="submit" className="w-full" loading={loading} loadingText="Signing in...">

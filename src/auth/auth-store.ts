@@ -28,3 +28,13 @@ export async function getOrCreateSessionSecret(): Promise<string> {
 	await updateGlobalConfig({ authSessionSecret: secret });
 	return secret;
 }
+
+// Created once at startup; the daemon injects it into agent subprocesses so the
+// MCP server and hooks authenticate as the local machine.
+export async function getOrCreateMachineToken(): Promise<string> {
+	const cfg = await loadGlobalConfig();
+	if (cfg.authMachineToken) return cfg.authMachineToken;
+	const token = randomBytes(32).toString("hex");
+	await updateGlobalConfig({ authMachineToken: token });
+	return token;
+}
