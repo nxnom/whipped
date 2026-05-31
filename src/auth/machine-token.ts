@@ -15,6 +15,10 @@ let cached: string | null = null;
 
 export function setMachineToken(token: string): void {
 	cached = token;
+	// Also expose it on the daemon's own env so spawnAgent (which spreads
+	// process.env) carries it to every agent — hook curl commands read it as
+	// $WHIPPED_API_TOKEN.
+	process.env[MACHINE_TOKEN_ENV] = token;
 }
 
 export function getMachineToken(): string | null {

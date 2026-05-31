@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { MACHINE_TOKEN_ENV, MACHINE_TOKEN_HEADER } from "../auth/machine-token.js";
+import { getMachineToken, MACHINE_TOKEN_ENV, MACHINE_TOKEN_HEADER } from "../auth/machine-token.js";
 import type { EffortLevel } from "../core/api-contract.js";
 import { HOOK_TASK_ID_ENV, HOOK_WORKSPACE_ID_ENV } from "./agent-hooks.js";
 
@@ -90,7 +90,16 @@ export function buildCodexHookOverrides(serverPort: number): string[] {
 export function buildCodexMcpOverrides(mcp: { command: string; args: string[] }): string[] {
 	const cmd = JSON.stringify(mcp.command);
 	const argsToml = `[${mcp.args.map((a) => JSON.stringify(a)).join(",")}]`;
-	return ["-c", `mcp_servers.whipped.command=${cmd}`, "-c", `mcp_servers.whipped.args=${argsToml}`];
+	const token = JSON.stringify(getMachineToken() ?? "");
+	return [
+		"-c",
+		`mcp_servers.whipped.command=${cmd}`,
+		"-c",
+		`mcp_servers.whipped.args=${argsToml}`,
+		// Auth token for the daemon's gate — MCP child doesn't inherit it otherwise.
+		"-c",
+		`mcp_servers.whipped.env.${MACHINE_TOKEN_ENV}=${token}`,
+	];
 }
 
 export function buildCodexDeveloperInstructions(text: string): string[] {

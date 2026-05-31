@@ -68,7 +68,12 @@ function buildMcpConfig(
 ): object {
 	return {
 		mcpServers: {
-			whipped: buildWhippedMcpServerSpec(mcp, serverUrl, workspaceId, agentId),
+			whipped: {
+				...buildWhippedMcpServerSpec(mcp, serverUrl, workspaceId, agentId),
+				// MCP runs as a child of the agent; agents don't forward inherited env,
+				// so the auth token must be set explicitly on the server config.
+				env: { [MACHINE_TOKEN_ENV]: getMachineToken() ?? "" },
+			},
 		},
 	};
 }
@@ -179,6 +184,7 @@ export const WhippedPlugin: Plugin = async () => {
 			whipped: {
 				type: "local",
 				command: [mcpServer.command, ...mcpServer.args],
+				environment: { [MACHINE_TOKEN_ENV]: getMachineToken() ?? "" },
 			},
 		},
 	};
@@ -225,7 +231,7 @@ export async function writeCursorConfigFiles(
 
 	const mcpConfig = {
 		mcpServers: {
-			whipped: mcpServerSpec,
+			whipped: { ...mcpServerSpec, env: { [MACHINE_TOKEN_ENV]: getMachineToken() ?? "" } },
 		},
 	};
 
