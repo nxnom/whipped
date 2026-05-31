@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Whipped Annotate",
+  "name": "Whipped",
   "version": "1.0.0",
   "description": "Annotate any page and send visual comments to your Whipped kanban board.",
   "permissions": ["storage", "activeTab", "scripting", "tabs"],
@@ -25,16 +25,12 @@
   ],
   "action": {
     "default_title": "Whipped Annotate",
-    "default_popup": "settings.html",
+    "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/16.png",
       "48": "icons/48.png",
       "128": "icons/128.png"
     }
-  },
-  "options_ui": {
-    "page": "settings.html",
-    "open_in_tab": false
   },
   "icons": {
     "16": "icons/16.png",

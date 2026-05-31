@@ -1,469 +1,144 @@
-// Content script — injected on every page.
-// Renders a small draggable FAB. Annotation mode starts automatically when
-// activated (extension icon or #whipped= hash). Project/card panel only
-// appears when the user clicks the ⚙ button on the FAB.
+// Content script — injected on demand by the Whipped popup (and by the kanban
+// "Save & Open" deep-link). It only does crosshair element selection + the
+// comment form. Connecting, login, and project/card selection live in the popup.
 
 (function () {
-  if (window.__whippedAnnotate) return;
+  if (window.__whippedAnnotate) {
+    // Already injected on this page — just re-activate with the latest context.
+    window.__whippedActivate?.();
+    return;
+  }
   window.__whippedAnnotate = true;
 
-  // ── State ─────────────────────────────────────────────────────────────────
   let serverUrl = null;
-  let projects = [];
-  let cards = [];
-  let selectedWsId = null;
-  let selectedCardId = null;
-  let selectedCardTitle = null;
-  let active = false;       // crosshair mode on/off
-  let fabVisible = false;
-  let panelOpen = false;
+  let workspaceId = null;
+  let cardId = null;
+  let cardTitle = null;
+  let active = false;
   let hl = null;
   let form = null;
+  let indicator = null;
+  let barMove = null;
 
   // ── Styles ────────────────────────────────────────────────────────────────
 
   const style = document.createElement("style");
   style.textContent = `
-    #__wa-fab {
-      position: fixed; bottom: 20px; right: 20px; z-index: 2147483647;
-      display: none; align-items: center; gap: 2px; padding: 4px;
-      background: rgba(20, 20, 30, 0.92); backdrop-filter: blur(10px);
-      border: 1px solid rgba(124, 106, 255, 0.25); border-radius: 22px;
-      box-shadow: 0 4px 20px rgba(0,0,0,.45);
-      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-      user-select: none; -webkit-user-select: none;
-    }
-    #__wa-fab.show { display: flex; }
-
-    #__wa-fab .grip {
-      width: 22px; height: 36px;
-      display: flex; align-items: center; justify-content: center;
-      color: #4a4a5a; cursor: grab; flex-shrink: 0;
-    }
-    #__wa-fab .grip:active { cursor: grabbing; }
-    #__wa-fab .grip:hover { color: #8888a0; }
-
-    #__wa-fab .btn {
-      width: 36px; height: 36px; border-radius: 18px; border: none;
-      cursor: pointer; display: flex; align-items: center; justify-content: center;
-      font-size: 15px; transition: background .15s, transform .1s;
-      font-family: inherit; padding: 0;
-    }
-    #__wa-fab .btn:active { transform: scale(0.95); }
-
-    #__wa-fab .annotate {
-      background: #7c6aff; color: white; font-weight: 600;
-      box-shadow: 0 0 12px rgba(124, 106, 255, 0.35);
-    }
-    #__wa-fab .annotate:hover { background: #6a57f0; }
-    #__wa-fab .annotate.on { background: #ef4444; box-shadow: 0 0 12px rgba(239, 68, 68, 0.35); }
-    #__wa-fab .annotate.on:hover { background: #dc2626; }
-
-    #__wa-fab .settings {
-      background: transparent; color: #8888a0; font-size: 14px;
-      width: 30px; height: 36px; border-radius: 6px;
-    }
-    #__wa-fab .settings:hover { color: #f0f0f5; background: rgba(255,255,255,0.05); }
-
-    #__wa-fab .card-chip {
-      display: none; padding: 0 10px; max-width: 160px;
-      font-size: 11px; color: #c4baff; white-space: nowrap;
-      overflow: hidden; text-overflow: ellipsis; line-height: 36px;
-    }
-    #__wa-fab.has-card .card-chip { display: block; }
-
-    #__wa-panel {
-      position: fixed; z-index: 2147483646; width: 280px;
-      background: #1a1a24; border: 1px solid #3a3a50; border-radius: 12px;
-      box-shadow: 0 8px 32px rgba(0,0,0,.5);
-      font-family: -apple-system, sans-serif; color: #f0f0f5;
-      display: none; flex-direction: column;
-    }
-    #__wa-panel.show { display: flex; }
-    #__wa-panel .header {
-      display: flex; align-items: center; gap: 8px;
-      padding: 12px 14px; border-bottom: 1px solid #2a2a38;
-    }
-    #__wa-panel .header .title { font-weight: 600; font-size: 13px; flex: 1; }
-    #__wa-panel .header .close {
-      background: transparent; border: none; color: #8888a0;
-      cursor: pointer; padding: 0 6px; font-size: 16px;
-      line-height: 1; font-family: inherit; border-radius: 4px;
-    }
-    #__wa-panel .header .close:hover { color: #f0f0f5; background: #2a2a38; }
-    #__wa-panel .body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
-    #__wa-panel label {
-      font-size: 10px; color: #8888a0; font-weight: 600;
-      letter-spacing: .4px; text-transform: uppercase;
-      display: block; margin-bottom: 4px;
-    }
-    #__wa-panel select {
-      width: 100%; box-sizing: border-box;
-      background: #0d0d12; border: 1px solid #2a2a38; color: #f0f0f5;
-      padding: 7px 10px; border-radius: 6px; font-size: 12px;
-      font-family: inherit; cursor: pointer; outline: none;
-      appearance: none; -webkit-appearance: none;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2360607a' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-      background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px;
-    }
-    #__wa-panel select:focus { border-color: #7c6aff; }
-    #__wa-panel select option { background: #0d0d12; color: #f0f0f5; }
-    #__wa-panel .status {
-      font-size: 11px; color: #8888a0; padding: 6px 10px;
-      background: #141418; border-radius: 6px; border: 1px solid #2a2a35;
-      display: none;
-    }
-    #__wa-panel .status.show { display: block; }
-    #__wa-panel .status.err { color: #ef4444; border-color: #ef444430; background: #ef444410; }
-
     .__wa-hl {
       outline: 2px solid #7c6aff !important;
       outline-offset: 2px !important;
       cursor: crosshair !important;
     }
 
+    #__wa-bar {
+      position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+      z-index: 2147483647; display: flex; align-items: center; gap: 8px;
+      padding: 6px 6px 6px 12px; border-radius: 999px;
+      background: rgba(20, 20, 28, 0.92); backdrop-filter: blur(12px);
+      border: 1px solid rgba(124, 106, 255, 0.35);
+      box-shadow: 0 8px 30px rgba(0,0,0,.45), 0 0 0 1px rgba(0,0,0,.2);
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif; color: #f0f0f5;
+      font-size: 12px; user-select: none; -webkit-user-select: none;
+      animation: __wa-pop .18s ease-out;
+      /* Click-through so elements underneath stay selectable; only the exit
+         button opts back in. Fades out (below) while the cursor is over it. */
+      pointer-events: none; transition: opacity .15s ease;
+    }
+    #__wa-bar.faded { opacity: .12; }
+    @keyframes __wa-pop { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+    #__wa-bar .pulse { width: 8px; height: 8px; border-radius: 50%; background: #7c6aff; box-shadow: 0 0 0 0 rgba(124,106,255,.6); animation: __wa-pulse 1.6s infinite; flex-shrink: 0; }
+    @keyframes __wa-pulse { 0% { box-shadow: 0 0 0 0 rgba(124,106,255,.5); } 70% { box-shadow: 0 0 0 7px rgba(124,106,255,0); } 100% { box-shadow: 0 0 0 0 rgba(124,106,255,0); } }
+    #__wa-bar .label { font-weight: 600; }
+    #__wa-bar .card { color: #c4baff; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #__wa-bar .hint { color: #60607a; }
+    #__wa-bar .exit {
+      background: rgba(255,255,255,.06); border: none; color: #9a9ab0;
+      font-family: inherit; font-size: 11px; font-weight: 600;
+      padding: 5px 10px; border-radius: 999px;
+    }
+
     #__wa-form {
       position: fixed; z-index: 2147483646;
-      background: #1a1a24; border: 1px solid #3a3a50; border-radius: 10px;
-      padding: 14px; width: 300px; box-shadow: 0 4px 32px rgba(0,0,0,.6);
+      background: #16161c; border: 1px solid #34344a; border-radius: 12px;
+      padding: 14px; width: 300px; box-shadow: 0 16px 48px rgba(0,0,0,.6);
       font-family: -apple-system, sans-serif; color: #f0f0f5;
     }
-    #__wa-form .meta { font-size: 11px; color: #8888a0; margin-bottom: 10px; line-height: 1.5; }
-    #__wa-form .meta code { font-family: monospace; color: #c4baff; background: #7c6aff18; padding: 1px 4px; border-radius: 3px; }
+    #__wa-form .meta { font-size: 11px; color: #8888a0; margin-bottom: 10px; line-height: 1.6; }
+    #__wa-form .meta code { font-family: monospace; color: #c4baff; background: #7c6aff18; padding: 1px 5px; border-radius: 4px; }
     #__wa-form .meta .src { color: #4a4a5a; font-family: monospace; }
     #__wa-form textarea {
-      width: 100%; box-sizing: border-box; background: #0d0d12; color: #f0f0f5;
-      border: 1px solid #3a3a50; border-radius: 6px; padding: 8px;
+      width: 100%; box-sizing: border-box; background: #0c0c0f; color: #f0f0f5;
+      border: 1px solid #34344a; border-radius: 8px; padding: 9px;
       font-size: 13px; resize: none; outline: none; font-family: inherit; display: block;
     }
     #__wa-form textarea:focus { border-color: #7c6aff; }
-    #__wa-form .actions { display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end; }
-    #__wa-form button { border: none; border-radius: 6px; padding: 6px 14px; font-size: 12px; cursor: pointer; font-family: inherit; }
-    #__wa-form .cancel { background: #2a2a38; color: #8888a0; }
-    #__wa-form .cancel:hover { background: #3a3a50; }
-    #__wa-form .send { background: #7c6aff; color: #fff; font-weight: 600; }
+    #__wa-form .actions { display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end; }
+    #__wa-form button { border: none; border-radius: 8px; padding: 7px 16px; font-size: 12px; cursor: pointer; font-family: inherit; font-weight: 600; }
+    #__wa-form .cancel { background: #26263a; color: #9a9ab0; }
+    #__wa-form .cancel:hover { background: #34344a; }
+    #__wa-form .send { background: #7c6aff; color: #fff; }
     #__wa-form .send:hover { background: #6a57f0; }
     #__wa-form .send:disabled { opacity: .5; cursor: not-allowed; }
   `;
   document.head.appendChild(style);
 
-  // ── FAB ────────────────────────────────────────────────────────────────────
+  // ── Annotating indicator bar ────────────────────────────────────────────────
 
-  const fab = document.createElement("div");
-  fab.id = "__wa-fab";
-  fab.innerHTML = `
-    <div class="grip" title="Drag to move">
-      <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor">
-        <circle cx="2" cy="2" r="1"/><circle cx="8" cy="2" r="1"/>
-        <circle cx="2" cy="7" r="1"/><circle cx="8" cy="7" r="1"/>
-        <circle cx="2" cy="12" r="1"/><circle cx="8" cy="12" r="1"/>
-      </svg>
-    </div>
-    <span class="card-chip" title=""></span>
-    <button class="btn annotate" title="Toggle annotation">💬</button>
-    <button class="btn settings" title="Change card">⚙</button>
-  `;
-  document.body.appendChild(fab);
+  function showIndicator() {
+    if (indicator) indicator.remove();
+    indicator = document.createElement("div");
+    indicator.id = "__wa-bar";
+    indicator.innerHTML = `
+      <span class="pulse"></span>
+      <span class="label">Annotating</span>
+      ${cardTitle ? `<span class="card">· ${escHtml(cardTitle)}</span>` : ""}
+      <span class="hint">· click an element</span>
+      <span class="exit">Esc to exit</span>
+    `;
+    document.body.appendChild(indicator);
 
-  const grip = fab.querySelector(".grip");
-  const annotateBtn = fab.querySelector(".annotate");
-  const settingsBtn = fab.querySelector(".settings");
-  const cardChip = fab.querySelector(".card-chip");
-
-  annotateBtn.addEventListener("click", toggleCrosshair);
-  settingsBtn.addEventListener("click", togglePanel);
-
-  // ── FAB drag ──────────────────────────────────────────────────────────────
-
-  let dragOffset = null;
-
-  grip.addEventListener("mousedown", (e) => {
-    e.preventDefault();
-    const rect = fab.getBoundingClientRect();
-    dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    document.addEventListener("mousemove", onDragMove);
-    document.addEventListener("mouseup", onDragEnd);
-  });
-
-  function onDragMove(e) {
-    if (!dragOffset) return;
-    const w = fab.offsetWidth, h = fab.offsetHeight;
-    const x = Math.max(4, Math.min(window.innerWidth - w - 4, e.clientX - dragOffset.x));
-    const y = Math.max(4, Math.min(window.innerHeight - h - 4, e.clientY - dragOffset.y));
-    fab.style.left = x + "px";
-    fab.style.top = y + "px";
-    fab.style.right = "auto";
-    fab.style.bottom = "auto";
-    if (panelOpen) positionPanel();
+    // Fade the bar out of the way while the cursor is over it, so the element
+    // hidden underneath stays visible (and selectable — the bar is click-through).
+    barMove = (e) => {
+      if (!indicator) return;
+      const r = indicator.getBoundingClientRect();
+      const over = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+      indicator.classList.toggle("faded", over);
+    };
+    document.addEventListener("mousemove", barMove, true);
   }
 
-  function onDragEnd() {
-    if (!dragOffset) return;
-    dragOffset = null;
-    document.removeEventListener("mousemove", onDragMove);
-    document.removeEventListener("mouseup", onDragEnd);
-    const rect = fab.getBoundingClientRect();
-    chrome.storage.local.set({ fabPosition: { left: rect.left, top: rect.top } });
+  function hideIndicator() {
+    if (barMove) { document.removeEventListener("mousemove", barMove, true); barMove = null; }
+    if (indicator) { indicator.remove(); indicator = null; }
   }
 
-  function restoreFabPosition() {
-    chrome.storage.local.get("fabPosition", (data) => {
-      if (!data.fabPosition) return;
-      const w = fab.offsetWidth || 120, h = fab.offsetHeight || 44;
-      const x = Math.max(4, Math.min(window.innerWidth - w - 4, data.fabPosition.left));
-      const y = Math.max(4, Math.min(window.innerHeight - h - 4, data.fabPosition.top));
-      fab.style.left = x + "px";
-      fab.style.top = y + "px";
-      fab.style.right = "auto";
-      fab.style.bottom = "auto";
+  // ── Activation ──────────────────────────────────────────────────────────────
+
+  function activate() {
+    chrome.storage.local.get(["serverUrl", "workspaceId", "cardId", "cardTitle"], (d) => {
+      serverUrl = d.serverUrl ?? null;
+      workspaceId = d.workspaceId ?? null;
+      cardId = d.cardId ?? null;
+      cardTitle = d.cardTitle ?? null;
+      if (!serverUrl || !workspaceId || !cardId) return;
+      active = true;
+      document.body.style.cursor = "crosshair";
+      showIndicator();
     });
   }
+  window.__whippedActivate = activate;
 
-  // ── Panel ──────────────────────────────────────────────────────────────────
-
-  const panel = document.createElement("div");
-  panel.id = "__wa-panel";
-  panel.innerHTML = `
-    <div class="header">
-      <span class="title">Pick card</span>
-      <button class="close" title="Close">✕</button>
-    </div>
-    <div class="body">
-      <div>
-        <label>Project</label>
-        <select class="project"><option value="">— select project —</option></select>
-      </div>
-      <div>
-        <label>Card</label>
-        <select class="card"><option value="">— select project first —</option></select>
-      </div>
-      <div class="status"></div>
-    </div>
-  `;
-  document.body.appendChild(panel);
-
-  const projectSel = panel.querySelector(".project");
-  const cardSel = panel.querySelector(".card");
-  const statusEl = panel.querySelector(".status");
-
-  panel.querySelector(".close").addEventListener("click", hidePanel);
-  projectSel.addEventListener("change", onProjectChange);
-  cardSel.addEventListener("change", onCardChange);
-
-  // Close panel when clicking outside
-  document.addEventListener("mousedown", (e) => {
-    if (!panelOpen) return;
-    if (panel.contains(e.target) || fab.contains(e.target)) return;
-    hidePanel();
-  });
-
-  function setStatus(msg, type) {
-    if (!msg) { statusEl.className = "status"; statusEl.textContent = ""; return; }
-    statusEl.textContent = msg;
-    statusEl.className = "status show" + (type ? " " + type : "");
-  }
-
-  function positionPanel() {
-    const fabRect = fab.getBoundingClientRect();
-    const panelW = 280, panelH = panel.offsetHeight || 220;
-    // Prefer above the FAB; fall back to below
-    let top = fabRect.top - panelH - 8;
-    if (top < 8) top = fabRect.bottom + 8;
-    let left = fabRect.right - panelW;
-    if (left < 8) left = 8;
-    if (left + panelW > window.innerWidth - 8) left = window.innerWidth - panelW - 8;
-    panel.style.left = left + "px";
-    panel.style.top = top + "px";
-  }
-
-  function showPanel() {
-    if (panelOpen) return;
-    panelOpen = true;
-    panel.classList.add("show");
-    positionPanel();
-    if (projects.length > 0) {
-      renderProjectDropdown();
-      if (cards.length > 0) renderCardDropdown();
-      else if (selectedWsId) loadCards();
-    } else {
-      loadProjects();
-    }
-  }
-
-  function hidePanel() {
-    panelOpen = false;
-    panel.classList.remove("show");
-  }
-
-  function togglePanel() {
-    if (panelOpen) hidePanel();
-    else showPanel();
-  }
-
-  // ── Data loading ──────────────────────────────────────────────────────────
-
-  function renderProjectDropdown() {
-    projectSel.innerHTML = '<option value="">— select project —</option>' +
-      projects.map((p) => `<option value="${escHtml(p.workspaceId)}">${escHtml(p.name || p.workspaceId)}</option>`).join("");
-    if (selectedWsId && projects.some((p) => p.workspaceId === selectedWsId)) {
-      projectSel.value = selectedWsId;
-    }
-  }
-
-  function renderCardDropdown() {
-    cardSel.innerHTML = '<option value="">— select card —</option>' +
-      cards.map((c) => `<option value="${escHtml(c.id)}">[${escHtml(c.columnId)}] ${escHtml(c.title)}</option>`).join("");
-    if (selectedCardId && cards.some((c) => c.id === selectedCardId)) {
-      cardSel.value = selectedCardId;
-    }
-  }
-
-  function loadProjects() {
-    if (!serverUrl) { setStatus("Server URL not set", "err"); return; }
-    setStatus("Loading projects…");
-    chrome.runtime.sendMessage({ type: "FETCH_WORKSPACES", serverUrl }, (res) => {
-      if (!res?.ok) { setStatus("Failed: " + (res?.error ?? "unknown"), "err"); return; }
-      projects = res.workspaces;
-      renderProjectDropdown();
-      if (selectedWsId) loadCards();
-      else setStatus(null);
-    });
-  }
-
-  function loadCards() {
-    if (!selectedWsId) return;
-    setStatus("Loading cards…");
-    chrome.runtime.sendMessage({ type: "FETCH_CARDS", serverUrl, workspaceId: selectedWsId }, (res) => {
-      if (!res?.ok) { setStatus("Failed: " + (res?.error ?? "unknown"), "err"); return; }
-      cards = res.cards;
-      renderCardDropdown();
-      updateCardChip();
-      setStatus(null);
-    });
-  }
-
-  function onProjectChange() {
-    selectedWsId = projectSel.value || null;
-    selectedCardId = null;
-    selectedCardTitle = null;
-    cardSel.innerHTML = '<option value="">— select card —</option>';
-    cards = [];
-    updateCardChip();
-    chrome.storage.local.set({ workspaceId: selectedWsId, cardId: null });
-    if (selectedWsId) loadCards();
-  }
-
-  function onCardChange() {
-    selectedCardId = cardSel.value || null;
-    const card = cards.find((c) => c.id === selectedCardId);
-    selectedCardTitle = card?.title ?? null;
-    chrome.storage.local.set({ cardId: selectedCardId });
-    updateCardChip();
-    // Auto-close panel and start crosshair when a card is picked
-    if (selectedCardId) {
-      hidePanel();
-      if (!active) activateCrosshair();
-    }
-  }
-
-  function updateCardChip() {
-    if (selectedCardTitle) {
-      cardChip.textContent = selectedCardTitle;
-      cardChip.title = selectedCardTitle;
-      fab.classList.add("has-card");
-    } else {
-      fab.classList.remove("has-card");
-    }
-  }
-
-  // ── Crosshair mode ────────────────────────────────────────────────────────
-
-  function activateCrosshair() {
-    if (!selectedWsId || !selectedCardId) {
-      // Need to pick a card first
-      showPanel();
-      return;
-    }
-    active = true;
-    document.body.style.cursor = "crosshair";
-    annotateBtn.classList.add("on");
-    annotateBtn.textContent = "✕";
-    annotateBtn.title = "Stop annotating";
-  }
-
-  function deactivateCrosshair() {
+  function deactivate() {
     active = false;
     document.body.style.cursor = "";
-    annotateBtn.classList.remove("on");
-    annotateBtn.textContent = "💬";
-    annotateBtn.title = "Toggle annotation";
     if (hl) { hl.classList.remove("__wa-hl"); hl = null; }
     removeForm();
+    hideIndicator();
   }
 
-  function toggleCrosshair() {
-    if (active) deactivateCrosshair();
-    else activateCrosshair();
-  }
-
-  // ── FAB visibility ─────────────────────────────────────────────────────────
-
-  function showFab() {
-    fabVisible = true;
-    fab.classList.add("show");
-    restoreFabPosition();
-  }
-
-  function hideFab() {
-    fabVisible = false;
-    fab.classList.remove("show");
-    deactivateCrosshair();
-    hidePanel();
-  }
-
-  function toggleOverlay() {
-    if (fabVisible) {
-      hideFab();
-    } else {
-      showFab();
-      loadFromStorage(() => {
-        // After loading state, decide what to do
-        if (selectedWsId && selectedCardId) {
-          activateCrosshair(); // auto-start
-        } else {
-          showPanel(); // user needs to pick a card first
-        }
-      });
-    }
-  }
-
-  function loadFromStorage(cb) {
-    chrome.storage.local.get(["serverUrl", "workspaceId", "cardId"], (data) => {
-      serverUrl = data.serverUrl ?? null;
-      selectedWsId = data.workspaceId ?? null;
-      selectedCardId = data.cardId ?? null;
-      // Preload projects/cards so the chip / panel are ready
-      if (serverUrl) {
-        chrome.runtime.sendMessage({ type: "FETCH_WORKSPACES", serverUrl }, (res) => {
-          if (res?.ok) projects = res.workspaces;
-          if (selectedWsId) {
-            chrome.runtime.sendMessage({ type: "FETCH_CARDS", serverUrl, workspaceId: selectedWsId }, (res2) => {
-              if (res2?.ok) {
-                cards = res2.cards;
-                const card = cards.find((c) => c.id === selectedCardId);
-                selectedCardTitle = card?.title ?? null;
-                updateCardChip();
-              }
-              cb?.();
-            });
-          } else {
-            cb?.();
-          }
-        });
-      } else {
-        cb?.();
-      }
-    });
+  function inOwnUi(target) {
+    return (indicator && indicator.contains(target)) || (form && form.contains(target));
   }
 
   // ── Comment form ──────────────────────────────────────────────────────────
@@ -547,7 +222,7 @@
       : ri.componentName;
     form.innerHTML = `
       <div class="meta">
-        ${selectedCardTitle ? `<div>📌 ${escHtml(selectedCardTitle)}</div>` : ""}
+        ${cardTitle ? `<div>📌 ${escHtml(cardTitle)}</div>` : ""}
         <div>🎯 <code>${escHtml(selector)}</code></div>
         ${chainText ? `<div>⚛ ${escHtml(chainText)}</div>` : ""}
         ${shortFile ? `<div class="src">📄 ${escHtml(shortFile)}${ri.sourceLine ? ":" + ri.sourceLine : ""}</div>` : ""}
@@ -566,12 +241,10 @@
     const fw = rect.width, fh = rect.height;
     const margin = 8, gap = 12;
     const vw = window.innerWidth, vh = window.innerHeight;
-    // Horizontal: try right of click; if it overflows, flip to the left; else clamp
     let left;
     if (x + gap + fw <= vw - margin) left = x + gap;
     else if (x - gap - fw >= margin) left = x - gap - fw;
     else left = Math.max(margin, vw - fw - margin);
-    // Vertical: try below click; if it overflows, flip above; else clamp
     let top;
     if (y + gap + fh <= vh - margin) top = y + gap;
     else if (y - gap - fh >= margin) top = y - gap - fh;
@@ -593,8 +266,8 @@
         type: "POST_COMMENT",
         payload: {
           serverUrl,
-          workspaceId: selectedWsId,
-          cardId: selectedCardId,
+          workspaceId,
+          cardId,
           summary: text,
           visualComment: {
             pageUrl: window.location.href,
@@ -612,42 +285,44 @@
         } else {
           sendBtn.disabled = false;
           sendBtn.textContent = "Send";
-          alert("Failed: " + (res?.error ?? "unknown error"));
+          const authErr = Boolean(res?.error) && /authenticated|\b401\b/i.test(res.error);
+          alert(authErr ? "Sign in required — open the Whipped extension to log in." : "Failed: " + (res?.error ?? "unknown error"));
         }
       });
     });
 
     ta.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); form.querySelector(".send").click(); }
-      if (e.key === "Escape") removeForm();
+      if (e.key === "Escape") { e.stopPropagation(); removeForm(); }
     });
   }
 
   // ── Element selection (gated on `active`) ──────────────────────────────────
 
   document.addEventListener("mouseover", (e) => {
-    if (!active) return;
-    if (fab.contains(e.target) || panel.contains(e.target)) return;
-    if (form && form.contains(e.target)) return; // skip the form itself, but keep highlighting elsewhere
+    if (!active || inOwnUi(e.target)) return;
     if (hl) hl.classList.remove("__wa-hl");
     hl = e.target;
     if (hl) hl.classList.add("__wa-hl");
   }, true);
 
   document.addEventListener("click", (e) => {
-    if (!active) return;
-    if (fab.contains(e.target) || panel.contains(e.target)) return;
-    if (form && form.contains(e.target)) return;
+    if (!active || inOwnUi(e.target)) return;
     e.preventDefault();
     e.stopPropagation();
     if (hl) hl.classList.remove("__wa-hl");
     void showCommentForm(e.target, e.clientX, e.clientY);
   }, true);
 
-  // ── Messages from background ──────────────────────────────────────────────
+  document.addEventListener("keydown", (e) => {
+    if (active && !form && e.key === "Escape") deactivate();
+  });
+
+  // ── Messages from the popup ────────────────────────────────────────────────
 
   chrome.runtime.onMessage.addListener((msg) => {
-    if (msg.type === "TOGGLE_OVERLAY") toggleOverlay();
+    if (msg.type === "START_ANNOTATING") activate();
+    if (msg.type === "STOP_ANNOTATING") deactivate();
   });
 
   // ── URL-hash auto-activation (from kanban "Save & Open") ──────────────────
@@ -685,17 +360,16 @@
   const ctx = readHashContext();
   if (ctx) {
     chrome.storage.local.set(
-      { serverUrl: ctx.serverUrl, workspaceId: ctx.workspaceId, cardId: ctx.cardId },
+      {
+        serverUrl: ctx.serverUrl,
+        workspaceId: ctx.workspaceId,
+        cardId: ctx.cardId,
+        cardTitle: ctx.cardTitle || ctx.cardId,
+      },
       () => {
-        serverUrl = ctx.serverUrl;
-        selectedWsId = ctx.workspaceId;
-        selectedCardId = ctx.cardId;
-        selectedCardTitle = ctx.cardTitle || ctx.cardId;
-        showFab();
-        updateCardChip();
-        activateCrosshair(); // auto-start annotation
-      }
+        activate();
+        cleanHash();
+      },
     );
-    cleanHash();
   }
 })();
