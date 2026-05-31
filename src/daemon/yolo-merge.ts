@@ -2,13 +2,12 @@ import { existsSync } from "node:fs";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 import {
+	abortYoloMerge,
 	commitIfDirty,
-	createYoloWorktree,
-	finalizeYoloMerge,
+	completeYoloMerge,
 	pushBaseRef,
 	remoteBaseBranchExists,
-	removeYoloWorktree,
-	yoloMergeIntoBase,
+	startYoloMerge,
 } from "../git/merge-operations.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { appendActivityLog, clearCardSession, loadBoard, moveCard } from "../state/workspace-state.js";
@@ -92,37 +91,49 @@ async function runYoloMerge(
 	}
 
 	logger.info(`[yolo] Merging "${desc60(card)}" (${taskBranch}) into ${baseRef}`);
-	const tmpPath = createYoloWorktree(repoPath, workspaceId, card.id, baseRef);
-	const result = yoloMergeIntoBase(tmpPath, taskBranch);
+	const handle = startYoloMerge(repoPath, workspaceId, card.id, baseRef, taskBranch);
 
-	if (result.ok) {
-		await finishYoloSuccess(repoPath, card, workspaceId, baseRef, tmpPath, stateHub);
+	if (handle.ok) {
+		completeYoloMerge(repoPath, baseRef, handle);
+		await finishYoloSuccess(repoPath, card, workspaceId, baseRef, stateHub);
 		return;
 	}
 
-	// Conflict — hand the scratch worktree to the resolution agent. Hold the queue
+	// A non-conflict merge failure (e.g. the in-place tree couldn't be written) has
+	// no files to resolve — abort and bail rather than spawn an agent on nothing.
+	if (handle.conflictedFiles.length === 0) {
+		abortYoloMerge(repoPath, handle);
+		await moveCard(workspaceId, card.id, "blocked");
+		await appendActivityLog(workspaceId, card.id, "YOLO merge failed (no conflicts to resolve) → Blocked");
+		await clearCardSession(workspaceId, card.id);
+		stateHub.broadcastWorkspaceUpdate(workspaceId);
+		return;
+	}
+
+	// Conflict — hand the merge worktree to the resolution agent. Hold the queue
 	// slot (don't resolve) until the agent finishes, so no other card merges into
 	// this base ref meanwhile.
 	await appendActivityLog(
 		workspaceId,
 		card.id,
-		`YOLO merge conflicts in: ${result.conflictedFiles.join(", ")} — resolving...`,
+		`YOLO merge conflicts in: ${handle.conflictedFiles.join(", ")} — resolving...`,
 	);
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 	await new Promise<void>((resolvePromise) => {
 		void resolver
-			.startConflictResolution(card, tmpPath, result.conflictedFiles, async (success) => {
+			.startConflictResolution(card, handle.worktreePath, handle.conflictedFiles, async (success) => {
 				try {
 					if (!success) {
-						removeYoloWorktree(repoPath, tmpPath);
+						abortYoloMerge(repoPath, handle);
 						await moveCard(workspaceId, card.id, "blocked");
 						await appendActivityLog(workspaceId, card.id, "Could not resolve YOLO merge conflicts → Blocked");
 						await clearCardSession(workspaceId, card.id);
 						stateHub.broadcastWorkspaceUpdate(workspaceId);
 						return;
 					}
-					await finishYoloSuccess(repoPath, card, workspaceId, baseRef, tmpPath, stateHub);
+					completeYoloMerge(repoPath, baseRef, handle);
+					await finishYoloSuccess(repoPath, card, workspaceId, baseRef, stateHub);
 				} catch (err) {
 					logger.error({ err }, `[yolo] conflict finalize failed for "${desc60(card)}":`);
 				} finally {
@@ -141,12 +152,8 @@ async function finishYoloSuccess(
 	card: RuntimeBoardCard,
 	workspaceId: string,
 	baseRef: string,
-	tmpPath: string,
 	stateHub: RuntimeStateHub,
 ): Promise<void> {
-	finalizeYoloMerge(repoPath, baseRef, tmpPath);
-	removeYoloWorktree(repoPath, tmpPath);
-
 	if (remoteBaseBranchExists(repoPath, baseRef)) {
 		const push = pushBaseRef(repoPath, baseRef);
 		if (push.ok) {

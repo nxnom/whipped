@@ -142,17 +142,28 @@ export async function pushBranch(worktreePath: string, branch: string): Promise<
 
 // ─── YOLO mode: merge straight into the local base ref ────────────────────────
 //
-// Each YOLO merge runs in a fresh, detached, machine-owned scratch worktree so we
-// never touch the user's main checkout and never need a destructive reset. The
-// base branch is advanced via `update-ref` (working-tree-free); the scratch
-// worktree is deleted afterwards. Merges into the same base ref are serialised by
-// the caller (merge-queue) so concurrent `update-ref` can't clobber.
+// Hybrid strategy, chosen per merge:
+//   • In-place — when the main checkout is already on baseRef and clean, merge
+//     right there so its branch ref, index, and working tree advance together and
+//     stay consistent (what the user sees matches history).
+//   • Scratch — otherwise (checkout on another branch, or dirty), merge in a fresh
+//     detached, machine-owned scratch worktree and advance baseRef via update-ref,
+//     never touching the user's checkout. Safe precisely because baseRef isn't the
+//     branch they're sitting on, so nothing they see goes stale.
+// Merges into the same base ref are serialised by the caller (merge-queue) so two
+// can't race on the branch ref.
 
 const YOLO_DIR = join(WORKTREES_DIR, ".yolo");
 
-export interface YoloMergeResult {
+export interface YoloMergeHandle {
 	ok: boolean;
 	conflictedFiles: string[];
+	// True when the merge ran in the main checkout; false when it ran in a scratch
+	// worktree (whose path is `worktreePath`).
+	inPlace: boolean;
+	// Where the merge happened / where the conflict agent must work — the main repo
+	// (inPlace) or the scratch worktree.
+	worktreePath: string;
 }
 
 // Creates a fresh detached worktree at baseRef and returns its path. Detached so
@@ -166,13 +177,36 @@ export function createYoloWorktree(repoPath: string, workspaceId: string, cardId
 	return tmpPath;
 }
 
-// Merges taskBranch into the detached HEAD of the scratch worktree. On conflict the
-// merge is left in progress so the resolution agent can fix it in place.
-export function yoloMergeIntoBase(tmpPath: string, taskBranch: string): YoloMergeResult {
-	const res = git(["merge", taskBranch, "--no-ff", "--no-edit", "-m", `Merge ${taskBranch}`], tmpPath);
-	if (res.ok) return { ok: true, conflictedFiles: [] };
-	const conflicts = git(["diff", "--name-only", "--diff-filter=U"], tmpPath);
-	return { ok: false, conflictedFiles: conflicts.stdout.split("\n").filter(Boolean) };
+function mergeResult(worktreePath: string, taskBranch: string, inPlace: boolean): YoloMergeHandle {
+	const res = git(["merge", taskBranch, "--no-ff", "--no-edit", "-m", `Merge ${taskBranch}`], worktreePath);
+	if (res.ok) return { ok: true, conflictedFiles: [], inPlace, worktreePath };
+	const conflicts = git(["diff", "--name-only", "--diff-filter=U"], worktreePath);
+	return {
+		ok: false,
+		conflictedFiles: conflicts.stdout.split("\n").filter(Boolean),
+		inPlace,
+		worktreePath,
+	};
+}
+
+// Starts a YOLO merge, picking in-place vs scratch automatically. On conflict the
+// merge is left in progress in `worktreePath` so the resolution agent can fix it.
+export function startYoloMerge(
+	repoPath: string,
+	workspaceId: string,
+	cardId: string,
+	baseRef: string,
+	taskBranch: string,
+): YoloMergeHandle {
+	const currentBranch = git(["rev-parse", "--abbrev-ref", "HEAD"], repoPath);
+	const clean = git(["status", "--porcelain"], repoPath).stdout === "";
+
+	if (currentBranch.ok && currentBranch.stdout === baseRef && clean) {
+		return mergeResult(repoPath, taskBranch, true);
+	}
+
+	const tmpPath = createYoloWorktree(repoPath, workspaceId, cardId, baseRef);
+	return mergeResult(tmpPath, taskBranch, false);
 }
 
 // Advances the local baseRef branch to the scratch worktree's merged HEAD without
@@ -183,6 +217,23 @@ export function finalizeYoloMerge(repoPath: string, baseRef: string, tmpPath: st
 	const upd = git(["update-ref", `refs/heads/${baseRef}`, head.stdout], repoPath);
 	if (!upd.ok) throw new Error(`Failed to advance ${baseRef}: ${upd.stderr}`);
 	return head.stdout;
+}
+
+// Finishes a successful merge: in-place already advanced everything together, so
+// only the scratch path needs the ref update + worktree removal.
+export function completeYoloMerge(repoPath: string, baseRef: string, handle: YoloMergeHandle): void {
+	if (handle.inPlace) return;
+	finalizeYoloMerge(repoPath, baseRef, handle.worktreePath);
+	removeYoloWorktree(repoPath, handle.worktreePath);
+}
+
+// Unwinds a failed/abandoned merge: abort in place, or discard the scratch worktree.
+export function abortYoloMerge(repoPath: string, handle: YoloMergeHandle): void {
+	if (handle.inPlace) {
+		git(["merge", "--abort"], repoPath);
+		return;
+	}
+	removeYoloWorktree(repoPath, handle.worktreePath);
 }
 
 // Removes a YOLO scratch worktree. Guarded so it can only ever delete paths inside
