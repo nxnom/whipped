@@ -52,7 +52,7 @@ export function CardDetailPanel({
 
 	const commentCount = isStory
 		? (card.reviewComments ?? []).filter((c) => c.type !== "dev").length +
-			(card.dependsOn ?? []).reduce((sum, depId) => sum + (allCards?.[depId]?.reviewComments?.length ?? 0), 0)
+			(card.subtaskIds ?? []).reduce((sum, depId) => sum + (allCards?.[depId]?.reviewComments?.length ?? 0), 0)
 		: (card.reviewComments?.length ?? 0);
 
 	const isRunning = card.terminalSessions?.some((ts) => !ts.endedAt) ?? false;

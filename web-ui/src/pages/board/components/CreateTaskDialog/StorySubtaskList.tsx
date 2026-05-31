@@ -49,7 +49,7 @@ export function StorySubtaskList({ subtaskDrafts, allCards, onAdd, onEdit, onRem
 					</div>
 				)}
 				{subtaskDrafts.map((subtask, i) => {
-					const depLabels = subtask.dependsOn.map((dep) => {
+					const depLabels = (subtask.dependsOn ? [subtask.dependsOn] : []).map((dep) => {
 						const draft = subtaskDrafts.find((s) => s.tempId === dep);
 						return draft ? `#${subtaskDrafts.indexOf(draft) + 1}` : (allCards[dep]?.description?.split("\n")[0] ?? dep);
 					});

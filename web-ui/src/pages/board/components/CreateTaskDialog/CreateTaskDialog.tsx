@@ -71,7 +71,8 @@ export function CreateTaskDialog({
 			baseRef: defaultBranch,
 			workflowId: defaultTaskWorkflow?.id ?? "",
 			branchName: "",
-			dependsOn: [],
+			dependsOn: "",
+			waitsFor: [],
 		}),
 		[defaultBranch, defaultTaskWorkflow?.id],
 	);

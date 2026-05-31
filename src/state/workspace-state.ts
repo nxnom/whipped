@@ -57,7 +57,7 @@ interface CardRow {
 	github_comment_ids_json: string;
 	worktree_path: string | null;
 	branch_name: string | null;
-	shared_worktree_id: string | null;
+	depends_on_id: string | null;
 	slack_message_ts: string | null;
 	slack_channel_id: string | null;
 	created_at: number;
@@ -81,7 +81,8 @@ function cardFromRow(row: CardRow, children: ReturnType<typeof loadCardChildren>
 		columnId: row.column_id,
 		type: row.type,
 		readyForDev: row.ready_for_dev === 1,
-		dependsOn: children.dependsOn,
+		waitsFor: children.waitsFor,
+		subtaskIds: children.subtaskIds,
 		autoFixAttempts: row.auto_fix_attempts,
 		baseRef: row.base_ref,
 		createdAt: row.created_at,
@@ -100,7 +101,7 @@ function cardFromRow(row: CardRow, children: ReturnType<typeof loadCardChildren>
 	if (row.jira_url) card.jiraUrl = row.jira_url;
 	if (row.worktree_path) card.worktreePath = row.worktree_path;
 	if (row.branch_name) card.branchName = row.branch_name;
-	if (row.shared_worktree_id) card.sharedWorktreeId = row.shared_worktree_id;
+	if (row.depends_on_id) card.dependsOn = row.depends_on_id;
 	if (row.slack_message_ts) card.slackMessageTs = row.slack_message_ts;
 	if (row.slack_channel_id) card.slackChannelId = row.slack_channel_id;
 	return card;
@@ -110,16 +111,23 @@ function loadCardChildren(
 	db: Database.Database,
 	cardId: string,
 ): {
-	dependsOn: string[];
+	waitsFor: string[];
+	subtaskIds: string[];
 	activityLog: RuntimeActivityEntry[];
 	reviewComments: RuntimeReviewComment[];
 	terminalSessions: RuntimeTerminalSessionEntry[];
 } {
-	const dependsOn = (
-		db.prepare("SELECT depends_on_id FROM card_dependencies WHERE card_id = ?").all(cardId) as Array<{
-			depends_on_id: string;
+	const waitsFor = (
+		db.prepare("SELECT waits_for_id FROM card_waits_for WHERE card_id = ?").all(cardId) as Array<{
+			waits_for_id: string;
 		}>
-	).map((r) => r.depends_on_id);
+	).map((r) => r.waits_for_id);
+
+	const subtaskIds = (
+		db.prepare("SELECT subtask_id FROM card_subtasks WHERE story_id = ?").all(cardId) as Array<{
+			subtask_id: string;
+		}>
+	).map((r) => r.subtask_id);
 
 	const activityLog = (
 		db
@@ -190,7 +198,7 @@ function loadCardChildren(
 		return entry;
 	});
 
-	return { dependsOn, activityLog, reviewComments, terminalSessions };
+	return { waitsFor, subtaskIds, activityLog, reviewComments, terminalSessions };
 }
 
 function upsertCardRow(
@@ -205,7 +213,7 @@ function upsertCardRow(
 			column_id, column_position, type, ready_for_dev,
 			agent_id, priority, auto_fix_attempts, base_ref, workflow_id,
 			github_issue_url, pr_json, jira_key, jira_url, github_comment_ids_json,
-			worktree_path, branch_name, shared_worktree_id,
+			worktree_path, branch_name, depends_on_id,
 			slack_message_ts, slack_channel_id, created_at, updated_at
 		) VALUES (
 			?, ?, ?, ?,
@@ -233,7 +241,7 @@ function upsertCardRow(
 			github_comment_ids_json = excluded.github_comment_ids_json,
 			worktree_path = excluded.worktree_path,
 			branch_name = excluded.branch_name,
-			shared_worktree_id = excluded.shared_worktree_id,
+			depends_on_id = excluded.depends_on_id,
 			slack_message_ts = excluded.slack_message_ts,
 			slack_channel_id = excluded.slack_channel_id,
 			updated_at = excluded.updated_at`,
@@ -258,7 +266,7 @@ function upsertCardRow(
 		JSON.stringify(card.githubCommentIds ?? []),
 		card.worktreePath ?? null,
 		card.branchName ?? null,
-		card.sharedWorktreeId ?? null,
+		card.dependsOn ?? null,
 		card.slackMessageTs ?? null,
 		card.slackChannelId ?? null,
 		card.createdAt,
@@ -266,18 +274,34 @@ function upsertCardRow(
 	);
 }
 
-// Insert a dependency only if the target card exists, so stale references in
-// the input array (e.g. dep on a card that was deleted) don't trip the FK and
-// roll back the whole save. The dependency is meaningless without the target.
-const INSERT_CARD_DEPENDENCY_IF_EXISTS = `
-	INSERT INTO card_dependencies (card_id, depends_on_id)
+// Insert a relation row only if the target card exists, so stale references in
+// the input array (e.g. a card that was deleted) don't trip the FK and roll back
+// the whole save. The relation is meaningless without the target.
+const INSERT_CARD_WAITS_FOR_IF_EXISTS = `
+	INSERT INTO card_waits_for (card_id, waits_for_id)
 	SELECT ?, ? WHERE EXISTS (SELECT 1 FROM cards WHERE id = ?) AND ? != ?
 `;
 
+const INSERT_CARD_SUBTASK_IF_EXISTS = `
+	INSERT INTO card_subtasks (story_id, subtask_id)
+	SELECT ?, ? WHERE EXISTS (SELECT 1 FROM cards WHERE id = ?) AND ? != ?
+`;
+
+function replaceCardWaitsFor(db: Database.Database, cardId: string, waitsFor: string[]): void {
+	db.prepare("DELETE FROM card_waits_for WHERE card_id = ?").run(cardId);
+	const insert = db.prepare(INSERT_CARD_WAITS_FOR_IF_EXISTS);
+	for (const targetId of waitsFor) insert.run(cardId, targetId, targetId, cardId, targetId);
+}
+
+function replaceCardSubtasks(db: Database.Database, storyId: string, subtaskIds: string[]): void {
+	db.prepare("DELETE FROM card_subtasks WHERE story_id = ?").run(storyId);
+	const insert = db.prepare(INSERT_CARD_SUBTASK_IF_EXISTS);
+	for (const subtaskId of subtaskIds) insert.run(storyId, subtaskId, subtaskId, storyId, subtaskId);
+}
+
 function replaceCardChildren(db: Database.Database, card: RuntimeBoardCard): void {
-	db.prepare("DELETE FROM card_dependencies WHERE card_id = ?").run(card.id);
-	const insertDep = db.prepare(INSERT_CARD_DEPENDENCY_IF_EXISTS);
-	for (const depId of card.dependsOn ?? []) insertDep.run(card.id, depId, depId, card.id, depId);
+	replaceCardWaitsFor(db, card.id, card.waitsFor ?? []);
+	replaceCardSubtasks(db, card.id, card.subtaskIds ?? []);
 
 	db.prepare("DELETE FROM activity_log WHERE card_id = ?").run(card.id);
 	const insertActivity = db.prepare("INSERT INTO activity_log (card_id, timestamp, message) VALUES (?, ?, ?)");
@@ -360,6 +384,11 @@ function loadBoardInternal(workspaceId: string): RuntimeBoardData {
 function saveBoardInternal(workspaceId: string, board: RuntimeBoardData): void {
 	const db = getDb();
 
+	// depends_on_id is a self-referential FK; cards are upserted in arbitrary order
+	// so a child may be written before its parent. Defer FK checks to commit, by
+	// which point every card row exists.
+	db.pragma("defer_foreign_keys = ON");
+
 	// Compute (cardId → position) from the columns' taskIds ordering.
 	const positionFor = new Map<string, { columnId: RuntimeBoardColumnId; position: number }>();
 	for (const col of board.columns) {
@@ -385,8 +414,13 @@ function saveBoardInternal(workspaceId: string, board: RuntimeBoardData): void {
 		const pos = positionFor.get(card.id);
 		const column = pos?.columnId ?? card.columnId;
 		const position = pos?.position ?? 0;
-		// Ensure the card row's column_id matches the column it appears in.
-		const cardForRow: RuntimeBoardCard = column === card.columnId ? card : { ...card, columnId: column };
+		// Ensure the card row's column_id matches the column it appears in, and drop a
+		// dependsOn pointing at a card that's not on the board (would fail the FK at commit).
+		const sanitizedDependsOn = card.dependsOn && board.cards[card.dependsOn] ? card.dependsOn : undefined;
+		const cardForRow: RuntimeBoardCard =
+			column === card.columnId && sanitizedDependsOn === card.dependsOn
+				? card
+				: { ...card, columnId: column, dependsOn: sanitizedDependsOn };
 		upsertCardRow(db, workspaceId, cardForRow, position);
 		replaceCardChildren(db, cardForRow);
 	}
@@ -723,6 +757,8 @@ export async function createCard(
 				| "priority"
 				| "readyForDev"
 				| "dependsOn"
+				| "waitsFor"
+				| "subtaskIds"
 				| "columnId"
 				| "githubIssueUrl"
 				| "jiraKey"
@@ -730,7 +766,6 @@ export async function createCard(
 				| "workflowId"
 				| "descriptionAttachments"
 				| "branchName"
-				| "sharedWorktreeId"
 			>
 		>,
 	baseRef: string,
@@ -749,7 +784,9 @@ export async function createCard(
 		readyForDev: data.readyForDev ?? type === "story",
 		agentId: data.agentId,
 		priority: data.priority,
-		dependsOn: data.dependsOn ?? [],
+		dependsOn: data.dependsOn,
+		waitsFor: data.waitsFor ?? [],
+		subtaskIds: data.subtaskIds ?? [],
 		autoFixAttempts: 0,
 		baseRef,
 		createdAt: now,
@@ -760,7 +797,6 @@ export async function createCard(
 		workflowId: data.workflowId,
 		descriptionAttachments: data.descriptionAttachments ?? [],
 		branchName: data.branchName,
-		sharedWorktreeId: data.sharedWorktreeId,
 		reviewComments: [],
 		activityLog: [],
 		terminalSessions: [],
@@ -768,13 +804,17 @@ export async function createCard(
 	};
 
 	const tx = db.transaction(() => {
+		// Drop a dependsOn pointing at a card that doesn't exist (would fail the FK).
+		if (card.dependsOn && !db.prepare("SELECT 1 FROM cards WHERE id = ?").get(card.dependsOn)) {
+			card.dependsOn = undefined;
+		}
 		const countRow = db
 			.prepare("SELECT COUNT(*) AS n FROM cards WHERE workspace_id = ? AND column_id = ?")
 			.get(workspaceId, columnId) as { n: number };
 		upsertCardRow(db, workspaceId, card, countRow.n);
-		// Only insert dependencies (other child rows are empty for a new card).
-		const insertDep = db.prepare(INSERT_CARD_DEPENDENCY_IF_EXISTS);
-		for (const depId of card.dependsOn ?? []) insertDep.run(card.id, depId, depId, card.id, depId);
+		// Only insert relations (other child rows are empty for a new card).
+		replaceCardWaitsFor(db, card.id, card.waitsFor ?? []);
+		replaceCardSubtasks(db, card.id, card.subtaskIds ?? []);
 		bumpBoardRevision(db, workspaceId);
 	});
 	tx();
@@ -988,6 +1028,8 @@ export async function updateCard(
 			| "priority"
 			| "readyForDev"
 			| "dependsOn"
+			| "waitsFor"
+			| "subtaskIds"
 			| "workflowId"
 			| "pr"
 			| "reviewComments"
@@ -995,7 +1037,6 @@ export async function updateCard(
 			| "githubCommentIds"
 			| "worktreePath"
 			| "branchName"
-			| "sharedWorktreeId"
 			| "slackMessageTs"
 			| "slackChannelId"
 		>
@@ -1011,15 +1052,17 @@ export async function updateCard(
 		const existing = cardFromRow(row, loadCardChildren(db, cardId));
 		const updated: RuntimeBoardCard = { ...existing, ...update, updatedAt: Date.now() };
 
+		// Drop a dependsOn pointing at a card that doesn't exist (would fail the FK).
+		if (updated.dependsOn && !db.prepare("SELECT 1 FROM cards WHERE id = ?").get(updated.dependsOn)) {
+			updated.dependsOn = undefined;
+		}
+
 		// Use column_position from existing row (updateCard doesn't change column placement).
 		upsertCardRow(db, workspaceId, updated, row.column_position);
 
-		// Replace dependsOn rows if it was in the update (otherwise leave them untouched).
-		if (update.dependsOn !== undefined) {
-			db.prepare("DELETE FROM card_dependencies WHERE card_id = ?").run(cardId);
-			const insertDep = db.prepare(INSERT_CARD_DEPENDENCY_IF_EXISTS);
-			for (const depId of update.dependsOn ?? []) insertDep.run(cardId, depId, depId, cardId, depId);
-		}
+		// Replace relation rows only if they were in the update (otherwise leave untouched).
+		if (update.waitsFor !== undefined) replaceCardWaitsFor(db, cardId, update.waitsFor);
+		if (update.subtaskIds !== undefined) replaceCardSubtasks(db, cardId, update.subtaskIds);
 
 		// Replace reviewComments rows if it was in the update.
 		if (update.reviewComments !== undefined) {

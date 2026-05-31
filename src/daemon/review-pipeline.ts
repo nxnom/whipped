@@ -44,7 +44,7 @@ import {
 	saveTerminalBuffer,
 	updateCard,
 } from "../state/workspace-state.js";
-import { getCardBranch, getWorktreePath } from "../worktree/worktree-manager.js";
+import { getCardBranch, getWorktreePath, resolveWorktreeOwnerId } from "../worktree/worktree-manager.js";
 
 interface ReviewPipelineOptions {
 	workspaceId: string;
@@ -193,27 +193,23 @@ async function runReviewSlot(
 	const { workspaceId, stateHub } = options;
 	// Orch slots use the story card's shared worktree (story is the worktree owner).
 	// Falls back to repoPath if that worktree no longer exists.
-	// Non-orch slots use the shared worktree when sharedWorktreeId is set.
+	// Non-orch slots run in the card's resolved worktree (dependsOn chain root / story owner).
+	const reviewBoard = await loadBoard(workspaceId);
 	const orchWorktreePath = getWorktreePath(card.id);
 	const worktreePath =
 		slot.type === "orch"
 			? existsSync(orchWorktreePath)
 				? orchWorktreePath
 				: options.repoPath
-			: getWorktreePath(card.sharedWorktreeId ?? card.id);
+			: getWorktreePath(resolveWorktreeOwnerId(card.id, reviewBoard.cards));
 	const stat = getGitStat(worktreePath, card.baseRef);
 	const fullDiff = getGitFullDiff(worktreePath, card.baseRef);
 	const context = formatPriorComments(card);
 	// For orchestrator slots, preload subtask cards so we can inline them in
 	// the prompt rather than forcing the agent to call kanban_get_board.
 	let subtaskCards: RuntimeBoardCard[] = [];
-	if (slot.type === "orch" && (card.dependsOn?.length ?? 0) > 0) {
-		try {
-			const board = await loadBoard(workspaceId);
-			subtaskCards = (card.dependsOn ?? []).map((id) => board.cards[id]).filter((c): c is RuntimeBoardCard => !!c);
-		} catch (err) {
-			logger.warn({ err }, "[review] orch: failed to preload subtasks");
-		}
+	if (slot.type === "orch" && (card.subtaskIds?.length ?? 0) > 0) {
+		subtaskCards = (card.subtaskIds ?? []).map((id) => reviewBoard.cards[id]).filter((c): c is RuntimeBoardCard => !!c);
 	}
 	const rawSystemPrompt = buildReviewSlotSystemPrompt(
 		slot,
@@ -479,9 +475,10 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 	// subtasks (type:"subtask") skip autoPR — the story card creates the PR after orch passes.
-	// Standalone dependent tasks (type:"task" with sharedWorktreeId) still create their own PR.
+	// Standalone dependent tasks (type:"task" stacked on a parent) still create their own PR.
 	if (autoPR && card.type !== "subtask") {
-		const effectiveWorktreeId = card.sharedWorktreeId ?? card.id;
+		const prOwnerBoard = await loadBoard(workspaceId);
+		const effectiveWorktreeId = resolveWorktreeOwnerId(card.id, prOwnerBoard.cards);
 		const worktreePath = getWorktreePath(effectiveWorktreeId);
 		const taskBranch = getCardBranch(card);
 		const githubToken = options.secrets.find((s) => s.key === "GITHUB_TOKEN")?.value;
@@ -515,7 +512,9 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 			await updateCard(workspaceId, card.id, { pr: { ...card.pr, url: prUrl } });
 			// Propagate PR URL to all subtasks sharing this story's worktree.
 			const prBoard = await loadBoard(workspaceId);
-			const subtasks = Object.values(prBoard.cards).filter((c) => c.sharedWorktreeId === card.id);
+			const subtasks = Object.values(prBoard.cards).filter(
+				(c) => resolveWorktreeOwnerId(c.id, prBoard.cards) === card.id,
+			);
 			for (const subtask of subtasks) {
 				if (!subtask.pr?.url) {
 					await updateCard(workspaceId, subtask.id, { pr: { ...(subtask.pr ?? {}), url: prUrl } });

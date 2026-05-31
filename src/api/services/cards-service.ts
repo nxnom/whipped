@@ -42,18 +42,23 @@ import {
 	getDefaultBranch,
 	getWorktreePath,
 	removeWorktreeAsync,
+	resolveWorktreeOwnerId,
 } from "../../worktree/worktree-manager.js";
 import { BadRequestError, InternalError, NotFoundError, PreconditionFailedError } from "../errors/http-errors.js";
 
-// Returns all card IDs in the same story group: the shared worktree owner + all its subtasks.
+// dependsOn (single-parent stacking) and waitsFor (many-parent gate) are mutually
+// exclusive. When waitsFor is set, it wins and dependsOn is cleared.
+const normalizeRelations = <T extends { dependsOn?: string; waitsFor?: string[] }>(data: T): T =>
+	data.waitsFor && data.waitsFor.length > 0 ? { ...data, dependsOn: undefined } : data;
+
+// Returns all card IDs that share one worktree: the owner + every card resolving to it.
 const getStoryGroupCardIds = (cardId: string, cards: Record<string, RuntimeBoardCard>): string[] => {
-	const card = cards[cardId];
-	if (!card) return [cardId];
-	const ownerId = card.sharedWorktreeId ?? cardId;
-	const subtaskIds = Object.values(cards)
-		.filter((c) => c.sharedWorktreeId === ownerId)
+	if (!cards[cardId]) return [cardId];
+	const ownerId = resolveWorktreeOwnerId(cardId, cards);
+	const members = Object.values(cards)
+		.filter((c) => resolveWorktreeOwnerId(c.id, cards) === ownerId)
 		.map((c) => c.id);
-	return [...new Set([ownerId, ...subtaskIds])];
+	return [...new Set([ownerId, ...members])];
 };
 
 // All worktree removals run serially in this queue so they never block the
@@ -90,7 +95,7 @@ export const createCardService = async (
 		if (!ws) throw NotFoundError("Workspace");
 		const config = await loadProjectConfig(workspaceId);
 		const baseRef = requestedBase || config.defaultBaseBranch || getDefaultBranch(ws.repoPath);
-		return await createCard(workspaceId, cardData, baseRef);
+		return await createCard(workspaceId, normalizeRelations(cardData), baseRef);
 	} catch (err) {
 		logger.error(
 			`[cards.create] Error creating card: ${String(err)}\nInput: ${JSON.stringify({ workspaceId, ...cardData, baseRef: requestedBase })}\nStack: ${err instanceof Error ? err.stack : ""}`,
@@ -167,7 +172,7 @@ export const commitAndMergeService = async (
 		throw BadRequestError("Card is not in Ready for Review");
 	}
 
-	const effectiveWorktreeId = card.sharedWorktreeId ?? cardId;
+	const effectiveWorktreeId = resolveWorktreeOwnerId(cardId, board.cards);
 	const worktreePath = getWorktreePath(effectiveWorktreeId);
 	const taskBranch = getCardBranch(card);
 
@@ -290,7 +295,7 @@ export const commitAndPRService = async (
 		return { status: "no_token" };
 	}
 
-	const prWorktreePath = getWorktreePath(card.sharedWorktreeId ?? cardId);
+	const prWorktreePath = getWorktreePath(resolveWorktreeOwnerId(cardId, board.cards));
 	const taskBranch = getCardBranch(card);
 
 	const dirty = await isWorktreeDirty(prWorktreePath);
@@ -318,7 +323,7 @@ export const commitAndPRService = async (
 		}
 
 		// Use the story/owner card's PR metadata when available for a unified PR title.
-		const ownerCard = prBoard.cards[card.sharedWorktreeId ?? cardId];
+		const ownerCard = prBoard.cards[resolveWorktreeOwnerId(cardId, prBoard.cards)];
 		const devSummary =
 			[...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev")?.summary ?? card.description;
 		const prTitle =
@@ -350,7 +355,7 @@ export const updateCardService = async (
 	update: Omit<RuntimeCardUpdateRequest, "cardId" | "revision">,
 ): Promise<RuntimeBoardCard> => {
 	try {
-		return await updateCard(workspaceId, cardId, update);
+		return await updateCard(workspaceId, cardId, normalizeRelations(update));
 	} catch (err) {
 		logger.error(
 			`[cards.update] Error updating card ${cardId}: ${String(err)}\nUpdate: ${JSON.stringify(update)}\nStack: ${err instanceof Error ? err.stack : ""}`,
@@ -402,6 +407,13 @@ export const deleteCardService = async (
 	const board = await loadBoard(workspaceId);
 	const card = board.cards[cardId];
 
+	// Resolve worktree ownership from the pre-deletion board: only remove the worktree
+	// if this card owned it and no surviving card still shares it.
+	const ownsWorktree = !!card && resolveWorktreeOwnerId(cardId, board.cards) === cardId;
+	const sharedByOthers =
+		ownsWorktree &&
+		Object.values(board.cards).some((c) => c.id !== cardId && resolveWorktreeOwnerId(c.id, board.cards) === cardId);
+
 	await Promise.all([deleteCard(workspaceId, cardId), clearCardSession(workspaceId, cardId)]);
 	if (card && card.columnId !== "done") {
 		void slackNotifier.notifyCardDeleted(card);
@@ -420,14 +432,8 @@ export const deleteCardService = async (
 				});
 			}
 		}
-		if (!card?.sharedWorktreeId) {
-			const cleanupBoard = await loadBoard(workspaceId).catch(() => null);
-			const hasDependents = cleanupBoard
-				? Object.values(cleanupBoard.cards).some((c) => c.dependsOn.includes(cardId))
-				: false;
-			if (!hasDependents) {
-				await removeWorktreeAsync(cardId, repoPath, card?.branchName);
-			}
+		if (ownsWorktree && !sharedByOthers) {
+			await removeWorktreeAsync(cardId, repoPath, card?.branchName);
 		}
 	});
 
@@ -578,7 +584,7 @@ export const getDiffService = async (
 	const card = board.cards[cardId];
 	if (!card) throw NotFoundError("Card");
 
-	const worktreePath = getWorktreePath(card.sharedWorktreeId ?? cardId);
+	const worktreePath = getWorktreePath(resolveWorktreeOwnerId(cardId, board.cards));
 	const { existsSync } = await import("node:fs");
 	if (!existsSync(worktreePath)) {
 		return { diff: null, error: "No worktree — agent has not started yet" };
@@ -662,7 +668,7 @@ export const getCommitsService = async (workspaceId: string, cardId: string): Pr
 	const card = board.cards[cardId];
 	if (!card) throw NotFoundError("Card");
 
-	const worktreePath = getWorktreePath(card.sharedWorktreeId ?? cardId);
+	const worktreePath = getWorktreePath(resolveWorktreeOwnerId(cardId, board.cards));
 	const { existsSync } = await import("node:fs");
 	if (!existsSync(worktreePath)) return { commits: [] };
 
@@ -700,7 +706,7 @@ export const getDiffForCommitService = async (
 
 	if (!/^[0-9a-f]{4,64}$/i.test(commitHash)) return { diff: null, error: "Invalid commit hash" };
 
-	const worktreePath = getWorktreePath(card.sharedWorktreeId ?? cardId);
+	const worktreePath = getWorktreePath(resolveWorktreeOwnerId(cardId, board.cards));
 	const { existsSync } = await import("node:fs");
 	if (!existsSync(worktreePath)) return { diff: null, error: "No worktree" };
 

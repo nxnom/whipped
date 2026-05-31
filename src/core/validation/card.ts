@@ -16,7 +16,10 @@ const sharedConfigShape = {
 	baseRef: runtimeCardCreateRequestSchema.shape.baseRef.unwrap().min(1, "Base branch is required"),
 	workflowId: z.string(),
 	branchName: z.string(),
-	dependsOn: z.array(z.string()),
+	// Single-parent stacking (empty string = none). Mutually exclusive with waitsFor.
+	dependsOn: z.string(),
+	// Many-parent gate. Mutually exclusive with dependsOn.
+	waitsFor: z.array(z.string()),
 };
 
 // A single subtask draft inside the story form. `tempId` keeps the client-side

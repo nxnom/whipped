@@ -13,7 +13,13 @@ import {
 	moveCard,
 	updateCard,
 } from "../state/workspace-state.js";
-import { createWorktree, getCardBranch, getWorktreePath, removeWorktree } from "../worktree/worktree-manager.js";
+import {
+	createWorktree,
+	getCardBranch,
+	getWorktreePath,
+	removeWorktree,
+	resolveWorktreeOwnerId,
+} from "../worktree/worktree-manager.js";
 import type { TaskScheduler } from "./scheduler.js";
 
 function git(args: string[], cwd: string): string {
@@ -91,11 +97,13 @@ async function resolvePRConflicts(
 ): Promise<void> {
 	try {
 		const taskBranch = getCardBranch(card);
-		const worktreePath = getWorktreePath(card.sharedWorktreeId ?? card.id);
+		const conflictBoard = await loadBoard(workspaceId);
+		const ownerCardId = resolveWorktreeOwnerId(card.id, conflictBoard.cards);
+		const ownsWorktree = ownerCardId === card.id;
+		const worktreePath = getWorktreePath(ownerCardId);
 
 		if (!existsSync(worktreePath)) {
-			const ownerCardId = card.sharedWorktreeId ?? card.id;
-			createWorktree(ownerCardId, repoPath, card.baseRef, card.sharedWorktreeId ? undefined : card.branchName);
+			createWorktree(ownerCardId, repoPath, card.baseRef, ownsWorktree ? card.branchName : undefined);
 		}
 
 		spawnSync("git", ["fetch", "origin", card.baseRef], { cwd: repoPath, stdio: "ignore" });
@@ -264,13 +272,17 @@ export class BoardPoller {
 
 		for (const card of pendingCards) {
 			if (!scheduler.canAcceptTask(inFlightCount)) break;
-			// Skip cards whose dependency is not yet in ready_for_review.
-			// Done cards may have had their worktrees deleted — don't treat them as met.
-			const unmetDep = (card.dependsOn ?? []).find((depId) => {
-				const dep = board.cards[depId];
-				return !dep || dep.columnId !== "ready_for_review";
-			});
-			if (unmetDep) continue;
+			// Skip cards whose relation gate isn't met yet:
+			//   story    → every subtask in ready_for_review
+			//   dependsOn → the single parent in ready_for_review
+			//   waitsFor  → every listed card done (merged)
+			const blocked =
+				card.type === "story"
+					? (card.subtaskIds ?? []).some((id) => board.cards[id]?.columnId !== "ready_for_review")
+					: card.dependsOn
+						? board.cards[card.dependsOn]?.columnId !== "ready_for_review"
+						: (card.waitsFor ?? []).some((id) => board.cards[id]?.columnId !== "done");
+			if (blocked) continue;
 			logger.info(
 				`[poller] Dispatching card "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" from ${card.columnId} (in-flight: ${inFlightCount}/${scheduler.maxParallelTasks})`,
 			);
@@ -382,15 +394,16 @@ export class BoardPoller {
 				await moveCard(workspaceId, taskId, "done");
 				await clearCardSession(workspaceId, taskId);
 				await appendActivityLog(workspaceId, taskId, "PR merged on GitHub → Done");
-				// Keep the worktree alive as long as any other card still depends on this one —
-				// those cards share this card's worktree and would break without it.
-				// Cards with sharedWorktreeId don't own a worktree — skip cleanup entirely.
-				if (!card.sharedWorktreeId) {
-					const boardAfterDone = await loadBoard(workspaceId);
-					const hasDependents = Object.values(boardAfterDone.cards).some((c) => c.dependsOn.includes(taskId));
-					if (!hasDependents) {
-						cleanupWorktree(taskId, repoPath, card.branchName);
-					}
+				// Remove the shared worktree only once every card that uses it is done —
+				// stacked children and story subtasks all share the owner's worktree and
+				// would break if it were removed while any of them is still in flight.
+				const boardAfterDone = await loadBoard(workspaceId);
+				const ownerId = resolveWorktreeOwnerId(taskId, boardAfterDone.cards);
+				const groupCards = Object.values(boardAfterDone.cards).filter(
+					(c) => resolveWorktreeOwnerId(c.id, boardAfterDone.cards) === ownerId,
+				);
+				if (groupCards.every((c) => c.columnId === "done")) {
+					cleanupWorktree(ownerId, repoPath, boardAfterDone.cards[ownerId]?.branchName);
 				}
 				void syncMainRepoAfterPRMerge(repoPath, card.baseRef, card, workspaceId, scheduler, stateHub);
 				updated = true;

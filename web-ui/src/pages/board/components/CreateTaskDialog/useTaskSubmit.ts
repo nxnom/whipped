@@ -25,27 +25,18 @@ export function useTaskSubmit() {
 	const { trigger: createCard } = useWrite((api) => api("cards").POST());
 	const { trigger: updateCard } = useWrite((api) => api("cards/:id").PATCH());
 
-	const submitTask = async (
-		data: CreateTaskForm,
-		{ workspaceId, allCards, readyForDev, pendingImages }: TaskSubmitArgs,
-	) => {
-		// Inherit shared worktree from the single dep if present
-		let sharedWorktreeId: string | undefined;
-		if (data.dependsOn.length === 1) {
-			const dep = allCards[data.dependsOn[0]!];
-			if (dep) sharedWorktreeId = dep.sharedWorktreeId ?? dep.id;
-		}
+	const submitTask = async (data: CreateTaskForm, { workspaceId, readyForDev, pendingImages }: TaskSubmitArgs) => {
 		const res = await createCard({
 			body: {
 				workspaceId,
 				description: data.description.trim(),
 				priority: data.priority || undefined,
 				readyForDev: readyForDev || undefined,
-				dependsOn: data.dependsOn.length > 0 ? data.dependsOn : undefined,
+				dependsOn: data.dependsOn || undefined,
+				waitsFor: data.waitsFor.length > 0 ? data.waitsFor : undefined,
 				baseRef: data.baseRef || undefined,
 				workflowId: data.workflowId || undefined,
 				branchName: data.branchName.trim() || undefined,
-				sharedWorktreeId,
 			},
 		});
 		if (res.error || !res.data) {
@@ -68,9 +59,10 @@ export function useTaskSubmit() {
 		{ workspaceId, drafts, readyForDev, pendingImages }: StorySubmitArgs,
 	) => {
 		const tempIdToRealId = new Map<string, string>();
-		const created: Array<{ realId: string; rawDeps: string[] }> = [];
+		const created: Array<{ realId: string; rawDep?: string }> = [];
 		for (const subtask of drafts) {
-			const existingDeps = subtask.dependsOn.filter((dep) => !drafts.some((s) => s.tempId === dep));
+			const existingDep =
+				subtask.dependsOn && !drafts.some((s) => s.tempId === subtask.dependsOn) ? subtask.dependsOn : undefined;
 			const res = await createCard({
 				body: {
 					workspaceId,
@@ -80,7 +72,7 @@ export function useTaskSubmit() {
 					baseRef: subtask.baseRef || data.baseRef || undefined,
 					workflowId: subtask.workflowId || undefined,
 					branchName: subtask.branchName.trim() || undefined,
-					dependsOn: existingDeps.length > 0 ? existingDeps : undefined,
+					dependsOn: existingDep,
 					readyForDev,
 				},
 			});
@@ -97,18 +89,16 @@ export function useTaskSubmit() {
 				});
 			}
 			tempIdToRealId.set(subtask.tempId, card.id);
-			created.push({ realId: card.id, rawDeps: subtask.dependsOn });
+			created.push({ realId: card.id, rawDep: subtask.dependsOn || undefined });
 		}
 
 		// Resolve intra-batch dependencies (tempId → real id) now that all exist.
-		for (const { realId, rawDeps } of created) {
-			const batchDeps = rawDeps.filter((dep) => tempIdToRealId.has(dep));
-			if (batchDeps.length === 0) continue;
-			const resolvedBatchDeps = batchDeps.map((dep) => tempIdToRealId.get(dep)!);
-			const existingDeps = rawDeps.filter((dep) => !tempIdToRealId.has(dep));
+		for (const { realId, rawDep } of created) {
+			const batchDep = rawDep && tempIdToRealId.has(rawDep) ? tempIdToRealId.get(rawDep) : undefined;
+			if (!batchDep) continue;
 			await updateCard({
 				params: { id: realId },
-				body: { workspaceId, cardId: realId, dependsOn: [...existingDeps, ...resolvedBatchDeps], revision: 0 },
+				body: { workspaceId, cardId: realId, dependsOn: batchDep, revision: 0 },
 			});
 		}
 
@@ -120,7 +110,7 @@ export function useTaskSubmit() {
 				priority: data.priority || undefined,
 				baseRef: data.baseRef || undefined,
 				workflowId: data.workflowId || undefined,
-				dependsOn: created.map((c) => c.realId),
+				subtaskIds: created.map((c) => c.realId),
 			},
 		});
 		if (storyRes.error || !storyRes.data) {
@@ -136,13 +126,8 @@ export function useTaskSubmit() {
 			});
 		}
 
-		// Wire sharedWorktreeId on all subtasks so they share the story's worktree.
-		for (const { realId } of created) {
-			await updateCard({
-				params: { id: realId },
-				body: { workspaceId, cardId: realId, sharedWorktreeId: storyCard.id, revision: 0 },
-			});
-		}
+		// Subtasks share the story's worktree implicitly — resolved at runtime from the
+		// story's subtaskIds, so no per-subtask wiring is needed.
 		return true;
 	};
 

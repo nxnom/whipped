@@ -12,7 +12,7 @@ import {
 	updateProjectConfig,
 	type WorkspaceContext,
 } from "../../state/workspace-state.js";
-import { removeWorktreeAsync } from "../../worktree/worktree-manager.js";
+import { removeWorktreeAsync, resolveWorktreeOwnerId } from "../../worktree/worktree-manager.js";
 import { BadRequestError } from "../errors/http-errors.js";
 
 // All worktree removals run serially in this queue so they never block the
@@ -152,7 +152,7 @@ export const removeProject = async (workspaceId: string): Promise<{ ok: true }> 
 
 			// Clean up each card's worktree (owner cards only — shared-worktree subtasks share the owner's)
 			for (const [cardId, card] of Object.entries(cards)) {
-				if (!card.sharedWorktreeId) {
+				if (resolveWorktreeOwnerId(cardId, cards) === cardId) {
 					await removeWorktreeAsync(cardId, repoPath, card.branchName).catch((err) => {
 						logger.warn(`[cleanup:project:${workspaceId}] worktree ${cardId} failed: ${String(err)}`);
 					});

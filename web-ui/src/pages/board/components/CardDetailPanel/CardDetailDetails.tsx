@@ -168,11 +168,13 @@ export function CardDetailDetails({ card, workspaceId, allCards, onRefresh }: Ca
 				)}
 
 				{/* Dependencies */}
-				{(card.dependsOn ?? []).length > 0 && (
+				{(card.dependsOn ? [card.dependsOn] : (card.waitsFor ?? [])).length > 0 && (
 					<div>
-						<p className="text-[10px] font-medium text-[#4a4a5a] mb-1.5">Dependencies</p>
+						<p className="text-[10px] font-medium text-[#4a4a5a] mb-1.5">
+							{card.dependsOn ? "Depends on" : "Waits for"}
+						</p>
 						<div className="space-y-1">
-							{(card.dependsOn ?? []).map((depId) => {
+							{(card.dependsOn ? [card.dependsOn] : (card.waitsFor ?? [])).map((depId) => {
 								const dep = allCards?.[depId];
 								if (!dep) return null;
 								return (

@@ -122,7 +122,9 @@ server.registerTool(
 					columnId: string;
 					type?: string;
 					priority?: string;
-					dependsOn?: string[];
+					dependsOn?: string;
+					waitsFor?: string[];
+					subtaskIds?: string[];
 				}
 			>;
 		};
@@ -136,16 +138,16 @@ server.registerTool(
 				if (!card) continue;
 				const typeTag = card.type && card.type !== "task" ? ` [${card.type}]` : "";
 				const priorityTag = card.priority ? ` [${card.priority}]` : "";
-				const depsTag =
-					card.dependsOn && card.dependsOn.length > 0 ? ` (depends on: ${card.dependsOn.join(", ")})` : "";
+				const waitsTag = card.waitsFor && card.waitsFor.length > 0 ? ` (waits for: ${card.waitsFor.join(", ")})` : "";
+				const depsTag = card.dependsOn ? ` (depends on: ${card.dependsOn})` : waitsTag;
 				const cardDisplay = (card.description?.split("\n")[0] ?? "").slice(0, 80) || id;
 				lines.push(`- [${id}]${typeTag} ${cardDisplay}${priorityTag}${depsTag}`);
-				if (card.type === "story" && card.dependsOn && card.dependsOn.length > 0) {
-					const met = card.dependsOn.filter((depId) => {
-						const dep = board.cards[depId];
-						return dep?.columnId === "ready_for_review" || dep?.columnId === "done";
+				if (card.type === "story" && card.subtaskIds && card.subtaskIds.length > 0) {
+					const met = card.subtaskIds.filter((subId) => {
+						const sub = board.cards[subId];
+						return sub?.columnId === "ready_for_review" || sub?.columnId === "done";
 					});
-					lines.push(`  Progress: ${met.length}/${card.dependsOn.length} subtasks complete`);
+					lines.push(`  Progress: ${met.length}/${card.subtaskIds.length} subtasks complete`);
 				}
 			}
 		}
@@ -240,7 +242,7 @@ Creates all subtasks first, then the story card that depends on them. The story 
 				baseRef: subtask.baseRef || baseRef || undefined,
 				workflowId: subtask.workflowId || undefined,
 				branchName: subtask.branchName || undefined,
-				dependsOn: existingDeps.length > 0 ? existingDeps : undefined,
+				dependsOn: existingDeps[0],
 			});
 			if (subtask.attachments?.length) {
 				const processed = await processAttachments(subtask.attachments, card.id);
@@ -270,7 +272,7 @@ Creates all subtasks first, then the story card that depends on them. The story 
 			await apiMutate("cards.update", {
 				workspaceId,
 				cardId: realId,
-				dependsOn: [...existingDeps, ...resolvedBatchDeps],
+				dependsOn: [...existingDeps, ...resolvedBatchDeps][0],
 				revision: 0,
 			});
 		}
@@ -284,7 +286,7 @@ Creates all subtasks first, then the story card that depends on them. The story 
 			priority,
 			baseRef: baseRef || undefined,
 			workflowId: workflowId || undefined,
-			dependsOn: subtaskIds,
+			subtaskIds,
 		});
 		if (attachments?.length) {
 			const processed = await processAttachments(attachments, storyCard.id);
@@ -296,17 +298,6 @@ Creates all subtasks first, then the story card that depends on them. The story 
 					revision: 0,
 				});
 			}
-		}
-
-		// Pass 3: wire sharedWorktreeId on all subtasks so they share one worktree.
-		// The story card ID is the worktree owner — all subtasks write to the same directory.
-		for (const { realId } of createdSubtasks) {
-			await apiMutate("cards.update", {
-				workspaceId,
-				cardId: realId,
-				sharedWorktreeId: storyCard.id,
-				revision: 0,
-			});
 		}
 
 		const storyDisplay = description.split("\n")[0]?.slice(0, 80) ?? storyCard.id;
@@ -344,9 +335,17 @@ server.registerTool(
 				),
 			columnId: z.enum(["todo", "blocked"]).optional().describe("Starting column — defaults to 'todo'"),
 			dependsOn: z
+				.string()
+				.optional()
+				.describe(
+					"Single parent card ID this card is stacked on — it continues in the parent's worktree and starts once the parent reaches ready_for_review. Mutually exclusive with waitsFor.",
+				),
+			waitsFor: z
 				.array(z.string())
 				.optional()
-				.describe("Card IDs this task depends on — it cannot start until all deps are in ready_for_review or done"),
+				.describe(
+					"Card IDs this card waits for — it starts in a fresh worktree from the base branch only once ALL of them are done. Mutually exclusive with dependsOn.",
+				),
 			workflowId: z.string().optional().describe("ID of the workflow to use for this task. Omit to use the default."),
 			attachments: z
 				.array(attachmentInputSchema)
@@ -360,25 +359,18 @@ server.registerTool(
 				),
 		},
 	},
-	async ({ description, type, priority, readyForDev, columnId, dependsOn, workflowId, attachments, branchName }) => {
-		// For non-story cards with a single primary dependency, inherit the dep's shared
-		// worktree so the whole chain works in one directory.
-		let sharedWorktreeId: string | undefined;
-		if (type !== "story" && dependsOn && dependsOn.length === 1) {
-			try {
-				const state = await apiQuery<{
-					board: { cards: Record<string, { sharedWorktreeId?: string }> };
-				}>("workspace.state", { workspaceId });
-				const primaryDepId = dependsOn[0]!;
-				const primaryDep = state.board.cards[primaryDepId];
-				if (primaryDep) {
-					sharedWorktreeId = primaryDep.sharedWorktreeId ?? primaryDepId;
-				}
-			} catch {
-				// Board lookup failed — proceed without sharedWorktreeId
-			}
-		}
-
+	async ({
+		description,
+		type,
+		priority,
+		readyForDev,
+		columnId,
+		dependsOn,
+		waitsFor,
+		workflowId,
+		attachments,
+		branchName,
+	}) => {
 		const card = await apiMutate<{ id: string; columnId: string }>("cards.create", {
 			workspaceId,
 			description,
@@ -386,10 +378,10 @@ server.registerTool(
 			priority,
 			readyForDev,
 			dependsOn,
+			waitsFor,
 			columnId: columnId ?? "todo",
 			workflowId,
 			branchName: branchName || undefined,
-			sharedWorktreeId,
 		});
 		if (attachments?.length) {
 			const processed = await processAttachments(attachments, card.id);
@@ -435,9 +427,17 @@ server.registerTool(
 			description: z.string().optional().describe("New description"),
 			priority: z.enum(["urgent", "high", "medium", "low"]).optional().describe("New priority level"),
 			dependsOn: z
+				.string()
+				.optional()
+				.describe(
+					"Single parent card ID this card is stacked on (replaces existing). Mutually exclusive with waitsFor.",
+				),
+			waitsFor: z
 				.array(z.string())
 				.optional()
-				.describe("Full replacement list of card IDs this task depends on (pass [] to clear)"),
+				.describe(
+					"Card IDs this card waits for — starts only once all are done (replaces existing). Mutually exclusive with dependsOn.",
+				),
 			workflowId: z.string().optional().describe("ID of the workflow to assign to this card"),
 			readyForDev: z.boolean().optional().describe("Whether the card is ready for the agent to pick up automatically"),
 			attachments: z
@@ -446,7 +446,7 @@ server.registerTool(
 				.describe("New files to append to the card's existing description attachments"),
 		},
 	},
-	async ({ cardId, description, priority, dependsOn, workflowId, readyForDev, attachments }) => {
+	async ({ cardId, description, priority, dependsOn, waitsFor, workflowId, readyForDev, attachments }) => {
 		let descriptionAttachments: Array<{ type: string; name: string; mimeType: string; path: string }> | undefined;
 		if (attachments?.length) {
 			const state = await apiQuery<{
@@ -467,6 +467,7 @@ server.registerTool(
 			description,
 			priority,
 			dependsOn,
+			waitsFor,
 			workflowId,
 			readyForDev,
 			descriptionAttachments,

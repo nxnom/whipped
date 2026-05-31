@@ -24,7 +24,7 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 		const storyEntries: CommentEntry[] = (card.reviewComments ?? [])
 			.filter((c) => c.type !== "dev")
 			.map((c) => ({ comment: c }));
-		const subtaskEntries: CommentEntry[] = (card.dependsOn ?? []).flatMap((depId) => {
+		const subtaskEntries: CommentEntry[] = (card.subtaskIds ?? []).flatMap((depId) => {
 			const dep = allCards?.[depId];
 			if (!dep) return [];
 			return (dep.reviewComments ?? []).map((c) => ({
@@ -33,7 +33,7 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 			}));
 		});
 		return [...storyEntries, ...subtaskEntries].sort((a, b) => a.comment.createdAt - b.comment.createdAt);
-	}, [isStory, card.reviewComments, card.dependsOn, allCards]);
+	}, [isStory, card.reviewComments, card.subtaskIds, allCards]);
 
 	useEffect(() => {
 		bottomRef.current?.scrollIntoView({ behavior: "instant" });

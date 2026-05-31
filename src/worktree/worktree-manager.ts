@@ -4,6 +4,7 @@ import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { WHIPPED_HOME_DIR } from "../config/paths.js";
+import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 
 const execFileAsync = promisify(execFile);
@@ -159,56 +160,6 @@ export function createWorktree(
 	return { taskId, path: worktreePath, branch, isNew: true, conflictedFiles: [] };
 }
 
-// Creates a worktree from baseRef and merges in any additional dependency branches.
-// Used when a card depends on multiple independent tickets so all code is present.
-export function createMergedWorktree(
-	taskId: string,
-	repoPath: string,
-	baseRef: string,
-	extraBranches: string[],
-	branchName?: string,
-): WorktreeCreateResult {
-	mkdirSync(WORKTREES_DIR, { recursive: true });
-
-	const branch = branchName ?? `task/${taskId}`;
-	const worktreePath = join(WORKTREES_DIR, taskId);
-
-	if (existsSync(worktreePath)) {
-		return { taskId, path: worktreePath, branch, isNew: false, conflictedFiles: [] };
-	}
-
-	git(["worktree", "prune"], repoPath);
-
-	const branchCheck = git(["branch", "--list", branch], repoPath);
-	const branchExists = branchCheck.stdout.includes(branch);
-
-	if (branchExists) {
-		const r = git(["worktree", "add", worktreePath, branch], repoPath);
-		if (!r.ok) throw new Error(`Failed to add worktree at ${worktreePath}`);
-		return { taskId, path: worktreePath, branch, isNew: false, conflictedFiles: [] };
-	}
-
-	const r = git(["worktree", "add", "-b", branch, worktreePath, baseRef], repoPath);
-	if (!r.ok) throw new Error(`Failed to create worktree branch ${branch} at ${worktreePath}`);
-
-	for (const mergeBranch of extraBranches) {
-		const mergeResult = git(["merge", "--no-edit", mergeBranch], worktreePath);
-		if (!mergeResult.ok) {
-			// Leave the worktree in the conflicted state so the resolution agent can fix it.
-			const conflictsOut = spawnSync("git", ["diff", "--name-only", "--diff-filter=U"], {
-				cwd: worktreePath,
-				encoding: "utf-8",
-				stdio: ["ignore", "pipe", "pipe"],
-			});
-			const conflictedFiles = conflictsOut.stdout.trim().split("\n").filter(Boolean);
-			logger.warn(`[worktree] Merge conflict merging ${mergeBranch} into ${branch}: ${conflictedFiles.join(", ")}`);
-			return { taskId, path: worktreePath, branch, isNew: true, conflictedFiles };
-		}
-	}
-
-	return { taskId, path: worktreePath, branch, isNew: true, conflictedFiles: [] };
-}
-
 export function removeWorktree(taskId: string, repoPath: string, branchName?: string): void {
 	const worktreePath = join(WORKTREES_DIR, taskId);
 	const branch = branchName ?? `task/${taskId}`;
@@ -256,9 +207,24 @@ export function getWorktreePath(taskId: string): string {
 	return join(WORKTREES_DIR, taskId);
 }
 
-// Returns the worktree owner ID — sharedWorktreeId when set, otherwise the card's own ID.
-export function getEffectiveWorktreeId(cardId: string, sharedWorktreeId?: string): string {
-	return sharedWorktreeId ?? cardId;
+// Resolves which card owns the worktree a given card runs in:
+//   - a story's subtask shares the story's worktree (keyed by the story id)
+//   - a dependsOn chain shares the chain root's worktree (A <- B <- C all use A)
+//   - everything else (incl. waitsFor cards) owns its own worktree
+// Walking the relations at runtime avoids a persisted, drift-prone owner field.
+export function resolveWorktreeOwnerId(cardId: string, cards: Record<string, RuntimeBoardCard>): string {
+	const story = Object.values(cards).find((c) => c.type === "story" && (c.subtaskIds ?? []).includes(cardId));
+	if (story) return story.id;
+
+	let current = cards[cardId];
+	const seen = new Set<string>();
+	while (current?.dependsOn && !seen.has(current.id)) {
+		seen.add(current.id);
+		const parent = cards[current.dependsOn];
+		if (!parent) break;
+		current = parent;
+	}
+	return current?.id ?? cardId;
 }
 
 export function getWorktreeBranch(taskId: string): string {

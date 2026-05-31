@@ -314,7 +314,15 @@ export const runtimeBoardCardSchema = z.object({
 	readyForDev: z.boolean().default(false),
 	agentId: runtimeAgentIdSchema.optional(),
 	priority: runtimeCardPrioritySchema.optional(),
-	dependsOn: z.array(z.string()).default([]),
+	// Single-parent stacking: this card continues in the parent's worktree/branch
+	// and starts once the parent reaches ready_for_review. Mutually exclusive with waitsFor.
+	dependsOn: z.string().optional(),
+	// Many-parent gate (tasks only): this card starts only once ALL listed cards are
+	// done (merged), in a fresh worktree branched from baseRef. Mutually exclusive with dependsOn.
+	waitsFor: z.array(z.string()).default([]),
+	// Story-only: the IDs of this story's subtasks. The story triggers its orchestrator
+	// workflow once every subtask reaches ready_for_review.
+	subtaskIds: z.array(z.string()).default([]),
 	autoFixAttempts: z.number().int().nonnegative().default(0),
 	baseRef: z.string(),
 	createdAt: z.number(),
@@ -330,7 +338,6 @@ export const runtimeBoardCardSchema = z.object({
 	githubCommentIds: z.array(z.string()).default([]),
 	worktreePath: z.string().optional(),
 	branchName: z.string().optional(),
-	sharedWorktreeId: z.string().optional(),
 	slackMessageTs: z.string().optional(),
 	slackChannelId: z.string().optional(),
 });
@@ -464,7 +471,9 @@ export const runtimeCardCreateRequestSchema = z.object({
 	agentId: runtimeAgentIdSchema.optional(),
 	priority: runtimeCardPrioritySchema.optional(),
 	readyForDev: z.boolean().optional(),
-	dependsOn: z.array(z.string()).optional(),
+	dependsOn: z.string().optional(),
+	waitsFor: z.array(z.string()).optional(),
+	subtaskIds: z.array(z.string()).optional(),
 	columnId: runtimeBoardColumnIdSchema.optional(),
 	baseRef: z.string().optional(),
 	githubIssueUrl: z.string().optional(),
@@ -473,7 +482,6 @@ export const runtimeCardCreateRequestSchema = z.object({
 	workflowId: z.string().optional(),
 	descriptionAttachments: z.array(reviewAttachmentSchema).optional(),
 	branchName: z.string().optional(),
-	sharedWorktreeId: z.string().optional(),
 });
 export type RuntimeCardCreateRequest = z.infer<typeof runtimeCardCreateRequestSchema>;
 
@@ -493,10 +501,11 @@ export const runtimeCardUpdateRequestSchema = z.object({
 	agentId: runtimeAgentIdSchema.optional(),
 	priority: runtimeCardPrioritySchema.optional(),
 	readyForDev: z.boolean().optional(),
-	dependsOn: z.array(z.string()).optional(),
+	dependsOn: z.string().optional(),
+	waitsFor: z.array(z.string()).optional(),
+	subtaskIds: z.array(z.string()).optional(),
 	workflowId: z.string().optional(),
 	branchName: z.string().optional(),
-	sharedWorktreeId: z.string().optional(),
 	revision: z.number(),
 });
 export type RuntimeCardUpdateRequest = z.infer<typeof runtimeCardUpdateRequestSchema>;

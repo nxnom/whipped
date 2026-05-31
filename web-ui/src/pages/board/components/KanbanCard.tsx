@@ -83,7 +83,7 @@ export function KanbanCard({
 	const isStory = card.type === "story";
 	const isSubtask = card.type === "subtask";
 
-	const deps = card.dependsOn ?? [];
+	const deps = card.dependsOn ? [card.dependsOn] : (card.waitsFor ?? []);
 	const metDeps = deps.filter((id) => {
 		const col = allCards[id]?.columnId;
 		return col === "ready_for_review" || col === "done";

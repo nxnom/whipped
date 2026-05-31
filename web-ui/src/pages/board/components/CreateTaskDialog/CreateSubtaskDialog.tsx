@@ -51,7 +51,8 @@ export function CreateSubtaskDialog({
 			baseRef: editingSubtask?.baseRef || defaultBranch,
 			workflowId: editingSubtask?.workflowId || (defaultWorkflow?.id ?? ""),
 			branchName: editingSubtask?.branchName || "",
-			dependsOn: editingSubtask?.dependsOn ?? [],
+			dependsOn: editingSubtask?.dependsOn ?? "",
+			waitsFor: editingSubtask?.waitsFor ?? [],
 		}),
 		[editingSubtask, defaultBranch, defaultWorkflow?.id],
 	);
@@ -178,7 +179,7 @@ export function CreateSubtaskDialog({
 
 							<div className="flex flex-col gap-2">
 								<span className="text-[11px] font-medium text-[#60607a]">Dependencies</span>
-								<RHFSelect name="dependsOn" multiple placeholder="None" filterable clearable>
+								<RHFSelect name="dependsOn" placeholder="None" filterable clearable>
 									{otherDrafts.map((draft) => {
 										const draftDisplay = draft.description?.split("\n")[0] || draft.tempId;
 										return (

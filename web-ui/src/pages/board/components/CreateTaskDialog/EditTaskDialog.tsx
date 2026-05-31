@@ -41,7 +41,8 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 			baseRef: card.baseRef ?? "",
 			workflowId: card.workflowId ?? "",
 			branchName: card.branchName ?? "",
-			dependsOn: card.dependsOn ?? [],
+			dependsOn: card.dependsOn ?? "",
+			waitsFor: card.waitsFor ?? [],
 		}),
 		[card],
 	);
@@ -50,6 +51,13 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 	// resolver so the (unchanged) base branch never blocks an edit submit.
 	const methods = useForm<CreateTaskForm>({ values });
 	const { control, handleSubmit, setValue } = methods;
+	// dependsOn (stacking) and waitsFor (gate) are mutually exclusive — choose one via the toggle.
+	const [relationMode, setRelationMode] = useState<"waitsFor" | "dependsOn">(card.dependsOn ? "dependsOn" : "waitsFor");
+	const switchRelationMode = (mode: "waitsFor" | "dependsOn") => {
+		setRelationMode(mode);
+		if (mode === "waitsFor") setValue("dependsOn", "");
+		else setValue("waitsFor", []);
+	};
 
 	const availableWorkflows = isStory ? workflows.filter((w) => w.forStory) : workflows.filter((w) => !w.forStory);
 
@@ -71,7 +79,8 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 					description: data.description,
 					descriptionAttachments: [...existingAttachments, ...newUploads],
 					priority: data.priority || undefined,
-					dependsOn: isStory ? undefined : data.dependsOn,
+					dependsOn: isStory ? undefined : data.dependsOn || undefined,
+					waitsFor: isStory || data.waitsFor.length === 0 ? undefined : data.waitsFor,
 					workflowId: data.workflowId || undefined,
 					branchName: canEditBranch ? data.branchName.trim() || undefined : undefined,
 					revision: 0,
@@ -183,27 +192,86 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 							)}
 							{!isStory && (
 								<div className="flex flex-col gap-2">
-									<span className="text-[11px] font-medium text-[#60607a]">Dependencies</span>
-									<RHFSelect name="dependsOn" multiple placeholder="None" filterable clearable>
-										{depsCardPool.map((c) => {
-											const cDisplay = c.description?.split("\n")[0] ?? c.id;
-											return (
-												<SelectOption key={c.id} value={c.id} label={cDisplay} hideCheckIcon>
-													<div className="flex items-center justify-between w-full gap-2 min-w-0">
-														<span className="truncate text-sm">{cDisplay}</span>
-														<span
-															className={classNames(
-																"text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium",
-																COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700",
-															)}
-														>
-															{COLUMN_LABEL[c.columnId] ?? c.columnId}
-														</span>
-													</div>
-												</SelectOption>
-											);
-										})}
-									</RHFSelect>
+									<span className="text-[11px] font-medium text-[#60607a]">Relation</span>
+									<div className="flex gap-1 rounded-md bg-[#1a1a1f] border border-[#2a2a35] p-0.5">
+										<button
+											type="button"
+											onClick={() => switchRelationMode("waitsFor")}
+											className={classNames(
+												"flex-1 rounded py-1 text-[11px] transition-colors",
+												relationMode === "waitsFor"
+													? "bg-[#2a2a35] text-[#f0f0f5]"
+													: "text-[#60607a] hover:text-[#f0f0f5]",
+											)}
+										>
+											Waits for
+										</button>
+										<button
+											type="button"
+											onClick={() => switchRelationMode("dependsOn")}
+											className={classNames(
+												"flex-1 rounded py-1 text-[11px] transition-colors",
+												relationMode === "dependsOn"
+													? "bg-[#2a2a35] text-[#f0f0f5]"
+													: "text-[#60607a] hover:text-[#f0f0f5]",
+											)}
+										>
+											Depends on
+										</button>
+									</div>
+									{relationMode === "waitsFor" ? (
+										<>
+											<span className="text-[10px] text-[#4a4a5a] -mt-1">
+												Starts in a fresh branch once all of these are merged
+											</span>
+											<RHFSelect name="waitsFor" multiple placeholder="None" filterable clearable>
+												{depsCardPool.map((c) => {
+													const cDisplay = c.description?.split("\n")[0] ?? c.id;
+													return (
+														<SelectOption key={c.id} value={c.id} label={cDisplay} hideCheckIcon>
+															<div className="flex items-center justify-between w-full gap-2 min-w-0">
+																<span className="truncate text-sm">{cDisplay}</span>
+																<span
+																	className={classNames(
+																		"text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium",
+																		COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700",
+																	)}
+																>
+																	{COLUMN_LABEL[c.columnId] ?? c.columnId}
+																</span>
+															</div>
+														</SelectOption>
+													);
+												})}
+											</RHFSelect>
+										</>
+									) : (
+										<>
+											<span className="text-[10px] text-[#4a4a5a] -mt-1">
+												Continues in one ticket's branch once it reaches review
+											</span>
+											<RHFSelect name="dependsOn" placeholder="None" filterable clearable disabled={false}>
+												{depsCardPool.map((c) => {
+													const cDisplay = c.description?.split("\n")[0] ?? c.id;
+													return (
+														<SelectOption key={c.id} value={c.id} label={cDisplay} hideCheckIcon>
+															<div className="flex items-center justify-between w-full gap-2 min-w-0">
+																<span className="truncate text-sm">{cDisplay}</span>
+																<span
+																	className={classNames(
+																		"text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium",
+																		COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700",
+																	)}
+																>
+																	{COLUMN_LABEL[c.columnId] ?? c.columnId}
+																</span>
+															</div>
+														</SelectOption>
+													);
+												})}
+											</RHFSelect>
+										</>
+									)}
 								</div>
 							)}
 						</div>

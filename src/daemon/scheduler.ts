@@ -51,7 +51,7 @@ import {
 import {
 	createWorktree,
 	getCardBranch,
-	getEffectiveWorktreeId,
+	resolveWorktreeOwnerId,
 	getWorktreePath,
 	titleToBranch,
 } from "../worktree/worktree-manager.js";
@@ -81,7 +81,7 @@ interface RunningTask {
 	process: AgentProcess;
 	startedAt: number;
 	outputBuffer: string;
-	sharedWorktreeId?: string; // set when card shares another card's worktree; used to release sibling lock
+	worktreeOwnerId?: string; // set when card shares another card's worktree; used to release sibling lock
 }
 
 const FAST_EXIT_THRESHOLD_MS = 8_000;
@@ -313,24 +313,11 @@ export class TaskScheduler {
 			`[scheduler] Starting task ${taskId} "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" with agent ${agentId}`,
 		);
 
-		// Auto-derive sharedWorktreeId for single-dep cards that don't have it set.
-		// Covers cards created from the frontend or before this feature was added.
-		if (!card.sharedWorktreeId && card.dependsOn.length === 1) {
-			const depBoard = await loadBoard(workspaceId);
-			const dep = depBoard.cards[card.dependsOn[0]!];
-			if (dep) {
-				const inheritedId = dep.sharedWorktreeId ?? dep.id;
-				await updateCard(workspaceId, taskId, { sharedWorktreeId: inheritedId });
-				card = { ...card, sharedWorktreeId: inheritedId };
-				logger.info(
-					`[scheduler] Auto-set sharedWorktreeId=${inheritedId} for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`,
-				);
-			}
-		}
-
-		// Compute effective worktree ID: cards with sharedWorktreeId share another card's worktree.
-		const effectiveWorktreeId = getEffectiveWorktreeId(card.id, card.sharedWorktreeId);
-		const hasSharedWorktree = !!card.sharedWorktreeId;
+		// Resolve the worktree owner from the relation graph (story subtask → story,
+		// dependsOn chain → root, else self). No persisted owner field to drift.
+		const board = await loadBoard(workspaceId);
+		const effectiveWorktreeId = resolveWorktreeOwnerId(card.id, board.cards);
+		const hasSharedWorktree = effectiveWorktreeId !== card.id;
 
 		// Sibling lock: prevent two cards from running concurrently in the same shared worktree.
 		if (hasSharedWorktree && this.runningSharedWorktrees.has(effectiveWorktreeId)) {
@@ -341,41 +328,52 @@ export class TaskScheduler {
 		}
 		if (hasSharedWorktree) this.runningSharedWorktrees.add(effectiveWorktreeId);
 
-		// Check and resolve dependencies.
-		// A dep is only considered met when it's in ready_for_review — done cards may have had
-		// their worktrees deleted already, so we don't allow depending on them.
+		// Gate on this card's relations. Each relation has its own readiness rule:
+		//   story     → every subtask must be in ready_for_review (then run orchestrator)
+		//   dependsOn → the single parent must be in ready_for_review (stacked on its worktree)
+		//   waitsFor  → every listed card must be done/merged (fresh worktree from baseRef)
 		let parentCards: RuntimeBoardCard[] = [];
 		let siblingCards: RuntimeBoardCard[] = [];
-		if (card.dependsOn && card.dependsOn.length > 0) {
-			const board = await loadBoard(workspaceId);
-			const unmetDep = card.dependsOn.find((depId) => {
-				const dep = board.cards[depId];
-				return !dep || dep.columnId !== "ready_for_review";
-			});
-			if (unmetDep) {
-				if (hasSharedWorktree) this.runningSharedWorktrees.delete(effectiveWorktreeId);
-				await moveCard(workspaceId, taskId, "blocked");
-				const depCard = board.cards[unmetDep];
-				await appendActivityLog(
-					workspaceId,
-					taskId,
-					`Blocked: dependency "${depCard ? (depCard.description?.split("\n")[0]?.slice(0, 60) ?? depCard.id) : unmetDep}" is not yet in Ready for Review`,
-				);
-				stateHub.broadcastWorkspaceUpdate(workspaceId);
+
+		const describeCard = (id: string): string => {
+			const c = board.cards[id];
+			return c ? (c.description?.split("\n")[0]?.slice(0, 60) ?? c.id) : id;
+		};
+		const blockOnUnmet = async (reason: string): Promise<void> => {
+			if (hasSharedWorktree) this.runningSharedWorktrees.delete(effectiveWorktreeId);
+			await moveCard(workspaceId, taskId, "blocked");
+			await appendActivityLog(workspaceId, taskId, reason);
+			stateHub.broadcastWorkspaceUpdate(workspaceId);
+		};
+
+		if (card.type === "story") {
+			const unmet = (card.subtaskIds ?? []).find((id) => board.cards[id]?.columnId !== "ready_for_review");
+			if (unmet) {
+				await blockOnUnmet(`Blocked: subtask "${describeCard(unmet)}" is not yet in Ready for Review`);
 				return;
 			}
-			if (card.type !== "story") {
-				parentCards = card.dependsOn.map((id) => board.cards[id]).filter((c): c is RuntimeBoardCard => !!c);
+		} else if (card.dependsOn) {
+			const parent = board.cards[card.dependsOn];
+			if (!parent || parent.columnId !== "ready_for_review") {
+				await blockOnUnmet(`Blocked: dependency "${describeCard(card.dependsOn)}" is not yet in Ready for Review`);
+				return;
 			}
-			if (hasSharedWorktree) {
-				siblingCards = Object.values(board.cards).filter(
-					(c) => c.sharedWorktreeId === card.sharedWorktreeId && c.id !== card.id && c.columnId === "ready_for_review",
-				);
+			parentCards = [parent];
+		} else if ((card.waitsFor ?? []).length > 0) {
+			const unmet = card.waitsFor.find((id) => board.cards[id]?.columnId !== "done");
+			if (unmet) {
+				await blockOnUnmet(`Blocked: waiting for "${describeCard(unmet)}" to be done`);
+				return;
 			}
-		} else if (hasSharedWorktree) {
-			const board = await loadBoard(workspaceId);
+			parentCards = card.waitsFor.map((id) => board.cards[id]).filter((c): c is RuntimeBoardCard => !!c);
+		}
+
+		if (hasSharedWorktree) {
 			siblingCards = Object.values(board.cards).filter(
-				(c) => c.sharedWorktreeId === card.sharedWorktreeId && c.id !== card.id && c.columnId === "ready_for_review",
+				(c) =>
+					c.id !== card.id &&
+					c.columnId === "ready_for_review" &&
+					resolveWorktreeOwnerId(c.id, board.cards) === effectiveWorktreeId,
 			);
 		}
 
@@ -423,21 +421,20 @@ export class TaskScheduler {
 		// so all subsequent subtasks in the same story see the same branch name.
 		let sharedBranchName: string | undefined;
 		if (hasSharedWorktree) {
-			const ownerBoard = await loadBoard(workspaceId);
-			const ownerCard = ownerBoard.cards[card.sharedWorktreeId!];
+			const ownerCard = board.cards[effectiveWorktreeId];
 			if (ownerCard) {
 				if (ownerCard.branchName) {
 					sharedBranchName = ownerCard.branchName;
 				} else {
 					sharedBranchName = titleToBranch(ownerCard.description?.split("\n")[0]?.slice(0, 72) ?? ownerCard.id);
-					await updateCard(workspaceId, card.sharedWorktreeId!, { branchName: sharedBranchName });
+					await updateCard(workspaceId, effectiveWorktreeId, { branchName: sharedBranchName });
 					logger.info(`[scheduler] Derived and saved shared branch name: ${sharedBranchName}`);
 				}
 			}
 		}
 
 		// Create or reuse the worktree.
-		// Shared-worktree cards use the owner's directory (effectiveWorktreeId = sharedWorktreeId).
+		// Shared-worktree cards use the owner's directory (the resolved dependsOn chain root / story).
 		// Classic single cards get their own directory. No merge/multi-dep logic.
 		let worktree: ReturnType<typeof createWorktree>;
 		try {
@@ -572,7 +569,7 @@ export class TaskScheduler {
 				taskId,
 				streamId: devStreamId,
 				agentId,
-				sharedWorktreeId: card.sharedWorktreeId,
+				worktreeOwnerId: hasSharedWorktree ? effectiveWorktreeId : undefined,
 				process: spawnAgent({
 					agentId,
 					prompt,
@@ -613,7 +610,7 @@ export class TaskScheduler {
 						this.setRecentBuffer(devStreamId, runningTask.outputBuffer);
 						void saveTerminalBuffer(workspaceId, devStreamId, runningTask.outputBuffer);
 						this.running.delete(taskId);
-						if (runningTask.sharedWorktreeId) this.runningSharedWorktrees.delete(runningTask.sharedWorktreeId);
+						if (runningTask.worktreeOwnerId) this.runningSharedWorktrees.delete(runningTask.worktreeOwnerId);
 						if (mcpConfigPath) unlink(mcpConfigPath).catch(() => {});
 						if (agentId === "opencode") void cleanupOpencodeFiles(taskId);
 						if (agentId === "cursor") void cleanupCursorConfigDir(taskId);
@@ -978,7 +975,7 @@ export class TaskScheduler {
 
 			if (card.columnId === "in_progress") {
 				if (card.pr?.url) {
-					const worktreePath = getWorktreePath(card.sharedWorktreeId ?? taskId);
+					const worktreePath = getWorktreePath(resolveWorktreeOwnerId(taskId, board.cards));
 					const taskBranch = getCardBranch(card);
 					const hookConfig2 = await loadProjectConfig(workspaceId);
 					if (!hookConfig2.autoCommit) {
