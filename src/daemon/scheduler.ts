@@ -365,7 +365,9 @@ export class TaskScheduler {
 				await blockOnUnmet(`Blocked: waiting for "${describeCard(unmet)}" to be done`);
 				return;
 			}
-			parentCards = card.waitsFor.map((id) => board.cards[id]).filter((c): c is RuntimeBoardCard => !!c);
+			// No parentCards: waitsFor parents are done and already merged into baseRef, so their
+			// code is present in this card's fresh worktree. Injecting their dev summaries would only
+			// risk misleading the agent (a later card may have refactored away the summarized work).
 		}
 
 		if (hasSharedWorktree) {
