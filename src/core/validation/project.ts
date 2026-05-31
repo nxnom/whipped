@@ -6,8 +6,7 @@ import { z } from "zod";
 // the dialog maps these onto `projects.add` { repoPath, initialConfig }.
 export const addProjectSchema = z.object({
 	repoPath: z.string().min(1, "Repository path is required"),
-	autonomousModeEnabled: z.boolean(),
-	autoPR: z.boolean(),
+	deliveryMode: z.enum(["off", "pr", "yolo"]),
 	installCommand: z.string().optional(),
 });
 

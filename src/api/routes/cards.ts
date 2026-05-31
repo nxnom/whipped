@@ -24,7 +24,9 @@ import {
 	listBranchesService,
 	moveCardService,
 	prepareStartAgentService,
+	resumeAllService,
 	setPrMetaService,
+	stopAllService,
 	submitHumanFeedbackService,
 	updateCardService,
 } from "../services/cards-service.js";
@@ -41,6 +43,21 @@ export const cardsController = new Hono<AppEnv>()
 	.get("/branches", zv("query", z.object({ workspaceId: z.string() })), async (c) => {
 		const { workspaceId } = c.req.valid("query");
 		return c.json(await listBranchesService(workspaceId));
+	})
+	.post("/stop-all", zv("json", z.object({ workspaceId: z.string() })), async (c) => {
+		const ctx = c.var.ctx;
+		const { workspaceId } = c.req.valid("json");
+		const scheduler = ctx.getScheduler(workspaceId);
+		const result = await stopAllService(workspaceId, (cardId) => scheduler?.stopTask(cardId));
+		ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
+		return c.json(result);
+	})
+	.post("/resume-all", zv("json", z.object({ workspaceId: z.string() })), async (c) => {
+		const ctx = c.var.ctx;
+		const { workspaceId } = c.req.valid("json");
+		const result = await resumeAllService(workspaceId);
+		ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
+		return c.json(result);
 	})
 	.post(
 		"/commit-and-merge",

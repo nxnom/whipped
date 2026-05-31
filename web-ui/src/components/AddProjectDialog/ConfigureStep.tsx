@@ -1,5 +1,6 @@
-import { RHFError, RHFInput, RHFInputGroup, RHFSwitch } from "@geckoui/geckoui";
-import { ArrowLeft, Plus } from "lucide-react";
+import { RHFError, RHFInput, RHFInputGroup, RHFSelect, SelectOption } from "@geckoui/geckoui";
+import { AlertTriangle, ArrowLeft, Plus } from "lucide-react";
+import { useWatch } from "react-hook-form";
 
 export function ConfigureStep({
 	repoPath,
@@ -13,6 +14,7 @@ export function ConfigureStep({
 	onAdd: () => void;
 }) {
 	const folderName = repoPath.split("/").filter(Boolean).at(-1) ?? repoPath;
+	const deliveryMode = useWatch({ name: "deliveryMode" });
 
 	return (
 		<div className="flex-1 flex flex-col min-h-0">
@@ -27,12 +29,28 @@ export function ConfigureStep({
 
 				<div className="flex flex-col gap-3.5">
 					<span className="text-[10px] font-medium uppercase text-[#4a4a5a] tracking-[1px]">Automation</span>
-					<ToggleRow
-						name="autonomousModeEnabled"
-						label="Autonomous mode"
-						description="Auto-pick and run tasks marked as Ready"
-					/>
-					<ToggleRow name="autoPR" label="Auto PR" description="Create a GitHub PR when all reviews pass" />
+					<div className="flex items-center justify-between gap-3">
+						<div>
+							<p className="text-[13px] text-[#c0c0d0]">Delivery mode</p>
+							<p className="text-[11px] mt-0.5 text-[#4a4a5a]">What happens when a task passes review</p>
+						</div>
+						<div className="w-40">
+							<RHFSelect name="deliveryMode">
+								<SelectOption value="off" label="Off" />
+								<SelectOption value="pr" label="Auto PR" />
+								<SelectOption value="yolo" label="YOLO" />
+							</RHFSelect>
+						</div>
+					</div>
+					{deliveryMode === "yolo" && (
+						<div className="flex items-start gap-2.5 px-3.5 py-3 rounded-md border border-amber-500/40 bg-amber-500/10">
+							<AlertTriangle size={15} className="text-amber-400 shrink-0 mt-px" />
+							<p className="text-[12px] text-amber-200/90 leading-relaxed">
+								<span className="font-semibold text-amber-200">YOLO merges with no PR or approval</span> — passing tasks
+								land straight on the local base branch and push.
+							</p>
+						</div>
+					)}
 				</div>
 
 				<div className="flex flex-col gap-2.5">
@@ -75,18 +93,6 @@ export function ConfigureStep({
 					<span className="text-[13px] font-medium text-white">{adding ? "Creating..." : "Create Project"}</span>
 				</button>
 			</div>
-		</div>
-	);
-}
-
-function ToggleRow({ name, label, description }: { name: string; label: string; description: string }) {
-	return (
-		<div className="flex items-center justify-between">
-			<div>
-				<p className="text-[13px] text-[#c0c0d0]">{label}</p>
-				<p className="text-[11px] mt-0.5 text-[#4a4a5a]">{description}</p>
-			</div>
-			<RHFSwitch name={name} />
 		</div>
 	);
 }

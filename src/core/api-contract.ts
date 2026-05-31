@@ -424,8 +424,10 @@ export const runtimeProjectConfigSchema = z.object({
 	maxParallelTasks: z.number().int().positive().optional(),
 	maxAutoFixAttempts: z.number().int().nonnegative().optional(),
 	pollingIntervalSeconds: z.number().int().positive().optional(),
-	autonomousModeEnabled: z.boolean().default(false),
-	autoPR: z.boolean().default(false),
+	// What happens when a card passes review (polling/dispatch is always on; per-ticket
+	// readyForDev gates pickup). "off" parks it in ready_for_review, "pr" auto-creates a
+	// GitHub PR, "yolo" merges the branch straight into the local baseRef and pushes.
+	deliveryMode: z.enum(["off", "pr", "yolo"]).default("off"),
 	autoCommit: z.boolean().default(true),
 	defaultBaseBranch: z.string().optional(),
 	github: runtimeGithubConfigSchema.optional(),
@@ -452,7 +454,6 @@ export const runtimeWorkspaceStateResponseSchema = z.object({
 	repoPath: z.string(),
 	board: runtimeBoardDataSchema,
 	revision: z.number(),
-	autonomousModeEnabled: z.boolean(),
 	projectConfig: runtimeProjectConfigSchema,
 });
 export type RuntimeWorkspaceStateResponse = z.infer<typeof runtimeWorkspaceStateResponseSchema>;
@@ -604,7 +605,6 @@ export type RuntimeStateEvent =
 	| { type: "snapshot"; state: RuntimeWorkspaceStateResponse }
 	| { type: "workspace_updated"; state: RuntimeWorkspaceStateResponse }
 	| { type: "terminal_output"; taskId: string; data: string }
-	| { type: "autonomous_mode_changed"; enabled: boolean }
 	| { type: "run_session_changed"; cardId: string | null; status: RunSessionStatus; errorMessage?: string };
 
 // ─── Projects layout ─────────────────────────────────────────────────────────

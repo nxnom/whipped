@@ -45,6 +45,7 @@ import {
 	updateCard,
 } from "../state/workspace-state.js";
 import { getCardBranch, getWorktreePath, resolveWorktreeOwnerId } from "../worktree/worktree-manager.js";
+import { type ConflictResolver, enqueueYoloMerge } from "./yolo-merge.js";
 
 interface ReviewPipelineOptions {
 	workspaceId: string;
@@ -55,7 +56,8 @@ interface ReviewPipelineOptions {
 	maxAutoFixAttempts: number;
 	stateHub: RuntimeStateHub;
 	githubClient?: GithubClient;
-	autoPR: boolean;
+	deliveryMode: "off" | "pr" | "yolo";
+	scheduler: ConflictResolver;
 	autoCommit: boolean;
 	secrets: RuntimeProjectSecret[];
 	systemPrompt?: string;
@@ -442,7 +444,7 @@ export function buildSecretsEnv(secrets: RuntimeProjectSecret[]): Record<string,
 }
 
 async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipelineOptions): Promise<void> {
-	const { workspaceId, githubClient, stateHub, autoPR } = options;
+	const { workspaceId, githubClient, stateHub, deliveryMode } = options;
 
 	const cardDesc60 = card.description?.split("\n")[0]?.slice(0, 60) ?? card.id;
 
@@ -474,9 +476,19 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 	await appendActivityLog(workspaceId, card.id, "All reviews passed → moved to Ready for Review");
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 
-	// subtasks (type:"subtask") skip autoPR — the story card creates the PR after orch passes.
-	// Standalone dependent tasks (type:"task" stacked on a parent) still create their own PR.
-	if (autoPR && card.type !== "subtask") {
+	if (deliveryMode === "off") return;
+
+	// subtasks (type:"subtask") skip delivery — the story card delivers after orch passes.
+	// Standalone dependent tasks (type:"task" stacked on a parent) deliver on their own.
+	if (card.type === "subtask") return;
+
+	if (deliveryMode === "yolo") {
+		enqueueYoloMerge(options.repoPath, card, workspaceId, options.scheduler, stateHub);
+		return;
+	}
+
+	// deliveryMode === "pr"
+	{
 		const prOwnerBoard = await loadBoard(workspaceId);
 		const effectiveWorktreeId = resolveWorktreeOwnerId(card.id, prOwnerBoard.cards);
 		const worktreePath = getWorktreePath(effectiveWorktreeId);

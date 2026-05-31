@@ -506,6 +506,12 @@ function loadProjectConfigInternal(workspaceId: string): RuntimeProjectConfig {
 	if (github) merged.github = github;
 	if (jira) merged.jira = jira;
 
+	// Migrate legacy autonomousModeEnabled + autoPR booleans → deliveryMode enum.
+	// Polling is now always on, so autonomousModeEnabled is dropped; autoPR maps to "pr".
+	if (merged.deliveryMode === undefined) {
+		merged.deliveryMode = merged.autoPR === true ? "pr" : "off";
+	}
+
 	const parsed = runtimeProjectConfigSchema.safeParse(merged);
 	return parsed.success ? parsed.data : runtimeProjectConfigSchema.parse({});
 }
@@ -645,15 +651,13 @@ export async function loadWorkspaceState(
 
 	const board = loadBoardInternal(workspaceId);
 	const projectConfig = loadProjectConfigInternal(workspaceId);
-	const autonomousModeEnabled = projectConfig.autonomousModeEnabled ?? false;
 
 	return {
 		workspaceId,
 		repoPath,
 		board,
 		revision,
-		autonomousModeEnabled,
-		projectConfig: { ...projectConfig, autonomousModeEnabled },
+		projectConfig,
 	};
 }
 
@@ -691,10 +695,6 @@ export async function clearCardSession(workspaceId: string, cardId: string): Pro
 		if (result.changes > 0) bumpBoardRevision(db, workspaceId);
 	});
 	tx();
-}
-
-export async function setAutonomousMode(workspaceId: string, enabled: boolean): Promise<void> {
-	await updateProjectConfig(workspaceId, (config) => ({ ...config, autonomousModeEnabled: enabled }));
 }
 
 export async function moveCard(

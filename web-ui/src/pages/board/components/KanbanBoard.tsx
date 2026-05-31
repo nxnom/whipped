@@ -1,7 +1,20 @@
 import { ConfirmDialog, toast } from "@geckoui/geckoui";
 import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
 import type { RuntimeBoardCard, RuntimeBoardColumnId, RuntimeWorkspaceStateResponse } from "@runtime-contract";
-import { ChevronDown, GitBranch, Layers, MessageSquare, Play, Plus, Settings, Square } from "lucide-react";
+import {
+	ChevronDown,
+	GitBranch,
+	GitPullRequest,
+	Layers,
+	ListChecks,
+	MessageSquare,
+	OctagonX,
+	Play,
+	Plus,
+	Settings,
+	Square,
+	Zap,
+} from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useRead, useWrite } from "@/runtime/api-client";
@@ -66,6 +79,8 @@ export function KanbanBoard({
 	const { trigger: deleteCard } = useWrite((api) => api("cards/:id").DELETE());
 	const { trigger: updateCard } = useWrite((api) => api("cards/:id").PATCH());
 	const { trigger: moveCard } = useWrite((api) => api("cards/move").POST());
+	const { trigger: stopAll } = useWrite((api) => api("cards/stop-all").POST());
+	const { trigger: resumeAll } = useWrite((api) => api("cards/resume-all").POST());
 
 	const currentBranch = branchesData?.defaultBranch ?? "";
 
@@ -115,40 +130,39 @@ export function KanbanBoard({
 		setEditDialogCard(card);
 	};
 
-	const _handleMoveAllToReady = () => {
-		const todoColumn = state.board.columns.find((c) => c.id === "todo");
-		const todoCards = (todoColumn?.taskIds ?? []).map((id) => state.board.cards[id]).filter((c) => c && !c.readyForDev);
-		if (todoCards.length === 0) {
-			toast.info("No unready tasks in Todo");
-			return;
-		}
+	const handleStopAll = () => {
 		ConfirmDialog.show({
-			title: "Mark all as Ready?",
-			content: `${todoCards.length} task${todoCards.length === 1 ? "" : "s"} will be marked as ready for the agent to pick up.`,
-			confirmButtonLabel: "Mark all",
+			title: "Stop all automation?",
+			content:
+				"Kills every running agent, moves In Progress and Reopened tasks back to Todo, and unmarks Ready for Dev so nothing is picked up. Worktrees are kept, so Resume continues prior work.",
+			confirmButtonLabel: "Stop All",
 			cancelButtonLabel: "Cancel",
 			onConfirm: async ({ dismiss }) => {
 				dismiss();
 				try {
-					for (const card of todoCards) {
-						await updateCard({
-							params: { id: card!.id },
-							body: {
-								workspaceId,
-								cardId: card!.id,
-								readyForDev: true,
-								revision: 0,
-							},
-						});
-					}
+					const res = await stopAll({ body: { workspaceId } });
+					if (res.error) throw res.error;
 					onRefresh();
-					toast.success(`Marked ${todoCards.length} task${todoCards.length === 1 ? "" : "s"} as ready`);
+					const n = res.data?.stoppedCardIds.length ?? 0;
+					toast.success(n > 0 ? `Stopped ${n} task${n === 1 ? "" : "s"} → Todo` : "Automation paused");
 				} catch {
-					toast.error("Failed to mark tasks as ready");
+					toast.error("Failed to stop all");
 				}
 			},
 			onCancel: ({ dismiss }) => dismiss(),
 		});
+	};
+
+	const handleResumeAll = async () => {
+		try {
+			const res = await resumeAll({ body: { workspaceId } });
+			if (res.error) throw res.error;
+			onRefresh();
+			const n = res.data?.resumedCardIds.length ?? 0;
+			toast.success(n > 0 ? `Resumed ${n} task${n === 1 ? "" : "s"}` : "No Todo tasks to resume");
+		} catch {
+			toast.error("Failed to resume");
+		}
 	};
 
 	const handleDragEnd = async (result: DropResult) => {
@@ -186,7 +200,41 @@ export function KanbanBoard({
 						<ChevronDown size={10} className="text-gray-600" />
 					</button>
 				)}
+				{state.projectConfig.deliveryMode === "pr" && (
+					<span
+						title="Tasks that pass review open a pull request"
+						className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#7c6aff]/15 border border-[#7c6aff]/40 text-xs text-[#b3a8ff]"
+					>
+						<GitPullRequest size={11} />
+						Auto PR
+					</span>
+				)}
+				{state.projectConfig.deliveryMode === "yolo" && (
+					<span
+						title="Tasks that pass review merge into the base branch and push — no PR, no approval"
+						className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/15 border border-amber-500/40 text-xs text-amber-300"
+					>
+						<Zap size={11} className="fill-current" />
+						YOLO
+					</span>
+				)}
 				<div className="flex-1" />
+				<button
+					onClick={handleResumeAll}
+					title="Mark every Todo task Ready for Dev"
+					className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#1a1a1f] border border-[#2a2a35] text-xs text-gray-500 hover:border-[#3a3a48] transition-colors"
+				>
+					<ListChecks size={12} />
+					Resume
+				</button>
+				<button
+					onClick={handleStopAll}
+					title="Stop all agents and park tasks in Todo"
+					className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#1a1a1f] border border-[#2a2a35] text-xs text-gray-500 hover:border-red-500/60 hover:text-red-400 transition-colors"
+				>
+					<OctagonX size={12} />
+					Stop All
+				</button>
 				<button
 					onClick={() => {
 						setCreateDialogMode("story");

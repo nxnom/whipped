@@ -228,8 +228,6 @@ export class BoardPoller {
 		const { workspaceId, repoPath, scheduler, onCardReadyForReview } = this.options;
 		const state = await loadWorkspaceState(workspaceId, repoPath);
 
-		if (!state.autonomousModeEnabled) return;
-
 		const board = state.board;
 		const pendingCards: RuntimeBoardCard[] = [];
 

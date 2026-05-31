@@ -113,10 +113,6 @@ export class RuntimeStateHub {
 		this.terminalBuffers.delete(`${workspaceId}:${streamId}`);
 	}
 
-	broadcastAutonomousModeChange(workspaceId: WorkspaceId, enabled: boolean): void {
-		this.broadcastToWorkspace(workspaceId, { type: "autonomous_mode_changed", enabled });
-	}
-
 	broadcastRunSessionChange(
 		workspaceId: WorkspaceId,
 		cardId: string | null,

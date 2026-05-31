@@ -229,7 +229,8 @@ export async function createRuntimeServer(options: ServerOptions) {
 				const reviewSlots = (cardWorkflow?.slots ?? [])
 					.filter((s) => s.type !== "dev" && s.enabled)
 					.sort((a, b) => a.order - b.order);
-				if (reviewSlots.length === 0 && !(latestProjectConfig.autoPR ?? false)) return;
+				const deliveryMode = latestProjectConfig.deliveryMode ?? "off";
+				if (reviewSlots.length === 0 && deliveryMode === "off") return;
 				await runReviewPipeline(card, {
 					workspaceId,
 					repoPath: wsRepoPath,
@@ -239,7 +240,8 @@ export async function createRuntimeServer(options: ServerOptions) {
 					maxAutoFixAttempts: latestProjectConfig.maxAutoFixAttempts ?? latestConfig.maxAutoFixAttempts,
 					stateHub,
 					githubClient: latestGithubClient,
-					autoPR: latestProjectConfig.autoPR ?? false,
+					deliveryMode,
+					scheduler,
 					autoCommit: latestProjectConfig.autoCommit ?? true,
 					secrets: latestProjectConfig.secrets ?? [],
 					systemPrompt: latestProjectConfig.systemPrompt,
@@ -291,9 +293,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 		schedulers.set(workspaceId, scheduler);
 		pollers.set(workspaceId, poller);
 
-		if (projectConfig.autonomousModeEnabled) {
-			poller.start();
-		}
+		poller.start();
 		poller.startPRPolling();
 
 		void slackNotifier.joinExistingChannels(workspaceId);

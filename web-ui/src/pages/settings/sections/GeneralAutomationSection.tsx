@@ -1,6 +1,7 @@
-import { RHFNumberInput, RHFSwitch, Switch } from "@geckoui/geckoui";
+import { RHFNumberInput, RHFSwitch, Select, SelectOption } from "@geckoui/geckoui";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { RuntimeProjectConfig } from "@runtime-contract";
+import { AlertTriangle } from "lucide-react";
 import {
 	type GeneralAutomationForm,
 	type GeneralAutomationFormInput,
@@ -35,23 +36,18 @@ export function GeneralAutomationSection({
 	config,
 	branches,
 	saving,
-	togglingAutonomous,
-	onToggleAutonomous,
 	onUpdate,
 	onSave,
 }: {
 	config: RuntimeProjectConfig;
 	branches: string[];
 	saving: boolean;
-	togglingAutonomous: boolean;
-	onToggleAutonomous: () => void;
 	onUpdate: (next: RuntimeProjectConfig) => void;
 	onSave: () => void;
 }) {
 	const methods = useForm<GeneralAutomationFormInput, unknown, GeneralAutomationForm>({
 		resolver: zodResolver(generalAutomationFormSchema),
 		values: {
-			autoPR: config.autoPR ?? false,
 			autoCommit: config.autoCommit ?? true,
 			maxParallelTasks: config.maxParallelTasks,
 			maxAutoFixAttempts: config.maxAutoFixAttempts,
@@ -74,19 +70,32 @@ export function GeneralAutomationSection({
 	return (
 		<FormProvider {...methods}>
 			<div className="flex flex-col gap-7">
+				{config.deliveryMode === "yolo" && (
+					<div className="flex items-start gap-2.5 px-3.5 py-3 rounded-md border border-amber-500/40 bg-amber-500/10">
+						<AlertTriangle size={15} className="text-amber-400 shrink-0 mt-px" />
+						<p className="text-[12px] text-amber-200/90 leading-relaxed">
+							<span className="font-semibold text-amber-200">YOLO mode is on.</span> Tasks that pass review are merged
+							straight into the local base branch and pushed — no PR and no human approval. If your local repo is on
+							that branch, its working tree will read as behind until you pull.
+						</p>
+					</div>
+				)}
+
 				{/* Automation */}
 				<div className="flex flex-col gap-4">
 					<SectionDivider title="Automation" />
-					<FieldRow label="Autonomous mode" description="Automatically pick up Ready and Reopened tasks when idle.">
-						{/* Direct toggle — backed by a dedicated API call, not the form. */}
-						<Switch
-							checked={config.autonomousModeEnabled}
-							onChange={onToggleAutonomous}
-							disabled={togglingAutonomous}
-						/>
-					</FieldRow>
-					<FieldRow label="Auto PR" description="Push branch and open PR when all reviews pass.">
-						<RHFSwitch name="autoPR" onChange={(v) => onUpdate({ ...config, autoPR: Boolean(v) })} />
+					<FieldRow label="Delivery mode" description="What happens when a task passes review.">
+						{/* Direct control — mirrored into the parent-owned config, not the form. */}
+						<div className="w-40">
+							<Select
+								value={config.deliveryMode ?? "off"}
+								onChange={(v) => onUpdate({ ...config, deliveryMode: v as RuntimeProjectConfig["deliveryMode"] })}
+							>
+								<SelectOption value="off" label="Off" />
+								<SelectOption value="pr" label="Auto PR" />
+								<SelectOption value="yolo" label="YOLO" />
+							</Select>
+						</div>
 					</FieldRow>
 					<FieldRow
 						label="Auto commit"

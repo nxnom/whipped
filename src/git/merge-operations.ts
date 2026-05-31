@@ -1,7 +1,7 @@
 import { execFile, spawnSync } from "node:child_process";
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { Octokit } from "@octokit/rest";
 import { logger } from "../core/logger.js";
@@ -138,6 +138,75 @@ export async function pushBranch(worktreePath: string, branch: string): Promise<
 		const detail = stderr || message || err.code || String(err);
 		throw new Error(`Failed to push: ${detail}`);
 	});
+}
+
+// ─── YOLO mode: merge straight into the local base ref ────────────────────────
+//
+// Each YOLO merge runs in a fresh, detached, machine-owned scratch worktree so we
+// never touch the user's main checkout and never need a destructive reset. The
+// base branch is advanced via `update-ref` (working-tree-free); the scratch
+// worktree is deleted afterwards. Merges into the same base ref are serialised by
+// the caller (merge-queue) so concurrent `update-ref` can't clobber.
+
+const YOLO_DIR = join(WORKTREES_DIR, ".yolo");
+
+export interface YoloMergeResult {
+	ok: boolean;
+	conflictedFiles: string[];
+}
+
+// Creates a fresh detached worktree at baseRef and returns its path. Detached so
+// it coexists with the main repo even if that's sitting on baseRef.
+export function createYoloWorktree(repoPath: string, workspaceId: string, cardId: string, baseRef: string): string {
+	const tmpPath = join(YOLO_DIR, workspaceId, `${cardId}-${Date.now()}`);
+	mkdirSync(dirname(tmpPath), { recursive: true });
+	git(["worktree", "prune"], repoPath);
+	const res = git(["worktree", "add", "--detach", tmpPath, baseRef], repoPath);
+	if (!res.ok) throw new Error(`Failed to create YOLO worktree at ${tmpPath}: ${res.stderr}`);
+	return tmpPath;
+}
+
+// Merges taskBranch into the detached HEAD of the scratch worktree. On conflict the
+// merge is left in progress so the resolution agent can fix it in place.
+export function yoloMergeIntoBase(tmpPath: string, taskBranch: string): YoloMergeResult {
+	const res = git(["merge", taskBranch, "--no-ff", "--no-edit", "-m", `Merge ${taskBranch}`], tmpPath);
+	if (res.ok) return { ok: true, conflictedFiles: [] };
+	const conflicts = git(["diff", "--name-only", "--diff-filter=U"], tmpPath);
+	return { ok: false, conflictedFiles: conflicts.stdout.split("\n").filter(Boolean) };
+}
+
+// Advances the local baseRef branch to the scratch worktree's merged HEAD without
+// touching any working tree. Returns the new commit sha.
+export function finalizeYoloMerge(repoPath: string, baseRef: string, tmpPath: string): string {
+	const head = git(["rev-parse", "HEAD"], tmpPath);
+	if (!head.ok || !head.stdout) throw new Error("Could not resolve merged HEAD in YOLO worktree");
+	const upd = git(["update-ref", `refs/heads/${baseRef}`, head.stdout], repoPath);
+	if (!upd.ok) throw new Error(`Failed to advance ${baseRef}: ${upd.stderr}`);
+	return head.stdout;
+}
+
+// Removes a YOLO scratch worktree. Guarded so it can only ever delete paths inside
+// the machine-owned .yolo directory.
+export function removeYoloWorktree(repoPath: string, tmpPath: string): void {
+	if (!resolve(tmpPath).startsWith(YOLO_DIR + sep)) {
+		throw new Error(`Refusing to remove non-YOLO worktree: ${tmpPath}`);
+	}
+	git(["worktree", "remove", tmpPath, "--force"], repoPath);
+	git(["worktree", "prune"], repoPath);
+}
+
+// True if the base branch exists on origin (so a push is meaningful). False for
+// local-only repos or branches that have never been pushed.
+export function remoteBaseBranchExists(repoPath: string, baseRef: string): boolean {
+	const res = git(["ls-remote", "--heads", "origin", baseRef], repoPath);
+	return res.ok && res.stdout.length > 0;
+}
+
+// Plain (non-force) push of the base branch. A rejection means the remote moved —
+// surfaced to the caller rather than forced past.
+export function pushBaseRef(repoPath: string, baseRef: string): { ok: boolean; error?: string } {
+	const res = git(["push", "origin", baseRef], repoPath);
+	return res.ok ? { ok: true } : { ok: false, error: res.stderr || "push failed" };
 }
 
 // Creates a GitHub PR via the REST API. Requires GITHUB_TOKEN and a GitHub remote.

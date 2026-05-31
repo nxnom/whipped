@@ -56,7 +56,6 @@ const optionalNumberField = z.preprocess(
 // the global defaults when left blank.
 
 export const generalAutomationFormSchema = z.object({
-	autoPR: z.boolean().default(false),
 	autoCommit: z.boolean().default(true),
 	maxParallelTasks: optionalNumberField,
 	maxAutoFixAttempts: optionalNumberField,

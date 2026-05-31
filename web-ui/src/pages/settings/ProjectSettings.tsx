@@ -50,7 +50,6 @@ const SECTION_META: Record<ProjectSection, { title: string; description: string 
 export function ProjectSettings({ workspaceId, section }: { workspaceId: string; section: ProjectSection }) {
 	const [config, setConfig] = useState<RuntimeProjectConfig | null>(null);
 	const [saving, setSaving] = useState(false);
-	const [togglingAutonomous, setTogglingAutonomous] = useState(false);
 	const isDirtyRef = useRef(false);
 
 	const { state: wsState } = useWorkspaceState(workspaceId);
@@ -59,7 +58,6 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 	const { data: branchesData } = useRead((api) => api("cards/branches").GET({ query: { workspaceId } }), {
 		enabled: section === "general-automation" || section === "instructions",
 	});
-	const { trigger: setAutonomousMode } = useWrite((api) => api("workspace/autonomous-mode").POST());
 	const { trigger: saveProjectConfig } = useWrite((api) => api("project-config").PUT());
 
 	// Derive directly from the cached reads — never mirror Spoosh data into local
@@ -81,22 +79,6 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 	const updateConfig = (next: RuntimeProjectConfig) => {
 		isDirtyRef.current = true;
 		setConfig(next);
-	};
-
-	const handleToggleAutonomous = async () => {
-		if (!config) return;
-		const next = !config.autonomousModeEnabled;
-		setTogglingAutonomous(true);
-		try {
-			const res = await setAutonomousMode({ body: { workspaceId, enabled: next } });
-			if (res.error) throw res.error;
-			updateConfig({ ...config, autonomousModeEnabled: next });
-			toast.success(next ? "Autonomous mode enabled" : "Autonomous mode disabled");
-		} catch {
-			toast.error("Failed to toggle autonomous mode");
-		} finally {
-			setTogglingAutonomous(false);
-		}
 	};
 
 	const handleSave = async () => {
@@ -182,8 +164,6 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 						config={config}
 						branches={branches}
 						saving={saving}
-						togglingAutonomous={togglingAutonomous}
-						onToggleAutonomous={handleToggleAutonomous}
 						onUpdate={updateConfig}
 						onSave={handleSave}
 					/>

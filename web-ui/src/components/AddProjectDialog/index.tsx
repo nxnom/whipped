@@ -17,8 +17,7 @@ export function AddProjectDialog({ onClose, onAdded }: Props) {
 		resolver: zodResolver(addProjectSchema),
 		values: {
 			repoPath: "",
-			autonomousModeEnabled: false,
-			autoPR: false,
+			deliveryMode: "off" as const,
 			installCommand: "",
 		},
 	});
@@ -77,8 +76,7 @@ export function AddProjectDialog({ onClose, onAdded }: Props) {
 
 	const handleAdd = methods.handleSubmit(async (values) => {
 		const initialConfig: Partial<RuntimeProjectConfig> = {
-			autonomousModeEnabled: values.autonomousModeEnabled,
-			autoPR: values.autoPR,
+			deliveryMode: values.deliveryMode,
 			worktreeSetup: values.installCommand?.trim()
 				? { filesToCopy: [], installCommand: values.installCommand.trim() }
 				: undefined,

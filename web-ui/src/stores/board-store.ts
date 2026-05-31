@@ -63,13 +63,6 @@ export function useWorkspaceState(workspaceId: string) {
 					case "workspace_updated":
 						applyState(msg.state);
 						break;
-					case "autonomous_mode_changed":
-						optimistic((cache) =>
-							cache("workspace/state")
-								.filter((entry) => entry.query.workspaceId === workspaceId)
-								.set((prev) => (prev ? { ...prev, autonomousModeEnabled: msg.enabled } : prev)),
-						);
-						break;
 				}
 			} catch {
 				// ignore

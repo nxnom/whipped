@@ -1,10 +1,5 @@
 import { spawnSync } from "node:child_process";
-import {
-	listWorkspaces,
-	loadWorkspaceState,
-	saveWorkspaceState,
-	setAutonomousMode,
-} from "../../state/workspace-state.js";
+import { listWorkspaces, loadWorkspaceState, saveWorkspaceState } from "../../state/workspace-state.js";
 import type { RuntimeWorkspaceStateSaveRequest } from "../../core/api-contract.js";
 import { NotFoundError } from "../errors/http-errors.js";
 
@@ -23,9 +18,6 @@ export const loadStateForContext = async (workspaceId: string, repoPath: string)
 
 export const saveState = async (workspaceId: string, request: RuntimeWorkspaceStateSaveRequest) =>
 	saveWorkspaceState(workspaceId, request);
-
-export const updateAutonomousMode = async (workspaceId: string, enabled: boolean) =>
-	setAutonomousMode(workspaceId, enabled);
 
 // Lists ignored + untracked top-level entries in the repo (deduped, sorted),
 // filtering out anything nested under a subdirectory.

@@ -156,6 +156,48 @@ const markStoryGroupDone = async (
 	}
 };
 
+// Emergency stop: kill every live agent, park in_progress/reopened cards back in
+// Todo, and clear readyForDev everywhere so the always-on poller stops dispatching.
+// Worktrees are preserved so a later resume continues prior work. ready_for_review /
+// done / blocked cards are left untouched.
+export const stopAllService = async (
+	workspaceId: string,
+	stopTask: (cardId: string) => void,
+): Promise<{ stoppedCardIds: string[] }> => {
+	const board = await loadBoard(workspaceId);
+	const activeIds = Object.values(board.cards)
+		.filter((c) => c.columnId === "in_progress" || c.columnId === "reopened")
+		.map((c) => c.id);
+
+	for (const id of activeIds) {
+		stopTask(id);
+		await updateCard(workspaceId, id, { readyForDev: false });
+		await moveCard(workspaceId, id, "todo");
+		await appendActivityLog(workspaceId, id, "Stopped by Stop All → Todo");
+	}
+
+	const refreshed = await loadBoard(workspaceId);
+	for (const card of Object.values(refreshed.cards)) {
+		if (card.columnId === "todo" && card.readyForDev) {
+			await updateCard(workspaceId, card.id, { readyForDev: false });
+		}
+	}
+
+	return { stoppedCardIds: activeIds };
+};
+
+// One-click resume: mark every Todo card readyForDev so the poller picks them up.
+export const resumeAllService = async (workspaceId: string): Promise<{ resumedCardIds: string[] }> => {
+	const board = await loadBoard(workspaceId);
+	const ids = Object.values(board.cards)
+		.filter((c) => c.columnId === "todo" && !c.readyForDev)
+		.map((c) => c.id);
+	for (const id of ids) {
+		await updateCard(workspaceId, id, { readyForDev: true });
+	}
+	return { resumedCardIds: ids };
+};
+
 export const commitAndMergeService = async (
 	workspaceId: string,
 	cardId: string,
