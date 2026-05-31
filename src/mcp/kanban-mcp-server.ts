@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Stdio MCP server exposing Kanban board operations to the home agent.
  * Launched by Claude Code as a subprocess; communicates via stdin/stdout.
