@@ -323,7 +323,10 @@ export async function createRuntimeServer(options: ServerOptions) {
 
 	const apiApp = createApiApp(createContext());
 
-	const webUiDistPath = join(__dirname, "..", "web-ui");
+	// The bundled CLI lives at dist/cli.js, so __dirname is dist/ and the web UI
+	// build output sits at dist/web-ui (see scripts/build.mjs). In dev this path
+	// won't exist (UI is served by Vite), so hasWebUi stays false there.
+	const webUiDistPath = join(__dirname, "web-ui");
 	const webUiIndexPath = join(webUiDistPath, "index.html");
 	const hasWebUi = existsSync(webUiIndexPath);
 

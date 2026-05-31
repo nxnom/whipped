@@ -9,13 +9,21 @@ const sharedConfig = {
 	platform: "node",
 	target: "node22",
 	format: "esm",
-	external: ["node-pty", "proper-lockfile", "pino", "pino-pretty", "thread-stream"],
+	// Native addons and packages that resolve files relative to their own location
+	// can't be bundled — keep them external so they load from node_modules at runtime.
+	external: ["better-sqlite3", "node-pty", "proper-lockfile", "pino", "pino-pretty", "thread-stream"],
 	define: { "process.env.NODE_ENV": '"production"' },
 };
 
-// Shim require() for CJS deps (e.g. commander) that load node: builtins at
-// runtime inside an ESM bundle.
-const esmRequireShim = `import { createRequire as __ovrCreateRequire } from "node:module";\nconst require = __ovrCreateRequire(import.meta.url);`;
+// Shim require()/__filename for CJS deps that reference them at runtime inside
+// an ESM bundle. __dirname is left alone: the entry modules already declare their
+// own via import.meta.url, and adding it here would be a duplicate declaration.
+const esmRequireShim = [
+	`import { createRequire as __ovrCreateRequire } from "node:module";`,
+	`import { fileURLToPath as __ovrFileURLToPath } from "node:url";`,
+	`const require = __ovrCreateRequire(import.meta.url);`,
+	`const __filename = __ovrFileURLToPath(import.meta.url);`,
+].join("\n");
 
 await Promise.all([
 	esbuild.build({
@@ -35,9 +43,11 @@ await Promise.all([
 // Copy web UI build output
 mkdirSync("dist/web-ui", { recursive: true });
 
-// Copy SQL migration files (esbuild ignores .sql, but db.ts reads them at runtime)
+// Copy SQL migration files (esbuild ignores .sql, but db.ts reads them at runtime).
+// The bundle flattens to dist/cli.js, so db.ts's import.meta.url-relative
+// "migrations" dir resolves to dist/migrations — copy there, not dist/state/migrations.
 const migrationsSrc = "src/state/migrations";
-const migrationsDst = "dist/state/migrations";
+const migrationsDst = "dist/migrations";
 mkdirSync(migrationsDst, { recursive: true });
 for (const file of readdirSync(migrationsSrc)) {
 	if (file.endsWith(".sql")) {
