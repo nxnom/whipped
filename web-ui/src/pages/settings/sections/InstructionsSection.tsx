@@ -21,13 +21,7 @@ function SectionDivider({ title, action }: { title: string; action?: React.React
 const textareaClassName =
 	"bg-[#0c0c0f] border border-[#2a2a35] rounded-lg px-4 py-3.5 text-[#c0c0d0] font-mono text-[12px] leading-relaxed resize-none outline-none w-full";
 
-export function InstructionsSection({
-	config,
-	workspaceId,
-}: {
-	config: RuntimeProjectConfig;
-	workspaceId: string;
-}) {
+export function InstructionsSection({ config, workspaceId }: { config: RuntimeProjectConfig; workspaceId: string }) {
 	const methods = useForm<InstructionsForm, unknown, InstructionsForm>({
 		resolver: zodResolver(instructionsFormSchema),
 		values: {

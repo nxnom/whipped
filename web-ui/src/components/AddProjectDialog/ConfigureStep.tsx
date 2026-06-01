@@ -56,10 +56,7 @@ export function ConfigureStep({
 				<div className="flex flex-col gap-2.5">
 					<span className="text-[10px] font-medium uppercase text-[#4a4a5a] tracking-[1px]">Worktree setup</span>
 					<RHFInputGroup label="Install command" labelClassName="text-[12px] text-[#8888a0]" className="flex flex-col">
-						<RHFInput
-							name="installCommand"
-							placeholder="pnpm install"
-						/>
+						<RHFInput name="installCommand" placeholder="pnpm install" />
 						<RHFError name="installCommand" className="text-[11px] text-[#ef4444] mt-1" />
 						<p className="text-[11px] mt-1 text-[#4a4a5a]">Runs once when a new worktree is created for a task.</p>
 					</RHFInputGroup>

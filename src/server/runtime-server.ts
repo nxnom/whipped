@@ -26,7 +26,6 @@ import {
 	loadBoard,
 	loadProjectConfig,
 	loadTerminalBuffer,
-	loadWorkspaceContext,
 	moveCard,
 	saveAttachment,
 	updateCard,
@@ -105,7 +104,6 @@ export async function createRuntimeServer(options: ServerOptions) {
 	setMachineToken(await getOrCreateMachineToken());
 
 	const _globalConfig = await loadGlobalConfig();
-	const initialCtx = await loadWorkspaceContext(repoPath);
 
 	const stateHub = new RuntimeStateHub();
 	const schedulers = new Map<string, TaskScheduler>();
@@ -305,13 +303,12 @@ export async function createRuntimeServer(options: ServerOptions) {
 		void slackNotifier.joinExistingChannels(workspaceId);
 	}
 
-	// Init all known workspaces on startup
+	// Init all known workspaces on startup. Projects are added explicitly via the UI;
+	// the cwd is never auto-registered as a workspace.
 	const allWorkspaces = await listWorkspaces();
 	for (const ws of allWorkspaces) {
 		await initWorkspace(ws.workspaceId, ws.repoPath);
 	}
-	// Always init the current cwd workspace
-	await initWorkspace(initialCtx.workspaceId, repoPath);
 
 	function createContext(): AppContext {
 		return {
@@ -319,8 +316,8 @@ export async function createRuntimeServer(options: ServerOptions) {
 			getScheduler: (id) => schedulers.get(id),
 			getPoller: (id) => pollers.get(id),
 			ensureWorkspace,
-			currentWorkspaceId: initialCtx.workspaceId,
-			currentRepoPath: repoPath,
+			currentWorkspaceId: null,
+			currentRepoPath: null,
 			startRun,
 			stopRun,
 			getRunSession,
