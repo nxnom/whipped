@@ -141,7 +141,7 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 		return (
 			<div className="flex-1 flex flex-col overflow-hidden">
 				<PageHeader title={meta.title} description={meta.description} />
-				<InstructionsSection config={config} saving={saving} onUpdate={updateConfig} onSave={handleSave} />
+				<InstructionsSection config={config} workspaceId={workspaceId} />
 			</div>
 		);
 	}

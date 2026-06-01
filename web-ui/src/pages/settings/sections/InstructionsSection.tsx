@@ -1,10 +1,11 @@
-import { RHFTextarea } from "@geckoui/geckoui";
+import { RHFTextarea, toast } from "@geckoui/geckoui";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { RuntimeProjectConfig } from "@runtime-contract";
 import { DEFAULT_GIT_INSTRUCTIONS } from "@runtime-contract";
 import { type InstructionsForm, instructionsFormSchema } from "@runtime-validation/config";
 import { RotateCcw } from "lucide-react";
 import { FormProvider, useForm } from "react-hook-form";
+import { useWrite } from "@/runtime/api-client";
 import { classNames } from "@/utils/classNames";
 
 function SectionDivider({ title, action }: { title: string; action?: React.ReactNode }) {
@@ -22,14 +23,10 @@ const textareaClassName =
 
 export function InstructionsSection({
 	config,
-	saving,
-	onUpdate,
-	onSave,
+	workspaceId,
 }: {
 	config: RuntimeProjectConfig;
-	saving: boolean;
-	onUpdate: (next: RuntimeProjectConfig) => void;
-	onSave: () => void;
+	workspaceId: string;
 }) {
 	const methods = useForm<InstructionsForm, unknown, InstructionsForm>({
 		resolver: zodResolver(instructionsFormSchema),
@@ -39,14 +36,25 @@ export function InstructionsSection({
 		},
 	});
 
-	// RHF owns the form state; mirror each change back into the parent-owned config
-	// so the existing onUpdate contract is preserved (no direct API call here).
-	// Empty strings normalise to undefined, matching the prior behaviour.
-	const norm = (v: string | null): string | undefined => v || undefined;
+	const { trigger: saveProjectConfig } = useWrite((api) => api("project-config").PUT());
+
+	const onSubmit = async ({ systemPrompt, gitInstructions }: InstructionsForm) => {
+		try {
+			const res = await saveProjectConfig({
+				body: {
+					workspaceId,
+					config: { ...config, systemPrompt: systemPrompt || undefined, gitInstructions: gitInstructions || undefined },
+				},
+			});
+			if (res.error) throw res.error;
+			toast.success("Settings saved");
+		} catch {
+			toast.error("Failed to save settings");
+		}
+	};
 
 	const loadDefaultGitInstructions = () => {
 		methods.setValue("gitInstructions", DEFAULT_GIT_INSTRUCTIONS, { shouldDirty: true });
-		onUpdate({ ...config, gitInstructions: DEFAULT_GIT_INSTRUCTIONS });
 	};
 
 	return (
@@ -66,7 +74,6 @@ export function InstructionsSection({
 								"Tech stack: Next.js 15, TypeScript, Postgres\nWebsite: https://app.example.com\n\nGoals:\n- Keep bundle size under 200kb\n- Follow REST conventions"
 							}
 							className={classNames(textareaClassName, "h-[180px]")}
-							onChange={(v) => onUpdate({ ...config, systemPrompt: norm(v) })}
 						/>
 					</div>
 
@@ -92,7 +99,6 @@ export function InstructionsSection({
 							name="gitInstructions"
 							placeholder={DEFAULT_GIT_INSTRUCTIONS}
 							className={classNames(textareaClassName, "flex-1")}
-							onChange={(v) => onUpdate({ ...config, gitInstructions: norm(v) })}
 						/>
 					</div>
 				</div>
@@ -100,11 +106,11 @@ export function InstructionsSection({
 				{/* Save */}
 				<div className="shrink-0 flex justify-end px-10 py-4 border-t border-[#2a2a35]">
 					<button
-						onClick={onSave}
-						disabled={saving}
+						onClick={methods.handleSubmit(onSubmit)}
+						disabled={methods.formState.isSubmitting}
 						className="text-sm font-medium px-4 py-2 rounded-lg transition-opacity disabled:opacity-50 bg-[#7c6aff] text-white"
 					>
-						{saving ? "Saving..." : "Save"}
+						{methods.formState.isSubmitting ? "Saving..." : "Save"}
 					</button>
 				</div>
 			</div>
