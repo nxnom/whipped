@@ -728,23 +728,33 @@ function formatComment(
 
 	if (c.metadata?.visualComment && typeof c.metadata.visualComment === "object") {
 		const vc = c.metadata.visualComment as { pageUrl?: unknown; elements?: Record<string, unknown>[] };
-		const vcLines = ["Visual annotation context:"];
-		if (vc.pageUrl) vcLines.push(`- Page: ${vc.pageUrl}`);
-		// Each referenced element is numbered to match the `#N` mentions in summary.
 		const elements = vc.elements ?? [];
-		elements.forEach((el, i) => {
-			const label = elements.length > 1 ? `Element ${i + 1}` : "Element";
-			if (el.elementSelector) vcLines.push(`- ${label} selector: ${el.elementSelector}`);
-			if (el.elementText) vcLines.push(`  - ${label} text: "${el.elementText}"`);
-			if (Array.isArray(el.componentChain) && el.componentChain.length) {
-				vcLines.push(`  - ${label} component chain (outer → inner): ${(el.componentChain as string[]).join(" → ")}`);
-			} else if (el.componentName) {
-				vcLines.push(`  - ${label} component: ${el.componentName}`);
-			}
-			if (el.sourceFile)
-				vcLines.push(`  - ${label} source: ${el.sourceFile}${el.sourceLine != null ? `:${el.sourceLine}` : ""}`);
-		});
-		parts.push(vcLines.join("\n"));
+		const vcLines: string[] = [];
+		// Each element line leads with the same `#N` token the user typed in the
+		// summary, and the list is scoped to this comment, so an agent reading
+		// several stacked Visual Feedback blocks never confuses one comment's #1
+		// with another's.
+		if (elements.length) {
+			vcLines.push(
+				elements.length > 1
+					? "Referenced elements (this feedback only — #N refers to the list below):"
+					: "Referenced element:",
+			);
+			elements.forEach((el, i) => {
+				const bits: string[] = [];
+				if (el.elementSelector) bits.push(`\`${el.elementSelector}\``);
+				if (Array.isArray(el.componentChain) && el.componentChain.length) {
+					bits.push(`🧩 ${(el.componentChain as string[]).join(" → ")}`);
+				} else if (el.componentName) {
+					bits.push(`🧩 ${el.componentName}`);
+				}
+				if (el.sourceFile) bits.push(`${el.sourceFile}${el.sourceLine != null ? `:${el.sourceLine}` : ""}`);
+				vcLines.push(`- #${i + 1} → ${bits.join(" · ")}`);
+				if (el.elementText) vcLines.push(`  "${el.elementText}"`);
+			});
+		}
+		if (vc.pageUrl) vcLines.push(`Page: ${vc.pageUrl}`);
+		if (vcLines.length) parts.push(vcLines.join("\n"));
 	} else if (c.metadata && Object.keys(c.metadata).length > 0) {
 		for (const [k, v] of Object.entries(c.metadata)) {
 			if (typeof v !== "object") parts.push(`${k}: ${String(v)}`);

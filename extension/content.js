@@ -351,7 +351,7 @@
         <span class="num" style="background:${c}">${i + 1}</span>
         <div class="el-meta">
           <div><code>${escHtml(s.selector)}</code></div>
-          ${chain ? `<div class="chain">⚛ ${escHtml(chain)}</div>` : ""}
+          ${chain ? `<div class="chain">🧩 ${escHtml(chain)}</div>` : ""}
           ${shortFile ? `<div class="src">📄 ${escHtml(shortFile)}${s.ri.sourceLine ? ":" + s.ri.sourceLine : ""}</div>` : ""}
         </div>
         <button class="rm" data-idx="${i}" title="Remove">×</button>

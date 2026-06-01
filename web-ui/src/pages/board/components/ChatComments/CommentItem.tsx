@@ -168,7 +168,7 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 												</span>
 											)}
 											{el.elementSelector && <code className="font-mono text-[#c4baff]">{el.elementSelector}</code>}
-											{chainDisplay && <span className="text-[#6a6a80]">⚛ {chainDisplay}</span>}
+											{chainDisplay && <span className="text-[#6a6a80]">🧩 {chainDisplay}</span>}
 										</div>
 										{el.elementText && <div className="text-[#a0a0b8] italic line-clamp-2">"{el.elementText}"</div>}
 										{shortFile && (
