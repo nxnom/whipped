@@ -20,7 +20,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useRead, useWrite } from "@/runtime/api-client";
 import { useRunSession } from "@/stores/run-session-store";
 import { CardDetailPanel } from "./CardDetailPanel";
-import { CreateTaskDialog, EditTaskDialog } from "./CreateTaskDialog";
+import { CreateTaskDialog, EditTaskDialog } from "./TaskDialog";
 import { KanbanColumn } from "./KanbanColumn";
 
 interface KanbanBoardProps {
