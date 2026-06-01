@@ -59,7 +59,6 @@ export function ConfigureStep({
 						<RHFInput
 							name="installCommand"
 							placeholder="pnpm install"
-							inputClassName="mt-1.5 w-full outline-none bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-2 text-[#c0c0d0] text-[12px]"
 						/>
 						<RHFError name="installCommand" className="text-[11px] text-[#ef4444] mt-1" />
 						<p className="text-[11px] mt-1 text-[#4a4a5a]">Runs once when a new worktree is created for a task.</p>

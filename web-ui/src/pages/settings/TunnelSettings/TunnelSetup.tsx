@@ -196,7 +196,6 @@ export function TunnelSetup({ config, tunnelConfig, isConfigured }: TunnelSetupP
 										<RHFInput
 											name="domain"
 											placeholder="e.g. slack.yourdomain.com"
-											inputClassName="font-mono text-[12px] focus:outline-none focus:border-[#7c6aff] px-3 py-2 bg-[#0c0c0f] border border-[#2a2a35] rounded-md text-[#c0c0d0]"
 										/>
 									</RHFInputGroup>
 									<RHFError name="domain" className="text-[11px] text-[#ef4444]" />
