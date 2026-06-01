@@ -100,6 +100,18 @@ class SlackNotifier {
 		}
 	}
 
+	// Re-join every existing ticket channel across all workspaces. Run after a new
+	// bot is installed (OAuth) so the fresh bot user becomes a member of channels
+	// created by a previous app — otherwise Slack won't deliver reply events for
+	// old threads to the new bot, nor let it post into them.
+	async joinAllChannels(): Promise<void> {
+		const { listWorkspaces } = await import("../state/workspace-state.js");
+		const workspaces = await listWorkspaces();
+		for (const { workspaceId } of workspaces) {
+			await this.joinExistingChannels(workspaceId);
+		}
+	}
+
 	async joinExistingChannels(workspaceId: string): Promise<void> {
 		try {
 			const config = await loadGlobalConfig();

@@ -727,14 +727,20 @@ function formatComment(
 		const vc = c.metadata.visualComment as Record<string, unknown>;
 		const vcLines = ["Visual annotation context:"];
 		if (vc.pageUrl) vcLines.push(`- Page: ${vc.pageUrl}`);
-		if (vc.elementSelector) vcLines.push(`- Element selector: ${vc.elementSelector}`);
-		if (vc.elementText) vcLines.push(`- Element text: "${vc.elementText}"`);
-		if (Array.isArray(vc.componentChain) && vc.componentChain.length) {
-			vcLines.push(`- Component chain (outer → inner): ${(vc.componentChain as string[]).join(" → ")}`);
-		} else if (vc.componentName) {
-			vcLines.push(`- Component: ${vc.componentName}`);
-		}
-		if (vc.sourceFile) vcLines.push(`- Source: ${vc.sourceFile}${vc.sourceLine != null ? `:${vc.sourceLine}` : ""}`);
+		// New shape: multiple referenced elements, numbered to match the user's
+		// description. Falls back to the legacy single-element fields below.
+		const elements = Array.isArray(vc.elements) ? (vc.elements as Record<string, unknown>[]) : [vc];
+		elements.forEach((el, i) => {
+			const label = elements.length > 1 ? `Element ${i + 1}` : "Element";
+			if (el.elementSelector) vcLines.push(`- ${label} selector: ${el.elementSelector}`);
+			if (el.elementText) vcLines.push(`  - ${label} text: "${el.elementText}"`);
+			if (Array.isArray(el.componentChain) && el.componentChain.length) {
+				vcLines.push(`  - ${label} component chain (outer → inner): ${(el.componentChain as string[]).join(" → ")}`);
+			} else if (el.componentName) {
+				vcLines.push(`  - ${label} component: ${el.componentName}`);
+			}
+			if (el.sourceFile) vcLines.push(`  - ${label} source: ${el.sourceFile}${el.sourceLine != null ? `:${el.sourceLine}` : ""}`);
+		});
 		parts.push(vcLines.join("\n"));
 	} else if (c.metadata && Object.keys(c.metadata).length > 0) {
 		for (const [k, v] of Object.entries(c.metadata)) {

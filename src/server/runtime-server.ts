@@ -360,6 +360,10 @@ export async function createRuntimeServer(options: ServerOptions) {
 				if (installerUserId) update.slackInstallerUserId = installerUserId;
 				await import("../config/runtime-config.js").then((m) => m.updateGlobalConfig(update));
 				logger.info("[slack] Bot token saved via OAuth callback");
+				// A freshly installed bot is not a member of channels created by a previous
+				// app, so Slack won't deliver replies to old ticket threads. Re-join them so
+				// existing threads keep working without a server restart.
+				void slackNotifier.joinAllChannels();
 				res.writeHead(200, { "Content-Type": "text/html" });
 				res.end(
 					`<!DOCTYPE html><html><head><title>Slack Connected</title></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0f0f10;color:#f0f0f5"><div style="text-align:center"><div style="font-size:48px;margin-bottom:16px">✓</div><h2 style="margin:0 0 8px">Slack connected!</h2><p style="color:#60607a;margin:0">You can close this tab and return to the app.</p></div></body></html>`,

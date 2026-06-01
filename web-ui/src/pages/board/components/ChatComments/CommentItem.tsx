@@ -11,6 +11,20 @@ import { displayName, formatDateLabel } from "./helpers";
 import { makeMdComponents } from "./markdown";
 import type { CommentEntry } from "./types";
 
+interface VisualElement {
+	elementSelector?: string;
+	elementText?: string;
+	componentName?: string;
+	componentChain?: string[];
+	sourceFile?: string;
+	sourceLine?: number;
+}
+
+// Must match the palette in extension/content.js so an element's color identity
+// (page outline, badge, #N mention) carries over to the board.
+const ELEMENT_PALETTE = ["#f87171", "#fbbf24", "#34d399", "#60a5fa", "#c084fc", "#f472b6", "#22d3ee", "#a3e635"];
+const colorFor = (i: number) => ELEMENT_PALETTE[i % ELEMENT_PALETTE.length];
+
 interface CommentItemProps {
 	entry: CommentEntry;
 	showDate: boolean;
@@ -29,6 +43,8 @@ export function CommentItem({ entry, showDate, showHeader, workflowSlots }: Comm
 		comment.type === "visual-comment" && comment.metadata?.visualComment
 			? (comment.metadata.visualComment as {
 					pageUrl?: string;
+					elements?: VisualElement[];
+					// Legacy single-element fields (pre multi-element comments).
 					elementSelector?: string;
 					elementText?: string;
 					componentName?: string;
@@ -37,8 +53,7 @@ export function CommentItem({ entry, showDate, showHeader, workflowSlots }: Comm
 					sourceLine?: number;
 				})
 			: null;
-	const shortFile = vc?.sourceFile?.split("/").slice(-2).join("/");
-	const chainDisplay = vc?.componentChain?.length ? vc.componentChain.join(" → ") : vc?.componentName;
+	const vcElements: VisualElement[] = vc ? (vc.elements ?? [vc]) : [];
 
 	return (
 		<div>
@@ -113,15 +128,45 @@ export function CommentItem({ entry, showDate, showHeader, workflowSlots }: Comm
 
 					{/* Visual comment metadata */}
 					{vc && (
-						<div className="mt-1.5 flex flex-col gap-1 px-2 py-1.5 rounded bg-[#7c6aff]/8 border border-[#7c6aff]/20 text-[11px] text-[#8888a0]">
-							<div className="flex items-center gap-1.5 flex-wrap">
+						<div className="mt-1.5 flex flex-col gap-1.5 px-2 py-1.5 rounded bg-[#7c6aff]/8 border border-[#7c6aff]/20 text-[11px] text-[#8888a0]">
+							<div className="flex items-center gap-1.5">
 								<span className="px-1.5 py-0.5 rounded text-[10px] font-medium text-[#a78bfa] bg-[#7c6aff]/15">
 									Visual
 								</span>
-								{vc.elementSelector && <code className="font-mono text-[#c4baff]">{vc.elementSelector}</code>}
-								{chainDisplay && <span className="text-[#6a6a80]">⚛ {chainDisplay}</span>}
+								{vcElements.length > 1 && <span className="text-[#6a6a80]">{vcElements.length} elements</span>}
 							</div>
-							{vc.elementText && <div className="text-[#a0a0b8] italic line-clamp-2">"{vc.elementText}"</div>}
+							{vcElements.map((el, idx) => {
+								const shortFile = el.sourceFile?.split("/").slice(-2).join("/");
+								const chainDisplay = el.componentChain?.length ? el.componentChain.join(" → ") : el.componentName;
+								const multi = vcElements.length > 1;
+								return (
+									<div
+										key={idx}
+										className={classNames("flex flex-col gap-1", multi && "pl-2 border-l-2")}
+										style={multi ? { borderColor: colorFor(idx) } : undefined}
+									>
+										<div className="flex items-center gap-1.5 flex-wrap">
+											{multi && (
+												<span
+													className="flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold text-[#0c0c0f]"
+													style={{ backgroundColor: colorFor(idx) }}
+												>
+													{idx + 1}
+												</span>
+											)}
+											{el.elementSelector && <code className="font-mono text-[#c4baff]">{el.elementSelector}</code>}
+											{chainDisplay && <span className="text-[#6a6a80]">⚛ {chainDisplay}</span>}
+										</div>
+										{el.elementText && <div className="text-[#a0a0b8] italic line-clamp-2">"{el.elementText}"</div>}
+										{shortFile && (
+											<span className="font-mono text-[#4a4a5a]">
+												{shortFile}
+												{el.sourceLine != null ? `:${el.sourceLine}` : ""}
+											</span>
+										)}
+									</div>
+								);
+							})}
 							{vc.pageUrl && (
 								<a
 									href={vc.pageUrl}
@@ -131,12 +176,6 @@ export function CommentItem({ entry, showDate, showHeader, workflowSlots }: Comm
 								>
 									{vc.pageUrl}
 								</a>
-							)}
-							{shortFile && (
-								<span className="font-mono text-[#4a4a5a]">
-									{shortFile}
-									{vc.sourceLine != null ? `:${vc.sourceLine}` : ""}
-								</span>
 							)}
 						</div>
 					)}
