@@ -3,7 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import type { RuntimeBoardCard, Workflow } from "@runtime-contract";
 import type { SubtaskDraftForm } from "@runtime-validation/card";
 import { subtaskDraftSchema } from "@runtime-validation/card";
-import { GitBranch, Monitor, Paperclip, Plus, Workflow as WorkflowIcon, X } from "lucide-react";
+import { GitBranch, Paperclip, Plus, Workflow as WorkflowIcon, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { deriveBranchName } from "@/utils/branch";
@@ -105,7 +105,7 @@ export function CreateSubtaskDialog({
 						</div>
 
 						<div
-							className="flex flex-col flex-1 min-h-0 px-8 py-4 gap-2"
+							className="flex flex-col flex-1 min-h-0 px-6 py-4 gap-2"
 							onPaste={(e) => addFilesFromClipboard(e, setPendingImages)}
 						>
 							<RHFTextarea
@@ -122,10 +122,6 @@ export function CreateSubtaskDialog({
 								<button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-[#2a2a35] text-[11px] text-[#60607a] hover:text-[#f0f0f5] hover:border-[#3a3a48] transition-colors">
 									<Paperclip size={12} />
 									Attach files
-								</button>
-								<button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-[#2a2a35] text-[11px] text-[#60607a] hover:text-[#f0f0f5] hover:border-[#3a3a48] transition-colors">
-									<Monitor size={12} />
-									Screenshot
 								</button>
 							</div>
 						</div>

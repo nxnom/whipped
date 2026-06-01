@@ -2,9 +2,15 @@ import { Button } from "@geckoui/geckoui";
 import type { RuntimeBoardCard } from "@runtime-contract";
 import { Paperclip, Send, X } from "lucide-react";
 import { useRef, useState } from "react";
+import { TokenTextarea } from "@/components/TokenTextarea";
 import { uploadAttachmentFile } from "@/runtime/attachments";
 import { useWrite } from "@/runtime/api-client";
-import type { PendingAttachment } from "./types";
+import {
+	applyTextareaEdit,
+	atomicTokenEdit,
+	normalizeAttachmentTokens,
+	parseAttachmentTokenNumbers,
+} from "@/utils/attachmentTokens";
 
 interface CommentComposerProps {
 	card: RuntimeBoardCard;
@@ -12,10 +18,18 @@ interface CommentComposerProps {
 	onRefresh: () => void;
 }
 
+// Stable `n` per attachment (never reused), so tokens stay valid across edits.
+interface ComposerAttachment {
+	n: number;
+	file: File;
+	dataUrl: string | null;
+	name: string;
+}
+
 export function CommentComposer({ card, workspaceId, onRefresh }: CommentComposerProps) {
 	const [message, setMessage] = useState("");
 	const [sending, setSending] = useState(false);
-	const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
+	const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const isReadyForReview = card.columnId === "ready_for_review";
@@ -23,39 +37,67 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 	const { trigger: submitHumanFeedbackTrigger } = useWrite((api) => api("cards/submit-human-feedback").POST());
 	const { trigger: addReviewCommentTrigger } = useWrite((api) => api("cards/add-review-comment").POST());
 
+	// Shown/sent attachments are derived from the tokens still present in the
+	// text, so deleting a `[Attachment #N]` any way (mid-token, select-all, cut)
+	// drops it and native undo restores it — we never rewrite text on delete.
+	const byN = new Map(attachments.map((a) => [a.n, a]));
+	const displayed = parseAttachmentTokenNumbers(message)
+		.map((n) => byN.get(n))
+		.filter((a): a is ComposerAttachment => Boolean(a));
+
 	const addFiles = (files: FileList | File[]) => {
-		for (const file of Array.from(files)) {
-			if (file.type.startsWith("image/")) {
-				const reader = new FileReader();
-				reader.onload = (ev) => {
-					setPendingAttachments((prev) => [...prev, { dataUrl: ev.target?.result as string, file, name: file.name }]);
-				};
-				reader.readAsDataURL(file);
-			} else {
-				setPendingAttachments((prev) => [...prev, { dataUrl: null, file, name: file.name }]);
-			}
+		const arr = Array.from(files);
+		const ta = textareaRef.current;
+		if (!arr.length || !ta) return;
+		const pos = document.activeElement === ta ? ta.selectionStart : ta.value.length;
+		const startN = attachments.reduce((max, a) => Math.max(max, a.n), 0);
+		const items: ComposerAttachment[] = arr.map((file, i) => ({
+			n: startN + i + 1,
+			file,
+			dataUrl: null,
+			name: file.name,
+		}));
+		const before = ta.value.slice(0, pos);
+		const lead = before && !/\s$/.test(before) ? " " : "";
+		const insert = lead + items.map((it) => `[Attachment #${it.n}]`).join(" ");
+		setAttachments((prev) => [...prev, ...items]);
+		// Insert through the native pipeline so it stays on the undo stack.
+		if (!applyTextareaEdit(ta, pos, pos, insert)) setMessage(ta.value.slice(0, pos) + insert + ta.value.slice(pos));
+		for (const it of items) {
+			if (!it.file.type.startsWith("image/")) continue;
+			const reader = new FileReader();
+			reader.onload = (ev) => {
+				const url = ev.target?.result as string;
+				setAttachments((prev) => prev.map((p) => (p.n === it.n ? { ...p, dataUrl: url } : p)));
+			};
+			reader.readAsDataURL(it.file);
 		}
 	};
 
-	const uploadPending = async () => {
-		const uploaded = [];
-		for (const att of pendingAttachments) {
-			uploaded.push(await uploadAttachmentFile(workspaceId, card.id, att.file));
-		}
-		return uploaded;
+	const removeAttachment = (n: number) => {
+		const ta = textareaRef.current;
+		if (!ta) return;
+		const m = ta.value.match(new RegExp(`\\[Attachment #${n}\\] ?`));
+		if (m?.index == null) return;
+		const start = m.index;
+		const end = start + m[0].length;
+		if (!applyTextareaEdit(ta, start, end, "")) setMessage(ta.value.slice(0, start) + ta.value.slice(end));
 	};
 
 	const send = async (requestChanges = false) => {
-		const text = message.trim();
-		if (!requestChanges && !text && pendingAttachments.length === 0) return;
+		const { text: normalized, order } = normalizeAttachmentTokens(message);
+		const summaryText = normalized.trim();
+		const ordered = order.map((n) => byN.get(n)).filter((a): a is ComposerAttachment => Boolean(a));
+		if (!requestChanges && !summaryText && ordered.length === 0) return;
 		setSending(true);
 		try {
-			const uploaded = await uploadPending();
-			const attachments = uploaded.length > 0 ? uploaded : undefined;
+			const uploaded = [];
+			for (const a of ordered) uploaded.push(await uploadAttachmentFile(workspaceId, card.id, a.file));
+			const atts = uploaded.length > 0 ? uploaded : undefined;
 
 			if (requestChanges) {
 				await submitHumanFeedbackTrigger({
-					body: { workspaceId, cardId: card.id, comment: text || undefined, attachments },
+					body: { workspaceId, cardId: card.id, comment: summaryText || undefined, attachments: atts },
 				});
 			} else {
 				await addReviewCommentTrigger({
@@ -64,18 +106,20 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 						cardId: card.id,
 						type: "human",
 						actor: { type: "human", id: "human" },
-						summary: text || (uploaded.length > 0 ? `${uploaded.map((a) => a.name).join(", ")}` : ""),
-						attachments,
+						summary: summaryText || (uploaded.length > 0 ? uploaded.map((a) => a.name).join(", ") : ""),
+						attachments: atts,
 					},
 				});
 			}
 			setMessage("");
-			setPendingAttachments([]);
+			setAttachments([]);
 			onRefresh();
 		} finally {
 			setSending(false);
 		}
 	};
+
+	const hasContent = message.trim().length > 0 || displayed.length > 0;
 
 	return (
 		<div className="shrink-0 border-t border-[#1e1e28] p-3">
@@ -91,11 +135,14 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 				}}
 			/>
 			<div className="rounded-lg border border-[#2a2a38] bg-[#0d0d12] focus-within:border-[#3a3a50] transition-colors">
-				{/* Pending attachment previews */}
-				{pendingAttachments.length > 0 && (
+				{/* Pending attachment previews — derived from tokens in the text */}
+				{displayed.length > 0 && (
 					<div className="flex flex-wrap gap-2 px-3 pt-2">
-						{pendingAttachments.map((att, idx) => (
-							<div key={idx} className="relative group">
+						{displayed.map((att) => (
+							<div key={att.n} className="relative group">
+								<span className="absolute -top-1 -left-1 z-10 flex items-center justify-center min-w-[15px] h-[15px] px-1 rounded-full text-[9px] font-bold text-white bg-[#3a3a50]">
+									{att.n}
+								</span>
 								{att.dataUrl ? (
 									<img
 										src={att.dataUrl}
@@ -113,7 +160,7 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 									</div>
 								)}
 								<button
-									onClick={() => setPendingAttachments((prev) => prev.filter((_, i) => i !== idx))}
+									onClick={() => removeAttachment(att.n)}
 									className="absolute -top-1 -right-1 size-4 rounded-full bg-[#1a1a24] border border-[#3a3a50] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
 								>
 									<X size={10} className="text-gray-300" />
@@ -122,11 +169,20 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 						))}
 					</div>
 				)}
-				<textarea
+				<TokenTextarea
 					ref={textareaRef}
 					value={message}
 					onChange={(e) => setMessage(e.target.value)}
 					onKeyDown={(e) => {
+						const edit = atomicTokenEdit(e);
+						if (edit) {
+							if (!applyTextareaEdit(e.currentTarget, edit.start, edit.end, edit.insert)) {
+								setMessage(
+									e.currentTarget.value.slice(0, edit.start) + edit.insert + e.currentTarget.value.slice(edit.end),
+								);
+							}
+							return;
+						}
 						if (e.key === "Enter" && !e.shiftKey) {
 							e.preventDefault();
 							void send();
@@ -148,7 +204,7 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 					onDragOver={(e) => e.preventDefault()}
 					placeholder="Add a comment… (paste or drop images)"
 					rows={2}
-					className="w-full bg-transparent text-sm text-gray-200 px-3 pt-3 pb-1 resize-none outline-none placeholder-gray-600"
+					metricsClassName="text-sm text-gray-200 px-3 pt-3 pb-1 leading-normal placeholder-gray-600"
 				/>
 				<div className="flex items-center justify-between px-3 pb-2">
 					<div className="flex items-center gap-2">
@@ -165,14 +221,10 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 					<div className="flex gap-1.5">
 						{isReadyForReview && (
 							<Button variant="outlined" size="sm" disabled={sending} onClick={() => void send(true)}>
-								{message.trim() || pendingAttachments.length > 0 ? "Request Changes" : "Reopen"}
+								{hasContent ? "Request Changes" : "Reopen"}
 							</Button>
 						)}
-						<Button
-							size="sm"
-							disabled={sending || (!message.trim() && pendingAttachments.length === 0)}
-							onClick={() => void send()}
-						>
+						<Button size="sm" disabled={sending || !hasContent} onClick={() => void send()}>
 							<Send size={11} className="mr-1" />
 							Send
 						</Button>

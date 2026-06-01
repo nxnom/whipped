@@ -694,6 +694,12 @@ function getGitFullDiff(worktreePath: string, baseRef: string): string {
  * the "MUST FIX" warning — used for previous-iteration entries that were
  * already resolved by the iteration completing.
  */
+// Number attachments as [Attachment #N] so inline `[Attachment #N]` references
+// in the description/summary resolve to a specific file.
+function attachmentLines(attachments: { name: string; path: string }[]): string {
+	return attachments.map((a, i) => `- [Attachment #${i + 1}] ${a.name}: ${a.path}`).join("\n");
+}
+
 function formatComment(
 	c: RuntimeBoardCard["reviewComments"][number],
 	opts: { headingLevel: "###" | "####"; stripMustFix: boolean },
@@ -723,8 +729,7 @@ function formatComment(
 	}
 
 	if (c.attachments?.length) {
-		const attLines = c.attachments.map((att) => `  - ${att.name}: ${att.path}`).join("\n");
-		parts.push(`Attached files (use Read tool to view):\n${attLines}`);
+		parts.push(`Attached files (use Read tool to view):\n${attachmentLines(c.attachments)}`);
 	}
 
 	if (c.metadata?.visualComment && typeof c.metadata.visualComment === "object") {
@@ -944,7 +949,7 @@ export function buildDevAgentSystemPrompt(
 
 	const descAttachNote =
 		(card.descriptionAttachments?.length ?? 0) > 0
-			? `\n\n**Attached files** (use the Read tool to view each one):\n${card.descriptionAttachments?.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
+			? `\n\n**Attached files** (use the Read tool to view each one):\n${attachmentLines(card.descriptionAttachments ?? [])}`
 			: "";
 	parts.push(`## Task\n\n${card.description ?? ""}${descAttachNote}${statSection}${context.text}`);
 
@@ -1085,7 +1090,7 @@ function buildCodeReviewSystemPrompt(
 
 	const descAttachSection =
 		(card.descriptionAttachments?.length ?? 0) > 0
-			? `\n\n**Attached files** (use Read tool to view):\n${card.descriptionAttachments?.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
+			? `\n\n**Attached files** (use Read tool to view):\n${attachmentLines(card.descriptionAttachments ?? [])}`
 			: "";
 
 	return `You are a senior code reviewer performing an automated review.
@@ -1139,7 +1144,7 @@ function buildQASystemPrompt(
 
 	const qaDescAttachSection =
 		(card.descriptionAttachments?.length ?? 0) > 0
-			? `\n\n**Attached files** (use Read tool to view):\n${card.descriptionAttachments?.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
+			? `\n\n**Attached files** (use Read tool to view):\n${attachmentLines(card.descriptionAttachments ?? [])}`
 			: "";
 
 	return `You are a QA engineer performing automated testing.
@@ -1194,7 +1199,7 @@ function buildOrchSystemPrompt(
 
 	const orchDescAttachSection =
 		(card.descriptionAttachments?.length ?? 0) > 0
-			? `\n\n**Attached files** (use Read tool to view):\n${card.descriptionAttachments?.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
+			? `\n\n**Attached files** (use Read tool to view):\n${attachmentLines(card.descriptionAttachments ?? [])}`
 			: "";
 
 	// Inline subtask context: id, description, latest dev/cr/qa status & summary.
@@ -1284,7 +1289,7 @@ function buildCustomSystemPrompt(
 	const projectContext = systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : "";
 	const customDescAttachSection =
 		(card.descriptionAttachments?.length ?? 0) > 0
-			? `\n\n**Attached files** (use Read tool to view):\n${card.descriptionAttachments?.map((a) => `- ${a.name}: ${a.path}`).join("\n")}`
+			? `\n\n**Attached files** (use Read tool to view):\n${attachmentLines(card.descriptionAttachments ?? [])}`
 			: "";
 
 	return `You are ${slot.name}, an automated review agent.

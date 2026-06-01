@@ -118,7 +118,7 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 							</button>
 						</div>
 
-						<div className="flex flex-col flex-1 min-h-0 px-8 py-4 gap-2">
+						<div className="flex flex-col flex-1 min-h-0 px-6 py-4 gap-2">
 							<RHFTextarea
 								name="description"
 								autoFocus
@@ -128,7 +128,7 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 									}
 								}}
 								placeholder="Describe what the agent should do..."
-								className="flex-1 min-h-0 bg-transparent text-[15px] text-[#c0c0d0] placeholder-[#2a2a35] outline-none resize-none leading-[1.7]"
+								className="flex-1 min-h-0 border-transparent! bg-transparent! text-[15px] text-[#c0c0d0] placeholder-[#2a2a35] outline-none resize-none leading-[1.7]"
 							/>
 							{existingAttachments.length > 0 && (
 								<div className="flex flex-wrap gap-1.5 shrink-0">

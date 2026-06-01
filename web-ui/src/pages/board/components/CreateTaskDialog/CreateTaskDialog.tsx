@@ -1,18 +1,23 @@
-import { RHFTextarea } from "@geckoui/geckoui";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { RuntimeBoardCard, Workflow } from "@runtime-contract";
 import type { CreateStoryForm, CreateTaskForm, SubtaskDraftForm } from "@runtime-validation/card";
 import { createStoryFormSchema, createTaskFormSchema } from "@runtime-validation/card";
-import { Monitor, Paperclip, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Paperclip, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FieldValues, UseFormReturn } from "react-hook-form";
-import { FormProvider, useFieldArray, useForm, useWatch } from "react-hook-form";
+import { Controller, FormProvider, useFieldArray, useForm, useWatch } from "react-hook-form";
+import { TokenTextarea } from "@/components/TokenTextarea";
 import { useRead } from "@/runtime/api-client";
+import {
+	applyTextareaEdit,
+	atomicTokenEdit,
+	normalizeAttachmentTokens,
+	parseAttachmentTokenNumbers,
+} from "@/utils/attachmentTokens";
 import { deriveBranchName } from "@/utils/branch";
 import { classNames } from "@/utils/classNames";
 import { CreateSubtaskDialog } from "./CreateSubtaskDialog";
 import { CreateTaskConfigSidebar } from "./CreateTaskConfigSidebar";
-import { addFilesFromClipboard } from "./helpers";
 import { ImagePicker } from "./ImagePicker";
 import { StorySubtaskList } from "./StorySubtaskList";
 import type { Mode, PendingImage, SubtaskDraft } from "./types";
@@ -46,6 +51,7 @@ export function CreateTaskDialog({
 
 	const [mode, setMode] = useState<Mode>(initialMode);
 	const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+	const descRef = useRef<HTMLTextAreaElement>(null);
 	const [readyForDev, setReadyForDev] = useState(true);
 	const [branchNameEdited, setBranchNameEdited] = useState(false);
 	const [loading, setLoading] = useState(false);
@@ -159,7 +165,14 @@ export function CreateTaskDialog({
 	const handleCreateTask = taskMethods.handleSubmit(async (data) => {
 		setLoading(true);
 		try {
-			const ok = await submitTask(data, { workspaceId, allCards, readyForDev, pendingImages });
+			const { text: description, order } = normalizeAttachmentTokens(data.description);
+			const orderedImages = order
+				.map((n) => pendingImages.find((p) => p.n === n))
+				.filter((p): p is PendingImage => Boolean(p));
+			const ok = await submitTask(
+				{ ...data, description },
+				{ workspaceId, allCards, readyForDev, pendingImages: orderedImages },
+			);
 			if (!ok) return;
 			handleClose();
 			onRefresh();
@@ -172,7 +185,14 @@ export function CreateTaskDialog({
 		setLoading(true);
 		const drafts = data.subtasks.map((s) => ({ ...s, pendingImages: subtaskImages[s.tempId] ?? [] }));
 		try {
-			const ok = await submitStory(data, { workspaceId, drafts, readyForDev, pendingImages });
+			const { text: description, order } = normalizeAttachmentTokens(data.description);
+			const orderedImages = order
+				.map((n) => pendingImages.find((p) => p.n === n))
+				.filter((p): p is PendingImage => Boolean(p));
+			const ok = await submitStory(
+				{ ...data, description },
+				{ workspaceId, drafts, readyForDev, pendingImages: orderedImages },
+			);
 			if (!ok) return;
 			handleClose();
 			onRefresh();
@@ -190,6 +210,58 @@ export function CreateTaskDialog({
 
 	const activeMethods = isTask ? taskMethods : storyMethods;
 
+	// Attachments shown/sent are derived from the `[Attachment #N]` tokens present
+	// in the description (stable `n` per image), so any edit that drops a token
+	// drops the image and native undo restores it. Token edits go through the
+	// native pipeline (execCommand) to preserve the textarea's undo history.
+	const setDescriptionFallback = (text: string) =>
+		(activeMethods as unknown as UseFormReturn<FieldValues>).setValue("description", text, { shouldValidate: true });
+
+	const byN = new Map(pendingImages.map((p) => [p.n, p]));
+	const displayedImages = parseAttachmentTokenNumbers(activeDescription ?? "")
+		.map((n) => byN.get(n))
+		.filter((p): p is PendingImage => Boolean(p));
+
+	const handleAddFiles = (files: FileList | File[]) => {
+		const arr = Array.from(files);
+		const ta = descRef.current;
+		if (!arr.length || !ta) return;
+		const pos = document.activeElement === ta ? ta.selectionStart : ta.value.length;
+		const startN = pendingImages.reduce((max, p) => Math.max(max, p.n ?? 0), 0);
+		const items: PendingImage[] = arr.map((file, i) => ({ n: startN + i + 1, file, dataUrl: null }));
+		const before = ta.value.slice(0, pos);
+		const lead = before && !/\s$/.test(before) ? " " : "";
+		const insert = lead + items.map((it) => `[Attachment #${it.n}]`).join(" ");
+		setPendingImages((prev) => [...prev, ...items]);
+		if (!applyTextareaEdit(ta, pos, pos, insert))
+			setDescriptionFallback(ta.value.slice(0, pos) + insert + ta.value.slice(pos));
+		for (const it of items) {
+			if (!it.file.type.startsWith("image/")) continue;
+			const reader = new FileReader();
+			reader.onload = (ev) => {
+				const url = ev.target?.result as string;
+				setPendingImages((prev) => prev.map((p) => (p.n === it.n ? { ...p, dataUrl: url } : p)));
+			};
+			reader.readAsDataURL(it.file);
+		}
+	};
+
+	const removeImage = (n: number) => {
+		const ta = descRef.current;
+		if (!ta) return;
+		const m = ta.value.match(new RegExp(`\\[Attachment #${n}\\] ?`));
+		if (m?.index == null) return;
+		const start = m.index;
+		const end = start + m[0].length;
+		if (!applyTextareaEdit(ta, start, end, "")) setDescriptionFallback(ta.value.slice(0, start) + ta.value.slice(end));
+	};
+
+	// ImagePicker (chip ×) hands back the surviving list; drop the missing token.
+	const handleImagesChange = (next: PendingImage[]) => {
+		const removed = displayedImages.find((d) => !next.some((x) => x.n === d.n));
+		if (removed?.n != null) removeImage(removed.n);
+	};
+
 	return (
 		<>
 			<FormProvider {...(activeMethods as unknown as UseFormReturn<FieldValues>)}>
@@ -200,10 +272,7 @@ export function CreateTaskDialog({
 					{/* Dialog */}
 					<div className="relative flex h-[850px] max-h-[calc(100vh-80px)] w-[1400px] max-w-[calc(100vw-80px)] rounded-xl bg-[#141418] border border-[#2a2a35] shadow-[0_8px_40px_4px_#00000060] overflow-hidden">
 						{/* ── Left panel ── */}
-						<div
-							className="flex flex-col flex-1 overflow-hidden"
-							onPaste={(e) => addFilesFromClipboard(e, setPendingImages)}
-						>
+						<div className="flex flex-col flex-1 overflow-hidden">
 							{/* Header */}
 							<div className="flex items-center gap-3 px-6 py-3.5 border-b border-[#2a2a35] shrink-0">
 								<span className="text-[15px] font-semibold text-[#f0f0f5]">{isTask ? "New Task" : "New Story"}</span>
@@ -214,7 +283,7 @@ export function CreateTaskDialog({
 							</div>
 
 							{/* Editor area */}
-							<div className="flex flex-col flex-1 min-h-0 px-8 py-4 gap-2">
+							<div className="flex flex-col flex-1 min-h-0 px-6 py-4 gap-2">
 								{/* Story: objective label */}
 								{!isTask && (
 									<div className="flex items-center gap-1.5 shrink-0">
@@ -225,22 +294,47 @@ export function CreateTaskDialog({
 								)}
 
 								{/* Description */}
-								<RHFTextarea
+								<Controller
 									name="description"
-									autoFocus
-									onChange={(v) => {
-										if (isTask && !branchNameEdited) {
-											taskMethods.setValue("branchName", deriveBranchName((v ?? "").split("\n")[0] ?? ""));
-										}
-									}}
-									placeholder="Describe what the agent should do..."
-									className={classNames(
-										"border-transparent! bg-transparent! text-[15px] text-[#c0c0d0] placeholder-[#2a2a35] outline-none resize-none leading-[1.7] shrink-0",
-										isTask ? "flex-1 min-h-0" : "h-36",
+									render={({ field }) => (
+										<TokenTextarea
+											ref={descRef}
+											value={field.value ?? ""}
+											autoFocus
+											onChange={(e) => {
+												field.onChange(e.target.value);
+												if (isTask && !branchNameEdited) {
+													taskMethods.setValue(
+														"branchName",
+														deriveBranchName((e.target.value || "").split("\n")[0] ?? ""),
+													);
+												}
+											}}
+											onKeyDown={(e) => {
+												const edit = atomicTokenEdit(e);
+												if (!edit) return;
+												if (!applyTextareaEdit(e.currentTarget, edit.start, edit.end, edit.insert)) {
+													field.onChange(
+														e.currentTarget.value.slice(0, edit.start) +
+															edit.insert +
+															e.currentTarget.value.slice(edit.end),
+													);
+												}
+											}}
+											onPaste={(e) => {
+												if (e.clipboardData.files.length === 0) return;
+												if (!Array.from(e.clipboardData.files).some((f) => f.type.startsWith("image/"))) return;
+												e.preventDefault();
+												handleAddFiles(e.clipboardData.files);
+											}}
+											placeholder="Describe what the agent should do..."
+											className={classNames("shrink-0", isTask ? "flex-1 min-h-0" : "h-36")}
+											metricsClassName="text-[15px] text-[#c0c0d0] leading-[1.7] placeholder-[#2a2a35] h-full p-0"
+										/>
 									)}
 								/>
 
-								<ImagePicker pending={pendingImages} onChange={setPendingImages} />
+								<ImagePicker pending={displayedImages} onChange={handleImagesChange} />
 
 								{/* Story: subtasks */}
 								{!isTask && (
@@ -259,12 +353,6 @@ export function CreateTaskDialog({
 										<Paperclip size={12} />
 										Attach files
 									</button>
-									{isTask && (
-										<button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-[#2a2a35] text-[11px] text-[#60607a] hover:text-[#f0f0f5] hover:border-[#3a3a48] transition-colors">
-											<Monitor size={12} />
-											Screenshot
-										</button>
-									)}
 								</div>
 							</div>
 						</div>
