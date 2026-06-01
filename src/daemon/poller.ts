@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
+import { generateTaskId } from "../core/task-id.js";
 import { fetchCommentBodyHtml, fetchPRInfo } from "../git/merge-operations.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import {
@@ -381,6 +382,7 @@ export class BoardPoller {
 						readyEntries.map(async (e) => {
 							const fetchHtml = githubToken ? () => fetchCommentBodyHtml(prUrlForPoll, e.id, githubToken) : undefined;
 							return {
+								id: generateTaskId(),
 								type: "human" as const,
 								actor: { type: "external" as const, id: e.author, source: "github" },
 								createdAt: new Date(e.createdAt).getTime(),

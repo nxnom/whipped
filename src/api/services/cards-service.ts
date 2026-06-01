@@ -12,6 +12,7 @@ import type {
 	RuntimeReviewStatus,
 } from "../../core/api-contract.js";
 import { logger } from "../../core/logger.js";
+import { generateTaskId } from "../../core/task-id.js";
 import {
 	abortMerge,
 	attemptMerge,
@@ -521,6 +522,7 @@ export const addReviewCommentService = async (
 	}
 
 	const comment: RuntimeReviewComment = {
+		id: generateTaskId(),
 		type: input.type,
 		actor: input.actor,
 		status: input.status,
@@ -534,6 +536,25 @@ export const addReviewCommentService = async (
 	const updatedComments = [...(card.reviewComments ?? []), comment];
 	await updateCard(input.workspaceId, input.cardId, { reviewComments: updatedComments });
 	return { ok: true, comment };
+};
+
+export interface DeleteReviewCommentInput {
+	workspaceId: string;
+	cardId: string;
+	commentId: string;
+}
+
+export const deleteReviewCommentService = async (input: DeleteReviewCommentInput): Promise<{ ok: true }> => {
+	const board = await loadBoard(input.workspaceId);
+	const card = board.cards[input.cardId];
+	if (!card) throw NotFoundError("Card");
+
+	const comments = card.reviewComments ?? [];
+	const next = comments.filter((c) => c.id !== input.commentId);
+	if (next.length === comments.length) throw NotFoundError("Comment");
+
+	await updateCard(input.workspaceId, input.cardId, { reviewComments: next });
+	return { ok: true };
 };
 
 export type SubmitHumanFeedbackResult = {
@@ -558,6 +579,7 @@ export const submitHumanFeedbackService = async (
 		? [
 				...(card.reviewComments ?? []),
 				{
+					id: generateTaskId(),
 					type: "human" as const,
 					actor: { type: "human" as const, id: "human" },
 					createdAt: Date.now(),

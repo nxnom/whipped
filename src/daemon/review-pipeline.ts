@@ -29,6 +29,7 @@ import type {
 import { DEFAULT_GIT_INSTRUCTIONS } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 import { resolvePromptText } from "../core/prompt-resolver.js";
+import { generateTaskId } from "../core/task-id.js";
 import { commitIfDirty, createGithubPR, pushBranch } from "../git/merge-operations.js";
 import type { GithubClient } from "../github/github-client.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
@@ -307,6 +308,7 @@ async function runReviewSlot(
 		const hasMustFixIssue = parsed.issues?.some((i: { severity: string }) => i.severity === "blocking") ?? false;
 		const passed = status !== "fail" && !hasMustFixIssue;
 		const comment: RuntimeReviewComment = {
+			id: generateTaskId(),
 			type: commentType,
 			actor: { type: "ai", id: slot.name },
 			status: status as RuntimeReviewComment["status"],
@@ -320,6 +322,7 @@ async function runReviewSlot(
 		return { passed, storedViaMcp: false, comment };
 	}
 	const comment: RuntimeReviewComment = {
+		id: generateTaskId(),
 		type: commentType,
 		actor: { type: "ai", id: slot.name },
 		status: "warning",
@@ -724,12 +727,11 @@ function formatComment(
 	}
 
 	if (c.metadata?.visualComment && typeof c.metadata.visualComment === "object") {
-		const vc = c.metadata.visualComment as Record<string, unknown>;
+		const vc = c.metadata.visualComment as { pageUrl?: unknown; elements?: Record<string, unknown>[] };
 		const vcLines = ["Visual annotation context:"];
 		if (vc.pageUrl) vcLines.push(`- Page: ${vc.pageUrl}`);
-		// New shape: multiple referenced elements, numbered to match the user's
-		// description. Falls back to the legacy single-element fields below.
-		const elements = Array.isArray(vc.elements) ? (vc.elements as Record<string, unknown>[]) : [vc];
+		// Each referenced element is numbered to match the `#N` mentions in summary.
+		const elements = vc.elements ?? [];
 		elements.forEach((el, i) => {
 			const label = elements.length > 1 ? `Element ${i + 1}` : "Element";
 			if (el.elementSelector) vcLines.push(`- ${label} selector: ${el.elementSelector}`);
@@ -739,7 +741,8 @@ function formatComment(
 			} else if (el.componentName) {
 				vcLines.push(`  - ${label} component: ${el.componentName}`);
 			}
-			if (el.sourceFile) vcLines.push(`  - ${label} source: ${el.sourceFile}${el.sourceLine != null ? `:${el.sourceLine}` : ""}`);
+			if (el.sourceFile)
+				vcLines.push(`  - ${label} source: ${el.sourceFile}${el.sourceLine != null ? `:${el.sourceLine}` : ""}`);
 		});
 		parts.push(vcLines.join("\n"));
 	} else if (c.metadata && Object.keys(c.metadata).length > 0) {

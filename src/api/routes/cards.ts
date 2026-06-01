@@ -13,6 +13,7 @@ import { zv } from "../middleware/zv.js";
 import {
 	abortMergeService,
 	addReviewCommentService,
+	deleteReviewCommentService,
 	commitAndMergeService,
 	commitAndPRService,
 	createCardService,
@@ -180,6 +181,19 @@ export const cardsController = new Hono<AppEnv>()
 			const input = c.req.valid("json");
 			const result = await addReviewCommentService(input);
 			ctx.stateHub.broadcastWorkspaceUpdate(input.workspaceId);
+			return c.json(result);
+		},
+	)
+	.delete(
+		"/:cardId/review-comments/:commentId",
+		zv("param", z.object({ cardId: z.string(), commentId: z.string() })),
+		zv("json", z.object({ workspaceId: z.string() })),
+		async (c) => {
+			const ctx = c.var.ctx;
+			const { cardId, commentId } = c.req.valid("param");
+			const { workspaceId } = c.req.valid("json");
+			const result = await deleteReviewCommentService({ workspaceId, cardId, commentId });
+			ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 			return c.json(result);
 		},
 	)

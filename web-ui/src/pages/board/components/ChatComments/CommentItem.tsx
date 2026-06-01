@@ -1,7 +1,10 @@
+import { ConfirmDialog, toast } from "@geckoui/geckoui";
 import type { WorkflowSlot } from "@runtime-contract";
+import { Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
+import { useWrite } from "@/runtime/api-client";
 import { classNames } from "@/utils/classNames";
 import { AgentBadge } from "./AgentBadge";
 import { AttachmentItem } from "./AttachmentItem";
@@ -27,33 +30,43 @@ const colorFor = (i: number) => ELEMENT_PALETTE[i % ELEMENT_PALETTE.length];
 
 interface CommentItemProps {
 	entry: CommentEntry;
+	workspaceId: string;
 	showDate: boolean;
 	showHeader: boolean;
 	workflowSlots?: WorkflowSlot[];
 }
 
-export function CommentItem({ entry, showDate, showHeader, workflowSlots }: CommentItemProps) {
-	const { comment, sourceCardTitle } = entry;
+export function CommentItem({ entry, workspaceId, showDate, showHeader, workflowSlots }: CommentItemProps) {
+	const { comment, sourceCardId, sourceCardTitle } = entry;
 	const name = displayName(comment, workflowSlots);
+	const { trigger: deleteComment } = useWrite((api) => api("cards/:cardId/review-comments/:commentId").DELETE());
 	const isImg = (att: { mimeType?: string; name: string }) =>
 		(att.mimeType ?? "").startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(att.name);
 	const images = (comment.attachments ?? []).filter(isImg);
 	const files = (comment.attachments ?? []).filter((a) => !isImg(a));
 	const vc =
 		comment.type === "visual-comment" && comment.metadata?.visualComment
-			? (comment.metadata.visualComment as {
-					pageUrl?: string;
-					elements?: VisualElement[];
-					// Legacy single-element fields (pre multi-element comments).
-					elementSelector?: string;
-					elementText?: string;
-					componentName?: string;
-					componentChain?: string[];
-					sourceFile?: string;
-					sourceLine?: number;
-				})
+			? (comment.metadata.visualComment as { pageUrl?: string; elements?: VisualElement[] })
 			: null;
-	const vcElements: VisualElement[] = vc ? (vc.elements ?? [vc]) : [];
+	const vcElements: VisualElement[] = vc?.elements ?? [];
+
+	const handleDelete = () => {
+		ConfirmDialog.show({
+			title: "Delete comment?",
+			content: "This comment will be permanently deleted.",
+			confirmButtonLabel: "Delete",
+			cancelButtonLabel: "Cancel",
+			onConfirm: async ({ dismiss }) => {
+				try {
+					await deleteComment({ params: { cardId: sourceCardId, commentId: comment.id }, body: { workspaceId } });
+					dismiss();
+				} catch {
+					toast.error("Failed to delete comment");
+				}
+			},
+			onCancel: ({ dismiss }) => dismiss(),
+		});
+	};
 
 	return (
 		<div>
@@ -200,6 +213,16 @@ export function CommentItem({ entry, showDate, showHeader, workflowSlots }: Comm
 						</div>
 					)}
 				</div>
+
+				<button
+					type="button"
+					onClick={handleDelete}
+					title="Delete comment"
+					aria-label="Delete comment"
+					className="shrink-0 mt-2 p-1 rounded text-[#4a4a5a] opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-400 hover:bg-[#1e1e28]"
+				>
+					<Trash2 className="w-3.5 h-3.5" />
+				</button>
 			</div>
 		</div>
 	);

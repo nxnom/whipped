@@ -2,6 +2,7 @@ import type { RuntimeReviewComment } from "@runtime-contract";
 
 export interface CommentEntry {
 	comment: RuntimeReviewComment;
+	sourceCardId: string;
 	sourceCardTitle?: string;
 }
 

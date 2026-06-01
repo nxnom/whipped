@@ -137,9 +137,10 @@ function loadCardChildren(
 
 	const reviewRows = db
 		.prepare(
-			"SELECT created_at, type, actor_type, actor_id, actor_source, status, stream_id, summary, issues_json, attachments_json, metadata_json FROM review_comments WHERE card_id = ? ORDER BY created_at",
+			"SELECT comment_id, created_at, type, actor_type, actor_id, actor_source, status, stream_id, summary, issues_json, attachments_json, metadata_json FROM review_comments WHERE card_id = ? ORDER BY created_at",
 		)
 		.all(cardId) as Array<{
+		comment_id: string;
 		created_at: number;
 		type: string;
 		actor_type: "ai" | "human" | "external";
@@ -154,6 +155,7 @@ function loadCardChildren(
 	}>;
 	const reviewComments: RuntimeReviewComment[] = reviewRows.map((r) => {
 		const comment: RuntimeReviewComment = {
+			id: r.comment_id,
 			type: r.type,
 			actor: {
 				type: r.actor_type,
@@ -310,12 +312,13 @@ function replaceCardChildren(db: Database.Database, card: RuntimeBoardCard): voi
 	db.prepare("DELETE FROM review_comments WHERE card_id = ?").run(card.id);
 	const insertReview = db.prepare(
 		`INSERT INTO review_comments (
-			card_id, created_at, type, actor_type, actor_id, actor_source,
+			comment_id, card_id, created_at, type, actor_type, actor_id, actor_source,
 			status, stream_id, summary, issues_json, attachments_json, metadata_json
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 	);
 	for (const c of card.reviewComments ?? []) {
 		insertReview.run(
+			c.id,
 			card.id,
 			c.createdAt,
 			c.type,
@@ -1069,12 +1072,13 @@ export async function updateCard(
 			db.prepare("DELETE FROM review_comments WHERE card_id = ?").run(cardId);
 			const insertReview = db.prepare(
 				`INSERT INTO review_comments (
-					card_id, created_at, type, actor_type, actor_id, actor_source,
+					comment_id, card_id, created_at, type, actor_type, actor_id, actor_source,
 					status, stream_id, summary, issues_json, attachments_json, metadata_json
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			);
 			for (const c of update.reviewComments ?? []) {
 				insertReview.run(
+					c.id,
 					cardId,
 					c.createdAt,
 					c.type,

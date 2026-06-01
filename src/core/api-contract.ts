@@ -245,6 +245,7 @@ export type RuntimeReviewAttachment = z.infer<typeof reviewAttachmentSchema>;
 export type RuntimeReviewStatus = "pass" | "fail" | "warning" | "skipped";
 
 export const runtimeReviewCommentSchema = z.object({
+	id: z.string(),
 	type: z.string(),
 	actor: reviewActorSchema,
 	status: z.enum(["pass", "fail", "warning", "skipped"]).optional(),

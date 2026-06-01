@@ -33,6 +33,7 @@ import {
 } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 import { resolvePromptText } from "../core/prompt-resolver.js";
+import { generateTaskId } from "../core/task-id.js";
 import { commitIfDirty, pushBranch } from "../git/merge-operations.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { buildMemoryContext } from "../state/memory-store.js";
@@ -691,6 +692,7 @@ export class TaskScheduler {
 							// Non-MCP fallback comment
 							const parsed = tryParseAgentJson(runningTask.outputBuffer);
 							const fallbackComment: import("../core/api-contract.js").RuntimeReviewComment = {
+								id: generateTaskId(),
 								type: "dev",
 								actor: { type: "ai", id: agentId },
 								status: exitCode === 0 ? "pass" : "fail",
@@ -958,6 +960,7 @@ export class TaskScheduler {
 					// pipeline and UI always have a comment to work with.
 					const parsed = tryParseAgentJson(task.outputBuffer);
 					const fallback: import("../core/api-contract.js").RuntimeReviewComment = {
+						id: generateTaskId(),
 						type: "dev",
 						actor: { type: "ai", id: task.agentId },
 						status: "pass",

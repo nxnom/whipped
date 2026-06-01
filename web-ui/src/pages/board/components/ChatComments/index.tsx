@@ -19,16 +19,17 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 
 	const commentEntries: CommentEntry[] = useMemo(() => {
 		if (!isStory) {
-			return (card.reviewComments ?? []).map((c) => ({ comment: c }));
+			return (card.reviewComments ?? []).map((c) => ({ comment: c, sourceCardId: card.id }));
 		}
 		const storyEntries: CommentEntry[] = (card.reviewComments ?? [])
 			.filter((c) => c.type !== "dev")
-			.map((c) => ({ comment: c }));
+			.map((c) => ({ comment: c, sourceCardId: card.id }));
 		const subtaskEntries: CommentEntry[] = (card.subtaskIds ?? []).flatMap((depId) => {
 			const dep = allCards?.[depId];
 			if (!dep) return [];
 			return (dep.reviewComments ?? []).map((c) => ({
 				comment: c,
+				sourceCardId: dep.id,
 				sourceCardTitle: dep.description?.split("\n")[0] ?? dep.id,
 			}));
 		});
@@ -58,6 +59,7 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 								<CommentItem
 									key={i}
 									entry={entry}
+									workspaceId={workspaceId}
 									showDate={showDate}
 									showHeader={showHeader}
 									workflowSlots={workflowSlots}
