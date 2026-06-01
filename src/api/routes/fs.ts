@@ -24,7 +24,7 @@ export const fsController = new Hono<AppEnv>()
 		zv(
 			"query",
 			z.object({
-				path: z.string(),
+				path: z.string().optional().default(""),
 				includeFiles: z.coerce.boolean().optional(),
 				showHidden: z.coerce.boolean().optional(),
 			}),
