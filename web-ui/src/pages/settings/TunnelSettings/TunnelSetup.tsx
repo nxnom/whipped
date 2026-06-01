@@ -193,10 +193,7 @@ export function TunnelSetup({ config, tunnelConfig, isConfigured }: TunnelSetupP
 										labelClassName="text-[11px] font-medium text-[#8888a0]"
 										className="flex flex-col gap-1.5"
 									>
-										<RHFInput
-											name="domain"
-											placeholder="e.g. slack.yourdomain.com"
-										/>
+										<RHFInput name="domain" placeholder="e.g. whipped.yourdomain.com" />
 									</RHFInputGroup>
 									<RHFError name="domain" className="text-[11px] text-[#ef4444]" />
 									<button

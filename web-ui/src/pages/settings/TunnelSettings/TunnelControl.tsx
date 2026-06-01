@@ -6,10 +6,10 @@ import { STATUS_STYLES } from "./constants";
 import type { TunnelStatus } from "./types";
 
 export function TunnelControl() {
-	const { data: state, trigger: refreshStatus } = useRead((api) => api("slack/tunnelStatus").GET());
+	const { data: state, trigger: refreshStatus } = useRead((api) => api("tunnel/tunnelStatus").GET());
 
-	const startTunnel = useWrite((api) => api("slack/startTunnel").POST());
-	const stopTunnel = useWrite((api) => api("slack/stopTunnel").POST());
+	const startTunnel = useWrite((api) => api("tunnel/startTunnel").POST());
+	const stopTunnel = useWrite((api) => api("tunnel/stopTunnel").POST());
 
 	// Poll the tunnel status every 3s (preserves the original setInterval cadence).
 	useEffect(() => {
@@ -19,8 +19,8 @@ export function TunnelControl() {
 		return () => clearInterval(id);
 	}, [refreshStatus]);
 
-	// startTunnel/stopTunnel are slack/* writes, so Spoosh auto-invalidates the
-	// slack/tunnelStatus read; the 3s poll then tracks the starting→running step.
+	// startTunnel/stopTunnel are tunnel/* writes, so Spoosh auto-invalidates the
+	// tunnel/tunnelStatus read; the 3s poll then tracks the starting→running step.
 	const handleStart = () => void startTunnel.trigger({});
 	const handleStop = () => void stopTunnel.trigger({});
 

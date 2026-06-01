@@ -1,6 +1,6 @@
 import { toast } from "@geckoui/geckoui";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type CreateTunnelInput, createTunnelSchema } from "@runtime-validation/slack";
+import { type CreateTunnelInput, createTunnelSchema } from "@runtime-validation/tunnel";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useRead, useWrite } from "@/runtime/api-client";
@@ -20,11 +20,11 @@ export function useTunnelSetup({ domain }: UseTunnelSetupArgs) {
 		data: cloudflaredStatus,
 		fetching: checkingInstall,
 		trigger: checkCloudflared,
-	} = useRead((api) => api("slack/checkCloudflared").GET(), { enabled: false });
+	} = useRead((api) => api("tunnel/checkCloudflared").GET(), { enabled: false });
 
-	const cloudflaredLogin = useWrite((api) => api("slack/cloudflaredLogin").POST());
-	const createTunnel = useWrite((api) => api("slack/createTunnel").POST());
-	const resetTunnel = useWrite((api) => api("slack/resetTunnel").POST());
+	const cloudflaredLogin = useWrite((api) => api("tunnel/cloudflaredLogin").POST());
+	const createTunnel = useWrite((api) => api("tunnel/createTunnel").POST());
+	const resetTunnel = useWrite((api) => api("tunnel/resetTunnel").POST());
 
 	const methods = useForm({
 		resolver: zodResolver(createTunnelSchema),
@@ -75,11 +75,11 @@ export function useTunnelSetup({ domain }: UseTunnelSetupArgs) {
 	};
 
 	const handleCreateTunnel = methods.handleSubmit(async (values) => {
-		// Tunnel writes live under slack/* but mutate the global config, so invalidate
-		// both segments to refresh the config + tunnelConfig reads.
+		// Tunnel writes live under tunnel/* but also mutate the global config, so
+		// invalidate both segments to refresh the config + tunnelConfig reads.
 		const res = await createTunnel.trigger({
 			body: { domain: values.domain.trim() },
-			invalidate: ["config", "config/*", "slack", "slack/*"],
+			invalidate: ["config", "config/*", "tunnel", "tunnel/*"],
 		});
 		if (res.error) {
 			toast.error(res.error.message ?? "Failed to create tunnel");
@@ -89,7 +89,7 @@ export function useTunnelSetup({ domain }: UseTunnelSetupArgs) {
 	});
 
 	const handleReset = async () => {
-		const res = await resetTunnel.trigger({ invalidate: ["config", "config/*", "slack", "slack/*"] });
+		const res = await resetTunnel.trigger({ invalidate: ["config", "config/*", "tunnel", "tunnel/*"] });
 		if (res.error) {
 			toast.error("Failed to reset");
 			return;

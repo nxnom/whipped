@@ -3,6 +3,7 @@ import { mkdir, writeFile, readFile, access, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { DEFAULT_PORT } from "../config/runtime-config.js";
 import { logger } from "../core/logger.js";
 
 const execFileAsync = promisify(execFile);
@@ -118,7 +119,7 @@ export async function writeTunnelConfig(tunnelId: string, tunnelName: string, do
 		``,
 		`ingress:`,
 		`  - hostname: ${domain}`,
-		`    service: http://127.0.0.1:50008`,
+		`    service: http://127.0.0.1:${DEFAULT_PORT}`,
 		`  - service: http_status:404`,
 	].join("\n");
 

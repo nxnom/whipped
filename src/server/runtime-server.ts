@@ -6,7 +6,7 @@ import * as nodePty from "node-pty";
 import { WebSocketServer } from "ws";
 import { writeClaudeTaskHookSettings } from "../agents/agent-hooks.js";
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { tunnelManager } from "../slack/cloudflare-tunnel.js";
+import { tunnelManager } from "../tunnel/cloudflare-tunnel.js";
 import { exchangeCodeForBotToken } from "../slack/slack-setup.js";
 import { slackNotifier } from "../slack/slack-notifier.js";
 import { clearState, readState, writeState } from "../cli/daemon-state.js";

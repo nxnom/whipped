@@ -13,6 +13,7 @@ import { projectsController } from "./routes/projects.js";
 import { runController } from "./routes/run.js";
 import { slackController } from "./routes/slack.js";
 import { terminalController } from "./routes/terminal.js";
+import { tunnelController } from "./routes/tunnel.js";
 import { workflowsController } from "./routes/workflows.js";
 import { workspaceController } from "./routes/workspace.js";
 import type { AppContext, AppEnv } from "./types/context.js";
@@ -41,6 +42,7 @@ export function createApiApp(ctx: AppContext) {
 		.route("/run", runController)
 		.route("/slack", slackController)
 		.route("/terminal", terminalController)
+		.route("/tunnel", tunnelController)
 		.route("/workflows", workflowsController)
 		.route("/workspace", workspaceController);
 

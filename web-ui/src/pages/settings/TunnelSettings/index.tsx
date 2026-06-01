@@ -7,7 +7,7 @@ import { TunnelSetup } from "./TunnelSetup";
 
 export function TunnelSettings() {
 	const { data: config } = useRead((api) => api("config").GET());
-	const { data: tunnelConfig } = useRead((api) => api("slack/tunnelConfig").GET());
+	const { data: tunnelConfig } = useRead((api) => api("tunnel/tunnelConfig").GET());
 
 	const saveConfig = useWrite((api) => api("config").PUT());
 

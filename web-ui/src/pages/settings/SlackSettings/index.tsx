@@ -21,7 +21,7 @@ export function SlackSettings() {
 	const [pendingInstall, setPendingInstall] = useState(false);
 
 	const { data: config, trigger: refetchConfig } = useRead((api) => api("config").GET());
-	const { data: tunnel } = useRead((api) => api("slack/tunnelConfig").GET());
+	const { data: tunnel } = useRead((api) => api("tunnel/tunnelConfig").GET());
 
 	const saveConfig = useWrite((api) => api("config").PUT());
 	const createApp = useWrite((api) => api("slack/createApp").POST());

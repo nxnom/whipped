@@ -79,8 +79,8 @@ function InlineCode({ children }: { children: string }) {
 export function ExtensionSettings() {
 	const [port, setPort] = useState<number | null>(null);
 
-	const { data: tunnelConfig } = useRead((api) => api("slack/tunnelConfig").GET());
-	const { data: tunnelStatusData } = useRead((api) => api("slack/tunnelStatus").GET());
+	const { data: tunnelConfig } = useRead((api) => api("tunnel/tunnelConfig").GET());
+	const { data: tunnelStatusData } = useRead((api) => api("tunnel/tunnelStatus").GET());
 	const { data: extensionPathData } = useRead((api) => api("fs/extension-path").GET());
 	const { trigger: openPath } = useWrite((api) => api("fs/open").POST());
 
