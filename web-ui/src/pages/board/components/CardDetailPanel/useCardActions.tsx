@@ -3,6 +3,7 @@ import type { RuntimeBoardCard } from "@runtime-contract";
 import { useState } from "react";
 import { useWrite } from "@/runtime/api-client";
 import { CommitMsgDialog } from "./CommitMsgDialog";
+import { CreatePRDialog } from "./CreatePRDialog";
 
 interface UseCardActionsArgs {
 	workspaceId: string;
@@ -15,10 +16,8 @@ interface UseCardActionsArgs {
 export function useCardActions({ workspaceId, card, onRefresh, onClose, onDeleteCard }: UseCardActionsArgs) {
 	const { trigger: stopAgentTrigger } = useWrite((api) => api("cards/stop-agent").POST());
 	const { trigger: commitAndMergeTrigger } = useWrite((api) => api("cards/commit-and-merge").POST());
-	const { trigger: commitAndPRTrigger } = useWrite((api) => api("cards/commit-and-pr").POST());
 	const { trigger: deleteCardTrigger } = useWrite((api) => api("cards/:id").DELETE());
 	const [merging, setMerging] = useState(false);
-	const [creatingPR, setCreatingPR] = useState(false);
 
 	const handleStop = () => {
 		ConfirmDialog.show({
@@ -75,31 +74,6 @@ export function useCardActions({ workspaceId, card, onRefresh, onClose, onDelete
 		}
 	};
 
-	const doPR = async (commitMessage?: string) => {
-		setCreatingPR(true);
-		try {
-			const res = await commitAndPRTrigger({ body: { workspaceId, cardId: card.id, commitMessage } });
-			if (res.error) {
-				toast.error(`PR creation failed: ${res.error.message}`);
-				return;
-			}
-			const result = res.data;
-			if (result.status === "needs_commit") {
-				showCommitMsgDialog((msg) => doPR(msg), "pr");
-				return;
-			}
-			if (result.status === "no_token") {
-				toast.error("GitHub token not configured — add GITHUB_TOKEN in project Settings > Secrets.");
-				return;
-			}
-			toast.success("PR created");
-			window.open(result.prUrl, "_blank");
-			onRefresh();
-		} finally {
-			setCreatingPR(false);
-		}
-	};
-
 	const handleCommitAndMerge = () => {
 		ConfirmDialog.show({
 			title: `Merge into ${card.baseRef}?`,
@@ -115,16 +89,19 @@ export function useCardActions({ workspaceId, card, onRefresh, onClose, onDelete
 	};
 
 	const handleCommitAndPR = () => {
-		ConfirmDialog.show({
-			title: "Create Pull Request?",
-			content: `Commits any pending changes, pushes the branch, and opens a PR against ${card.baseRef}.`,
-			confirmButtonLabel: "Create PR",
-			cancelButtonLabel: "Cancel",
-			onConfirm: async ({ dismiss }) => {
-				dismiss();
-				await doPR();
-			},
-			onCancel: ({ dismiss }) => dismiss(),
+		Dialog.show({
+			className: "max-w-md w-full overflow-visible",
+			dismissOnOutsideClick: true,
+			content: ({ dismiss }) => (
+				<CreatePRDialog
+					dismiss={dismiss}
+					workspaceId={workspaceId}
+					cardId={card.id}
+					defaultBaseRef={card.baseRef}
+					onSuccess={onRefresh}
+					onNeedsCommit={(retry) => showCommitMsgDialog(retry, "pr")}
+				/>
+			),
 		});
 	};
 
@@ -148,5 +125,5 @@ export function useCardActions({ workspaceId, card, onRefresh, onClose, onDelete
 		});
 	};
 
-	return { merging, creatingPR, handleStop, handleCommitAndMerge, handleCommitAndPR, handleDelete };
+	return { merging, handleStop, handleCommitAndMerge, handleCommitAndPR, handleDelete };
 }

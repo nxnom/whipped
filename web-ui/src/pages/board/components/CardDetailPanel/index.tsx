@@ -35,7 +35,7 @@ export function CardDetailPanel({
 	const [rightTab, setRightTab] = useState<RightTab>("terminal");
 	const [elapsedSec, setElapsedSec] = useState(0);
 
-	const { merging, creatingPR, handleStop, handleCommitAndMerge, handleCommitAndPR, handleDelete } = useCardActions({
+	const { merging, handleStop, handleCommitAndMerge, handleCommitAndPR, handleDelete } = useCardActions({
 		workspaceId,
 		card,
 		onRefresh,
@@ -112,7 +112,6 @@ export function CardDetailPanel({
 				isStory={isStory}
 				isReadyForReview={isReadyForReview}
 				merging={merging}
-				creatingPR={creatingPR}
 				onMerge={handleCommitAndMerge}
 				onPR={handleCommitAndPR}
 				onDelete={handleDelete}

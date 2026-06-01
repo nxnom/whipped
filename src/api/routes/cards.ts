@@ -41,10 +41,14 @@ export const cardsController = new Hono<AppEnv>()
 		ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 		return c.json(card);
 	})
-	.get("/branches", zv("query", z.object({ workspaceId: z.string() })), async (c) => {
-		const { workspaceId } = c.req.valid("query");
-		return c.json(await listBranchesService(workspaceId));
-	})
+	.get(
+		"/branches",
+		zv("query", z.object({ workspaceId: z.string(), remote: z.enum(["true", "false"]).optional() })),
+		async (c) => {
+			const { workspaceId, remote } = c.req.valid("query");
+			return c.json(await listBranchesService(workspaceId, remote === "true"));
+		},
+	)
 	.post("/stop-all", zv("json", z.object({ workspaceId: z.string() })), async (c) => {
 		const ctx = c.var.ctx;
 		const { workspaceId } = c.req.valid("json");
@@ -107,11 +111,19 @@ export const cardsController = new Hono<AppEnv>()
 	)
 	.post(
 		"/commit-and-pr",
-		zv("json", z.object({ workspaceId: z.string(), cardId: z.string(), commitMessage: z.string().optional() })),
+		zv(
+			"json",
+			z.object({
+				workspaceId: z.string(),
+				cardId: z.string(),
+				commitMessage: z.string().optional(),
+				baseRef: z.string().optional(),
+			}),
+		),
 		async (c) => {
 			const ctx = c.var.ctx;
-			const { workspaceId, cardId, commitMessage } = c.req.valid("json");
-			const result = await commitAndPRService(workspaceId, cardId, commitMessage);
+			const { workspaceId, cardId, commitMessage, baseRef } = c.req.valid("json");
+			const result = await commitAndPRService(workspaceId, cardId, commitMessage, baseRef);
 			if (result.status === "pr_created") {
 				ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 			}

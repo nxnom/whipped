@@ -21,8 +21,10 @@ import {
 	commitWorktree,
 	createGithubPR,
 	finalizeMerge,
+	getCurrentBranch,
 	isWorktreeDirty,
 	listLocalBranches,
+	listRemoteBranches,
 	pushBranch,
 } from "../../git/merge-operations.js";
 import {
@@ -111,13 +113,16 @@ export const createCardService = async (
 
 export const listBranchesService = async (
 	workspaceId: string,
+	remote = false,
 ): Promise<{ branches: string[]; defaultBranch: string }> => {
 	const workspaces = await listWorkspaces();
 	const ws = workspaces.find((w) => w.workspaceId === workspaceId);
 	if (!ws) return { branches: [], defaultBranch: "main" };
-	const branches = listLocalBranches(ws.repoPath);
 	const config = await loadProjectConfig(workspaceId);
 	const defaultBranch = config.defaultBaseBranch ?? getDefaultBranch(ws.repoPath);
+	const branches = remote
+		? listRemoteBranches(ws.repoPath).filter((b) => b !== getCurrentBranch(ws.repoPath))
+		: listLocalBranches(ws.repoPath);
 	return { branches, defaultBranch };
 };
 
@@ -323,6 +328,7 @@ export const commitAndPRService = async (
 	workspaceId: string,
 	cardId: string,
 	commitMessage: string | undefined,
+	baseRef?: string,
 ): Promise<CommitAndPRResult> => {
 	const workspaces = await listWorkspaces();
 	const ws = workspaces.find((w) => w.workspaceId === workspaceId);
@@ -378,7 +384,7 @@ export const commitAndPRService = async (
 		const prDescription = ownerCard?.pr?.description ?? card.pr?.description ?? devSummary;
 
 		try {
-			prUrl = await createGithubPR(prWorktreePath, prTitle, prDescription, card.baseRef, prGithubToken);
+			prUrl = await createGithubPR(prWorktreePath, prTitle, prDescription, baseRef || card.baseRef, prGithubToken);
 		} catch (err) {
 			spawnSync("git", ["push", "origin", "--delete", taskBranch], { cwd: prWorktreePath, stdio: "ignore" });
 			throw InternalError(`PR creation failed: ${err}`);

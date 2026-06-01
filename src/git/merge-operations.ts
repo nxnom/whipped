@@ -459,7 +459,22 @@ export function listLocalBranches(repoPath: string): string[] {
 	return r.stdout
 		.trim()
 		.split("\n")
-		.filter((b) => b && !b.startsWith("task/") && !b.startsWith("whipped/") && !b.startsWith("kanbom/"));
+		.filter((b) => b && !b.startsWith("task/") && !b.startsWith("whipped/"));
+}
+
+// Remote branches on origin with the `origin/` prefix stripped, excluding the origin/HEAD pointer.
+export function listRemoteBranches(repoPath: string): string[] {
+	const r = git(["for-each-ref", "--format=%(refname:lstrip=3)", "refs/remotes/origin"], repoPath);
+	if (!r.ok) return [];
+	return r.stdout
+		.split("\n")
+		.map((b) => b.trim())
+		.filter((b) => b && b !== "HEAD");
+}
+
+export function getCurrentBranch(repoPath: string): string {
+	const r = git(["rev-parse", "--abbrev-ref", "HEAD"], repoPath);
+	return r.ok && r.stdout !== "HEAD" ? r.stdout : "";
 }
 
 // Fetches body_html for a single issue comment, which contains pre-signed CDN URLs

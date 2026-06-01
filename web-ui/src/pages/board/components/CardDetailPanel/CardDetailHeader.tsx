@@ -12,7 +12,6 @@ interface CardDetailHeaderProps {
 	isStory: boolean;
 	isReadyForReview: boolean;
 	merging: boolean;
-	creatingPR: boolean;
 	onMerge: () => void;
 	onPR: () => void;
 	onDelete: () => void;
@@ -27,7 +26,6 @@ export function CardDetailHeader({
 	isStory,
 	isReadyForReview,
 	merging,
-	creatingPR,
 	onMerge,
 	onPR,
 	onDelete,
@@ -100,7 +98,7 @@ export function CardDetailHeader({
 					>
 						<button
 							onClick={onMerge}
-							disabled={merging || creatingPR}
+							disabled={merging}
 							className="cursor-pointer text-[#60607a] hover:text-emerald-400 transition-colors disabled:opacity-40"
 						>
 							<GitMerge size={15} />
@@ -117,15 +115,10 @@ export function CardDetailHeader({
 							<GitPullRequest size={15} />
 						</a>
 					) : (
-						<Tooltip
-							delayDuration={0}
-							content={creatingPR ? "Creating..." : `Create PR against ${card.baseRef}`}
-							side="bottom"
-							triggerAsChild
-						>
+						<Tooltip delayDuration={0} content={`Create PR against ${card.baseRef}`} side="bottom" triggerAsChild>
 							<button
 								onClick={onPR}
-								disabled={merging || creatingPR}
+								disabled={merging}
 								className="cursor-pointer text-[#60607a] hover:text-green-400 transition-colors disabled:opacity-40"
 							>
 								<GitPullRequest size={15} />
