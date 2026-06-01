@@ -16,7 +16,44 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     postComment(msg.payload).then(sendResponse).catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }
+  if (msg.type === "GET_CREATE_OPTIONS") {
+    getCreateOptions(msg.payload).then(sendResponse).catch((err) => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
+  if (msg.type === "CREATE_TASK") {
+    createTask(msg.payload).then(sendResponse).catch((err) => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
 });
+
+async function getCreateOptions({ serverUrl, workspaceId }) {
+  const q = encodeURIComponent(workspaceId);
+  const get = (path) => fetch(`${serverUrl}${path}`, { credentials: "include" });
+  const [wf, br, st] = await Promise.all([
+    get(`/api/workflows?workspaceId=${q}`),
+    get(`/api/cards/branches?workspaceId=${q}`),
+    get(`/api/workspace/state?workspaceId=${q}`),
+  ]);
+  if ([wf, br, st].some((r) => r.status === 401)) return { ok: false, error: "Not authenticated" };
+  return {
+    ok: true,
+    workflows: wf.ok ? await wf.json() : [],
+    branches: br.ok ? await br.json() : { branches: [], defaultBranch: "" },
+    state: st.ok ? await st.json() : null,
+  };
+}
+
+async function createTask({ serverUrl, body }) {
+  const res = await fetch(`${serverUrl}/api/cards`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401) return { ok: false, error: "Not authenticated" };
+  if (!res.ok) throw new Error(`Server returned ${res.status}`);
+  return { ok: true, card: await res.json() };
+}
 
 async function postComment({ serverUrl, workspaceId, cardId, summary, visualComment }) {
   const res = await fetch(`${serverUrl}/api/visual-comment`, {

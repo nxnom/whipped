@@ -145,3 +145,16 @@ option { background: var(--surface); color: var(--text); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .row { display: flex; align-items: center; justify-content: space-between; }
+
+/* ── Tabs (Annotate / Create) ──────────────────────────────────────────── */
+.tabs {
+  display: flex; gap: 4px; padding: 3px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+}
+.tabs .tab {
+  flex: 1; border: none; background: transparent; color: var(--muted);
+  font-family: inherit; font-size: 12px; font-weight: 600;
+  padding: 7px; border-radius: 8px; cursor: pointer; transition: background .15s, color .15s;
+}
+.tabs .tab.active { background: var(--surface-2); color: var(--text); }
+.tabs .tab:hover:not(.active) { color: var(--text); }

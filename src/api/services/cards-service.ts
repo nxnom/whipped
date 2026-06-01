@@ -13,6 +13,7 @@ import type {
 } from "../../core/api-contract.js";
 import { logger } from "../../core/logger.js";
 import { generateTaskId } from "../../core/task-id.js";
+import { formatVisualElementsBlock } from "../../core/visual-comment.js";
 import {
 	abortMerge,
 	attemptMerge,
@@ -96,7 +97,10 @@ export const createCardService = async (
 		if (!ws) throw NotFoundError("Workspace");
 		const config = await loadProjectConfig(workspaceId);
 		const baseRef = requestedBase || config.defaultBaseBranch || getDefaultBranch(ws.repoPath);
-		return await createCard(workspaceId, normalizeRelations(cardData), baseRef);
+		const { visualComment, ...rest } = cardData;
+		const block = visualComment ? formatVisualElementsBlock(visualComment.elements, visualComment.pageUrl) : "";
+		const description = block ? `${rest.description}\n\n${block}` : rest.description;
+		return await createCard(workspaceId, normalizeRelations({ ...rest, description }), baseRef);
 	} catch (err) {
 		logger.error(
 			`[cards.create] Error creating card: ${String(err)}\nInput: ${JSON.stringify({ workspaceId, ...cardData, baseRef: requestedBase })}\nStack: ${err instanceof Error ? err.stack : ""}`,

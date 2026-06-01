@@ -30,6 +30,7 @@ import { DEFAULT_GIT_INSTRUCTIONS } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 import { resolvePromptText } from "../core/prompt-resolver.js";
 import { generateTaskId } from "../core/task-id.js";
+import { formatVisualElementsBlock, type VisualElementRef } from "../core/visual-comment.js";
 import { commitIfDirty, createGithubPR, pushBranch } from "../git/merge-operations.js";
 import type { GithubClient } from "../github/github-client.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
@@ -727,34 +728,9 @@ function formatComment(
 	}
 
 	if (c.metadata?.visualComment && typeof c.metadata.visualComment === "object") {
-		const vc = c.metadata.visualComment as { pageUrl?: unknown; elements?: Record<string, unknown>[] };
-		const elements = vc.elements ?? [];
-		const vcLines: string[] = [];
-		// Each element line leads with the same `#N` token the user typed in the
-		// summary, and the list is scoped to this comment, so an agent reading
-		// several stacked Visual Feedback blocks never confuses one comment's #1
-		// with another's.
-		if (elements.length) {
-			vcLines.push(
-				elements.length > 1
-					? "Referenced elements (this feedback only — #N refers to the list below):"
-					: "Referenced element:",
-			);
-			elements.forEach((el, i) => {
-				const bits: string[] = [];
-				if (el.elementSelector) bits.push(`\`${el.elementSelector}\``);
-				if (Array.isArray(el.componentChain) && el.componentChain.length) {
-					bits.push(`🧩 ${(el.componentChain as string[]).join(" → ")}`);
-				} else if (el.componentName) {
-					bits.push(`🧩 ${el.componentName}`);
-				}
-				if (el.sourceFile) bits.push(`${el.sourceFile}${el.sourceLine != null ? `:${el.sourceLine}` : ""}`);
-				vcLines.push(`- #${i + 1} → ${bits.join(" · ")}`);
-				if (el.elementText) vcLines.push(`  "${el.elementText}"`);
-			});
-		}
-		if (vc.pageUrl) vcLines.push(`Page: ${vc.pageUrl}`);
-		if (vcLines.length) parts.push(vcLines.join("\n"));
+		const vc = c.metadata.visualComment as { pageUrl?: string; elements?: VisualElementRef[] };
+		const block = formatVisualElementsBlock(vc.elements ?? [], vc.pageUrl);
+		if (block) parts.push(block);
 	} else if (c.metadata && Object.keys(c.metadata).length > 0) {
 		for (const [k, v] of Object.entries(c.metadata)) {
 			if (typeof v !== "object") parts.push(`${k}: ${String(v)}`);

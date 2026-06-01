@@ -156,7 +156,7 @@ function extractCards(json) {
     .map((c) => ({ id: c.id, title: c.description?.split("\n")[0] ?? c.id }));
 }
 
-async function startAnnotating() {
+async function launchOnPage() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) return;
   try {
@@ -172,13 +172,32 @@ async function startAnnotating() {
   window.close();
 }
 
-async function renderMain() {
-  tag.textContent = "Annotate";
+async function startAnnotating() {
+  await store.set({ mode: "comment" });
+  await launchOnPage();
+}
+
+function connChip() {
   const conn = el(`<div class="conn"><span class="cdot"></span><span class="host">${escapeHtml(host(serverUrl))}</span><button class="linkbtn danger">Disconnect</button></div>`);
   conn.querySelector("button").onclick = async () => {
     try { await api("/api/auth/logout", { method: "POST" }); } catch { /* */ }
     route();
   };
+  return conn;
+}
+
+function tabsRow(active) {
+  const row = el(`<div class="tabs">
+    <button class="tab ${active === "annotate" ? "active" : ""}" data-tab="annotate">Annotate</button>
+    <button class="tab ${active === "create" ? "active" : ""}" data-tab="create">Create task</button>
+  </div>`);
+  row.querySelector('[data-tab="annotate"]').onclick = () => { if (active !== "annotate") renderMain(); };
+  row.querySelector('[data-tab="create"]').onclick = () => { if (active !== "create") renderCreate(); };
+  return row;
+}
+
+async function renderMain() {
+  tag.textContent = "Annotate";
 
   const projectSel = el(`<select><option value="">Loading projects…</option></select>`);
   const cardSel = el(`<select disabled><option value="">Select a project first</option></select>`);
@@ -187,7 +206,7 @@ async function renderMain() {
   const err = el(`<div class="alert err" style="display:none"></div>`);
   start.onclick = startAnnotating;
 
-  render(conn, field("Project", projectSel), field("Card", cardSel), start, hint, err);
+  render(connChip(), tabsRow("annotate"), field("Project", projectSel), field("Card", cardSel), start, hint, err);
 
   async function loadCards(wsId, preselect) {
     start.disabled = true;
@@ -245,6 +264,50 @@ async function renderMain() {
   if (saved.workspaceId && projects.some((p) => p.workspaceId === saved.workspaceId)) {
     projectSel.value = saved.workspaceId;
     await loadCards(saved.workspaceId, saved.cardId);
+  }
+}
+
+// ── Create task view ────────────────────────────────────────────────────────
+// The config form lives on the page (content.js, create mode) so it can reuse
+// element selection. The popup just picks the project and launches the wizard.
+
+async function renderCreate() {
+  tag.textContent = "Create";
+
+  const projectSel = el(`<select><option value="">Loading projects…</option></select>`);
+  const startBtn = el(`<button class="btn primary" disabled>✏️ Start creating</button>`);
+  const hint = el(`<div class="hint">Opens on the current page: describe the task, optionally click elements to reference, then configure & create.</div>`);
+  const err = el(`<div class="alert err" style="display:none"></div>`);
+
+  startBtn.onclick = async () => {
+    if (!projectSel.value) return;
+    await store.set({ workspaceId: projectSel.value, mode: "create" });
+    await launchOnPage();
+  };
+  projectSel.onchange = async () => {
+    await store.set({ workspaceId: projectSel.value || null });
+    startBtn.disabled = !projectSel.value;
+  };
+
+  render(connChip(), tabsRow("create"), field("Project", projectSel), startBtn, hint, err);
+
+  const saved = await store.get(["workspaceId"]);
+  let projects = [];
+  try {
+    const res = await api("/api/projects");
+    if (!res.ok) throw new Error();
+    projects = await res.json();
+  } catch {
+    err.textContent = "Couldn't load projects.";
+    err.style.display = "block";
+  }
+  projectSel.innerHTML =
+    `<option value="">— select project —</option>` +
+    projects.map((p) => `<option value="${escapeHtml(p.workspaceId)}">${escapeHtml(p.name || p.workspaceId)}</option>`).join("");
+
+  if (saved.workspaceId && projects.some((p) => p.workspaceId === saved.workspaceId)) {
+    projectSel.value = saved.workspaceId;
+    startBtn.disabled = false;
   }
 }
 

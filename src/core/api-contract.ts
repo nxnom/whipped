@@ -473,9 +473,24 @@ export type RuntimeWorkspaceStateSaveRequest = z.infer<typeof runtimeWorkspaceSt
 
 // ─── Card mutations ──────────────────────────────────────────────────────────
 
+export const runtimeVisualElementSchema = z.object({
+	elementSelector: z.string().optional(),
+	elementText: z.string().optional(),
+	componentName: z.string().optional(),
+	componentChain: z.array(z.string()).optional(),
+	sourceFile: z.string().optional(),
+	sourceLine: z.number().optional(),
+});
+export const runtimeVisualCommentSchema = z.object({
+	pageUrl: z.string().optional(),
+	elements: z.array(runtimeVisualElementSchema).default([]),
+});
+
 export const runtimeCardCreateRequestSchema = z.object({
 	description: z.string(),
 	type: cardTypeSchema.optional(),
+	// Browser-extension element references; folded into the description server-side.
+	visualComment: runtimeVisualCommentSchema.optional(),
 	agentId: runtimeAgentIdSchema.optional(),
 	priority: runtimeCardPrioritySchema.optional(),
 	readyForDev: z.boolean().optional(),
