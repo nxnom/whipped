@@ -5,7 +5,7 @@ import { WHIPPED_HOME_DIR } from "../config/paths.js";
 
 const HOOKS_DIR = join(WHIPPED_HOME_DIR, "hooks");
 export const CLAUDE_TASK_SETTINGS_PATH = join(HOOKS_DIR, "claude-task-settings.json");
-export const CLAUDE_HOME_MCP_CONFIG_PATH = join(HOOKS_DIR, "claude-home-mcp-config.json");
+export const CLAUDE_ASSISTANT_MCP_CONFIG_PATH = join(HOOKS_DIR, "claude-assistant-mcp-config.json");
 export const CLAUDE_REVIEW_MCP_CONFIG_PATH = join(HOOKS_DIR, "claude-review-mcp-config.json");
 
 export const HOOK_TASK_ID_ENV = "WHIPPED_HOOK_TASK_ID";
@@ -78,15 +78,18 @@ function buildMcpConfig(
 	};
 }
 
-// Writes a settings.json for the home agent (Kanban Agent) that registers the
+// Writes a settings.json for the assistant agent (Kanban Agent) that registers the
 // whipped MCP server so Claude has typed tools to manage the board.
-export async function writeClaudeHomeSettings(
+export async function writeClaudeAssistantSettings(
 	mcp: { command: string; args: string[] },
 	serverUrl: string,
 	workspaceId: string,
 ): Promise<void> {
 	await mkdir(HOOKS_DIR, { recursive: true });
-	await writeFile(CLAUDE_HOME_MCP_CONFIG_PATH, JSON.stringify(buildMcpConfig(mcp, serverUrl, workspaceId), null, 2));
+	await writeFile(
+		CLAUDE_ASSISTANT_MCP_CONFIG_PATH,
+		JSON.stringify(buildMcpConfig(mcp, serverUrl, workspaceId), null, 2),
+	);
 }
 
 // Generic writer — writes MCP config to a caller-supplied path.

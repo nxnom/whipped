@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
 	buildWhippedMcpServerSpec,
 	buildTaskHookEnv,
-	CLAUDE_HOME_MCP_CONFIG_PATH,
+	CLAUDE_ASSISTANT_MCP_CONFIG_PATH,
 	CLAUDE_TASK_SETTINGS_PATH,
 	cleanupCursorConfigDir,
 	cleanupOpencodeFiles,
@@ -16,7 +16,7 @@ import {
 	getOpencodeConfigDir,
 	getServerPort,
 	OPENCODE_CONFIG_DIR_ENV,
-	writeClaudeHomeSettings,
+	writeClaudeAssistantSettings,
 	writeClaudeMcpConfig,
 	writeCursorConfigFiles,
 	writeOpencodeFiles,
@@ -88,11 +88,11 @@ interface RunningTask {
 const FAST_EXIT_THRESHOLD_MS = 8_000;
 const MAX_RECENT_BUFFERS = 100;
 
-const HOME_AGENT_PREFIX = "__home__:";
+const ASSISTANT_AGENT_PREFIX = "__assistant__:";
 
 export class TaskScheduler {
 	private running = new Map<string, RunningTask>();
-	private homeSessions = new Map<string, RunningTask>();
+	private assistantSessions = new Map<string, RunningTask>();
 	// Keep the last output buffer around after a task exits so the terminal
 	// can still restore when the user opens it for a completed/awaiting-review task.
 	private recentBuffers = new Map<string, string>();
@@ -143,20 +143,20 @@ export class TaskScheduler {
 		return () => this.liveProcesses.delete(streamId);
 	}
 
-	get homeAgentTaskId(): string {
-		return `${HOME_AGENT_PREFIX}${this.options.workspaceId}`;
+	get assistantAgentTaskId(): string {
+		return `${ASSISTANT_AGENT_PREFIX}${this.options.workspaceId}`;
 	}
 
-	async startHomeAgent(): Promise<string> {
+	async startAssistantAgent(): Promise<string> {
 		const { workspaceId, repoPath, serverUrl, stateHub, defaultAgent } = this.options;
-		const taskId = this.homeAgentTaskId;
+		const taskId = this.assistantAgentTaskId;
 		const agentId = defaultAgent;
 
 		// Stop any existing session first
-		const existing = this.homeSessions.get(taskId);
+		const existing = this.assistantSessions.get(taskId);
 		if (existing) {
 			existing.process.kill();
-			this.homeSessions.delete(taskId);
+			this.assistantSessions.delete(taskId);
 		}
 
 		// Clear stale buffers so the new session starts with a blank terminal
@@ -168,29 +168,29 @@ export class TaskScheduler {
 		const projectConfig = await loadProjectConfig(workspaceId);
 		const secrets = projectConfig.secrets ?? [];
 		const secretsEnv = buildSecretsEnv(secrets);
-		const homeSystemPrompt = buildHomeAgentSystemPrompt(repoPath, secrets, projectConfig.systemPrompt);
+		const assistantSystemPrompt = buildAssistantAgentSystemPrompt(repoPath, secrets, projectConfig.systemPrompt);
 		const memContext = buildMemoryContext(workspaceId);
-		const appendSystemPrompt = memContext ? `${memContext}\n\n${homeSystemPrompt}` : homeSystemPrompt;
+		const appendSystemPrompt = memContext ? `${memContext}\n\n${assistantSystemPrompt}` : assistantSystemPrompt;
 
 		if (agentId === "claude") {
-			await writeClaudeHomeSettings(getMcpServerPath(), serverUrl, workspaceId).catch((err) => {
-				logger.warn({ err }, "[scheduler] Failed to write home agent MCP settings");
+			await writeClaudeAssistantSettings(getMcpServerPath(), serverUrl, workspaceId).catch((err) => {
+				logger.warn({ err }, "[scheduler] Failed to write assistant agent MCP settings");
 			});
 		} else if (agentId === "opencode") {
 			const mcpSpec = buildWhippedMcpServerSpec(getMcpServerPath(), serverUrl, workspaceId);
 			await writeOpencodeFiles(taskId, getServerPort(serverUrl), mcpSpec, { appendSystemPrompt }).catch((err) => {
-				logger.warn({ err }, "[scheduler] Failed to write opencode home agent files");
+				logger.warn({ err }, "[scheduler] Failed to write opencode assistant agent files");
 			});
 		} else if (agentId === "cursor") {
 			const mcpSpec = buildWhippedMcpServerSpec(getMcpServerPath(), serverUrl, workspaceId);
 			await writeCursorConfigFiles(taskId, getServerPort(serverUrl), mcpSpec).catch((err) => {
-				logger.warn({ err }, "[scheduler] Failed to write cursor home agent config");
+				logger.warn({ err }, "[scheduler] Failed to write cursor assistant agent config");
 			});
 		}
 
-		const homeTask: RunningTask = {
+		const assistantTask: RunningTask = {
 			taskId,
-			streamId: taskId, // home agent uses taskId as its stream (single session)
+			streamId: taskId, // assistant agent uses taskId as its stream (single session)
 			agentId,
 			process: spawnAgent({
 				agentId,
@@ -199,42 +199,42 @@ export class TaskScheduler {
 				env: {
 					...secretsEnv,
 					...buildTaskHookEnv(taskId, workspaceId),
-					WHIPPED_SLOT: "home",
+					WHIPPED_SLOT: "assistant",
 					...(agentId === "opencode" ? { [OPENCODE_CONFIG_DIR_ENV]: getOpencodeConfigDir(taskId) } : {}),
 					...(agentId === "cursor" ? { [CURSOR_CONFIG_DIR_ENV]: getCursorConfigDir(taskId) } : {}),
 				},
-				mcpConfigPath: agentId === "claude" ? CLAUDE_HOME_MCP_CONFIG_PATH : undefined,
+				mcpConfigPath: agentId === "claude" ? CLAUDE_ASSISTANT_MCP_CONFIG_PATH : undefined,
 				mcpServer:
 					agentId === "codex" ? buildWhippedMcpServerSpec(getMcpServerPath(), serverUrl, workspaceId) : undefined,
 				appendSystemPrompt: agentId !== "opencode" ? appendSystemPrompt : undefined,
 				onOutput: (data) => {
-					homeTask.outputBuffer += data;
+					assistantTask.outputBuffer += data;
 					stateHub.broadcastTerminalOutput(workspaceId, taskId, data);
 				},
 				onExit: () => {
-					this.setRecentBuffer(taskId, homeTask.outputBuffer);
-					this.homeSessions.delete(taskId);
+					this.setRecentBuffer(taskId, assistantTask.outputBuffer);
+					this.assistantSessions.delete(taskId);
 				},
 			}),
 			startedAt: Date.now(),
 			outputBuffer: "",
 		};
 
-		this.homeSessions.set(taskId, homeTask);
+		this.assistantSessions.set(taskId, assistantTask);
 		return taskId;
 	}
 
-	stopHomeAgent(): void {
-		const taskId = this.homeAgentTaskId;
-		const home = this.homeSessions.get(taskId);
-		if (home) {
-			home.process.kill();
-			this.homeSessions.delete(taskId);
+	stopAssistantAgent(): void {
+		const taskId = this.assistantAgentTaskId;
+		const assistant = this.assistantSessions.get(taskId);
+		if (assistant) {
+			assistant.process.kill();
+			this.assistantSessions.delete(taskId);
 		}
 	}
 
-	isHomeAgentRunning(): boolean {
-		return this.homeSessions.has(this.homeAgentTaskId);
+	isAssistantAgentRunning(): boolean {
+		return this.assistantSessions.has(this.assistantAgentTaskId);
 	}
 
 	get activeCount(): number {
@@ -868,9 +868,9 @@ export class TaskScheduler {
 		for (const task of this.running.values()) {
 			if (task.streamId === streamId) return task.outputBuffer;
 		}
-		// Home agent sessions use taskId as their streamId
-		const homeSession = this.homeSessions.get(streamId);
-		if (homeSession) return homeSession.outputBuffer;
+		// Assistant agent sessions use taskId as their streamId
+		const assistantSession = this.assistantSessions.get(streamId);
+		if (assistantSession) return assistantSession.outputBuffer;
 		// Completed tasks / recent buffers
 		return this.recentBuffers.get(streamId) ?? null;
 	}
@@ -892,7 +892,7 @@ export class TaskScheduler {
 		for (const task of this.running.values()) {
 			if (task.streamId === streamId) return task.process;
 		}
-		return this.homeSessions.get(streamId)?.process ?? this.liveProcesses.get(streamId);
+		return this.assistantSessions.get(streamId)?.process ?? this.liveProcesses.get(streamId);
 	}
 
 	async handleHookEvent(event: "stop" | "user_prompt", taskId: string): Promise<void> {
@@ -1107,7 +1107,7 @@ export class TaskScheduler {
 		for (const [taskId] of this.running) {
 			this.stopTask(taskId);
 		}
-		this.stopHomeAgent();
+		this.stopAssistantAgent();
 	}
 
 	// Call before stopAll() during graceful shutdown so onExit handlers bail out
@@ -1138,7 +1138,7 @@ export function getMcpServerPath(): { command: string; args: string[] } {
 	};
 }
 
-function buildHomeAgentSystemPrompt(
+function buildAssistantAgentSystemPrompt(
 	repoPath: string,
 	secrets: import("../core/api-contract.js").RuntimeProjectSecret[] = [],
 	systemPrompt?: string,
@@ -1192,6 +1192,14 @@ The Memory section injected above this prompt lists existing memories with their
 **story** — an epic with child subtasks. After ALL subtasks complete, the story runs its orchestrator (orch) workflow which reviews the whole picture and may reopen subtasks. Use \`kanban_create_story\` to create one atomically.
 
 **subtask** — a child of a story. Runs its own full dev workflow. Created automatically by \`kanban_create_story\`, or manually via \`kanban_create_card\` with type: "subtask". Always set readyForDev: true.
+
+# Attachments
+
+When you attach files or images to a card (the \`attachments\` parameter of \`kanban_create_card\` / \`kanban_create_story\` / \`kanban_update_card\`), don't attach them silently — **reference each one inline in the description with an \`[Attachment #N]\` token** so the downstream dev/review/QA agents know which file applies where.
+
+- \`N\` is 1-based and must match the file's position in the \`attachments\` array you pass: first file → \`[Attachment #1]\`, second → \`[Attachment #2]\`, and so on. Keep the numbering contiguous.
+- Put each token at the point in the text where that file is relevant, e.g. "Match the layout in [Attachment #1] and use the palette from [Attachment #2]." or "Reproduce the crash shown in [Attachment #1]."
+- Only reference attachments you are actually passing, and pass every attachment you reference.
 
 # Branch names
 

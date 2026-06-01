@@ -1,5 +1,5 @@
 /**
- * Stdio MCP server exposing Kanban board operations to the home agent.
+ * Stdio MCP server exposing Kanban board operations to the assistant agent.
  * Launched by Claude Code as a subprocess; communicates via stdin/stdout.
  *
  * Args: <serverUrl> <workspaceId>
@@ -20,7 +20,7 @@ const agentId = process.argv[4] ?? "claude";
 const apiToken = process.env.WHIPPED_API_TOKEN ?? "";
 const authHeaders: Record<string, string> = apiToken ? { "x-whipped-token": apiToken } : {};
 
-// Maps each logical procedure to its Hono REST route. The home agent runs as a
+// Maps each logical procedure to its Hono REST route. The assistant agent runs as a
 // separate process and calls the server over HTTP; responses are unwrapped
 // (Hono returns the value directly, unlike tRPC's { result: { data } }).
 type RestRoute = { method: "GET" | "POST" | "PATCH" | "DELETE"; path: (input: Record<string, unknown>) => string };
@@ -186,7 +186,9 @@ Creates all subtasks first, then the story card that depends on them. The story 
 			attachments: z
 				.array(attachmentInputSchema)
 				.optional()
-				.describe("Files to attach to the story description (e.g. design docs, screenshots)"),
+				.describe(
+					"Files to attach (e.g. design docs, screenshots). Reference each one inline in the story description as [Attachment #N], where N is its 1-based position in this array.",
+				),
 			subtasks: z
 				.array(
 					z.object({
@@ -220,7 +222,9 @@ Creates all subtasks first, then the story card that depends on them. The story 
 						attachments: z
 							.array(attachmentInputSchema)
 							.optional()
-							.describe("Files to attach to this subtask's description"),
+							.describe(
+								"Files to attach to this subtask. Reference each one inline in this subtask's description as [Attachment #N], where N is its 1-based position in this array.",
+							),
 					}),
 				)
 				.min(1)
@@ -354,7 +358,9 @@ server.registerTool(
 			attachments: z
 				.array(attachmentInputSchema)
 				.optional()
-				.describe("Files to attach to the card description (e.g. screenshots, design docs, PDFs)"),
+				.describe(
+					"Files to attach (e.g. screenshots, design docs, PDFs). Reference each one inline in the description as [Attachment #N], where N is its 1-based position in this array (first → [Attachment #1]).",
+				),
 			branchName: z
 				.string()
 				.optional()
@@ -447,7 +453,9 @@ server.registerTool(
 			attachments: z
 				.array(attachmentInputSchema)
 				.optional()
-				.describe("New files to append to the card's existing description attachments"),
+				.describe(
+					"New files to append to the card's existing description attachments. Reference each one inline in the description as [Attachment #N], continuing the numbering after the card's existing attachments.",
+				),
 		},
 	},
 	async ({ cardId, description, priority, dependsOn, waitsFor, workflowId, readyForDev, attachments }) => {
@@ -870,7 +878,7 @@ server.registerTool(
 // ─── Memory ───────────────────────────────────────────────────────────────────
 // Slot + card context are inherited from the agent process env (the MCP server
 // is a stdio child). Read tools are available to every slot; write tools are
-// registered for the dev and home (assistant) slots.
+// registered for the dev and assistant slots.
 const agentSlot = process.env.WHIPPED_SLOT ?? "";
 const memoryCardId = process.env.WHIPPED_HOOK_TASK_ID ?? "";
 const memoryModel = process.env.WHIPPED_MODEL ?? "";
@@ -925,8 +933,8 @@ server.registerTool(
 	},
 );
 
-// Write tools — dev and home (assistant) slots.
-if (agentSlot === "dev" || agentSlot === "home") {
+// Write tools — dev and assistant slots.
+if (agentSlot === "dev" || agentSlot === "assistant") {
 	server.registerTool(
 		"whipped_save_memory",
 		{
