@@ -24,6 +24,11 @@
   let selections = [];
   let onViewportChange = null;
   let dragging = false;
+  // Pass-through modes that let clicks reach the page instead of selecting it,
+  // so you can open dropdowns/menus and then annotate what they reveal:
+  // `altDown` = Alt held (transient), `interactMode` = Interact toggle (sustained).
+  let interactMode = false;
+  let altDown = false;
 
   // "comment" = leave a visual comment on an existing card (default).
   // "create"  = two-step wizard that creates a new task (step 1: describe +
@@ -84,7 +89,7 @@
       font-family: -apple-system, BlinkMacSystemFont, sans-serif; color: #f0f0f5;
       font-size: 12px; user-select: none; -webkit-user-select: none;
       animation: __wa-pop .18s ease-out;
-      /* Click-through so elements underneath stay selectable; only the exit
+      /* Click-through so elements underneath stay selectable; only the toggle
          button opts back in. Fades out (below) while the cursor is over it. */
       pointer-events: none; transition: opacity .15s ease;
     }
@@ -100,6 +105,21 @@
       font-family: inherit; font-size: 11px; font-weight: 600;
       padding: 5px 10px; border-radius: 999px;
     }
+    #__wa-bar .toggle {
+      pointer-events: auto; cursor: pointer;
+      background: rgba(124,106,255,.18); border: 1px solid rgba(124,106,255,.4);
+      color: #c4baff; font-family: inherit; font-size: 11px; font-weight: 600;
+      padding: 5px 10px; border-radius: 999px;
+    }
+    #__wa-bar .toggle:hover { background: rgba(124,106,255,.3); }
+    #__wa-bar .toggle.on { background: #34d399; border-color: #34d399; color: #07120d; }
+    /* Pass-through (Alt held or Interact on): green accent so it reads clearly as
+       "not selecting — clicks go to the page". */
+    #__wa-bar.pass { border-color: rgba(52,211,153,.5); background: rgba(10,26,20,.92); }
+    #__wa-bar.pass .pulse { background: #34d399; box-shadow: none; animation: none; }
+    #__wa-bar.pass .hint { color: #6ee7b7; }
+    /* While Alt is held the whole bar is click-through, so even the toggle yields. */
+    #__wa-bar.alt .toggle { pointer-events: none; opacity: .5; }
 
     #__wa-form {
       position: fixed; z-index: 2147483646; right: 16px; bottom: 16px;
@@ -214,20 +234,70 @@
       <span class="pulse"></span>
       <span class="label">${mode === "create" ? "New task" : "Annotating"}</span>
       ${mode !== "create" && cardTitle ? `<span class="card">· ${escHtml(cardTitle)}</span>` : ""}
-      <span class="hint">· click elements${mode === "create" ? " (optional)" : ""}</span>
+      <span class="hint"></span>
+      <button class="toggle" type="button"></button>
       <span class="exit">Esc to exit</span>
     `;
     document.body.appendChild(indicator);
 
-    // Fade the bar out of the way while the cursor is over it, so the element
-    // hidden underneath stays visible (and selectable — the bar is click-through).
+    indicator.querySelector(".toggle").addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      interactMode = !interactMode;
+      onPassthroughChange();
+    });
+
+    // Fade the bar out of the way while picking, so the element hidden underneath
+    // stays visible (and selectable — the bar is click-through). Don't fade during
+    // pass-through: the bar isn't covering anything you're selecting, and the
+    // toggle needs to stay readable/clickable.
     barMove = (e) => {
       if (!indicator) return;
       const r = indicator.getBoundingClientRect();
-      const over = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+      const over = picking() && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
       indicator.classList.toggle("faded", over);
     };
     document.addEventListener("mousemove", barMove, true);
+    updateIndicator();
+  }
+
+  // Reflects the current pass-through state (Alt held or Interact toggled) on the
+  // bar: pass-through styling, the status hint, and the toggle button label.
+  function updateIndicator() {
+    if (!indicator) return;
+    indicator.classList.toggle("pass", passthrough());
+    indicator.classList.toggle("alt", altDown);
+    const hint = indicator.querySelector(".hint");
+    const toggle = indicator.querySelector(".toggle");
+    if (hint) {
+      hint.textContent = altDown
+        ? "· pass-through — release Alt to select"
+        : interactMode
+          ? "· interact mode — page clicks work"
+          : `· click elements${mode === "create" ? " (optional)" : ""} · hold Alt to interact`;
+    }
+    if (toggle) {
+      toggle.textContent = interactMode ? "Select" : "Interact";
+      toggle.classList.toggle("on", interactMode);
+    }
+  }
+
+  function updateCursor() {
+    document.body.style.cursor = active && !passthrough() ? "crosshair" : "";
+  }
+
+  // Run whenever pass-through turns on/off (Alt or Interact): drop any live
+  // highlight so a stale outline doesn't linger while the page is clickable.
+  function onPassthroughChange() {
+    if (passthrough() && hl) { hl.classList.remove("__wa-hl"); hl = null; }
+    updateCursor();
+    updateIndicator();
+  }
+
+  function setAltDown(v) {
+    if (!active || altDown === v) return;
+    altDown = v;
+    onPassthroughChange();
   }
 
   function hideIndicator() {
@@ -248,7 +318,9 @@
       if (!serverUrl || !workspaceId || (mode !== "create" && !cardId)) return;
       active = true;
       createStep = 1;
-      document.body.style.cursor = "crosshair";
+      interactMode = false;
+      altDown = false;
+      updateCursor();
       showIndicator();
       if (!onViewportChange) {
         onViewportChange = () => positionBadges();
@@ -264,6 +336,8 @@
 
   function deactivate() {
     active = false;
+    interactMode = false;
+    altDown = false;
     document.body.style.cursor = "";
     if (hl) { hl.classList.remove("__wa-hl"); hl = null; }
     closeForm();
@@ -808,8 +882,12 @@
 
   // ── Element selection (gated on `active`) ──────────────────────────────────
 
+  // Pass-through suspends picking so the page works normally — Alt held (one-off)
+  // or Interact toggled (sustained). Either way clicks reach the page instead of
+  // being captured as a selection, so dropdowns/menus open and reveal their items.
+  const passthrough = () => altDown || interactMode;
   // Element picking is live for comments and for create step 1 only.
-  const picking = () => active && !dragging && !(mode === "create" && createStep !== 1);
+  const picking = () => active && !dragging && !passthrough() && !(mode === "create" && createStep !== 1);
 
   document.addEventListener("mouseover", (e) => {
     if (!picking() || inOwnUi(e.target)) return;
@@ -827,8 +905,15 @@
   }, true);
 
   document.addEventListener("keydown", (e) => {
-    if (active && !form && e.key === "Escape") deactivate();
+    if (!active) return;
+    if (e.key === "Alt") { setAltDown(true); return; }
+    if (e.key === "Escape" && !form) deactivate();
   });
+  document.addEventListener("keyup", (e) => {
+    if (e.key === "Alt") setAltDown(false);
+  });
+  // Alt-tabbing away fires no keyup, which would leave pass-through stuck on.
+  window.addEventListener("blur", () => setAltDown(false));
 
   // ── Messages from the popup ────────────────────────────────────────────────
 
