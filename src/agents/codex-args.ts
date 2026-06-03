@@ -102,6 +102,14 @@ export function buildCodexMcpOverrides(mcp: { command: string; args: string[] })
 	];
 }
 
+// A non-whipped MCP server (e.g. the browser capability) inlined under its own
+// name. No machine token — these talk to local tools, not the daemon's gate.
+export function buildCodexNamedMcpOverrides(name: string, mcp: { command: string; args: string[] }): string[] {
+	const cmd = JSON.stringify(mcp.command);
+	const argsToml = `[${mcp.args.map((a) => JSON.stringify(a)).join(",")}]`;
+	return ["-c", `mcp_servers.${name}.command=${cmd}`, "-c", `mcp_servers.${name}.args=${argsToml}`];
+}
+
 export function buildCodexDeveloperInstructions(text: string): string[] {
 	return ["-c", `developer_instructions=${JSON.stringify(text)}`];
 }

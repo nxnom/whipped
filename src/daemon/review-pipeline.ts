@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { unlink } from "node:fs/promises";
+import { readFile, readdir, stat, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import {
 	buildTaskHookEnv,
@@ -20,14 +20,18 @@ import {
 } from "../agents/agent-hooks.js";
 import type { AgentProcess } from "../agents/agent-runner.js";
 import { spawnAgent } from "../agents/agent-runner.js";
+import { type BrowserMcpServer, buildBrowserMcpServer, PLAYWRIGHT_MCP_SERVER_NAME } from "../agents/playwright-mcp.js";
 import type {
 	RuntimeBoardCard,
 	RuntimeProjectSecret,
+	RuntimeQaCapability,
 	RuntimeReviewComment,
 	WorkflowSlot,
 } from "../core/api-contract.js";
 import { DEFAULT_GIT_INSTRUCTIONS } from "../core/api-contract.js";
+import { ATTACHMENTS_DIR } from "../config/runtime-config.js";
 import { logger } from "../core/logger.js";
+import type { QaSemaphore } from "./qa-semaphore.js";
 import { resolvePromptText } from "../core/prompt-resolver.js";
 import { generateTaskId } from "../core/task-id.js";
 import { formatVisualElementsBlock, type VisualElementRef } from "../core/visual-comment.js";
@@ -63,6 +67,8 @@ interface ReviewPipelineOptions {
 	autoCommit: boolean;
 	secrets: RuntimeProjectSecret[];
 	systemPrompt?: string;
+	qaCapabilities: RuntimeQaCapability[];
+	qaSemaphore: QaSemaphore;
 	registerStopCallback: (streamId: string, callback: () => void) => () => void;
 	registerLiveProcess: (streamId: string, process: AgentProcess) => () => void;
 }
@@ -71,28 +77,6 @@ interface ReviewSlotResult {
 	passed: boolean;
 	comment: RuntimeReviewComment;
 	storedViaMcp: boolean;
-}
-
-// Serialised QA queue — only one QA test runs at a time
-const qaQueue: Array<() => Promise<void>> = [];
-let qaRunning = false;
-
-async function drainQaQueue(): Promise<void> {
-	if (qaRunning) return;
-	const next = qaQueue.shift();
-	if (!next) return;
-	qaRunning = true;
-	try {
-		await next();
-	} finally {
-		qaRunning = false;
-		await drainQaQueue();
-	}
-}
-
-function enqueueQA(fn: () => Promise<void>): void {
-	qaQueue.push(fn);
-	void drainQaQueue();
 }
 
 export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewPipelineOptions): Promise<void> {
@@ -145,26 +129,39 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 			skipPassed = false; // found the first slot to run — run this and all remaining
 		}
 
-		await appendActivityLog(workspaceId, card.id, `${slot.name} running (${slot.agentBinary})`);
-		await appendTerminalSession(workspaceId, card.id, {
-			streamId,
-			type: slot.id,
-			startedAt: runId,
-			agentId: slot.agentBinary,
-			state: "running",
-		});
-		stateHub.broadcastWorkspaceUpdate(workspaceId);
-
-		// QA-type slots are serialized globally to avoid port/simulator conflicts
-		let result: ReviewSlotResult;
+		// QA runs boot the app (and maybe a browser) — heavy and port-bound — so they
+		// pass through a machine-wide semaphore. If every slot is busy the card waits
+		// here (FIFO) instead of piling on; the wait is surfaced in the activity log.
+		let release: (() => void) | undefined;
 		if (slot.type === "qa") {
-			result = await new Promise<ReviewSlotResult>((resolve) => {
-				enqueueQA(async () => {
-					resolve(await runReviewSlot(slot, card, streamId, options, customPrompt));
-				});
+			if (options.qaSemaphore.wouldBlock()) {
+				await appendActivityLog(workspaceId, card.id, `${slot.name}: queued — waiting for a free QA slot`);
+				stateHub.broadcastWorkspaceUpdate(workspaceId);
+			}
+			release = await options.qaSemaphore.acquire();
+		}
+
+		let result: ReviewSlotResult;
+		try {
+			await appendActivityLog(workspaceId, card.id, `${slot.name} running (${slot.agentBinary})`);
+			await appendTerminalSession(workspaceId, card.id, {
+				streamId,
+				type: slot.id,
+				startedAt: runId,
+				agentId: slot.agentBinary,
+				state: "running",
 			});
-		} else {
+			stateHub.broadcastWorkspaceUpdate(workspaceId);
+
 			result = await runReviewSlot(slot, card, streamId, options, customPrompt);
+		} finally {
+			release?.();
+		}
+
+		// Fold any browser screenshots the QA agent captured into its comment as proof,
+		// in case it didn't attach them itself.
+		if (slot.type === "qa" && options.qaCapabilities.includes("browser")) {
+			await attachBrowserArtifacts(workspaceId, card, result, runId);
 		}
 
 		logger.info(
@@ -195,6 +192,7 @@ async function runReviewSlot(
 	customPrompt: string,
 ): Promise<ReviewSlotResult> {
 	const { workspaceId, stateHub } = options;
+	const browserEnabled = slot.type === "qa" && options.qaCapabilities.includes("browser");
 	// Orch slots use the story card's shared worktree (story is the worktree owner).
 	// Falls back to repoPath if that worktree no longer exists.
 	// Non-orch slots run in the card's resolved worktree (dependsOn chain root / story owner).
@@ -226,6 +224,7 @@ async function runReviewSlot(
 		options.systemPrompt,
 		options.autoCommit,
 		subtaskCards,
+		browserEnabled,
 	);
 	// Prepend durable memory so review/QA/orch agents share the dev agent's context.
 	const memContext = buildMemoryContext(workspaceId);
@@ -249,6 +248,14 @@ async function runReviewSlot(
 			? buildWhippedMcpServerSpec(options.mcpBinary, options.serverUrl, workspaceId, slot.agentBinary)
 			: undefined;
 
+	// QA agents get a browser-control capability (Playwright MCP) when it's enabled
+	// for the project (browserEnabled, computed above). It registers alongside the
+	// whipped tools and the agent uses it only if exercising the running app
+	// warrants it; a browser launches only on the first navigate.
+	const browserMcp: BrowserMcpServer | undefined = browserEnabled ? buildBrowserMcpServer(card.id) : undefined;
+	const browserMcpSpec = browserMcp ? { command: browserMcp.command, args: browserMcp.args } : undefined;
+	const extraMcpServers = browserMcpSpec ? { [PLAYWRIGHT_MCP_SERVER_NAME]: browserMcpSpec } : undefined;
+
 	if (slot.agentBinary === "claude" && mcpConfigPath) {
 		await writeClaudeMcpConfig(
 			options.mcpBinary,
@@ -256,6 +263,7 @@ async function runReviewSlot(
 			workspaceId,
 			slot.agentBinary,
 			mcpConfigPath,
+			extraMcpServers,
 		).catch(() => {});
 	}
 	const startTime = Date.now();
@@ -281,6 +289,7 @@ async function runReviewSlot(
 		mcpServer,
 		slot.model,
 		slot.type,
+		browserMcpSpec,
 	);
 	logger.info(`[review:${streamId}] ${slot.name} agent done (${Date.now() - startTime}ms)`);
 
@@ -339,6 +348,71 @@ function getSlotTriggerWord(type: string): string {
 	if (type === "code_review") return "Start Code Review.";
 	if (type === "qa") return "Start QA.";
 	return "Start.";
+}
+
+const SCREENSHOT_EXTENSIONS = new Set(["png", "jpg", "jpeg", "webp"]);
+
+// Fold browser screenshots captured during a QA run into its comment as proof.
+// The browser capability writes them to the card's attachment dir; we pick up
+// any image touched since the run began and route it through saveAttachment so
+// it serves identically to agent-attached images (content-hash dedups against
+// anything the agent already attached). A backstop for forgotten attachments.
+async function attachBrowserArtifacts(
+	workspaceId: string,
+	card: RuntimeBoardCard,
+	result: ReviewSlotResult,
+	since: number,
+): Promise<void> {
+	const dir = join(ATTACHMENTS_DIR, card.id);
+	let entries: string[];
+	try {
+		entries = await readdir(dir);
+	} catch {
+		return;
+	}
+
+	const existing = result.comment.attachments ?? [];
+	const seenPaths = new Set(existing.map((a) => a.path));
+	const captured: NonNullable<RuntimeReviewComment["attachments"]> = [];
+	for (const name of entries) {
+		const ext = name.split(".").pop()?.toLowerCase() ?? "";
+		if (!SCREENSHOT_EXTENSIONS.has(ext)) continue;
+		const filePath = join(dir, name);
+		try {
+			const info = await stat(filePath);
+			if (!info.isFile() || info.mtimeMs < since) continue;
+			const data = await readFile(filePath);
+			const canonicalPath = await saveAttachment(data, ext === "jpg" ? "jpeg" : ext, card.id);
+			if (seenPaths.has(canonicalPath)) continue;
+			seenPaths.add(canonicalPath);
+			captured.push({
+				type: "image",
+				name,
+				mimeType: `image/${ext === "jpg" ? "jpeg" : ext}`,
+				path: canonicalPath,
+			});
+		} catch {
+			// Skip unreadable files
+		}
+	}
+
+	if (captured.length === 0) return;
+	const merged = [...existing, ...captured];
+	result.comment.attachments = merged;
+
+	// MCP-stored comments are already persisted — update the stored row in place.
+	// Non-MCP comments persist later via persistComment, carrying these along.
+	if (result.storedViaMcp) {
+		const board = await loadBoard(workspaceId);
+		const latest = board.cards[card.id];
+		if (!latest) return;
+		const updatedComments = (latest.reviewComments ?? []).map((c) =>
+			c.streamId === result.comment.streamId && c.createdAt === result.comment.createdAt
+				? { ...c, attachments: merged }
+				: c,
+		);
+		await updateCard(workspaceId, card.id, { reviewComments: updatedComments });
+	}
 }
 
 async function persistComment(
@@ -563,12 +637,14 @@ function runAgentOnce(
 	mcpServer?: { command: string; args: string[] },
 	model?: string | null,
 	slotType?: string,
+	browserMcpServer?: { command: string; args: string[] },
 ): Promise<string> {
+	const extraMcp = browserMcpServer ? { [PLAYWRIGHT_MCP_SERVER_NAME]: browserMcpServer } : undefined;
 	if (agentId === "opencode" && hookServerPort != null && mcpServer) {
-		void writeOpencodeFiles(streamId, hookServerPort, mcpServer, { appendSystemPrompt }).catch(() => {});
+		void writeOpencodeFiles(streamId, hookServerPort, mcpServer, { appendSystemPrompt, extraMcp }).catch(() => {});
 	}
 	if (agentId === "cursor" && hookServerPort != null && mcpServer) {
-		void writeCursorConfigFiles(streamId, hookServerPort, mcpServer).catch(() => {});
+		void writeCursorConfigFiles(streamId, hookServerPort, mcpServer, extraMcp).catch(() => {});
 	}
 
 	return new Promise((resolve) => {
@@ -602,6 +678,7 @@ function runAgentOnce(
 			hookServerPort: agentId === "codex" ? hookServerPort : undefined,
 			mcpConfigPath: agentId === "claude" ? mcpConfigPath : undefined,
 			mcpServer: agentId === "codex" ? mcpServer : undefined,
+			browserMcpServer: agentId === "codex" ? browserMcpServer : undefined,
 			appendSystemPrompt: agentId !== "opencode" ? appendSystemPrompt : undefined,
 			files: agentId === "claude" ? files : undefined,
 			effort,
@@ -1050,12 +1127,23 @@ function buildReviewSlotSystemPrompt(
 	systemPrompt?: string,
 	autoCommit = true,
 	subtaskCards: RuntimeBoardCard[] = [],
+	browserEnabled = false,
 ): string {
 	switch (slot.type) {
 		case "code_review":
 			return buildCodeReviewSystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets, systemPrompt);
 		case "qa":
-			return buildQASystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets, systemPrompt);
+			return buildQASystemPrompt(
+				slot,
+				card,
+				stat,
+				fullDiff,
+				customPrompt,
+				priorContext,
+				secrets,
+				systemPrompt,
+				browserEnabled,
+			);
 		case "orch":
 			return buildOrchSystemPrompt(
 				slot,
@@ -1137,6 +1225,7 @@ function buildQASystemPrompt(
 	priorContext: string,
 	secrets: RuntimeProjectSecret[],
 	systemPrompt?: string,
+	browserEnabled = false,
 ): string {
 	const custom = customPrompt.trim() ? `\n\n## Project-specific instructions\n\n${customPrompt.trim()}` : "";
 	const secretsSection = buildSecretsSection(secrets);
@@ -1146,6 +1235,15 @@ function buildQASystemPrompt(
 		(card.descriptionAttachments?.length ?? 0) > 0
 			? `\n\n**Attached files** (use Read tool to view):\n${attachmentLines(card.descriptionAttachments ?? [])}`
 			: "";
+
+	// Browser control is offered only when the project enables the capability.
+	const browserSection = browserEnabled
+		? `
+- For a web UI you have a **browser capability** via the \`browser_*\` MCP tools (Playwright). Use it only when exercising the running UI is warranted:
+  - \`browser_navigate\` to the URL you booted, then drive the change by element ref from \`browser_snapshot\` (not coordinates).
+  - Capture a \`browser_take_screenshot\` of the change working, and read \`browser_console_messages\` — surface any errors as issues.
+  - **You opened it, so you close it**: call \`browser_close\` when done. Always shut down the app process you started, too.`
+		: "";
 
 	return `You are a QA engineer performing automated testing.
 
@@ -1162,8 +1260,13 @@ ${ITERATION_SCOPING_NOTE}
 
 ## What to do
 1. Identify the app type (web, API, React Native/Expo, library, etc.)
-2. Run the appropriate tests — existing test suite, TypeScript checks, Playwright, HTTP requests, etc.
+2. Run the appropriate tests — existing test suite, TypeScript checks, HTTP requests, etc.
 3. Verify every issue / request listed under \`## New Feedback\` or \`## Current Iteration\` has been addressed in the diff
+
+## Proving it works in a running app
+Don't just read the diff — exercise the change. If it touches anything user-facing or runnable:
+- Boot the app yourself with the project's install/run scripts. Pick a free port and read the URL it prints (the app may be a web server, an API, a CLI, or another tool — choose accordingly).${browserSection}
+- Attach screenshots and any relevant logs as proof on your comment (below) so they're tied to your verdict.
 
 The terminal output is observational — write findings as plain text without pass/fail words. Your only formal verdict is the \`status\` field in the MCP call below.${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}
 

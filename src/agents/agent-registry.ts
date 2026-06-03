@@ -52,7 +52,9 @@ import {
 	buildCodexEffortOverride,
 	buildCodexHookOverrides,
 	buildCodexMcpOverrides,
+	buildCodexNamedMcpOverrides,
 } from "./codex-args.js";
+import { PLAYWRIGHT_MCP_SERVER_NAME } from "./playwright-mcp.js";
 
 export interface AgentInfo {
 	id: RuntimeAgentId;
@@ -124,6 +126,9 @@ export interface AgentArgsContext {
 	hookServerPort?: number;
 	mcpConfigPath?: string;
 	mcpServer?: { command: string; args: string[] };
+	// Extra MCP server (browser capability for QA). Claude/opencode/cursor get it
+	// via their written config files; codex inlines it as `-c` overrides here.
+	browserMcpServer?: { command: string; args: string[] };
 	appendSystemPrompt?: string;
 	files?: string[];
 	effort?: EffortLevel | null;
@@ -160,6 +165,9 @@ export function buildAgentArgs(agentId: RuntimeAgentId, prompt: string, ctx: Age
 			const overrides: string[] = [];
 			if (ctx.hookServerPort != null) overrides.push(...buildCodexHookOverrides(ctx.hookServerPort));
 			if (ctx.mcpServer) overrides.push(...buildCodexMcpOverrides(ctx.mcpServer));
+			if (ctx.browserMcpServer) {
+				overrides.push(...buildCodexNamedMcpOverrides(PLAYWRIGHT_MCP_SERVER_NAME, ctx.browserMcpServer));
+			}
 			if (ctx.appendSystemPrompt) overrides.push(...buildCodexDeveloperInstructions(ctx.appendSystemPrompt));
 			if (ctx.effort) overrides.push(...buildCodexEffortOverride(ctx.effort));
 

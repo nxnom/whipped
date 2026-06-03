@@ -16,6 +16,8 @@ export interface AgentRunOptions {
 	// Claude reads a pre-written JSON; codex inlines the spec.
 	mcpConfigPath?: string;
 	mcpServer?: { command: string; args: string[] };
+	// Browser capability MCP server for QA slots; consumed inline by codex.
+	browserMcpServer?: { command: string; args: string[] };
 	appendSystemPrompt?: string;
 	files?: string[];
 	mode?: "interactive" | "print";
@@ -41,6 +43,7 @@ export function spawnAgent(options: AgentRunOptions): AgentProcess {
 		hookServerPort: options.hookServerPort,
 		mcpConfigPath: options.mcpConfigPath,
 		mcpServer: options.mcpServer,
+		browserMcpServer: options.browserMcpServer,
 		appendSystemPrompt: options.appendSystemPrompt,
 		files: options.files,
 		effort: options.effort,

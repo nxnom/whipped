@@ -12,11 +12,13 @@ import { slackNotifier } from "../slack/slack-notifier.js";
 import { clearState, readState, writeState } from "../cli/daemon-state.js";
 import { ATTACHMENTS_DIR, DEFAULT_PORT, loadGlobalConfig, WHIPPED_HOME_DIR } from "../config/runtime-config.js";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
+import { resolveQaCapabilities } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 import { generateTaskId } from "../core/task-id.js";
 import { BoardPoller } from "../daemon/poller.js";
 import { acquireInstanceLock, isInstanceLockError } from "../state/instance-lock.js";
 import { runReviewPipeline } from "../daemon/review-pipeline.js";
+import { QaSemaphore } from "../daemon/qa-semaphore.js";
 import { getMcpServerPath, TaskScheduler } from "../daemon/scheduler.js";
 import { createGithubClient } from "../github/github-client.js";
 import { openDb } from "../state/db.js";
@@ -105,6 +107,11 @@ export async function createRuntimeServer(options: ServerOptions) {
 	setMachineToken(await getOrCreateMachineToken());
 
 	const _globalConfig = await loadGlobalConfig();
+
+	// Machine-wide QA throttle shared across every workspace — QA runs are heavy
+	// and port-bound, so the cap is per-machine, not per-project. Limit is kept in
+	// sync with maxParallelQA on each review (config can change at runtime).
+	const qaSemaphore = new QaSemaphore(_globalConfig.maxParallelQA);
 
 	const stateHub = new RuntimeStateHub();
 	const schedulers = new Map<string, TaskScheduler>();
@@ -236,6 +243,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 					.sort((a, b) => a.order - b.order);
 				const deliveryMode = latestProjectConfig.deliveryMode ?? "off";
 				if (reviewSlots.length === 0 && deliveryMode === "off") return;
+				qaSemaphore.setLimit(latestConfig.maxParallelQA);
 				await runReviewPipeline(card, {
 					workspaceId,
 					repoPath: wsRepoPath,
@@ -250,6 +258,8 @@ export async function createRuntimeServer(options: ServerOptions) {
 					autoCommit: latestProjectConfig.autoCommit ?? true,
 					secrets: latestProjectConfig.secrets ?? [],
 					systemPrompt: latestProjectConfig.systemPrompt,
+					qaCapabilities: resolveQaCapabilities(latestProjectConfig.qaCapabilities),
+					qaSemaphore,
 					registerStopCallback: scheduler.registerStopCallback.bind(scheduler),
 					registerLiveProcess: scheduler.registerLiveProcess.bind(scheduler),
 				});

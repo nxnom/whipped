@@ -60,11 +60,16 @@ export function buildWhippedMcpServerSpec(
 	};
 }
 
+// Extra MCP servers (e.g. the browser capability for QA) keyed by name. These
+// talk to local tools rather than the daemon, so they carry no machine token.
+export type ExtraMcpServers = Record<string, { command: string; args: string[] }>;
+
 function buildMcpConfig(
 	mcp: { command: string; args: string[] },
 	serverUrl: string,
 	workspaceId: string,
 	agentId?: string,
+	extraServers?: ExtraMcpServers,
 ): object {
 	return {
 		mcpServers: {
@@ -74,6 +79,7 @@ function buildMcpConfig(
 				// so the auth token must be set explicitly on the server config.
 				env: { [MACHINE_TOKEN_ENV]: getMachineToken() ?? "" },
 			},
+			...extraServers,
 		},
 	};
 }
@@ -100,9 +106,13 @@ export async function writeClaudeMcpConfig(
 	workspaceId: string,
 	agentId: string,
 	configPath: string,
+	extraServers?: ExtraMcpServers,
 ): Promise<void> {
 	await mkdir(HOOKS_DIR, { recursive: true });
-	await writeFile(configPath, JSON.stringify(buildMcpConfig(mcp, serverUrl, workspaceId, agentId), null, 2));
+	await writeFile(
+		configPath,
+		JSON.stringify(buildMcpConfig(mcp, serverUrl, workspaceId, agentId, extraServers), null, 2),
+	);
 }
 
 // Writes a settings.json for review pipeline agents (code-review, QA, dev summary).
@@ -141,7 +151,7 @@ export async function writeOpencodeFiles(
 	id: string,
 	serverPort: number,
 	mcpServer: { command: string; args: string[] },
-	opts: { appendSystemPrompt?: string } = {},
+	opts: { appendSystemPrompt?: string; extraMcp?: ExtraMcpServers } = {},
 ): Promise<void> {
 	const dir = getOpencodeConfigDir(id);
 	await mkdir(join(dir, "plugin"), { recursive: true });
@@ -182,6 +192,12 @@ export const WhippedPlugin: Plugin = async () => {
 }
 `;
 
+	const extraMcp = Object.fromEntries(
+		Object.entries(opts.extraMcp ?? {}).map(([name, spec]) => [
+			name,
+			{ type: "local", command: [spec.command, ...spec.args] },
+		]),
+	);
 	const config = {
 		mcp: {
 			whipped: {
@@ -189,6 +205,7 @@ export const WhippedPlugin: Plugin = async () => {
 				command: [mcpServer.command, ...mcpServer.args],
 				environment: { [MACHINE_TOKEN_ENV]: getMachineToken() ?? "" },
 			},
+			...extraMcp,
 		},
 	};
 
@@ -221,6 +238,7 @@ export async function writeCursorConfigFiles(
 	id: string,
 	serverPort: number,
 	mcpServerSpec: { command: string; args: string[] },
+	extraServers?: ExtraMcpServers,
 ): Promise<void> {
 	const dir = getCursorConfigDir(id);
 	await mkdir(dir, { recursive: true });
@@ -235,6 +253,7 @@ export async function writeCursorConfigFiles(
 	const mcpConfig = {
 		mcpServers: {
 			whipped: { ...mcpServerSpec, env: { [MACHINE_TOKEN_ENV]: getMachineToken() ?? "" } },
+			...extraServers,
 		},
 	};
 

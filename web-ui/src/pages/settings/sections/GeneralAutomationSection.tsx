@@ -1,6 +1,11 @@
 import { RHFNumberInput, RHFSwitch, Select, SelectOption } from "@geckoui/geckoui";
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { RuntimeProjectConfig } from "@runtime-contract";
+import {
+	QA_CAPABILITY_OPTIONS,
+	type RuntimeProjectConfig,
+	type RuntimeQaCapability,
+	resolveQaCapabilities,
+} from "@runtime-contract";
 import { AlertTriangle } from "lucide-react";
 import {
 	type GeneralAutomationForm,
@@ -143,6 +148,28 @@ export function GeneralAutomationSection({
 							positiveOnly
 							onChange={(v) => onUpdate({ ...config, pollingIntervalSeconds: toNum(v) })}
 						/>
+					</FieldRow>
+				</div>
+
+				{/* QA */}
+				<div className="flex flex-col gap-4">
+					<SectionDivider title="QA" />
+					<FieldRow
+						label="QA capabilities"
+						description="Tools the QA agent may use to exercise changes. All available by default."
+					>
+						<div className="w-56">
+							<Select
+								multiple
+								value={resolveQaCapabilities(config.qaCapabilities)}
+								onChange={(v) => onUpdate({ ...config, qaCapabilities: v as RuntimeQaCapability[] })}
+								placeholder="None"
+							>
+								{QA_CAPABILITY_OPTIONS.map((o) => (
+									<SelectOption key={o.value} value={o.value} label={o.label} />
+								))}
+							</Select>
+						</div>
 					</FieldRow>
 				</div>
 

@@ -425,6 +425,24 @@ export type RuntimeProjectSecret = z.infer<typeof runtimeProjectSecretSchema>;
 export const BUILTIN_SECRET_KEYS = ["GITHUB_TOKEN"] as const;
 export type BuiltinSecretKey = (typeof BUILTIN_SECRET_KEYS)[number];
 
+// ─── QA capabilities ──────────────────────────────────────────────────────────
+// Tools a QA agent may reach for to exercise a change. The agent opts in per its
+// own judgement; this list controls which are *available* to it. Extend by adding
+// an id here and registering the matching tool for QA slots (e.g. simulator_use,
+// computer_use later).
+export const QA_CAPABILITY_IDS = ["browser"] as const;
+export type RuntimeQaCapability = (typeof QA_CAPABILITY_IDS)[number];
+
+export const QA_CAPABILITY_OPTIONS: ReadonlyArray<{ value: RuntimeQaCapability; label: string }> = [
+	{ value: "browser", label: "Browser control" },
+];
+
+// Absent from project config = all capabilities available (auto-enabled). An
+// explicit list — including an empty one for "none" — is honored exactly.
+export function resolveQaCapabilities(ids: readonly RuntimeQaCapability[] | undefined): RuntimeQaCapability[] {
+	return ids ? [...ids] : [...QA_CAPABILITY_IDS];
+}
+
 export const runtimeProjectConfigSchema = z.object({
 	name: z.string().optional(),
 	defaultAgent: runtimeAgentIdSchema.optional(),
@@ -451,6 +469,9 @@ export const runtimeProjectConfigSchema = z.object({
 	// Dev server URL for the project, used by the browser extension as the
 	// default page to annotate.
 	previewUrl: z.string().optional(),
+	// QA capabilities the QA agent may use. Absent = all available; an explicit
+	// list (including empty, for none) is honored exactly. See resolveQaCapabilities.
+	qaCapabilities: z.array(z.enum(QA_CAPABILITY_IDS)).optional(),
 });
 export type RuntimeProjectConfig = z.infer<typeof runtimeProjectConfigSchema>;
 

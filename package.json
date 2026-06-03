@@ -26,6 +26,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@octokit/graphql": "^8.1.2",
     "@octokit/rest": "^21.1.1",
+    "@playwright/mcp": "^0.0.75",
     "@xterm/addon-serialize": "^0.14.0",
     "@xterm/headless": "^6.0.0",
     "better-sqlite3": "^12.10.0",
