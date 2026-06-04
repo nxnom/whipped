@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="web-ui/src/assets/logo.png" width="120" alt="whipped logo" />
+  <img src="https://raw.githubusercontent.com/nxnom/whipped/develop/logo.png" width="120" alt="whipped logo" />
 </p>
 
 <h1 align="center">whipped</h1>
