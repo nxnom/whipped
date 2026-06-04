@@ -1,26 +1,25 @@
-// Content script — injected on demand by the Whipped popup (and by the kanban
-// "Save & Open" deep-link). It only does crosshair element selection + the
-// comment form. Connecting, login, and project/card selection live in the popup.
+// Content script — crosshair element selection + a prompt composer. Standalone:
+// it never talks to a server. You click elements, write an instruction, and Copy.
+// The copy carries two clipboard formats:
+//   - text/plain : a readable markdown prompt (paste into Cursor, Claude, an issue…)
+//   - text/html  : the same text + a hidden base64 payload, so a system that knows
+//                  to look (e.g. Whipped) can recover the structured visualComment.
 
 (function () {
   if (window.__whippedAnnotate) {
-    // Already injected on this page — just re-activate with the latest context.
+    // Already injected on this page — just re-activate.
     window.__whippedActivate?.();
     return;
   }
   window.__whippedAnnotate = true;
 
-  let serverUrl = null;
-  let workspaceId = null;
-  let cardId = null;
-  let cardTitle = null;
   let active = false;
   let hl = null;
   let form = null;
   let indicator = null;
   let barMove = null;
-  // Elements collected for the comment currently being written. Each entry:
-  // { el, selector, elementText, ri, badgeEl }. One comment can reference many.
+  // Elements collected for the prompt currently being written. Each entry:
+  // { el, selector, elementText, ri, badgeEl }.
   let selections = [];
   let onViewportChange = null;
   let dragging = false;
@@ -29,31 +28,6 @@
   // `altDown` = Alt held (transient), `interactMode` = Interact toggle (sustained).
   let interactMode = false;
   let altDown = false;
-
-  // "comment" = leave a visual comment on an existing card (default).
-  // "create"  = two-step wizard that creates a new task (step 1: describe +
-  //             pick elements, step 2: configure). Set by the popup.
-  let mode = "comment";
-  let createStep = 1;
-  let createOptions = null; // { workflows, branches:{branches,defaultBranch}, cards:[{id,title}] }
-  const createCfg = {
-    description: "",
-    priority: "",
-    workflowId: "",
-    baseRef: "",
-    branchName: "",
-    relationType: "waits",
-    waits: [], // [{ id, title }]
-    dependsOn: "",
-    autoStart: true,
-  };
-
-  const CREATE_PRIORITIES = [
-    { val: "urgent", label: "Urgent", color: "#ef4444" },
-    { val: "high", label: "High", color: "#f59e0b" },
-    { val: "medium", label: "Medium", color: "#eab308" },
-    { val: "low", label: "Low", color: "#6b7280" },
-  ];
 
   // Distinct colors so each referenced element — its page outline, its badge,
   // and the `#N` mention in the textarea — share one identity.
@@ -89,8 +63,6 @@
       font-family: -apple-system, BlinkMacSystemFont, sans-serif; color: #f0f0f5;
       font-size: 12px; user-select: none; -webkit-user-select: none;
       animation: __wa-pop .18s ease-out;
-      /* Click-through so elements underneath stay selectable; only the toggle
-         button opts back in. Fades out (below) while the cursor is over it. */
       pointer-events: none; transition: opacity .15s ease;
     }
     #__wa-bar.faded { opacity: .12; }
@@ -98,7 +70,6 @@
     #__wa-bar .pulse { width: 8px; height: 8px; border-radius: 50%; background: #7c6aff; box-shadow: 0 0 0 0 rgba(124,106,255,.6); animation: __wa-pulse 1.6s infinite; flex-shrink: 0; }
     @keyframes __wa-pulse { 0% { box-shadow: 0 0 0 0 rgba(124,106,255,.5); } 70% { box-shadow: 0 0 0 7px rgba(124,106,255,0); } 100% { box-shadow: 0 0 0 0 rgba(124,106,255,0); } }
     #__wa-bar .label { font-weight: 600; }
-    #__wa-bar .card { color: #c4baff; max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #__wa-bar .hint { color: #60607a; }
     #__wa-bar .exit {
       background: rgba(255,255,255,.06); border: none; color: #9a9ab0;
@@ -113,12 +84,9 @@
     }
     #__wa-bar .toggle:hover { background: rgba(124,106,255,.3); }
     #__wa-bar .toggle.on { background: #34d399; border-color: #34d399; color: #07120d; }
-    /* Pass-through (Alt held or Interact on): green accent so it reads clearly as
-       "not selecting — clicks go to the page". */
     #__wa-bar.pass { border-color: rgba(52,211,153,.5); background: rgba(10,26,20,.92); }
     #__wa-bar.pass .pulse { background: #34d399; box-shadow: none; animation: none; }
     #__wa-bar.pass .hint { color: #6ee7b7; }
-    /* While Alt is held the whole bar is click-through, so even the toggle yields. */
     #__wa-bar.alt .toggle { pointer-events: none; opacity: .5; }
 
     #__wa-form {
@@ -180,40 +148,6 @@
     #__wa-form .send { background: #7c6aff; color: #fff; }
     #__wa-form .send:hover { background: #6a57f0; }
     #__wa-form .send:disabled { opacity: .5; cursor: not-allowed; }
-
-    /* Create-task config step */
-    #__wa-form .cfg { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
-    #__wa-form .cfg > label { font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: #6a6a80; }
-    #__wa-form select, #__wa-form input[type="text"] {
-      width: 100%; box-sizing: border-box; background: #0c0c0f; color: #f0f0f5;
-      border: 1px solid #34344a; border-radius: 8px; padding: 9px; font-size: 13px;
-      font-family: inherit; outline: none;
-    }
-    #__wa-form select:focus, #__wa-form input[type="text"]:focus { border-color: #7c6aff; }
-    #__wa-form .pri-row { display: flex; gap: 6px; }
-    #__wa-form .pri {
-      flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px;
-      background: #0c0c0f; border: 1px solid #34344a; border-radius: 8px; color: #8888a0;
-      font-size: 11px; font-weight: 600; padding: 7px 3px;
-    }
-    #__wa-form .pri .pdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-    #__wa-form .pri[data-active="true"] { color: #f0f0f5; background: #1d1d26; border-color: #4a4a5a; }
-    #__wa-form .seg { display: flex; gap: 4px; padding: 3px; background: #0c0c0f; border: 1px solid #34344a; border-radius: 8px; }
-    #__wa-form .seg button { flex: 1; padding: 7px; border-radius: 6px; background: transparent; color: #8888a0; font-size: 12px; }
-    #__wa-form .seg button.on { background: #1d1d26; color: #f0f0f5; }
-    #__wa-form .subhint { font-size: 11px; color: #60607a; line-height: 1.45; }
-    #__wa-form .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-    #__wa-form .chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; background: #1d1d26; border: 1px solid #34344a; border-radius: 999px; padding: 3px 6px 3px 10px; font-size: 11px; color: #c4c4d4; }
-    #__wa-form .chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
-    #__wa-form .chip button { background: none; color: #6a6a80; font-size: 14px; padding: 0 2px; }
-    #__wa-form .chip button:hover { color: #f0f0f5; }
-    #__wa-form .switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; font-weight: 600; color: #c4c4d4; }
-    #__wa-form .switch input { display: none; }
-    #__wa-form .switch .track { width: 34px; height: 19px; border-radius: 999px; flex-shrink: 0; position: relative; background: #1d1d26; border: 1px solid #4a4a5a; transition: background .15s; }
-    #__wa-form .switch .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #8a8a9e; transition: transform .15s, background .15s; }
-    #__wa-form .switch input:checked + .track { background: #7c6aff; border-color: #7c6aff; }
-    #__wa-form .switch input:checked + .track::after { transform: translateX(15px); background: #fff; }
-    #__wa-form .step-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; }
     #__wa-form .err { font-size: 11px; color: #ffb4b4; background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.25); border-radius: 8px; padding: 8px; margin-top: 8px; }
     #__wa-toast {
       position: fixed; right: 16px; bottom: 16px; z-index: 2147483647;
@@ -224,7 +158,7 @@
   `;
   document.head.appendChild(style);
 
-  // ── Annotating indicator bar ────────────────────────────────────────────────
+  // ── Indicator bar ───────────────────────────────────────────────────────────
 
   function showIndicator() {
     if (indicator) indicator.remove();
@@ -232,8 +166,7 @@
     indicator.id = "__wa-bar";
     indicator.innerHTML = `
       <span class="pulse"></span>
-      <span class="label">${mode === "create" ? "New task" : "Annotating"}</span>
-      ${mode !== "create" && cardTitle ? `<span class="card">· ${escHtml(cardTitle)}</span>` : ""}
+      <span class="label">Selecting</span>
       <span class="hint"></span>
       <button class="toggle" type="button"></button>
       <span class="exit">Esc to exit</span>
@@ -247,10 +180,6 @@
       onPassthroughChange();
     });
 
-    // Fade the bar out of the way while picking, so the element hidden underneath
-    // stays visible (and selectable — the bar is click-through). Don't fade during
-    // pass-through: the bar isn't covering anything you're selecting, and the
-    // toggle needs to stay readable/clickable.
     barMove = (e) => {
       if (!indicator) return;
       const r = indicator.getBoundingClientRect();
@@ -261,8 +190,6 @@
     updateIndicator();
   }
 
-  // Reflects the current pass-through state (Alt held or Interact toggled) on the
-  // bar: pass-through styling, the status hint, and the toggle button label.
   function updateIndicator() {
     if (!indicator) return;
     indicator.classList.toggle("pass", passthrough());
@@ -274,7 +201,7 @@
         ? "· pass-through — release Alt to select"
         : interactMode
           ? "· interact mode — page clicks work"
-          : `· click elements${mode === "create" ? " (optional)" : ""} · hold Alt to interact`;
+          : "· click elements (optional) · hold Alt to interact";
     }
     if (toggle) {
       toggle.textContent = interactMode ? "Select" : "Interact";
@@ -286,8 +213,6 @@
     document.body.style.cursor = active && !passthrough() ? "crosshair" : "";
   }
 
-  // Run whenever pass-through turns on/off (Alt or Interact): drop any live
-  // highlight so a stale outline doesn't linger while the page is clickable.
   function onPassthroughChange() {
     if (passthrough() && hl) { hl.classList.remove("__wa-hl"); hl = null; }
     updateCursor();
@@ -308,29 +233,19 @@
   // ── Activation ──────────────────────────────────────────────────────────────
 
   function activate() {
-    chrome.storage.local.get(["serverUrl", "workspaceId", "cardId", "cardTitle", "mode"], (d) => {
-      serverUrl = d.serverUrl ?? null;
-      workspaceId = d.workspaceId ?? null;
-      cardId = d.cardId ?? null;
-      cardTitle = d.cardTitle ?? null;
-      mode = d.mode === "create" ? "create" : "comment";
-      // A comment needs a target card; creating a task only needs the workspace.
-      if (!serverUrl || !workspaceId || (mode !== "create" && !cardId)) return;
-      active = true;
-      createStep = 1;
-      interactMode = false;
-      altDown = false;
-      updateCursor();
-      showIndicator();
-      if (!onViewportChange) {
-        onViewportChange = () => positionBadges();
-        window.addEventListener("scroll", onViewportChange, true);
-        window.addEventListener("resize", onViewportChange, true);
-      }
-      // In create mode the description is required but elements are optional, so
-      // open the form right away instead of waiting for the first element click.
-      if (mode === "create") renderForm();
-    });
+    if (active) { renderForm(); return; }
+    active = true;
+    interactMode = false;
+    altDown = false;
+    updateCursor();
+    showIndicator();
+    if (!onViewportChange) {
+      onViewportChange = () => positionBadges();
+      window.addEventListener("scroll", onViewportChange, true);
+      window.addEventListener("resize", onViewportChange, true);
+    }
+    // Open the composer immediately — elements are optional, the instruction isn't.
+    renderForm();
   }
   window.__whippedActivate = activate;
 
@@ -347,28 +262,13 @@
       window.removeEventListener("resize", onViewportChange, true);
       onViewportChange = null;
     }
-    resetCreateState();
-  }
-
-  function resetCreateState() {
-    createStep = 1;
-    createOptions = null;
-    createCfg.description = "";
-    createCfg.priority = "";
-    createCfg.workflowId = "";
-    createCfg.baseRef = "";
-    createCfg.branchName = "";
-    createCfg.relationType = "waits";
-    createCfg.waits = [];
-    createCfg.dependsOn = "";
-    createCfg.autoStart = true;
   }
 
   function inOwnUi(target) {
     return (indicator && indicator.contains(target)) || (form && form.contains(target));
   }
 
-  // ── Comment form ──────────────────────────────────────────────────────────
+  // ── Selection bookkeeping ───────────────────────────────────────────────────
 
   function clearSelections() {
     for (const s of selections) {
@@ -379,8 +279,6 @@
     selections = [];
   }
 
-  // Re-applies each element's outline + badge color to match its current index,
-  // so colors stay in sync after a removal renumbers the list.
   function recolorSelections() {
     selections.forEach((s, i) => {
       const c = colorFor(i);
@@ -390,14 +288,11 @@
     });
   }
 
-  // Closes the form and drops every collected element (outlines + badges).
   function closeForm() {
     if (form) { form.remove(); form = null; }
     clearSelections();
   }
 
-  // Small standalone confirmation, independent of the form so it survives the
-  // form being torn down. Self-removes after a moment.
   function showToast(text) {
     const t = document.createElement("div");
     t.id = "__wa-toast";
@@ -406,15 +301,13 @@
     setTimeout(() => t.remove(), 2000);
   }
 
-  // Inline error inside the current form (no native alert — it's jarring on the
-  // host page). Inserted above whichever footer the active step renders.
   function showFormError(text) {
     if (!form) return;
     let box = form.querySelector(".err");
     if (!box) {
       box = document.createElement("div");
       box.className = "err";
-      const foot = form.querySelector(".step-foot") || form.querySelector(".actions");
+      const foot = form.querySelector(".actions");
       foot ? form.insertBefore(box, foot) : form.appendChild(box);
     }
     box.textContent = text;
@@ -437,14 +330,8 @@
       s.el.style.removeProperty("outline-offset");
       s.badgeEl.remove();
     }
-    // A comment with no elements left has nothing to attach to; a task can still
-    // be created with a description alone, so keep its form open.
-    if (!selections.length && mode !== "create") { closeForm(); return; }
     const ta = form?.querySelector("textarea");
-    if (ta) {
-      ta.value = renumberMentions(ta.value, removedNum);
-      if (mode === "create") createCfg.description = ta.value;
-    }
+    if (ta) ta.value = renumberMentions(ta.value, removedNum);
     recolorSelections();
     positionBadges();
     renderForm();
@@ -510,8 +397,6 @@
     return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
 
-  // Adds a clicked element to the current comment's selection, then (re)renders
-  // the form. The form stays open so further clicks keep appending elements.
   async function addSelection(el) {
     if (selections.some((s) => s.el === el)) return;
     const selector = cssSelector(el);
@@ -549,9 +434,6 @@
     `;
   }
 
-  // Keeps textarea `#N` references in sync when element `removedNum` is dropped:
-  // its own mention is deleted and every higher reference shifts down by one,
-  // matching how the remaining elements renumber.
   function renumberMentions(text, removedNum) {
     return text.replace(/#(\d+)( ?)/g, (m, n, sp) => {
       const num = Number(n);
@@ -561,8 +443,6 @@
     });
   }
 
-  // Mirrors the textarea text into the backdrop, wrapping each valid `#N`
-  // reference in a chip colored to match element N.
   function renderBackdrop(backdrop, text) {
     const html = escHtml(text).replace(/#(\d+)/g, (m, n) => {
       const idx = Number(n) - 1;
@@ -597,41 +477,29 @@
     });
   }
 
+  // ── Composer form ────────────────────────────────────────────────────────────
+
   function renderForm() {
     if (!form) {
       form = document.createElement("div");
       form.id = "__wa-form";
       document.body.appendChild(form);
     }
-    if (mode === "create" && createStep === 2) { renderCreateConfig(); return; }
-    renderDescribeStep();
-  }
-
-  // Step shared by comments and create-step-1: element basket + description.
-  function renderDescribeStep() {
-    const isCreate = mode === "create";
-    const prevText = isCreate ? createCfg.description : (form.querySelector("textarea")?.value ?? "");
-    const title = isCreate ? "New task" : cardTitle ? `📌 ${escHtml(cardTitle)}` : "New comment";
-    const hint = isCreate
-      ? "Click elements to reference them by number (optional), then describe the task."
-      : "Click more elements to reference them by number, then describe the change.";
-    const placeholder = isCreate
-      ? "Describe the task… (reference elements by number, e.g. #1, #2)"
-      : "Describe the change… (reference elements by number, e.g. #1, #2)";
+    const prevText = form.querySelector("textarea")?.value ?? "";
     form.innerHTML = `
       <div class="header">
         <span class="grip">⠿</span>
-        <span class="htitle">${title}</span>
+        <span class="htitle">New prompt</span>
       </div>
       <div class="els">${selections.map((s, i) => selectionMetaHtml(s, i)).join("")}</div>
-      <div class="add-hint">${hint}</div>
+      <div class="add-hint">Click elements to reference them by number (optional), then describe what you want.</div>
       <div class="ta-wrap">
         <div class="ta-backdrop"></div>
-        <textarea rows="5" placeholder="${placeholder}"></textarea>
+        <textarea rows="5" placeholder="Describe the change… (reference elements by number, e.g. #1, #2)"></textarea>
       </div>
       <div class="actions">
         <button class="cancel">Cancel</button>
-        <button class="send">${isCreate ? "Next →" : "Send"}</button>
+        <button class="send">Copy</button>
       </div>
     `;
 
@@ -642,212 +510,25 @@
     ta.focus();
     ta.setSelectionRange(ta.value.length, ta.value.length);
 
-    const onCancel = isCreate ? deactivate : closeForm;
-    const onPrimary = isCreate ? () => goToConfig(ta) : () => submitComment(ta);
-
     makeDraggable(form.querySelector(".header"));
     for (const btn of form.querySelectorAll(".rm")) {
       btn.addEventListener("click", () => removeSelection(Number(btn.dataset.idx)));
     }
-    form.querySelector(".cancel").addEventListener("click", onCancel);
-    form.querySelector(".send").addEventListener("click", onPrimary);
+    form.querySelector(".cancel").addEventListener("click", deactivate);
+    form.querySelector(".send").addEventListener("click", () => void copyPrompt(ta));
 
-    ta.addEventListener("input", () => {
-      if (isCreate) createCfg.description = ta.value;
-      renderBackdrop(backdrop, ta.value);
-    });
+    ta.addEventListener("input", () => renderBackdrop(backdrop, ta.value));
     ta.addEventListener("scroll", () => { backdrop.scrollTop = ta.scrollTop; });
     ta.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onPrimary(); }
-      if (e.key === "Escape") { e.stopPropagation(); onCancel(); }
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void copyPrompt(ta); }
+      if (e.key === "Escape") { e.stopPropagation(); deactivate(); }
     });
   }
 
-  function submitComment(ta) {
-    const text = ta.value.trim();
-    if (!text || !selections.length) return;
-    const sendBtn = form.querySelector(".send");
-    sendBtn.disabled = true;
-    sendBtn.textContent = "Sending…";
-    chrome.runtime.sendMessage({
-      type: "POST_COMMENT",
-      payload: {
-        serverUrl,
-        workspaceId,
-        cardId,
-        summary: text,
-        visualComment: {
-          pageUrl: window.location.href,
-          elements: selections.map((s) => ({
-            elementSelector: s.selector,
-            elementText: s.elementText || undefined,
-            componentName: s.ri.componentName || undefined,
-            componentChain: s.ri.componentChain || undefined,
-            sourceFile: s.ri.sourceFile || undefined,
-            sourceLine: s.ri.sourceLine || undefined,
-          })),
-        },
-      },
-    }, (res) => {
-      if (res?.ok) {
-        closeForm();
-      } else {
-        sendBtn.disabled = false;
-        sendBtn.textContent = "Send";
-        const authErr = Boolean(res?.error) && /authenticated|\b401\b/i.test(res.error);
-        showFormError(authErr ? "Sign in required — open the Whipped extension to log in." : `Failed: ${res?.error ?? "unknown error"}`);
-      }
-    });
-  }
+  // ── Building + copying the prompt ─────────────────────────────────────────────
 
-  // ── Create-task: step 2 (configuration) ─────────────────────────────────────
-
-  function goToConfig(ta) {
-    if (!ta.value.trim()) { ta.focus(); return; }
-    createCfg.description = ta.value;
-    createStep = 2;
-    renderForm();
-    if (!createOptions) loadCreateOptions();
-  }
-
-  function extractActiveCards(state) {
-    const board = state?.board ?? { cards: {}, columns: [] };
-    const activeColIds = ["todo", "in_progress", "reopened", "ready_for_review", "blocked"];
-    const activeIds = new Set(
-      (board.columns ?? []).filter((c) => activeColIds.includes(c.id)).flatMap((c) => c.taskIds ?? []),
-    );
-    return Object.values(board.cards ?? {})
-      .filter((c) => activeIds.has(c.id))
-      .map((c) => ({ id: c.id, title: c.description?.split("\n")[0] ?? c.id }));
-  }
-
-  function loadCreateOptions() {
-    chrome.runtime.sendMessage({ type: "GET_CREATE_OPTIONS", payload: { serverUrl, workspaceId } }, (res) => {
-      if (!res?.ok) {
-        createOptions = { error: res?.error || "Couldn't load task options." };
-      } else {
-        const workflows = (Array.isArray(res.workflows) ? res.workflows : []).filter((w) => !w.forStory);
-        const branches = res.branches || { branches: [], defaultBranch: "" };
-        createOptions = { workflows, branches, cards: extractActiveCards(res.state) };
-        if (!createCfg.workflowId && workflows.length) {
-          createCfg.workflowId = (workflows.find((w) => w.isDefault) ?? workflows[0]).id;
-        }
-        if (!createCfg.baseRef && branches.defaultBranch) createCfg.baseRef = branches.defaultBranch;
-      }
-      if (mode === "create" && createStep === 2) renderCreateConfig();
-    });
-  }
-
-  function relOptionsHtml() {
-    const cards = createOptions?.cards ?? [];
-    const isWaits = createCfg.relationType === "waits";
-    const taken = new Set(isWaits ? createCfg.waits.map((w) => w.id) : []);
-    return `<option value="">${isWaits ? "Add a task…" : "None"}</option>` +
-      cards.filter((c) => !taken.has(c.id)).map((c) =>
-        `<option value="${escHtml(c.id)}" ${!isWaits && createCfg.dependsOn === c.id ? "selected" : ""}>${escHtml(c.title)}</option>`,
-      ).join("");
-  }
-
-  function configBodyHtml(opts) {
-    const pills = CREATE_PRIORITIES.map((p) =>
-      `<button class="pri" data-pri="${p.val}" data-active="${createCfg.priority === p.val}"><span class="pdot" style="background:${p.color}"></span>${p.label}</button>`,
-    ).join("");
-    const wfOpts = opts.workflows.length
-      ? opts.workflows.map((w) =>
-          `<option value="${escHtml(w.id)}" ${createCfg.workflowId === w.id ? "selected" : ""}>${escHtml(w.name)}${w.isDefault ? " (default)" : ""}</option>`,
-        ).join("")
-      : `<option value="">Default</option>`;
-    const branchList = Array.isArray(opts.branches.branches) ? opts.branches.branches : [];
-    const baseOpts = branchList.length
-      ? branchList.map((b) => `<option value="${escHtml(b)}" ${createCfg.baseRef === b ? "selected" : ""}>${escHtml(b)}</option>`).join("")
-      : `<option value="">—</option>`;
-    const isWaits = createCfg.relationType === "waits";
-    const chips = createCfg.waits.map((c, i) =>
-      `<div class="chip"><span>${escHtml(c.title)}</span><button data-chip="${i}" title="Remove">×</button></div>`,
-    ).join("");
-    return `
-      <div class="cfg"><label>Workflow</label><select data-f="workflow" ${opts.workflows.length ? "" : "disabled"}>${wfOpts}</select></div>
-      <div class="cfg"><label>Priority</label><div class="pri-row">${pills}</div></div>
-      <div class="cfg"><label>Branch name (optional)</label><input type="text" data-f="branch" placeholder="auto-generated from description" value="${escHtml(createCfg.branchName)}"></div>
-      <div class="cfg"><label>Base branch</label><select data-f="base" ${branchList.length ? "" : "disabled"}>${baseOpts}</select></div>
-      <div class="cfg">
-        <label>Relation</label>
-        <div class="seg"><button data-rel="waits" class="${isWaits ? "on" : ""}">Waits for</button><button data-rel="depends" class="${isWaits ? "" : "on"}">Depends on</button></div>
-        ${isWaits ? `<div class="subhint">Starts in a fresh branch once all of these are merged.</div>` : ""}
-        <select data-f="rel" ${(createOptions?.cards?.length ?? 0) ? "" : "disabled"}>${relOptionsHtml()}</select>
-        <div class="chips" ${isWaits ? "" : `style="display:none"`}>${chips}</div>
-      </div>
-      <label class="switch"><input type="checkbox" data-f="autostart" ${createCfg.autoStart ? "checked" : ""}><span class="track"></span>Auto-start</label>
-    `;
-  }
-
-  function wireConfigControls() {
-    const q = (sel) => form.querySelector(sel);
-    q('[data-f="workflow"]')?.addEventListener("change", (e) => { createCfg.workflowId = e.target.value; });
-    q('[data-f="base"]')?.addEventListener("change", (e) => { createCfg.baseRef = e.target.value; });
-    q('[data-f="branch"]')?.addEventListener("input", (e) => { createCfg.branchName = e.target.value; });
-    q('[data-f="autostart"]')?.addEventListener("change", (e) => { createCfg.autoStart = e.target.checked; });
-    for (const b of form.querySelectorAll(".pri")) {
-      b.addEventListener("click", () => {
-        createCfg.priority = createCfg.priority === b.dataset.pri ? "" : b.dataset.pri;
-        renderCreateConfig();
-      });
-    }
-    for (const b of form.querySelectorAll(".seg button")) {
-      b.addEventListener("click", () => {
-        createCfg.relationType = b.dataset.rel;
-        createCfg.waits = [];
-        createCfg.dependsOn = "";
-        renderCreateConfig();
-      });
-    }
-    const rel = q('[data-f="rel"]');
-    rel?.addEventListener("change", () => {
-      if (createCfg.relationType === "waits") {
-        const c = (createOptions?.cards ?? []).find((x) => x.id === rel.value);
-        if (c && !createCfg.waits.some((w) => w.id === c.id)) createCfg.waits.push(c);
-        renderCreateConfig();
-      } else {
-        createCfg.dependsOn = rel.value;
-      }
-    });
-    for (const btn of form.querySelectorAll(".chip button")) {
-      btn.addEventListener("click", () => {
-        createCfg.waits.splice(Number(btn.dataset.chip), 1);
-        renderCreateConfig();
-      });
-    }
-  }
-
-  function renderCreateConfig() {
-    const opts = createOptions;
-    const ready = opts && !opts.error;
-    form.innerHTML = `
-      <div class="header">
-        <span class="grip">⠿</span>
-        <span class="htitle">Configure task</span>
-      </div>
-      ${!opts ? `<div class="subhint">Loading options…</div>` : opts.error ? `<div class="err">${escHtml(opts.error)}</div>` : configBodyHtml(opts)}
-      <div class="step-foot">
-        <button class="cancel" data-act="back">← Back</button>
-        <button class="send" data-act="create" ${ready ? "" : "disabled"}>+ Create Task</button>
-      </div>
-    `;
-    makeDraggable(form.querySelector(".header"));
-    form.querySelector('[data-act="back"]').addEventListener("click", () => { createStep = 1; renderForm(); });
-    if (ready) {
-      wireConfigControls();
-      form.querySelector('[data-act="create"]').addEventListener("click", submitCreate);
-    }
-  }
-
-  function submitCreate() {
-    const description = createCfg.description.trim();
-    if (!description) { createStep = 1; renderForm(); return; }
-    const btn = form.querySelector('[data-act="create"]');
-    btn.disabled = true;
-    btn.textContent = "Creating…";
-    const elements = selections.map((s) => ({
+  function buildElements() {
+    return selections.map((s) => ({
       elementSelector: s.selector,
       elementText: s.elementText || undefined,
       componentName: s.ri.componentName || undefined,
@@ -855,39 +536,88 @@
       sourceFile: s.ri.sourceFile || undefined,
       sourceLine: s.ri.sourceLine || undefined,
     }));
-    const body = {
-      workspaceId,
-      description,
-      priority: createCfg.priority || undefined,
-      workflowId: createCfg.workflowId || undefined,
-      baseRef: createCfg.baseRef || undefined,
-      branchName: createCfg.branchName.trim() || undefined,
-      readyForDev: createCfg.autoStart || undefined,
-      waitsFor: createCfg.relationType === "waits" && createCfg.waits.length ? createCfg.waits.map((w) => w.id) : undefined,
-      dependsOn: createCfg.relationType === "depends" && createCfg.dependsOn ? createCfg.dependsOn : undefined,
-      visualComment: elements.length ? { pageUrl: window.location.href, elements } : undefined,
+  }
+
+  function buildPromptText(desc) {
+    const lines = [desc];
+    if (selections.length) {
+      lines.push("", `Page: ${location.href}`, "", "Elements:");
+      selections.forEach((s, i) => {
+        const chain = (Array.isArray(s.ri.componentChain) && s.ri.componentChain.length)
+          ? s.ri.componentChain.join(" → ")
+          : s.ri.componentName;
+        const src = s.ri.sourceFile ? `${s.ri.sourceFile}${s.ri.sourceLine ? ":" + s.ri.sourceLine : ""}` : null;
+        let line = `- #${i + 1} → \`${s.selector}\``;
+        if (chain) line += ` · 🧩 ${chain}`;
+        if (src) line += ` · 📄 ${src}`;
+        lines.push(line);
+        if (s.elementText) lines.push(`  > ${s.elementText}`);
+      });
+    }
+    return lines.join("\n").trim();
+  }
+
+  function b64encodeUtf8(str) {
+    const bytes = new TextEncoder().encode(str);
+    let bin = "";
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+
+  // text/html mirrors the readable prompt and hides a base64 payload that a
+  // consumer (Whipped) can parse on paste to recover the structured visualComment.
+  function buildPromptHtml(desc, text) {
+    const payload = {
+      v: 1,
+      description: desc,
+      visualComment: selections.length ? { pageUrl: location.href, elements: buildElements() } : undefined,
     };
-    chrome.runtime.sendMessage({ type: "CREATE_TASK", payload: { serverUrl, body } }, (res) => {
-      if (res?.ok) {
-        deactivate();
-        showToast("✓ Task created");
-      } else {
-        btn.disabled = false;
-        btn.textContent = "+ Create Task";
-        const authErr = Boolean(res?.error) && /authenticated|\b401\b/i.test(res.error);
-        showFormError(authErr ? "Sign in required — open the Whipped extension to log in." : `Failed: ${res?.error ?? "unknown error"}`);
+    const b64 = b64encodeUtf8(JSON.stringify(payload));
+    const readable = `<pre style="white-space:pre-wrap;font-family:inherit;margin:0">${escHtml(text)}</pre>`;
+    return `${readable}<span data-whipped-payload="${b64}"></span>`;
+  }
+
+  async function writeClipboard(text, html) {
+    try {
+      const item = new ClipboardItem({
+        "text/plain": new Blob([text], { type: "text/plain" }),
+        "text/html": new Blob([html], { type: "text/html" }),
+      });
+      await navigator.clipboard.write([item]);
+      return true;
+    } catch {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch {
+        return false;
       }
-    });
+    }
+  }
+
+  async function copyPrompt(ta) {
+    const desc = ta.value.trim();
+    if (!desc && !selections.length) return;
+    const text = buildPromptText(desc);
+    const html = buildPromptHtml(desc, text);
+    const btn = form?.querySelector(".send");
+    const ok = await writeClipboard(text, html);
+    if (!form) return;
+    if (ok) {
+      if (btn) {
+        btn.textContent = "Copied ✓";
+        setTimeout(() => { if (form) form.querySelector(".send") && (form.querySelector(".send").textContent = "Copy"); }, 1500);
+      }
+      showToast("✓ Copied to clipboard");
+    } else {
+      showFormError("Couldn't access the clipboard.");
+    }
   }
 
   // ── Element selection (gated on `active`) ──────────────────────────────────
 
-  // Pass-through suspends picking so the page works normally — Alt held (one-off)
-  // or Interact toggled (sustained). Either way clicks reach the page instead of
-  // being captured as a selection, so dropdowns/menus open and reveal their items.
   const passthrough = () => altDown || interactMode;
-  // Element picking is live for comments and for create step 1 only.
-  const picking = () => active && !dragging && !passthrough() && !(mode === "create" && createStep !== 1);
+  const picking = () => active && !dragging && !passthrough();
 
   document.addEventListener("mouseover", (e) => {
     if (!picking() || inOwnUi(e.target)) return;
@@ -921,52 +651,4 @@
     if (msg.type === "START_ANNOTATING") activate();
     if (msg.type === "STOP_ANNOTATING") deactivate();
   });
-
-  // ── URL-hash auto-activation (from kanban "Save & Open") ──────────────────
-
-  function utf8Atob(b64) {
-    try {
-      const bin = atob(b64);
-      const bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      return new TextDecoder().decode(bytes);
-    } catch { return null; }
-  }
-
-  function readHashContext() {
-    const hash = location.hash;
-    if (!hash) return null;
-    const m = hash.match(/[#&]whipped=([^&]+)/);
-    if (!m) return null;
-    const json = utf8Atob(decodeURIComponent(m[1]));
-    if (!json) return null;
-    try {
-      const data = JSON.parse(json);
-      if (data && data.serverUrl && data.workspaceId && data.cardId) return data;
-    } catch { /* */ }
-    return null;
-  }
-
-  function cleanHash() {
-    const hash = location.hash;
-    const cleaned = hash.replace(/(^#|&)whipped=[^&]+/, (m) => (m.startsWith("&") ? "" : "#"));
-    const finalHash = cleaned === "#" ? "" : cleaned;
-    history.replaceState(null, "", location.pathname + location.search + finalHash);
-  }
-
-  const ctx = readHashContext();
-  if (ctx) {
-    chrome.storage.local.set(
-      {
-        serverUrl: ctx.serverUrl,
-        workspaceId: ctx.workspaceId,
-        cardId: ctx.cardId,
-        cardTitle: ctx.cardTitle || ctx.cardId,
-      },
-      () => {
-        activate();
-        cleanHash();
-      },
-    );
-  }
 })();
