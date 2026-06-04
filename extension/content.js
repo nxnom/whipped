@@ -545,27 +545,40 @@
     }));
   }
 
+  function yamlQuote(s) {
+    return `"${String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  }
+
+  // Bare scalar when it's safe; quote when it could confuse a YAML parser.
+  function yamlScalar(v) {
+    const s = String(v);
+    const risky = s === "" || /^\s|\s$/.test(s) || /: /.test(s) || / #/.test(s) || /^[-?:,[\]{}#&*!|>'"%@`]/.test(s);
+    return risky ? yamlQuote(s) : s;
+  }
+
+  // Human instruction on top, then a fenced YAML block describing each selected
+  // element (ref number, component, captured text, source, page, selector).
   function buildPromptText(desc) {
-    const lines = [desc];
-    if (selections.length) {
-      const uniqueUrls = [...new Set(selections.map((s) => s.pageUrl).filter(Boolean))];
-      // One shared page → a single header; spanning pages → tag each element.
-      if (uniqueUrls.length === 1) lines.push("", `Page: ${uniqueUrls[0]}`);
-      lines.push("", "Elements:");
-      selections.forEach((s, i) => {
-        const chain = (Array.isArray(s.ri.componentChain) && s.ri.componentChain.length)
-          ? s.ri.componentChain.join(" → ")
-          : s.ri.componentName;
-        const src = s.ri.sourceFile ? `${s.ri.sourceFile}${s.ri.sourceLine ? ":" + s.ri.sourceLine : ""}` : null;
-        let line = `- #${i + 1} → \`${s.selector}\``;
-        if (chain) line += ` · 🧩 ${chain}`;
-        if (src) line += ` · 📄 ${src}`;
-        lines.push(line);
-        if (s.elementText) lines.push(`  > ${s.elementText}`);
-        if (uniqueUrls.length > 1 && s.pageUrl) lines.push(`  🔗 ${s.pageUrl}`);
-      });
-    }
-    return lines.join("\n").trim();
+    if (!selections.length) return desc.trim();
+    const uniqueUrls = [...new Set(selections.map((s) => s.pageUrl).filter(Boolean))];
+    const singlePage = uniqueUrls.length === 1;
+    const yaml = [];
+    if (singlePage) yaml.push(`page: ${yamlScalar(uniqueUrls[0])}`);
+    yaml.push("elements:");
+    selections.forEach((s, i) => {
+      const chain = (Array.isArray(s.ri.componentChain) && s.ri.componentChain.length)
+        ? s.ri.componentChain.join(" → ")
+        : s.ri.componentName;
+      const src = s.ri.sourceFile ? `${s.ri.sourceFile}${s.ri.sourceLine ? ":" + s.ri.sourceLine : ""}` : null;
+      yaml.push(`  - ref: ${i + 1}`);
+      if (chain) yaml.push(`    component: ${yamlScalar(chain)}`);
+      if (s.elementText) yaml.push(`    text: ${yamlQuote(s.elementText)}`);
+      if (src) yaml.push(`    source: ${yamlScalar(src)}`);
+      if (!singlePage && s.pageUrl) yaml.push(`    url: ${yamlScalar(s.pageUrl)}`);
+      yaml.push(`    selector: ${yamlQuote(s.selector)}`);
+    });
+    const block = "```yaml\n" + yaml.join("\n") + "\n```";
+    return desc.trim() ? `${desc.trim()}\n\n${block}` : block;
   }
 
   function b64encodeUtf8(str) {
