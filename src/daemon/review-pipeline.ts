@@ -1292,7 +1292,7 @@ Don't just read the diff — exercise the change when it's user-facing or runnab
 		? `
 
 ## Right-sizing the model tier on reopen
-When you set status "fail" (reopening for rework), you may also pick the model tier the rework should run at, based on how hard it is. Pass \`suggestedLevel\` in the MCP call — one of: ${LEVEL_ORDER.join(", ")}. Use "minimal" for trivial mechanical fixes (rename, copy/colour tweak), up to "max" for hard or architectural rework. Omit it to leave the tier unchanged.`
+The card is currently at tier **${card.activeLevel}**. When you set status "fail" (reopening for rework), set \`suggestedLevel\` in the MCP call to the tier the fix actually needs — one of: ${LEVEL_ORDER.join(", ")}. Keep it at "${card.activeLevel}" unless the rework is clearly easier (mechanical rename / copy / colour tweak → "minimal" or "low") or clearly harder (architectural change → "high" or "max"). Only lower the tier when the rework is clearly mechanical; when unsure, keep "${card.activeLevel}".`
 		: "";
 
 	return `You are a senior reviewer performing an automated review.
