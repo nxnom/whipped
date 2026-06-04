@@ -1,6 +1,12 @@
-# whipped
+<p align="center">
+  <img src="web-ui/src/assets/logo.png" width="120" alt="whipped logo" />
+</p>
 
-Autonomous AI agent kanban board. You create tickets, the agents do the work — because they have no choice.
+<h1 align="center">whipped</h1>
+
+<p align="center">
+  Autonomous AI agent kanban board. You create tickets, the agents do the work — because they have no choice.
+</p>
 
 ## Requirements
 
@@ -69,9 +75,11 @@ Whipped detects which agents are installed at startup and only shows available o
 - **OpenCode** — free-form model string (any provider supported by opencode)
 - **Cursor** — live model list fetched from the `agent models` CLI
 
-### Effort levels
+### Capability levels & multi-model slots
 
-All agents support effort overrides: **low, medium, high, extra high, max**. Mapped to each agent's native effort/variant flags.
+Each workflow slot holds a set of model **pairs**, every pair tagged with a capability level — **minimal, low, medium, high, max** — and a free/paid flag. The card carries one workflow-wide active level, and each slot resolves that level to its own pair (with nearest-level fallback and a free-first preference). This lets a single level setting drive different models per slot — e.g. a cheap model for review, a smarter one for dev — without configuring each slot by hand.
+
+The review agent can intelligently re-select the active level on reopen (e.g. drop a trivial fix to **minimal**), so follow-up work doesn't burn the top tier.
 
 ## Features
 
@@ -85,15 +93,14 @@ All agents support effort overrides: **low, medium, high, extra high, max**. Map
 
 ### Workflows
 
-Workflows define a pipeline of agent slots that run sequentially on each task. Built-in workflow types:
+Workflows define a pipeline of agent slots that run sequentially on each task. Slot types:
 
-- **Dev** — writes the code
-- **Code Review** — reviews the diff
-- **QA** — runs quality checks
-- **Orchestrator** — breaks down a story into subtasks and coordinates agents
-- **Custom** — arbitrary prompt with any agent
+- **Plan** — one-shot planner that runs before dev and saves a plan onto the card (see the **Plan** tab in card detail). Off by default.
+- **Dev** — implements the task; the only slot with write access to the worktree.
+- **Review** — one-shot reviewer that replaces the old code-review/QA/custom slots. Several review slots can be chained (Dev → Review → Review…), each with its own prompt and per-slot tools (e.g. **browser control** for a QA pass that drives the running app).
+- **Orchestrator** — story-only slot that breaks a story into subtasks and coordinates the agents working them.
 
-Default workflow: Dev → Code Review. QA is optional. Each slot is independently configurable with its own agent, model, effort level, and system prompt.
+Default workflow: Dev → Code Review, with optional Plan and QA (browser-enabled) slots. Each slot is independently configurable with its own agent, model pairs, capability level, granted tools, and system prompt.
 
 ### Git worktree isolation
 
@@ -102,6 +109,16 @@ Each task runs in its own git worktree so multiple agents work in parallel witho
 ### Live terminal view
 
 Every agent session streams its terminal output to the board UI in real time. Per-card activity log tracks status changes, PR links, and agent messages.
+
+### Browser extension — prompt creator
+
+A standalone Chrome/Chromium extension (`extension/`) for capturing UI context off any web page. Click the toolbar icon to enter select mode, then click any element to capture its React component and source location. It builds a ready-to-paste **YAML prompt** for your AI coding agent — no server connection required. The toolbar icon is grayscale at rest and turns full color while select mode is active.
+
+Load it unpacked from `chrome://extensions` (Developer mode → Load unpacked → pick the `extension/` folder).
+
+### Visual comments
+
+Comments on a card can carry visual context — a page URL plus the specific UI elements captured from a page — pasted straight into the composer. Whipped renders the captured elements inline so the agent sees exactly which parts of the UI a comment refers to.
 
 ### GitHub integration
 

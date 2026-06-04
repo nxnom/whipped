@@ -236,9 +236,14 @@
 
   // ── Activation ──────────────────────────────────────────────────────────────
 
+  function setToolbarActive(on) {
+    try { chrome.runtime.sendMessage({ type: "WHIPPED_SET_ACTIVE", active: on }); } catch {}
+  }
+
   function activate() {
     if (active) { renderForm(); return; }
     active = true;
+    setToolbarActive(true);
     interactMode = false;
     altDown = false;
     updateCursor();
@@ -255,6 +260,7 @@
 
   function deactivate() {
     active = false;
+    setToolbarActive(false);
     interactMode = false;
     altDown = false;
     document.body.style.cursor = "";

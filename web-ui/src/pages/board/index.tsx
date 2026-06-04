@@ -8,6 +8,7 @@ import { KanbanBoard } from "./components/KanbanBoard";
 import { useWorkspaceState } from "@/stores/board-store";
 import { useRead, useWrite } from "@/runtime/api-client";
 import { firstSortedProjectId } from "@/utils/projects";
+import logo from "@/assets/logo.png";
 
 interface Props {
 	onOpenAgent: () => void;
@@ -55,28 +56,9 @@ export function BoardPage({ onOpenAgent }: Props) {
 			{/* Sidebar */}
 			<nav className="w-[220px] shrink-0 flex flex-col bg-[#141418] border-r border-[#2a2a35]">
 				{/* Logo header */}
-				<div className="flex items-center shrink-0 gap-2.5 px-4 py-[18px]">
-					<div className="shrink-0 w-6 h-6 rounded-md bg-[#7c6aff] flex items-center justify-center">
-						<svg width="15" height="15" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-							<rect x="1" y="4" width="9" height="7" rx="1.2" fill="white" fillOpacity="0.35" />
-							<path
-								d="M3 4V3C3 2.45 3.45 2 4 2H7C7.55 2 8 2.45 8 3V4"
-								stroke="white"
-								strokeOpacity="0.35"
-								strokeWidth="1.1"
-								strokeLinecap="round"
-							/>
-							<rect x="6" y="7" width="9" height="7.5" rx="1.2" fill="#7c6aff" stroke="white" strokeWidth="1.25" />
-							<path
-								d="M8 7V6C8 5.45 8.45 5 9 5H12C12.55 5 13 5.45 13 6V7"
-								stroke="white"
-								strokeWidth="1.25"
-								strokeLinecap="round"
-							/>
-							<line x1="6" y1="10.5" x2="15" y2="10.5" stroke="white" strokeWidth="1" strokeOpacity="0.5" />
-						</svg>
-					</div>
-					<span className="text-[14px] font-bold text-[#f0f0f5]">Whipped</span>
+				<div className="flex items-center shrink-0 gap-1 px-4 py-[18px]">
+					<img src={logo} alt="Whipped" className="shrink-0 size-8 rounded-md object-cover" />
+					<span className="text-lg font-bold text-neutral-300 italic">Whipped</span>
 				</div>
 
 				<div className="h-px bg-[#2a2a35] shrink-0" />
