@@ -1,1 +1,1 @@
-export type RightTab = "terminal" | "diff" | "comments" | "memory";
+export type RightTab = "terminal" | "diff" | "plan" | "comments" | "memory";

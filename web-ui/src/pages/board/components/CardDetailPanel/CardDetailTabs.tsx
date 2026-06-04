@@ -1,7 +1,8 @@
 import type { RuntimeBoardCard, WorkflowSlot } from "@runtime-contract";
-import { Brain, GitBranch, TerminalSquare } from "lucide-react";
+import { Brain, GitBranch, ScrollText, TerminalSquare } from "lucide-react";
 import type React from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
+import { useRead } from "@/runtime/api-client";
 import { classNames } from "@/utils/classNames";
 import { CardMemoryTab } from "../CardMemoryTab";
 import { ChatComments } from "../ChatComments";
@@ -37,11 +38,18 @@ export function CardDetailTabs({
 	activeStreamId,
 	onRefresh,
 }: CardDetailTabsProps) {
+	// Memories saved by agents while working this card. Shared cache key with the
+	// Memory tab's own read, so the count and the tab stay in sync.
+	const { data: memData } = useRead((api) => api("memory/for-card").GET({ query: { cardId: card.id } }));
+	const memoryCount = memData?.length ?? 0;
+	const hasPlan = !!card.plan?.trim();
+
 	const tabs = [
 		{ id: "terminal" as RightTab, label: "Terminal", Icon: TerminalSquare },
 		...(!isStory ? [{ id: "diff" as RightTab, label: "Diff", Icon: GitBranch }] : []),
+		...(hasPlan ? [{ id: "plan" as RightTab, label: "Plan", Icon: ScrollText }] : []),
 		{ id: "comments" as RightTab, label: `Comments${commentCount > 0 ? ` (${commentCount})` : ""}`, Icon: null },
-		{ id: "memory" as RightTab, label: "Memory", Icon: Brain },
+		{ id: "memory" as RightTab, label: `Memory${memoryCount > 0 ? ` (${memoryCount})` : ""}`, Icon: Brain },
 	] as { id: RightTab; label: string; Icon: React.FC<{ size: number }> | null }[];
 
 	return (
@@ -81,6 +89,15 @@ export function CardDetailTabs({
 					isReadyForReview={isReadyForReview}
 					onRefresh={onRefresh}
 				/>
+			)}
+			{rightTab === "plan" && (
+				<div className="flex-1 overflow-y-auto p-5">
+					{hasPlan ? (
+						<p className="text-[13px] text-[#c0c0d0] whitespace-pre-wrap leading-relaxed">{card.plan}</p>
+					) : (
+						<div className="flex-1 flex items-center justify-center text-xs text-[#4a4a5a]">No plan for this card</div>
+					)}
+				</div>
 			)}
 			{rightTab === "comments" && (
 				<ChatComments

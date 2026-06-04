@@ -1,6 +1,6 @@
 import { Input, Select, SelectOption, toast } from "@geckoui/geckoui";
 import { type RuntimeBoardCard, type TierLevel, TIER_LEVEL_OPTIONS } from "@runtime-contract";
-import { Check, ChevronRight, ExternalLink, Gauge, GitBranch, Pencil, ScrollText, X } from "lucide-react";
+import { Check, ChevronRight, ExternalLink, Gauge, GitBranch, Pencil, X } from "lucide-react";
 import { useState } from "react";
 import { useWrite } from "@/runtime/api-client";
 import { classNames } from "@/utils/classNames";
@@ -18,7 +18,6 @@ export function CardDetailDetails({ card, workspaceId, allCards, onRefresh }: Ca
 	const { trigger: updateCardTrigger } = useWrite((api) => api("cards/:id").PATCH());
 	const [descExpanded, setDescExpanded] = useState(false);
 	const [activityExpanded, setActivityExpanded] = useState(false);
-	const [planExpanded, setPlanExpanded] = useState(false);
 
 	const saveLevel = async (level: TierLevel) => {
 		const res = await updateCardTrigger({
@@ -192,26 +191,6 @@ export function CardDetailDetails({ card, workspaceId, allCards, onRefresh }: Ca
 						</Select>
 					</div>
 				</div>
-
-				{/* Plan */}
-				{card.plan?.trim() && (
-					<div>
-						<button
-							onClick={() => setPlanExpanded((v) => !v)}
-							className="flex items-center gap-1.5 text-xs text-[#8888a0] hover:text-[#c0c0d0] transition-colors"
-						>
-							<ScrollText size={11} className="shrink-0" />
-							<span>Plan</span>
-							<ChevronRight
-								size={12}
-								className={classNames("transition-transform duration-150", planExpanded ? "rotate-90" : "")}
-							/>
-						</button>
-						{planExpanded && (
-							<p className="mt-1.5 text-xs text-[#8888a0] whitespace-pre-wrap leading-relaxed">{card.plan}</p>
-						)}
-					</div>
-				)}
 
 				{/* Dependencies */}
 				{(card.dependsOn ? [card.dependsOn] : (card.waitsFor ?? [])).length > 0 && (
