@@ -7,7 +7,7 @@ export type ProjectSection =
 	| "instructions"
 	| "memory"
 	| "integrations";
-export type GlobalSection = "runtime" | "tunnel" | "slack" | "extension";
+export type GlobalSection = "runtime" | "tunnel" | "slack";
 export type SettingsSection = ProjectSection | GlobalSection;
 
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {

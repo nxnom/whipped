@@ -613,9 +613,6 @@ export const runtimeProjectConfigSchema = z.object({
 	// titles, descriptions, and commit messages. Empty/absent → daemon falls
 	// back to DEFAULT_GIT_INSTRUCTIONS.
 	gitInstructions: z.string().optional(),
-	// Dev server URL for the project, used by the browser extension as the
-	// default page to annotate.
-	previewUrl: z.string().optional(),
 });
 export type RuntimeProjectConfig = z.infer<typeof runtimeProjectConfigSchema>;
 
@@ -646,10 +643,12 @@ export const runtimeVisualElementSchema = z.object({
 	sourceFile: z.string().optional(),
 	sourceLine: z.number().optional(),
 });
+export type RuntimeVisualElement = z.infer<typeof runtimeVisualElementSchema>;
 export const runtimeVisualCommentSchema = z.object({
 	pageUrl: z.string().optional(),
 	elements: z.array(runtimeVisualElementSchema).default([]),
 });
+export type RuntimeVisualComment = z.infer<typeof runtimeVisualCommentSchema>;
 
 export const runtimeCardCreateRequestSchema = z.object({
 	description: z.string(),

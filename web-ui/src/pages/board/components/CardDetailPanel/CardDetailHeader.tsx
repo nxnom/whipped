@@ -1,8 +1,7 @@
 import { Tooltip } from "@geckoui/geckoui";
 import type { RuntimeBoardCard } from "@runtime-contract";
-import { ArrowLeft, ExternalLink, GitMerge, GitPullRequest, Globe, Play, Square, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, GitMerge, GitPullRequest, Play, Square, Trash2 } from "lucide-react";
 import { useRunSession } from "@/stores/run-session-store";
-import { showPreviewUrlDialog } from "../PreviewUrlDialog";
 
 interface CardDetailHeaderProps {
 	card: RuntimeBoardCard;
@@ -128,20 +127,6 @@ export function CardDetailHeader({
 				</>
 			)}
 			<div className="w-px h-[18px] bg-[#2a2a35] shrink-0" />
-			<Tooltip delayDuration={0} content="Open preview & annotate" side="bottom" triggerAsChild>
-				<button
-					onClick={() =>
-						showPreviewUrlDialog(workspaceId, {
-							id: card.id,
-							title: card.description?.split("\n")[0] ?? card.id,
-						})
-					}
-					className="cursor-pointer text-[#60607a] hover:text-[#7c6aff] transition-colors"
-					title="Open preview & annotate"
-				>
-					<Globe size={15} />
-				</button>
-			</Tooltip>
 			<Tooltip delayDuration={0} content="Delete task" side="bottom" triggerAsChild>
 				<button
 					onClick={onDelete}

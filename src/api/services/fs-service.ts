@@ -2,7 +2,6 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { loadGlobalConfig } from "../../config/runtime-config.js";
 import { listTerminalApps, openTerminalAt } from "../../core/terminal-apps.js";
 
@@ -10,17 +9,6 @@ export const openPath = (path: string) => {
 	const cmd = process.platform === "win32" ? "explorer" : process.platform === "darwin" ? "open" : "xdg-open";
 	spawnSync(cmd, [path], { stdio: "ignore" });
 	return { ok: true };
-};
-
-export const getExtensionPath = () => {
-	// Resolves from dist/api/services/ (prod) or src/api/services/ (dev) up to the project root.
-	const thisDir = fileURLToPath(new URL(".", import.meta.url));
-	const candidates = [
-		resolve(thisDir, "..", "..", "..", "extension"),
-		resolve(thisDir, "..", "..", "..", "..", "extension"),
-	];
-	const found = candidates.find((p) => existsSync(p));
-	return { path: found ?? null };
 };
 
 export const listTerminals = async () => listTerminalApps();

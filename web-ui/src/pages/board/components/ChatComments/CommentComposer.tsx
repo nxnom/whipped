@@ -1,6 +1,6 @@
 import { Button } from "@geckoui/geckoui";
-import type { RuntimeBoardCard } from "@runtime-contract";
-import { Paperclip, Send, X } from "lucide-react";
+import type { RuntimeBoardCard, RuntimeVisualComment } from "@runtime-contract";
+import { Crosshair, Paperclip, Send, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { TokenTextarea } from "@/components/TokenTextarea";
 import { uploadAttachmentFile } from "@/runtime/attachments";
@@ -11,6 +11,7 @@ import {
 	normalizeAttachmentTokens,
 	parseAttachmentTokenNumbers,
 } from "@/utils/attachmentTokens";
+import { parseWhippedClipboard } from "@/utils/whippedPayload";
 
 interface CommentComposerProps {
 	card: RuntimeBoardCard;
@@ -30,6 +31,9 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 	const [message, setMessage] = useState("");
 	const [sending, setSending] = useState(false);
 	const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
+	// Structured visual context captured from a Whipped extension paste; posted as
+	// a "visual-comment" so the comment renders the referenced elements.
+	const [visualComment, setVisualComment] = useState<RuntimeVisualComment | null>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const isReadyForReview = card.columnId === "ready_for_review";
@@ -74,6 +78,16 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 		}
 	};
 
+	const insertText = (text: string) => {
+		const ta = textareaRef.current;
+		if (!ta) return;
+		const pos = document.activeElement === ta ? ta.selectionStart : ta.value.length;
+		const before = ta.value.slice(0, pos);
+		const lead = before && !/\s$/.test(before) ? "\n\n" : "";
+		const insert = lead + text;
+		if (!applyTextareaEdit(ta, pos, pos, insert)) setMessage(ta.value.slice(0, pos) + insert + ta.value.slice(pos));
+	};
+
 	const removeAttachment = (n: number) => {
 		const ta = textareaRef.current;
 		if (!ta) return;
@@ -88,7 +102,7 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 		const { text: normalized, order } = normalizeAttachmentTokens(message);
 		const summaryText = normalized.trim();
 		const ordered = order.map((n) => byN.get(n)).filter((a): a is ComposerAttachment => Boolean(a));
-		if (!requestChanges && !summaryText && ordered.length === 0) return;
+		if (!requestChanges && !summaryText && ordered.length === 0 && !visualComment) return;
 		setSending(true);
 		try {
 			const uploaded = [];
@@ -104,22 +118,24 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 					body: {
 						workspaceId,
 						cardId: card.id,
-						type: "human",
+						type: visualComment ? "visual-comment" : "human",
 						actor: { type: "human", id: "human" },
 						summary: summaryText || (uploaded.length > 0 ? uploaded.map((a) => a.name).join(", ") : ""),
 						attachments: atts,
+						...(visualComment ? { metadata: { visualComment } } : {}),
 					},
 				});
 			}
 			setMessage("");
 			setAttachments([]);
+			setVisualComment(null);
 			onRefresh();
 		} finally {
 			setSending(false);
 		}
 	};
 
-	const hasContent = message.trim().length > 0 || displayed.length > 0;
+	const hasContent = message.trim().length > 0 || displayed.length > 0 || visualComment != null;
 
 	return (
 		<div className="shrink-0 border-t border-[#1e1e28] p-3">
@@ -169,6 +185,48 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 						))}
 					</div>
 				)}
+				{/* Visual context captured from a Whipped extension paste */}
+				{visualComment && visualComment.elements.length > 0 && (
+					<div className="mx-3 mt-2 flex flex-col gap-1.5 rounded-lg border border-[#2a2a38] bg-[#0d0d12] p-2">
+						<div className="flex items-center gap-2">
+							<Crosshair size={12} className="text-[#7c6aff]" />
+							<span className="text-[11px] font-medium text-gray-400">
+								Visual context · {visualComment.elements.length}{" "}
+								{visualComment.elements.length === 1 ? "element" : "elements"}
+							</span>
+							<div className="flex-1" />
+							<button
+								type="button"
+								onClick={() => setVisualComment(null)}
+								className="text-[11px] text-[#60607a] hover:text-[#ef4444] transition-colors"
+							>
+								Clear
+							</button>
+						</div>
+						<div className="flex flex-wrap gap-1.5">
+							{visualComment.elements.map((el, i) => {
+								const label =
+									(el.componentChain?.length ? el.componentChain.join(" → ") : el.componentName) ??
+									el.elementSelector ??
+									"element";
+								const src = el.sourceFile
+									? `${el.sourceFile.split("/").slice(-1)[0]}${el.sourceLine ? `:${el.sourceLine}` : ""}`
+									: null;
+								return (
+									<span
+										key={i}
+										className="inline-flex items-center gap-1 rounded border border-[#2a2a38] bg-[#1a1a24] px-1.5 py-0.5 text-[10px] text-gray-400"
+										title={el.elementSelector}
+									>
+										<span className="text-[#c4baff]">#{i + 1}</span>
+										<span className="truncate max-w-[180px]">🧩 {label}</span>
+										{src && <span className="text-[#4a4a5a] font-mono">📄 {src}</span>}
+									</span>
+								);
+							})}
+						</div>
+					</div>
+				)}
 				<TokenTextarea
 					ref={textareaRef}
 					value={message}
@@ -189,6 +247,15 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 						}
 					}}
 					onPaste={(e) => {
+						// A paste from the Whipped extension carries a structured payload —
+						// insert the instruction text and capture the visual context.
+						const payload = parseWhippedClipboard(e.clipboardData.getData("text/html"));
+						if (payload) {
+							e.preventDefault();
+							insertText(payload.description);
+							if (payload.visualComment) setVisualComment(payload.visualComment);
+							return;
+						}
 						if (e.clipboardData.files.length > 0) {
 							const hasImage = Array.from(e.clipboardData.files).some((f) => f.type.startsWith("image/"));
 							if (hasImage) {

@@ -18,7 +18,6 @@ interface KanbanColumnProps {
 	cards: RuntimeBoardCard[];
 	allCards: Record<string, RuntimeBoardCard>;
 	workflows: Workflow[];
-	workspaceId: string;
 	runningCardId: string | null;
 	onCardClick: (card: RuntimeBoardCard) => void;
 	onCardEdit: (card: RuntimeBoardCard) => void;
@@ -34,7 +33,6 @@ export function KanbanColumn({
 	cards,
 	allCards,
 	workflows,
-	workspaceId,
 	runningCardId,
 	onCardClick,
 	onCardEdit,
@@ -75,7 +73,6 @@ export function KanbanColumn({
 								index={index}
 								allCards={allCards}
 								workflowName={workflows.find((w) => w.id === card.workflowId)?.name}
-								workspaceId={workspaceId}
 								isRunning={runningCardId === card.id}
 								onClick={() => onCardClick(card)}
 								onEdit={() => onCardEdit(card)}

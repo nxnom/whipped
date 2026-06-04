@@ -564,34 +564,52 @@
     return btoa(bin);
   }
 
-  // text/html mirrors the readable prompt and hides a base64 payload that a
-  // consumer (Whipped) can parse on paste to recover the structured visualComment.
-  function buildPromptHtml(desc, text) {
-    const payload = {
+  // Unsanitized web custom clipboard format — survives Chrome's text/html
+  // sanitizer (which strips our hidden payload span). The consumer reads this.
+  const WHIPPED_FORMAT = "web application/whipped+json";
+
+  function buildPayloadObject(desc) {
+    return {
       v: 1,
       description: desc,
       visualComment: selections.length ? { pageUrl: location.href, elements: buildElements() } : undefined,
     };
-    const b64 = b64encodeUtf8(JSON.stringify(payload));
+  }
+
+  // text/html mirrors the readable prompt and also hides a base64 payload (a
+  // fallback for when the custom format isn't available).
+  function buildPromptHtml(text, payloadJson) {
+    const b64 = b64encodeUtf8(payloadJson);
     const readable = `<pre style="white-space:pre-wrap;font-family:inherit;margin:0">${escHtml(text)}</pre>`;
     return `${readable}<span data-whipped-payload="${b64}"></span>`;
   }
 
-  async function writeClipboard(text, html) {
+  async function writeClipboard(text, html, payloadJson) {
+    const base = {
+      "text/plain": new Blob([text], { type: "text/plain" }),
+      "text/html": new Blob([html], { type: "text/html" }),
+    };
+    // Prefer including the unsanitized custom format; some browsers reject custom
+    // types in ClipboardItem, so fall back to plain+html, then plain text only.
     try {
-      const item = new ClipboardItem({
-        "text/plain": new Blob([text], { type: "text/plain" }),
-        "text/html": new Blob([html], { type: "text/html" }),
-      });
-      await navigator.clipboard.write([item]);
+      await navigator.clipboard.write([
+        new ClipboardItem({ ...base, [WHIPPED_FORMAT]: new Blob([payloadJson], { type: WHIPPED_FORMAT }) }),
+      ]);
       return true;
     } catch {
-      try {
-        await navigator.clipboard.writeText(text);
-        return true;
-      } catch {
-        return false;
-      }
+      // Browser rejected the custom format — retry with plain + html.
+    }
+    try {
+      await navigator.clipboard.write([new ClipboardItem(base)]);
+      return true;
+    } catch {
+      // Multi-format write blocked — fall back to plain text.
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -599,16 +617,14 @@
     const desc = ta.value.trim();
     if (!desc && !selections.length) return;
     const text = buildPromptText(desc);
-    const html = buildPromptHtml(desc, text);
-    const btn = form?.querySelector(".send");
-    const ok = await writeClipboard(text, html);
-    if (!form) return;
+    const payloadJson = JSON.stringify(buildPayloadObject(desc));
+    const html = buildPromptHtml(text, payloadJson);
+    const ok = await writeClipboard(text, html, payloadJson);
     if (ok) {
-      if (btn) {
-        btn.textContent = "Copied ✓";
-        setTimeout(() => { if (form) form.querySelector(".send") && (form.querySelector(".send").textContent = "Copy"); }, 1500);
-      }
+      // Copy is the end of the flow — show a confirmation and dismiss the tool.
+      // The toast lives outside the form, so it survives deactivate().
       showToast("✓ Copied to clipboard");
+      deactivate();
     } else {
       showFormError("Couldn't access the clipboard.");
     }

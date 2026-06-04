@@ -6,7 +6,6 @@ import {
 	getProjectConfig,
 	saveProjectConfig,
 	setGitInstructions,
-	setPreviewUrl,
 	setSystemPrompt,
 } from "../services/project-config-service.js";
 import type { AppEnv } from "../types/context.js";
@@ -33,13 +32,6 @@ export const projectConfigController = new Hono<AppEnv>()
 		const ctx = c.var.ctx;
 		const { workspaceId, prompt } = c.req.valid("json");
 		const { cleared } = await setSystemPrompt(workspaceId, prompt);
-		ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
-		return c.json({ ok: true, cleared });
-	})
-	.post("/preview-url", zv("json", z.object({ workspaceId: z.string(), url: z.string() })), async (c) => {
-		const ctx = c.var.ctx;
-		const { workspaceId, url } = c.req.valid("json");
-		const { cleared } = await setPreviewUrl(workspaceId, url);
 		ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 		return c.json({ ok: true, cleared });
 	});

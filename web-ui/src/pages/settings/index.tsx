@@ -6,7 +6,6 @@ import {
 	FolderGit2,
 	Globe,
 	Plug,
-	Puzzle,
 	Server,
 	SlidersHorizontal,
 	Slack,
@@ -18,7 +17,6 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useRead } from "@/runtime/api-client";
 import { useWorkspaceState } from "@/stores/board-store";
-import { ExtensionSettings } from "./ExtensionSettings";
 import { GlobalSettings } from "./GlobalSettings";
 import { ProjectSettings } from "./ProjectSettings";
 import { SlackSettings } from "./SlackSettings";
@@ -38,7 +36,6 @@ const GLOBAL_NAV: Array<{ id: GlobalSection; label: string; icon: React.ReactNod
 	{ id: "runtime", label: "Runtime Config", icon: <Server size={15} /> },
 	{ id: "tunnel", label: "Tunnel", icon: <Globe size={15} /> },
 	{ id: "slack", label: "Slack", icon: <Slack size={15} /> },
-	{ id: "extension", label: "Extension", icon: <Puzzle size={15} /> },
 ];
 
 function ProjectDropdown({ workspaceId, onSwitch }: { workspaceId: string; onSwitch: (id: string) => void }) {
@@ -197,8 +194,6 @@ export function SettingsPage() {
 					<SlackSettings />
 				) : section === "tunnel" ? (
 					<TunnelSettings />
-				) : section === "extension" ? (
-					<ExtensionSettings />
 				) : (
 					<GlobalSettings section={section as GlobalSection} />
 				)}

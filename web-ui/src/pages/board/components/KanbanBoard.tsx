@@ -296,7 +296,6 @@ export function KanbanBoard({
 										cards={cards}
 										allCards={state.board.cards}
 										workflows={state.projectConfig.workflows}
-										workspaceId={workspaceId}
 										runningCardId={runSession.status === "running" ? runSession.cardId : null}
 										onCardClick={(card) => openCard(card.id)}
 										onCardEdit={openEditDialog}

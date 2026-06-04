@@ -21,9 +21,3 @@ export const setSystemPrompt = async (workspaceId: string, prompt: string): Prom
 	await updateProjectConfig(workspaceId, (c) => ({ ...c, systemPrompt: trimmed || undefined }));
 	return { cleared: !trimmed };
 };
-
-export const setPreviewUrl = async (workspaceId: string, url: string): Promise<{ cleared: boolean }> => {
-	const trimmed = url.trim().replace(/\/$/, "");
-	await updateProjectConfig(workspaceId, (c) => ({ ...c, previewUrl: trimmed || undefined }));
-	return { cleared: !trimmed };
-};
