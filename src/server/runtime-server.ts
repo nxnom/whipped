@@ -12,7 +12,6 @@ import { slackNotifier } from "../slack/slack-notifier.js";
 import { clearState, readState, writeState } from "../cli/daemon-state.js";
 import { ATTACHMENTS_DIR, DEFAULT_PORT, loadGlobalConfig, WHIPPED_HOME_DIR } from "../config/runtime-config.js";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
-import { resolveQaCapabilities } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 import { generateTaskId } from "../core/task-id.js";
 import { BoardPoller } from "../daemon/poller.js";
@@ -239,7 +238,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 					latestProjectConfig.workflows.find((w) => w.forStory === isStoryCard) ??
 					latestProjectConfig.workflows[0];
 				const reviewSlots = (cardWorkflow?.slots ?? [])
-					.filter((s) => s.type !== "dev" && s.enabled)
+					.filter((s) => (s.type === "review" || s.type === "orch") && s.enabled)
 					.sort((a, b) => a.order - b.order);
 				const deliveryMode = latestProjectConfig.deliveryMode ?? "off";
 				if (reviewSlots.length === 0 && deliveryMode === "off") return;
@@ -258,7 +257,6 @@ export async function createRuntimeServer(options: ServerOptions) {
 					autoCommit: latestProjectConfig.autoCommit ?? true,
 					secrets: latestProjectConfig.secrets ?? [],
 					systemPrompt: latestProjectConfig.systemPrompt,
-					qaCapabilities: resolveQaCapabilities(latestProjectConfig.qaCapabilities),
 					qaSemaphore,
 					registerStopCallback: scheduler.registerStopCallback.bind(scheduler),
 					registerLiveProcess: scheduler.registerLiveProcess.bind(scheduler),

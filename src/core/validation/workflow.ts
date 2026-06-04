@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { effortLevelSchema, runtimeAgentIdSchema, workflowSchema, workflowSlotSchema } from "../api-contract.js";
+import {
+	effortLevelSchema,
+	runtimeAgentIdSchema,
+	slotToolSchema,
+	tierLevelSchema,
+	workflowSchema,
+	workflowSlotSchema,
+} from "../api-contract.js";
 
 // Form-side prompt union. The contract's `promptValueSchema` wraps the union in a
 // `z.preprocess` (to upgrade legacy bare strings on read), which makes its zod
@@ -12,22 +19,39 @@ export const promptValueFormSchema = z.discriminatedUnion("source", [
 ]);
 export type PromptValueForm = z.infer<typeof promptValueFormSchema>;
 
+// ─── Model pair form ─────────────────────────────────────────────────────────
+// Mirrors modelPairSchema but without zod `.default()`s, so the form's input and
+// output types stay identical (required by RHF's resolver inference). The "Default"
+// model/effort option clears the field to null.
+export const modelPairFormSchema = z.object({
+	id: z.string(),
+	level: tierLevelSchema,
+	isFree: z.boolean(),
+	binary: runtimeAgentIdSchema,
+	model: z.string().nullable(),
+	effort: effortLevelSchema.nullable(),
+});
+export type ModelPairForm = z.infer<typeof modelPairFormSchema>;
+
 // ─── Slot form ─────────────────────────────────────────────────────────────
 // Mirrors workflowSlotSchema but tightens a few fields for the editor:
 //  - `name` is required (a blank slot label is never useful).
 //  - `prompt` keeps the discriminated inline/file union so the inline-vs-file
 //    toggle round-trips losslessly.
-//  - `effort`/`model` stay nullable so the "Default" option clears them.
+//  - model selection lives in `pairs` (per tier), not flat binary/model/effort.
 export const workflowSlotFormSchema = z.object({
 	id: workflowSlotSchema.shape.id,
 	type: workflowSlotSchema.shape.type,
 	name: z.string().min(1, "Name is required"),
-	agentBinary: runtimeAgentIdSchema,
 	order: workflowSlotSchema.shape.order,
 	enabled: z.boolean(),
 	prompt: promptValueFormSchema,
-	effort: effortLevelSchema.nullable(),
-	model: z.string().nullable(),
+	pairs: z.array(modelPairFormSchema).min(1, "At least one model tier is required"),
+	defaultPairId: z.string(),
+	preferFree: z.boolean(),
+	tools: z.array(slotToolSchema),
+	canAdjustLevel: z.boolean(),
+	rerun: z.boolean(),
 });
 export type WorkflowSlotForm = z.infer<typeof workflowSlotFormSchema>;
 

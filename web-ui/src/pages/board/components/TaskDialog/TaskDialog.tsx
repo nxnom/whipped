@@ -17,6 +17,8 @@ import { CreateTaskConfigSidebar } from "./CreateTaskConfigSidebar";
 import { uploadImages } from "./helpers";
 import { PriorityField } from "./PriorityField";
 import { StorySubtaskList } from "./StorySubtaskList";
+import { cardToFormModelConfig, snapshotFormModelConfig } from "./tiers";
+import { TicketTiersSection } from "./TicketTiersSection";
 import type { Mode, PendingImage, SubtaskDraft } from "./types";
 import { useTaskSubmit } from "./useTaskSubmit";
 
@@ -75,7 +77,11 @@ export function CreateTaskDialog({
 			branchName: "",
 			dependsOn: "",
 			waitsFor: [],
+			activeLevel: "medium",
+			modelConfig: snapshotFormModelConfig(defaultTaskWorkflow),
 		}),
+		// Keyed by id (not the object) so the memo identity is stable across renders
+		// and RHF doesn't reset the form on every render.
 		[defaultBranch, defaultTaskWorkflow?.id],
 	);
 
@@ -365,6 +371,7 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 			const lead = description && !/\s$/.test(description) ? "\n\n" : "";
 			description += lead + missing.map((n) => `[Attachment #${n}]`).join(" ");
 		}
+		const wf = workflows.find((w) => w.id === (card.workflowId ?? ""));
 		return {
 			description,
 			priority: card.priority ?? "",
@@ -373,8 +380,10 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 			branchName: card.branchName ?? "",
 			dependsOn: card.dependsOn ?? "",
 			waitsFor: card.waitsFor ?? [],
+			activeLevel: card.activeLevel ?? "medium",
+			modelConfig: card.modelConfig ? cardToFormModelConfig(card.modelConfig) : snapshotFormModelConfig(wf),
 		};
-	}, [card]);
+	}, [card, workflows]);
 
 	// baseRef is required by the form schema but is not editable here; relax the
 	// resolver so the (unchanged) base branch never blocks an edit submit.
@@ -389,6 +398,14 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 	};
 
 	const availableWorkflows = isStory ? workflows.filter((w) => w.forStory) : workflows.filter((w) => !w.forStory);
+
+	const selectedWorkflowId = useWatch({ control, name: "workflowId" });
+	const selectedWorkflow = availableWorkflows.find((w) => w.id === selectedWorkflowId);
+	const onWorkflowChange = (id: string) => {
+		setValue("modelConfig", snapshotFormModelConfig(availableWorkflows.find((w) => w.id === id)), {
+			shouldDirty: true,
+		});
+	};
 
 	const depsCardPool = Object.values(allCards).filter((c) => {
 		if (c.id === card.id || c.columnId === "done") return false;
@@ -429,6 +446,8 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 					waitsFor: isStory || data.waitsFor.length === 0 ? undefined : data.waitsFor,
 					workflowId: data.workflowId || undefined,
 					branchName: canEditBranch ? data.branchName.trim() || undefined : undefined,
+					activeLevel: data.activeLevel,
+					modelConfig: data.modelConfig,
 					revision: 0,
 				},
 			});
@@ -494,12 +513,17 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 								<span className="text-[11px] font-medium text-[#60607a]">
 									{isStory ? "Orchestrator Workflow" : "Workflow"}
 								</span>
-								<RHFSelect name="workflowId" prefix={<WorkflowIcon size={14} className="text-[#8888a0]" />}>
+								<RHFSelect
+									name="workflowId"
+									onChange={onWorkflowChange}
+									prefix={<WorkflowIcon size={14} className="text-[#8888a0]" />}
+								>
 									{availableWorkflows.map((w) => (
 										<SelectOption key={w.id} value={w.id} label={w.name + (w.isDefault ? " (default)" : "")} />
 									))}
 								</RHFSelect>
 							</div>
+							<TicketTiersSection workflow={selectedWorkflow} />
 							<div className="flex flex-col gap-2">
 								<span className="text-[11px] font-medium text-[#60607a]">Priority</span>
 								<PriorityField name="priority" />

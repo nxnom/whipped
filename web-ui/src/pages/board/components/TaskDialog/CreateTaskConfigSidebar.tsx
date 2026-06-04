@@ -1,11 +1,13 @@
 import { RHFInput, RHFSelect, SelectOption } from "@geckoui/geckoui";
 import { useState } from "react";
-import { useFormContext } from "react-hook-form";
+import { useFormContext, useWatch } from "react-hook-form";
 import type { RuntimeBoardCard, Workflow } from "@runtime-contract";
 import { GitBranch, Plus, Workflow as WorkflowIcon } from "lucide-react";
 import { classNames } from "@/utils/classNames";
 import { COLUMN_BADGE, COLUMN_LABEL } from "./constants";
 import { PriorityField } from "./PriorityField";
+import { snapshotFormModelConfig } from "./tiers";
+import { TicketTiersSection } from "./TicketTiersSection";
 
 interface CreateTaskConfigSidebarProps {
 	isTask: boolean;
@@ -37,8 +39,17 @@ export function CreateTaskConfigSidebar({
 	submitLabel,
 }: CreateTaskConfigSidebarProps) {
 	// dependsOn (stacking) and waitsFor (gate) are mutually exclusive — choose one via the toggle.
-	const { setValue } = useFormContext();
+	const { control, setValue } = useFormContext();
+	const selectedWorkflowId = useWatch({ control, name: "workflowId" }) as string | undefined;
+	const selectedWorkflow = activeWorkflows.find((w) => w.id === selectedWorkflowId);
 	const [relationMode, setRelationMode] = useState<"waitsFor" | "dependsOn">("waitsFor");
+
+	// Reseed the per-ticket tiers from the newly chosen workflow (drops prior edits,
+	// since slots differ between workflows).
+	const onWorkflowChange = (id: string) => {
+		const wf = activeWorkflows.find((w) => w.id === id);
+		setValue("modelConfig", snapshotFormModelConfig(wf), { shouldDirty: true });
+	};
 	const switchRelationMode = (mode: "waitsFor" | "dependsOn") => {
 		setRelationMode(mode);
 		if (mode === "waitsFor") setValue("dependsOn", "");
@@ -68,6 +79,7 @@ export function CreateTaskConfigSidebar({
 					) : (
 						<RHFSelect
 							name="workflowId"
+							onChange={onWorkflowChange}
 							prefix={<WorkflowIcon size={14} style={{ color: isTask ? "#8888a0" : "#a78bfa" }} />}
 						>
 							{activeWorkflows.map((w) => (
@@ -76,6 +88,9 @@ export function CreateTaskConfigSidebar({
 						</RHFSelect>
 					)}
 				</div>
+
+				{/* Model tiers (task only — story snapshots from its workflow on the server) */}
+				{isTask && <TicketTiersSection workflow={selectedWorkflow} />}
 
 				{/* Priority */}
 				<div className="flex flex-col gap-2">

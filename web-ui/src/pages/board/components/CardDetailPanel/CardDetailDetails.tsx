@@ -1,6 +1,6 @@
-import { Input, toast } from "@geckoui/geckoui";
-import type { RuntimeBoardCard } from "@runtime-contract";
-import { Check, ChevronRight, ExternalLink, GitBranch, Pencil, X } from "lucide-react";
+import { Input, Select, SelectOption, toast } from "@geckoui/geckoui";
+import { type RuntimeBoardCard, type TierLevel, TIER_LEVEL_OPTIONS } from "@runtime-contract";
+import { Check, ChevronRight, ExternalLink, Gauge, GitBranch, Pencil, ScrollText, X } from "lucide-react";
 import { useState } from "react";
 import { useWrite } from "@/runtime/api-client";
 import { classNames } from "@/utils/classNames";
@@ -18,6 +18,19 @@ export function CardDetailDetails({ card, workspaceId, allCards, onRefresh }: Ca
 	const { trigger: updateCardTrigger } = useWrite((api) => api("cards/:id").PATCH());
 	const [descExpanded, setDescExpanded] = useState(false);
 	const [activityExpanded, setActivityExpanded] = useState(false);
+	const [planExpanded, setPlanExpanded] = useState(false);
+
+	const saveLevel = async (level: TierLevel) => {
+		const res = await updateCardTrigger({
+			params: { id: card.id },
+			body: { workspaceId, cardId: card.id, activeLevel: level, revision: 0 },
+		});
+		if (res.error) {
+			toast.error("Failed to update model tier");
+			return;
+		}
+		onRefresh();
+	};
 	const [editingBranch, setEditingBranch] = useState(false);
 	const [branchInput, setBranchInput] = useState("");
 	const [savingBranch, setSavingBranch] = useState(false);
@@ -163,6 +176,39 @@ export function CardDetailDetails({ card, workspaceId, allCards, onRefresh }: Ca
 								<span className="text-[#4a4a5a]">→</span>
 								<span className="font-mono text-[#8888a0] truncate max-w-[110px]">{card.baseRef}</span>
 							</div>
+						)}
+					</div>
+				)}
+
+				{/* Model tier */}
+				<div className="flex items-center gap-2 text-xs text-[#8888a0]">
+					<Gauge size={11} className="shrink-0" />
+					<span className="shrink-0">Tier</span>
+					<div className="flex-1">
+						<Select value={card.activeLevel} onChange={(v) => void saveLevel(v as TierLevel)}>
+							{TIER_LEVEL_OPTIONS.map((o) => (
+								<SelectOption key={o.value} value={o.value} label={o.label} />
+							))}
+						</Select>
+					</div>
+				</div>
+
+				{/* Plan */}
+				{card.plan?.trim() && (
+					<div>
+						<button
+							onClick={() => setPlanExpanded((v) => !v)}
+							className="flex items-center gap-1.5 text-xs text-[#8888a0] hover:text-[#c0c0d0] transition-colors"
+						>
+							<ScrollText size={11} className="shrink-0" />
+							<span>Plan</span>
+							<ChevronRight
+								size={12}
+								className={classNames("transition-transform duration-150", planExpanded ? "rotate-90" : "")}
+							/>
+						</button>
+						{planExpanded && (
+							<p className="mt-1.5 text-xs text-[#8888a0] whitespace-pre-wrap leading-relaxed">{card.plan}</p>
 						)}
 					</div>
 				)}

@@ -22,13 +22,15 @@ import type { AgentProcess } from "../agents/agent-runner.js";
 import { spawnAgent } from "../agents/agent-runner.js";
 import { type BrowserMcpServer, buildBrowserMcpServer, PLAYWRIGHT_MCP_SERVER_NAME } from "../agents/playwright-mcp.js";
 import type {
+	ModelPair,
 	RuntimeBoardCard,
 	RuntimeProjectSecret,
-	RuntimeQaCapability,
 	RuntimeReviewComment,
+	SlotModelConfig,
+	TierLevel,
 	WorkflowSlot,
 } from "../core/api-contract.js";
-import { DEFAULT_GIT_INSTRUCTIONS } from "../core/api-contract.js";
+import { DEFAULT_GIT_INSTRUCTIONS, LEVEL_ORDER, resolvePair } from "../core/api-contract.js";
 import { ATTACHMENTS_DIR } from "../config/runtime-config.js";
 import { logger } from "../core/logger.js";
 import type { QaSemaphore } from "./qa-semaphore.js";
@@ -68,7 +70,6 @@ interface ReviewPipelineOptions {
 	autoCommit: boolean;
 	secrets: RuntimeProjectSecret[];
 	systemPrompt?: string;
-	qaCapabilities: RuntimeQaCapability[];
 	qaSemaphore: QaSemaphore;
 	registerStopCallback: (streamId: string, callback: () => void) => () => void;
 	registerLiveProcess: (streamId: string, process: AgentProcess) => () => void;
@@ -78,6 +79,27 @@ interface ReviewSlotResult {
 	passed: boolean;
 	comment: RuntimeReviewComment;
 	storedViaMcp: boolean;
+}
+
+// Resolve the concrete model pair a review slot runs at, from the card's snapshot
+// (preferred) or the slot template, using the card's workflow-wide active level.
+function resolveSlotPair(card: RuntimeBoardCard, slot: WorkflowSlot): ModelPair {
+	const cfg: SlotModelConfig = card.modelConfig?.[slot.id] ?? {
+		pairs: slot.pairs,
+		defaultPairId: slot.defaultPairId,
+		preferFree: slot.preferFree,
+	};
+	return resolvePair(cfg, card.activeLevel, (card.autoFixAttempts ?? 0) > 0);
+}
+
+// Comment type for a slot: orch keeps its fixed "orch" type; every other slot is
+// keyed by its id so multiple review slots get distinct, independently-anchored comments.
+function slotCommentType(slot: WorkflowSlot): string {
+	return slot.type === "orch" ? "orch" : slot.id;
+}
+
+function isTierLevel(v: unknown): v is TierLevel {
+	return typeof v === "string" && (LEVEL_ORDER as readonly string[]).includes(v);
 }
 
 export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewPipelineOptions): Promise<void> {
@@ -109,9 +131,10 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 	for (const slot of options.reviewSlots) {
 		const customPrompt = resolvePromptText(slot.prompt, options.repoPath);
 		const streamId = `${card.id}-${slot.id}-${runId}`;
+		const slotPair = resolveSlotPair(card, slot);
 
 		if (skipPassed) {
-			const commentType = slot.type === "custom" ? slot.id : slot.type;
+			const commentType = slotCommentType(slot);
 			const lastSlotComment = [...(card.reviewComments ?? [])].reverse().find((c) => c.type === commentType);
 			// Only skip if the passing comment belongs to THIS session (not a previous run).
 			const alreadyPassed = lastSlotComment
@@ -130,11 +153,12 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 			skipPassed = false; // found the first slot to run — run this and all remaining
 		}
 
-		// QA runs boot the app (and maybe a browser) — heavy and port-bound — so they
+		// Slots with the browser tool boot the app — heavy and port-bound — so they
 		// pass through a machine-wide semaphore. If every slot is busy the card waits
 		// here (FIFO) instead of piling on; the wait is surfaced in the activity log.
+		const usesBrowser = slot.tools.includes("browser");
 		let release: (() => void) | undefined;
-		if (slot.type === "qa") {
+		if (usesBrowser) {
 			if (options.qaSemaphore.wouldBlock()) {
 				await appendActivityLog(workspaceId, card.id, `${slot.name}: queued — waiting for a free QA slot`);
 				stateHub.broadcastWorkspaceUpdate(workspaceId);
@@ -144,12 +168,12 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 
 		let result: ReviewSlotResult;
 		try {
-			await appendActivityLog(workspaceId, card.id, `${slot.name} running (${slot.agentBinary})`);
+			await appendActivityLog(workspaceId, card.id, `${slot.name} running (${slotPair.binary})`);
 			await appendTerminalSession(workspaceId, card.id, {
 				streamId,
 				type: slot.id,
 				startedAt: runId,
-				agentId: slot.agentBinary,
+				agentId: slotPair.binary,
 				state: "running",
 			});
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
@@ -159,9 +183,9 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 			release?.();
 		}
 
-		// Fold any browser screenshots the QA agent captured into its comment as proof,
+		// Fold any browser screenshots the agent captured into its comment as proof,
 		// in case it didn't attach them itself.
-		if (slot.type === "qa" && options.qaCapabilities.includes("browser")) {
+		if (usesBrowser) {
 			await attachBrowserArtifacts(workspaceId, card, result, runId);
 		}
 
@@ -172,6 +196,16 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 		if (!result.passed) {
 			await appendActivityLog(workspaceId, card.id, `${slot.name}: FAIL`);
 			if (!result.storedViaMcp) await persistComment(workspaceId, card, result.comment);
+			// Auto-adjust: a review slot allowed to set the tier may right-size the model
+			// for the rework via suggestedLevel (stored on the comment metadata).
+			if (slot.canAdjustLevel) {
+				const suggested = result.comment.metadata?.suggestedLevel;
+				if (isTierLevel(suggested) && suggested !== card.activeLevel) {
+					await updateCard(workspaceId, card.id, { activeLevel: suggested });
+					card = { ...card, activeLevel: suggested };
+					await appendActivityLog(workspaceId, card.id, `Model tier set to "${suggested}" for rework`);
+				}
+			}
 			await handleReviewFailure(card, options);
 			return;
 		}
@@ -193,7 +227,9 @@ async function runReviewSlot(
 	customPrompt: string,
 ): Promise<ReviewSlotResult> {
 	const { workspaceId, stateHub } = options;
-	const browserEnabled = slot.type === "qa" && options.qaCapabilities.includes("browser");
+	const pair = resolveSlotPair(card, slot);
+	const agentBinary = pair.binary;
+	const browserEnabled = slot.tools.includes("browser");
 	// Orch slots use the story card's shared worktree (story is the worktree owner).
 	// Falls back to repoPath if that worktree no longer exists.
 	// Non-orch slots run in the card's resolved worktree (dependsOn chain root / story owner).
@@ -205,8 +241,7 @@ async function runReviewSlot(
 				? orchWorktreePath
 				: options.repoPath
 			: getWorktreePath(resolveWorktreeOwnerId(card.id, reviewBoard.cards));
-	// Comment type: use slot.type for built-ins, slot.id for custom.
-	const commentType = slot.type === "custom" ? slot.id : slot.type;
+	const commentType = slotCommentType(slot);
 	// Anchor a follow-up review to the HEAD a prior same-type review looked at,
 	// so we only re-show what changed since. The anchor only holds when the work
 	// was committed between rounds — with auto-commit off, HEAD never advances,
@@ -251,47 +286,44 @@ async function runReviewSlot(
 	// Cursor Agent CLI does not fire a settings.json stop hook reliably.
 	// Tell it to call the task_complete MCP tool explicitly when done.
 	const systemPrompt =
-		slot.agentBinary === "cursor"
+		agentBinary === "cursor"
 			? `${withMemory}\n\nAfter calling \`kanban_add_comment\`, call the \`task_complete\` MCP tool to signal that you are done.`
 			: withMemory;
 	const triggerWord = getSlotTriggerWord(slot.type);
 
-	const mcpConfigPath =
-		slot.agentBinary !== "opencode" && slot.agentBinary !== "cursor" ? getMcpConfigPath(streamId) : undefined;
+	const mcpConfigPath = agentBinary !== "opencode" && agentBinary !== "cursor" ? getMcpConfigPath(streamId) : undefined;
 	const hookServerPort =
-		slot.agentBinary === "codex" || slot.agentBinary === "opencode" || slot.agentBinary === "cursor"
+		agentBinary === "codex" || agentBinary === "opencode" || agentBinary === "cursor"
 			? getServerPort(options.serverUrl)
 			: undefined;
 	const mcpServer =
-		slot.agentBinary === "codex" || slot.agentBinary === "opencode" || slot.agentBinary === "cursor"
-			? buildWhippedMcpServerSpec(options.mcpBinary, options.serverUrl, workspaceId, slot.agentBinary)
+		agentBinary === "codex" || agentBinary === "opencode" || agentBinary === "cursor"
+			? buildWhippedMcpServerSpec(options.mcpBinary, options.serverUrl, workspaceId, agentBinary)
 			: undefined;
 
-	// QA agents get a browser-control capability (Playwright MCP) when it's enabled
-	// for the project (browserEnabled, computed above). It registers alongside the
-	// whipped tools and the agent uses it only if exercising the running app
-	// warrants it; a browser launches only on the first navigate.
+	// Slots with the browser tool get the Playwright MCP alongside the whipped tools;
+	// a browser launches only on the first navigate.
 	const browserMcp: BrowserMcpServer | undefined = browserEnabled ? buildBrowserMcpServer(card.id) : undefined;
 	const browserMcpSpec = browserMcp ? { command: browserMcp.command, args: browserMcp.args } : undefined;
 	const extraMcpServers = browserMcpSpec ? { [PLAYWRIGHT_MCP_SERVER_NAME]: browserMcpSpec } : undefined;
 
-	if (slot.agentBinary === "claude" && mcpConfigPath) {
+	if (agentBinary === "claude" && mcpConfigPath) {
 		await writeClaudeMcpConfig(
 			options.mcpBinary,
 			options.serverUrl,
 			workspaceId,
-			slot.agentBinary,
+			agentBinary,
 			mcpConfigPath,
 			extraMcpServers,
 		).catch(() => {});
 	}
 	const startTime = Date.now();
 	logger.info(
-		`[review:${streamId}] Spawning ${slot.name} agent (${slot.agentBinary}) for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`,
+		`[review:${streamId}] Spawning ${slot.name} agent (${agentBinary}) for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`,
 	);
 	const secretsEnv = buildSecretsEnv(options.secrets);
 	const output = await runAgentOnce(
-		slot.agentBinary,
+		agentBinary,
 		triggerWord,
 		worktreePath,
 		workspaceId,
@@ -303,10 +335,10 @@ async function runReviewSlot(
 		systemPrompt,
 		context.files,
 		secretsEnv,
-		slot.effort,
+		pair.effort,
 		hookServerPort,
 		mcpServer,
-		slot.model,
+		pair.model,
 		slot.type,
 		browserMcpSpec,
 	);
@@ -366,8 +398,8 @@ async function runReviewSlot(
 }
 
 function getSlotTriggerWord(type: string): string {
-	if (type === "code_review") return "Start Code Review.";
-	if (type === "qa") return "Start QA.";
+	if (type === "review") return "Start Review.";
+	if (type === "plan") return "Start planning.";
 	return "Start.";
 }
 
@@ -1079,6 +1111,12 @@ export function buildDevAgentSystemPrompt(
 			: "";
 	parts.push(`## Task\n\n${card.description ?? ""}${descAttachNote}${statSection}${context.text}`);
 
+	if (card.plan?.trim()) {
+		parts.push(
+			`## Implementation plan\n\nA planning agent produced this plan for the task. Follow it, adapting only where the code clearly requires it:\n\n${card.plan.trim()}`,
+		);
+	}
+
 	if (parentCards.length > 0) {
 		const parentSummaries = parentCards
 			.map((p) => {
@@ -1179,63 +1217,41 @@ function buildReviewSlotSystemPrompt(
 	subtaskCards: RuntimeBoardCard[] = [],
 	browserEnabled = false,
 ): string {
-	switch (slot.type) {
-		case "code_review":
-			return buildCodeReviewSystemPrompt(
-				slot,
-				card,
-				stat,
-				fullDiff,
-				customPrompt,
-				priorContext,
-				scope,
-				secrets,
-				systemPrompt,
-			);
-		case "qa":
-			return buildQASystemPrompt(
-				slot,
-				card,
-				stat,
-				fullDiff,
-				customPrompt,
-				priorContext,
-				scope,
-				secrets,
-				systemPrompt,
-				browserEnabled,
-			);
-		case "orch":
-			return buildOrchSystemPrompt(
-				slot,
-				card,
-				stat,
-				fullDiff,
-				customPrompt,
-				priorContext,
-				scope,
-				secrets,
-				systemPrompt,
-				autoCommit,
-				subtaskCards,
-			);
-		default:
-			return buildCustomSystemPrompt(
-				slot,
-				card,
-				stat,
-				fullDiff,
-				customPrompt,
-				priorContext,
-				scope,
-				secrets,
-				systemPrompt,
-			);
+	if (slot.type === "orch") {
+		return buildOrchSystemPrompt(
+			slot,
+			card,
+			stat,
+			fullDiff,
+			customPrompt,
+			priorContext,
+			scope,
+			secrets,
+			systemPrompt,
+			autoCommit,
+			subtaskCards,
+		);
 	}
+	return buildMergedReviewSystemPrompt(
+		slot,
+		card,
+		stat,
+		fullDiff,
+		customPrompt,
+		priorContext,
+		scope,
+		secrets,
+		systemPrompt,
+		browserEnabled,
+	);
 }
 
-function buildCodeReviewSystemPrompt(
-	_slot: WorkflowSlot,
+// One reviewer that replaces the old code_review / qa / custom slots. What it does
+// is shaped by the slot's own prompt and its granted tools: with the browser tool
+// it can exercise a running UI (the QA case); without it, it stays a code reviewer.
+// Several review slots can be chained via `order`. The comment is keyed by slot.id.
+function buildMergedReviewSystemPrompt(
+	slot: WorkflowSlot,
 	card: RuntimeBoardCard,
 	stat: string,
 	fullDiff: string,
@@ -1244,6 +1260,7 @@ function buildCodeReviewSystemPrompt(
 	scope: ReviewDiffScope,
 	secrets: RuntimeProjectSecret[],
 	systemPrompt?: string,
+	browserEnabled = false,
 ): string {
 	const custom = customPrompt.trim() ? `\n\n## Project-specific instructions\n\n${customPrompt.trim()}` : "";
 	const secretsSection = buildSecretsSection(secrets);
@@ -1254,7 +1271,31 @@ function buildCodeReviewSystemPrompt(
 			? `\n\n**Attached files** (use Read tool to view):\n${attachmentLines(card.descriptionAttachments ?? [])}`
 			: "";
 
-	return `You are a senior code reviewer performing an automated review.
+	const browserSection = browserEnabled
+		? `
+- You have a **browser capability** via the \`browser_*\` MCP tools (Playwright). When the change is user-facing, exercise the running UI:
+  - \`browser_navigate\` to the URL you booted, then drive the change by element ref from \`browser_snapshot\` (not coordinates).
+  - Capture a \`browser_take_screenshot\` of the change working, and read \`browser_console_messages\` — surface any errors as issues.
+  - **You opened it, so you close it**: call \`browser_close\` when done. Always shut down any app process you started, too.`
+		: "";
+
+	const runningAppSection = browserEnabled
+		? `
+
+## Proving it works in a running app
+Don't just read the diff — exercise the change when it's user-facing or runnable:
+- Boot the app yourself with the project's install/run scripts. Pick a free port and read the URL it prints.${browserSection}
+- Attach screenshots and any relevant logs as proof on your comment (below) so they're tied to your verdict.`
+		: "";
+
+	const levelAdjustSection = slot.canAdjustLevel
+		? `
+
+## Right-sizing the model tier on reopen
+When you set status "fail" (reopening for rework), you may also pick the model tier the rework should run at, based on how hard it is. Pass \`suggestedLevel\` in the MCP call — one of: ${LEVEL_ORDER.join(", ")}. Use "minimal" for trivial mechanical fixes (rename, copy/colour tweak), up to "max" for hard or architectural rework. Omit it to leave the tier unchanged.`
+		: "";
+
+	return `You are a senior reviewer performing an automated review.
 
 ## Task to review
 ${card.description ?? ""}${descAttachSection}${priorContext}
@@ -1275,84 +1316,17 @@ ${
 }
 
 ## How to work
-Use your tools — grep for callers, read type definitions, check related modules. Don't rely only on the diff. The terminal output is observational — write findings as plain text without pass/fail words. Your only formal verdict is the \`status\` field in the MCP call below.${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}
+Use your tools — grep for callers, read type definitions, check related modules. Don't rely only on the diff. The terminal output is observational — write findings as plain text without pass/fail words. Your only formal verdict is the \`status\` field in the MCP call below.${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}${runningAppSection}${levelAdjustSection}
 
 ## When you finish your review
 
 1. Call the \`kanban_add_comment\` MCP tool with:
    - cardId: "${card.id}"
-   - type: "code_review"
-   - status: "pass" / "fail" / "warning"
+   - type: "${slot.id}"
+   - status: "pass" / "fail" / "warning" / "skipped"
    - summary: your findings (specific, concise)
    - issues (optional): [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional note, pipeline still passes), message}]
-
-This MCP call is required — without it the pipeline has no record of your verdict.`;
-}
-
-function buildQASystemPrompt(
-	_slot: WorkflowSlot,
-	card: RuntimeBoardCard,
-	stat: string,
-	fullDiff: string,
-	customPrompt: string,
-	priorContext: string,
-	scope: ReviewDiffScope,
-	secrets: RuntimeProjectSecret[],
-	systemPrompt?: string,
-	browserEnabled = false,
-): string {
-	const custom = customPrompt.trim() ? `\n\n## Project-specific instructions\n\n${customPrompt.trim()}` : "";
-	const secretsSection = buildSecretsSection(secrets);
-	const projectContext = systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : "";
-
-	const qaDescAttachSection =
-		(card.descriptionAttachments?.length ?? 0) > 0
-			? `\n\n**Attached files** (use Read tool to view):\n${attachmentLines(card.descriptionAttachments ?? [])}`
-			: "";
-
-	// Browser control is offered only when the project enables the capability.
-	const browserSection = browserEnabled
-		? `
-- For a web UI you have a **browser capability** via the \`browser_*\` MCP tools (Playwright). Use it only when exercising the running UI is warranted:
-  - \`browser_navigate\` to the URL you booted, then drive the change by element ref from \`browser_snapshot\` (not coordinates).
-  - Capture a \`browser_take_screenshot\` of the change working, and read \`browser_console_messages\` — surface any errors as issues.
-  - **You opened it, so you close it**: call \`browser_close\` when done. Always shut down the app process you started, too.`
-		: "";
-
-	return `You are a QA engineer performing automated testing.
-
-## Task to test
-${card.description ?? ""}${qaDescAttachSection}${priorContext}
-
-${renderReviewDiff(stat, fullDiff, card.baseRef, scope)}
-
-${ITERATION_SCOPING_NOTE}
-
-## What to do
-${
-	scope.isFollowUp
-		? `${FOLLOWUP_REVIEW_FOCUS}\nRun the tests/checks relevant to what changed — you don't need to re-run the entire suite for areas untouched this round.`
-		: `1. Identify the app type (web, API, React Native/Expo, library, etc.)
-2. Run the appropriate tests — existing test suite, TypeScript checks, HTTP requests, etc.
-3. Verify every issue / request listed under \`## New Feedback\` or \`## Current Iteration\` has been addressed in the diff`
-}
-
-## Proving it works in a running app
-Don't just read the diff — exercise the change. If it touches anything user-facing or runnable:
-- Boot the app yourself with the project's install/run scripts. Pick a free port and read the URL it prints (the app may be a web server, an API, a CLI, or another tool — choose accordingly).${browserSection}
-- Attach screenshots and any relevant logs as proof on your comment (below) so they're tied to your verdict.
-
-The terminal output is observational — write findings as plain text without pass/fail words. Your only formal verdict is the \`status\` field in the MCP call below.${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}
-
-## When you finish testing
-
-1. Call the \`kanban_add_comment\` MCP tool with:
-   - cardId: "${card.id}"
-   - type: "qa"
-   - status: "pass" / "fail" / "warning" / "skipped"
-   - summary: what you ran and the outcome
-   - issues (optional): [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional, pipeline still passes), message}]
-   - attachments (optional): [{type: "image" | "file", name, mimeType, path}]
+   - attachments (optional): [{type: "image" | "file", name, mimeType, path}]${slot.canAdjustLevel ? "\n   - suggestedLevel (optional): the tier the rework should run at (see above)" : ""}
 
 This MCP call is required — without it the pipeline has no record of your verdict.`;
 }
@@ -1370,7 +1344,7 @@ function buildOrchSystemPrompt(
 	autoCommit = true,
 	subtaskCards: RuntimeBoardCard[] = [],
 ): string {
-	const commentType = slot.type === "custom" ? slot.id : slot.type;
+	const commentType = slotCommentType(slot);
 	const custom = customPrompt.trim() ? `\n\n## Project-specific instructions\n\n${customPrompt.trim()}` : "";
 	const secretsSection = buildSecretsSection(secrets);
 	const projectContext = systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : "";
@@ -1449,48 +1423,149 @@ Make ONE pass/fail decision per orchestrator run:
 These MCP calls are required — without them the pipeline has no record of your decision.`;
 }
 
-function buildCustomSystemPrompt(
-	slot: WorkflowSlot,
+function buildPlanSystemPrompt(
 	card: RuntimeBoardCard,
-	stat: string,
-	fullDiff: string,
 	customPrompt: string,
-	priorContext: string,
-	scope: ReviewDiffScope,
 	secrets: RuntimeProjectSecret[],
 	systemPrompt?: string,
+	browserEnabled = false,
 ): string {
+	const custom = customPrompt.trim() ? `\n\n## Project-specific instructions\n\n${customPrompt.trim()}` : "";
 	const secretsSection = buildSecretsSection(secrets);
 	const projectContext = systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : "";
-	const customDescAttachSection =
+	const descAttachSection =
 		(card.descriptionAttachments?.length ?? 0) > 0
 			? `\n\n**Attached files** (use Read tool to view):\n${attachmentLines(card.descriptionAttachments ?? [])}`
 			: "";
+	const browserSection = browserEnabled
+		? "\n- You may use the `browser_*` MCP tools (Playwright) to inspect the running app while planning. Call `browser_close` when done."
+		: "";
 
-	return `You are ${slot.name}, an automated review agent.
+	return `You are a planning agent. You do NOT write code — you produce an implementation plan that the dev agent will follow.
 
-## Task to review
-${card.description ?? ""}${customDescAttachSection}${priorContext}
+## Task to plan
+${card.description ?? ""}${descAttachSection}
 
-${renderReviewDiff(stat, fullDiff, card.baseRef, scope)}
-
-${ITERATION_SCOPING_NOTE}${scope.isFollowUp ? `\n\n${FOLLOWUP_REVIEW_FOCUS}` : ""}
-
-## Instructions
-${customPrompt.trim()}
-
-The terminal output is observational — write findings as plain text without pass/fail words. Your only formal verdict is the \`status\` field in the MCP call below.${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}
+## How to work
+Explore the codebase with your tools (grep, read files) so the plan is grounded in the real code, not assumptions. Identify the files to change, the approach, edge cases, and how the work should be verified.${browserSection}${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}
 
 ## When you finish
 
-1. Call the \`kanban_add_comment\` MCP tool with:
+Call the \`kanban_set_plan\` MCP tool with:
    - cardId: "${card.id}"
-   - type: "${slot.id}"
-   - status: "pass" / "fail" / "warning" / "skipped"
-   - summary: your findings
-   - issues (optional): [{file, line, severity: "blocking" (must fix, fails pipeline) / "warning" (must fix, fails pipeline) / "info" (optional note, pipeline still passes), message}]
+   - plan: a concrete, step-by-step implementation plan (files to change, approach, edge cases, verification steps)
 
-This MCP call is required — without it the pipeline has no record of your verdict.`;
+This MCP call is required — the dev agent reads this plan to implement the task.`;
+}
+
+// Options the scheduler passes to run the one-shot plan agent. A subset of
+// ReviewPipelineOptions — the plan phase runs before dev, not in the review loop.
+export interface PlanPhaseOptions {
+	workspaceId: string;
+	repoPath: string;
+	serverUrl: string;
+	mcpBinary: { command: string; args: string[] };
+	worktreePath: string;
+	stateHub: RuntimeStateHub;
+	secrets: RuntimeProjectSecret[];
+	systemPrompt?: string;
+	registerStopCallback: ReviewPipelineOptions["registerStopCallback"];
+	registerLiveProcess: ReviewPipelineOptions["registerLiveProcess"];
+}
+
+// Run the one-shot plan agent in the card's worktree. The agent persists its
+// output via the kanban_set_plan MCP tool; the dev agent then reads card.plan.
+export async function runPlanPhase(
+	card: RuntimeBoardCard,
+	slot: WorkflowSlot,
+	options: PlanPhaseOptions,
+): Promise<void> {
+	const { workspaceId, stateHub, worktreePath } = options;
+	const cfg: SlotModelConfig = card.modelConfig?.[slot.id] ?? {
+		pairs: slot.pairs,
+		defaultPairId: slot.defaultPairId,
+		preferFree: slot.preferFree,
+	};
+	const pair = resolvePair(cfg, card.activeLevel, (card.autoFixAttempts ?? 0) > 0);
+	const agentId = pair.binary;
+	const streamId = `${card.id}-${slot.id}-${Date.now()}`;
+	const customPrompt = resolvePromptText(slot.prompt, options.repoPath);
+	const browserEnabled = slot.tools.includes("browser");
+
+	const rawSystemPrompt = buildPlanSystemPrompt(
+		card,
+		customPrompt,
+		options.secrets,
+		options.systemPrompt,
+		browserEnabled,
+	);
+	const memContext = buildMemoryContext(workspaceId);
+	const withMemory = memContext ? `${memContext}\n\n${rawSystemPrompt}` : rawSystemPrompt;
+	const systemPrompt =
+		agentId === "cursor"
+			? `${withMemory}\n\nAfter calling \`kanban_set_plan\`, call the \`task_complete\` MCP tool to signal that you are done.`
+			: withMemory;
+
+	const mcpConfigPath = agentId !== "opencode" && agentId !== "cursor" ? getMcpConfigPath(streamId) : undefined;
+	const hookServerPort =
+		agentId === "codex" || agentId === "opencode" || agentId === "cursor"
+			? getServerPort(options.serverUrl)
+			: undefined;
+	const mcpServer =
+		agentId === "codex" || agentId === "opencode" || agentId === "cursor"
+			? buildWhippedMcpServerSpec(options.mcpBinary, options.serverUrl, workspaceId, agentId)
+			: undefined;
+
+	const browserMcp: BrowserMcpServer | undefined = browserEnabled ? buildBrowserMcpServer(card.id) : undefined;
+	const browserMcpSpec = browserMcp ? { command: browserMcp.command, args: browserMcp.args } : undefined;
+	const extraMcpServers = browserMcpSpec ? { [PLAYWRIGHT_MCP_SERVER_NAME]: browserMcpSpec } : undefined;
+
+	if (agentId === "claude" && mcpConfigPath) {
+		await writeClaudeMcpConfig(
+			options.mcpBinary,
+			options.serverUrl,
+			workspaceId,
+			agentId,
+			mcpConfigPath,
+			extraMcpServers,
+		).catch(() => {});
+	}
+
+	await appendActivityLog(workspaceId, card.id, `${slot.name} running (${agentId})`);
+	await appendTerminalSession(workspaceId, card.id, {
+		streamId,
+		type: slot.id,
+		startedAt: Date.now(),
+		agentId,
+		state: "running",
+	});
+	stateHub.broadcastWorkspaceUpdate(workspaceId);
+
+	const secretsEnv = buildSecretsEnv(options.secrets);
+	await runAgentOnce(
+		agentId,
+		"Start planning.",
+		worktreePath,
+		workspaceId,
+		streamId,
+		stateHub,
+		options.registerStopCallback,
+		options.registerLiveProcess,
+		mcpConfigPath,
+		systemPrompt,
+		undefined,
+		secretsEnv,
+		pair.effort,
+		hookServerPort,
+		mcpServer,
+		pair.model,
+		slot.type,
+		browserMcpSpec,
+	);
+
+	await endTerminalSession(workspaceId, card.id, streamId, Date.now(), "completed");
+	await appendActivityLog(workspaceId, card.id, `${slot.name}: plan saved`);
+	stateHub.broadcastWorkspaceUpdate(workspaceId);
 }
 
 async function getMcpComment(

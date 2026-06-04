@@ -16,7 +16,9 @@ import {
 	type RuntimeTerminalSessionEntry,
 	type RuntimeWorkspaceStateResponse,
 	type RuntimeWorkspaceStateSaveRequest,
+	resolveWorkflowForCard,
 	runtimeProjectConfigSchema,
+	snapshotModelConfig,
 } from "../core/api-contract.js";
 import { generateTaskId } from "../core/task-id.js";
 import { getDb } from "./db.js";
@@ -60,6 +62,9 @@ interface CardRow {
 	depends_on_id: string | null;
 	slack_message_ts: string | null;
 	slack_channel_id: string | null;
+	plan: string | null;
+	active_level: string;
+	model_config_json: string | null;
 	created_at: number;
 	updated_at: number;
 }
@@ -84,6 +89,7 @@ function cardFromRow(row: CardRow, children: ReturnType<typeof loadCardChildren>
 		waitsFor: children.waitsFor,
 		subtaskIds: children.subtaskIds,
 		autoFixAttempts: row.auto_fix_attempts,
+		activeLevel: (row.active_level as RuntimeBoardCard["activeLevel"]) ?? "medium",
 		baseRef: row.base_ref,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
@@ -104,6 +110,10 @@ function cardFromRow(row: CardRow, children: ReturnType<typeof loadCardChildren>
 	if (row.depends_on_id) card.dependsOn = row.depends_on_id;
 	if (row.slack_message_ts) card.slackMessageTs = row.slack_message_ts;
 	if (row.slack_channel_id) card.slackChannelId = row.slack_channel_id;
+	if (row.plan) card.plan = row.plan;
+	if (row.model_config_json) {
+		card.modelConfig = safeJsonParse(row.model_config_json, undefined as RuntimeBoardCard["modelConfig"]);
+	}
 	return card;
 }
 
@@ -216,14 +226,16 @@ function upsertCardRow(
 			agent_id, priority, auto_fix_attempts, base_ref, workflow_id,
 			github_issue_url, pr_json, jira_key, jira_url, github_comment_ids_json,
 			worktree_path, branch_name, depends_on_id,
-			slack_message_ts, slack_channel_id, created_at, updated_at
+			slack_message_ts, slack_channel_id,
+			plan, active_level, model_config_json, created_at, updated_at
 		) VALUES (
 			?, ?, ?, ?,
 			?, ?, ?, ?,
 			?, ?, ?, ?, ?,
 			?, ?, ?, ?, ?,
 			?, ?, ?,
-			?, ?, ?, ?
+			?, ?,
+			?, ?, ?, ?, ?
 		) ON CONFLICT(id) DO UPDATE SET
 			description = excluded.description,
 			description_attachments_json = excluded.description_attachments_json,
@@ -246,6 +258,9 @@ function upsertCardRow(
 			depends_on_id = excluded.depends_on_id,
 			slack_message_ts = excluded.slack_message_ts,
 			slack_channel_id = excluded.slack_channel_id,
+			plan = excluded.plan,
+			active_level = excluded.active_level,
+			model_config_json = excluded.model_config_json,
 			updated_at = excluded.updated_at`,
 	).run(
 		card.id,
@@ -271,6 +286,9 @@ function upsertCardRow(
 		card.dependsOn ?? null,
 		card.slackMessageTs ?? null,
 		card.slackChannelId ?? null,
+		card.plan ?? null,
+		card.activeLevel ?? "medium",
+		card.modelConfig ? JSON.stringify(card.modelConfig) : null,
 		card.createdAt,
 		card.updatedAt,
 	);
@@ -769,6 +787,8 @@ export async function createCard(
 				| "workflowId"
 				| "descriptionAttachments"
 				| "branchName"
+				| "modelConfig"
+				| "activeLevel"
 			>
 		>,
 	baseRef: string,
@@ -778,6 +798,13 @@ export async function createCard(
 	const now = Date.now();
 	const type = data.type ?? "task";
 	const columnId = data.columnId ?? "todo";
+
+	// Snapshot the resolved workflow's per-slot model config onto the card so the
+	// ticket can tune cost independently. An explicit modelConfig (edited before
+	// creation) wins over the snapshot.
+	const projectConfig = loadProjectConfigInternal(workspaceId);
+	const workflow = resolveWorkflowForCard(projectConfig.workflows, { workflowId: data.workflowId, type });
+	const modelConfig = data.modelConfig ?? snapshotModelConfig(workflow);
 
 	const card: RuntimeBoardCard = {
 		id,
@@ -791,6 +818,8 @@ export async function createCard(
 		waitsFor: data.waitsFor ?? [],
 		subtaskIds: data.subtaskIds ?? [],
 		autoFixAttempts: 0,
+		activeLevel: data.activeLevel ?? "medium",
+		modelConfig,
 		baseRef,
 		createdAt: now,
 		updatedAt: now,
@@ -1066,6 +1095,9 @@ export async function updateCard(
 			| "branchName"
 			| "slackMessageTs"
 			| "slackChannelId"
+			| "plan"
+			| "activeLevel"
+			| "modelConfig"
 		>
 	>,
 ): Promise<RuntimeBoardCard> {

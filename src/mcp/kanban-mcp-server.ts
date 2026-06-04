@@ -38,6 +38,7 @@ const ROUTES: Record<string, RestRoute> = {
 	"cards.addReviewComment": { method: "POST", path: () => "cards/add-review-comment" },
 	"cards.interruptTask": { method: "POST", path: () => "cards/interrupt-task" },
 	"cards.setPrMeta": { method: "POST", path: () => "cards/set-pr-meta" },
+	"cards.setPlan": { method: "POST", path: () => "cards/set-plan" },
 	"workflows.upsert": { method: "POST", path: () => "workflows" },
 	"projectConfig.setGitInstructions": { method: "POST", path: () => "project-config/git-instructions" },
 	"projectConfig.setSystemPrompt": { method: "POST", path: () => "project-config/system-prompt" },
@@ -513,10 +514,18 @@ server.registerTool(
 				.describe("Specific issues found during review"),
 			attachments: z.array(attachmentInputSchema).optional().describe("File attachments (e.g. screenshots, PDFs)"),
 			metadata: z.record(z.string(), z.unknown()).optional().describe("Additional metadata key-value pairs"),
+			suggestedLevel: z
+				.enum(["minimal", "low", "medium", "high", "max"])
+				.optional()
+				.describe(
+					"Only for review slots allowed to adjust the tier: the model level the rework should run at when you fail/reopen. Omit to leave it unchanged.",
+				),
 		},
 	},
-	async ({ cardId, type, streamId, summary, status, issues, attachments, metadata }) => {
+	async ({ cardId, type, streamId, summary, status, issues, attachments, metadata, suggestedLevel }) => {
 		const processedAttachments = attachments?.length ? await processAttachments(attachments, cardId) : undefined;
+		// suggestedLevel rides on the comment metadata; the review pipeline reads it on reopen.
+		const mergedMetadata = suggestedLevel ? { ...(metadata ?? {}), suggestedLevel } : metadata;
 
 		await apiMutate("cards.addReviewComment", {
 			workspaceId,
@@ -528,9 +537,25 @@ server.registerTool(
 			summary,
 			issues,
 			attachments: processedAttachments,
-			metadata,
+			metadata: mergedMetadata,
 		});
 		return { content: [{ type: "text", text: `Comment recorded on card ${cardId}.` }] };
+	},
+);
+
+server.registerTool(
+	"kanban_set_plan",
+	{
+		description:
+			"Save an implementation plan onto a card. Called by the plan agent when it finishes; the dev agent then reads this plan to implement the task.",
+		inputSchema: {
+			cardId: z.string().describe("The card ID to save the plan on"),
+			plan: z.string().describe("The implementation plan — files to change, approach, edge cases, verification steps"),
+		},
+	},
+	async ({ cardId, plan }) => {
+		await apiMutate("cards.setPlan", { workspaceId, cardId, plan });
+		return { content: [{ type: "text", text: `Plan saved on card ${cardId}.` }] };
 	},
 );
 
@@ -580,12 +605,22 @@ server.registerTool(
 					id: string;
 					type: string;
 					name: string;
-					agentBinary: string;
 					order: number;
 					enabled: boolean;
 					prompt: { source: "inline"; text: string } | { source: "file"; path: string };
-					effort?: string | null;
-					model?: string | null;
+					pairs: Array<{
+						id: string;
+						level: string;
+						isFree: boolean;
+						binary: string;
+						model?: string | null;
+						effort?: string | null;
+					}>;
+					defaultPairId: string;
+					preferFree: boolean;
+					tools: string[];
+					canAdjustLevel: boolean;
+					rerun: boolean;
 				}>;
 			}>
 		>("workflows.list", { workspaceId });
@@ -597,8 +632,20 @@ server.registerTool(
 			const sorted = [...wf.slots].sort((a, b) => a.order - b.order);
 			for (const slot of sorted) {
 				const status = slot.enabled ? "enabled" : "disabled";
-				const modelTag = slot.model ? `, model: ${slot.model}` : "";
-				const effortTag = slot.effort ? `, effort: ${slot.effort}` : "";
+				const def = slot.pairs.find((p) => p.id === slot.defaultPairId) ?? slot.pairs[0];
+				const defTag = def
+					? `, default: ${def.binary}${def.model ? `/${def.model}` : ""}@${def.level}${def.effort ? `/${def.effort}` : ""}`
+					: "";
+				const pairsTag = `, ${slot.pairs.length} tier(s)`;
+				const toolsTag = slot.tools.length ? `, tools: ${slot.tools.join("+")}` : "";
+				const flags = [
+					slot.preferFree ? "preferFree" : "",
+					slot.canAdjustLevel ? "canAdjustLevel" : "",
+					slot.rerun ? "rerun" : "",
+				]
+					.filter(Boolean)
+					.join(",");
+				const flagsTag = flags ? `, ${flags}` : "";
 				const promptText =
 					slot.prompt && typeof slot.prompt === "object"
 						? slot.prompt.source === "inline"
@@ -607,7 +654,7 @@ server.registerTool(
 						: "";
 				const prompt = promptText ? `\n    prompt: ${promptText}` : "";
 				lines.push(
-					`  - [${slot.id}] ${slot.name} (${slot.type}, ${slot.agentBinary}${modelTag}, ${status}${effortTag})${prompt}`,
+					`  - [${slot.id}] ${slot.name} (${slot.type}${defTag}${pairsTag}, ${status}${toolsTag}${flagsTag})${prompt}`,
 				);
 			}
 		}
@@ -628,46 +675,69 @@ server.registerTool(
 				.boolean()
 				.optional()
 				.describe(
-					"True for story/orchestrator workflows (orch slots only). False for regular task workflows (dev/code_review/qa/custom slots).",
+					"True for story/orchestrator workflows (orch slots only). False for regular task workflows (plan/dev/review slots).",
 				),
 			slots: z
 				.array(
 					z.object({
 						id: z.string().describe("Unique slot ID within this workflow"),
 						type: z
-							.enum(["dev", "code_review", "qa", "custom", "orch"])
+							.enum(["dev", "review", "plan", "orch"])
 							.describe(
-								"Slot type. Use 'orch' for story orchestrator slots. Task workflows use dev/code_review/qa/custom.",
+								"Slot type. 'dev' implements (only slot with write access). 'review' is a one-shot reviewer — chain several via order, grant tools as needed. 'plan' runs once before dev and saves a plan on the card. 'orch' is story-only.",
 							),
 						name: z.string().describe("Display name for this slot"),
-						agentBinary: z
-							.enum(["claude", "codex", "opencode", "cursor"])
-							.describe(
-								"Agent binary to use. 'claude' = Claude Code CLI, 'codex' = OpenAI Codex CLI, 'opencode' = OpenCode CLI, 'cursor' = Cursor Agent CLI.",
-							),
 						order: z.number().int().nonnegative().describe("Execution order (0 = first)"),
 						enabled: z.boolean().describe("Whether this slot is active in the pipeline"),
 						prompt: z
 							.string()
 							.describe("System prompt / instructions for this agent slot. Empty string for default behavior."),
-						effort: z
-							.enum(["low", "medium", "high", "xhigh", "max"])
-							.nullable()
+						pairs: z
+							.array(
+								z.object({
+									id: z.string().describe("Unique pair ID within this slot"),
+									level: z
+										.enum(["minimal", "low", "medium", "high", "max"])
+										.describe("Capability level. The card's active level selects which pair runs."),
+									isFree: z.boolean().describe("Whether this pair uses a zero-cost model"),
+									binary: z
+										.enum(["claude", "codex", "opencode", "cursor"])
+										.describe("Agent binary: claude / codex / opencode / cursor."),
+									model: z
+										.string()
+										.nullable()
+										.optional()
+										.describe("Model override, or null for the agent default (e.g. 'claude-opus-4-6', 'gpt-5.5')."),
+									effort: z
+										.enum(["low", "medium", "high", "xhigh", "max"])
+										.nullable()
+										.optional()
+										.describe("Reasoning effort override, or null for the agent default."),
+								}),
+							)
+							.min(1)
+							.describe("Model tiers for this slot. At least one. The card copies these and picks one by level."),
+						defaultPairId: z.string().describe("The pair id used by default (must match one of pairs[].id)."),
+						preferFree: z
+							.boolean()
 							.optional()
-							.describe(
-								"Reasoning effort override. Claude accepts all five; codex collapses 'max' to 'xhigh' (codex's highest). Omit or pass null to use the agent's default.",
-							),
-						model: z
-							.string()
-							.nullable()
+							.describe("When true, prefer a free pair at the active level over a paid one."),
+						tools: z
+							.array(z.enum(["browser"]))
 							.optional()
-							.describe(
-								"Model override. Omit or pass null to use the agent's default. Claude: 'claude-opus-4-7' | 'claude-opus-4-6' | 'claude-sonnet-4-6' | 'claude-sonnet-4-5' | 'claude-haiku-4-5' (or aliases 'opus' / 'sonnet' / 'haiku'). Codex (ChatGPT-account-supported): 'gpt-5.5' | 'gpt-5.4' | 'gpt-5.4-mini' | 'gpt-5.3-codex' | 'gpt-5.2'. Other model strings are accepted but may be rejected by the agent at runtime.",
-							),
+							.describe("Tools granted to this slot, e.g. ['browser'] for Playwright UI control."),
+						canAdjustLevel: z
+							.boolean()
+							.optional()
+							.describe("review slots only: may set the card's active level on reopen via suggestedLevel."),
+						rerun: z
+							.boolean()
+							.optional()
+							.describe("plan slots only: re-run the plan even if the card already has one."),
 					}),
 				)
 				.describe(
-					"For task workflows: always include a dev slot (type: 'dev', order: 0). For story workflows: use only orch slots.",
+					"For task workflows: always include a dev slot (type: 'dev'). Add plan and/or review slots as needed. For story workflows: use only orch slots.",
 				),
 		},
 	},

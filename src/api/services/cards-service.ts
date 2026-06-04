@@ -646,6 +646,13 @@ export const setPrMetaService = async (
 	return { ok: true, pr: nextPr };
 };
 
+export const setPlanService = async (workspaceId: string, cardId: string, plan: string): Promise<{ ok: true }> => {
+	const board = await loadBoard(workspaceId);
+	if (!board.cards[cardId]) throw NotFoundError("Card");
+	await updateCard(workspaceId, cardId, { plan });
+	return { ok: true };
+};
+
 export const getDiffService = async (
 	workspaceId: string,
 	cardId: string,

@@ -26,6 +26,7 @@ import {
 	moveCardService,
 	prepareStartAgentService,
 	resumeAllService,
+	setPlanService,
 	setPrMetaService,
 	stopAllService,
 	submitHumanFeedbackService,
@@ -273,6 +274,17 @@ export const cardsController = new Hono<AppEnv>()
 			const ctx = c.var.ctx;
 			const { workspaceId, cardId, title, description, updatedBy } = c.req.valid("json");
 			const result = await setPrMetaService(workspaceId, cardId, title, description, updatedBy);
+			ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
+			return c.json(result);
+		},
+	)
+	.post(
+		"/set-plan",
+		zv("json", z.object({ workspaceId: z.string(), cardId: z.string(), plan: z.string() })),
+		async (c) => {
+			const ctx = c.var.ctx;
+			const { workspaceId, cardId, plan } = c.req.valid("json");
+			const result = await setPlanService(workspaceId, cardId, plan);
 			ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 			return c.json(result);
 		},

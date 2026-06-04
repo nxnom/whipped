@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Controller, FormProvider, useFieldArray, useForm } from "react-hook-form";
 import { FilePickerDialog } from "@/components/FilePickerDialog";
 import { defaultPromptPath, showPromptLinkDialog } from "../PromptLinkDialog";
-import { slotDefaults } from "./constants";
+import { defaultSlotModelFields, slotDefaults } from "./constants";
 import { promptInlineText } from "./helpers";
 import { SlotConfigPanel } from "./SlotConfigPanel";
 import { SlotInstructionsEditor } from "./SlotInstructionsEditor";
@@ -46,7 +46,12 @@ export function WorkflowEditorDialog({
 	const isDefault = watch("isDefault");
 	const forStory = watch("forStory");
 
-	const sortedSlots = [...watchedSlots].sort((a, b) => a.order - b.order);
+	// Plan always renders first (it runs once before everything else), then by order.
+	const sortedSlots = [...watchedSlots].sort((a, b) => {
+		if (a.type === "plan" && b.type !== "plan") return -1;
+		if (b.type === "plan" && a.type !== "plan") return 1;
+		return a.order - b.order;
+	});
 	const [selectedSlotId, setSelectedSlotId] = useState<string>(sortedSlots[0]?.id ?? "");
 
 	const selectedIndex = watchedSlots.findIndex((s) => s.id === selectedSlotId);
@@ -156,28 +161,28 @@ export function WorkflowEditorDialog({
 		setSelectedSlotId(updated[0]?.id ?? "");
 	};
 
-	const hasCR = watchedSlots.some((s) => s.type === "code_review");
-	const hasQA = watchedSlots.some((s) => s.type === "qa");
+	const hasPlan = watchedSlots.some((s) => s.type === "plan");
 
-	const addSlot = (type: "code_review" | "qa" | "custom" | "orch") => {
+	const addSlot = (type: "review" | "plan" | "orch") => {
 		const maxOrder = getValues("slots").reduce((m, s) => Math.max(m, s.order), 0);
 		const d = slotDefaults(type);
 		const newSlot: WorkflowSlotForm = {
 			id: d.id,
 			name: d.name,
 			type,
-			agentBinary: defaultBinary,
 			order: maxOrder + 1,
 			enabled: d.enabled,
 			prompt: EMPTY_INLINE_PROMPT,
-			effort: null,
-			model: null,
+			...defaultSlotModelFields(defaultBinary),
+			tools: [],
+			canAdjustLevel: false,
+			rerun: false,
 		};
 		append(newSlot);
 		setSelectedSlotId(newSlot.id);
 	};
 
-	const nameEditable = selectedSlot?.type === "custom" || selectedSlot?.type === "orch";
+	const nameEditable = selectedSlot?.type === "review" || selectedSlot?.type === "orch";
 
 	return (
 		<FormProvider {...methods}>
@@ -222,8 +227,7 @@ export function WorkflowEditorDialog({
 							sortedSlots={sortedSlots}
 							selectedSlotId={selectedSlotId}
 							forStory={forStory}
-							hasCR={hasCR}
-							hasQA={hasQA}
+							hasPlan={hasPlan}
 							onSwitchSlot={switchSlot}
 							onAddSlot={addSlot}
 						/>
@@ -256,6 +260,7 @@ export function WorkflowEditorDialog({
 						selectedIndex={selectedIndex}
 						nameEditable={nameEditable}
 						isNew={isNew}
+						defaultBinary={defaultBinary}
 						updateSlot={updateSlot}
 						onDeleteSlot={handleDeleteSlot}
 						onSave={handleSave}

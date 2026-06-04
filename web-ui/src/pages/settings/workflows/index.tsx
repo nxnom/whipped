@@ -15,11 +15,12 @@ import { useRef, useState } from "react";
 import { useWrite } from "@/runtime/api-client";
 import { classNames } from "@/utils/classNames";
 import { WorkflowEditorDialog } from "./WorkflowEditorDialog";
+import { defaultSlotModelFields } from "./WorkflowEditorDialog/constants";
 
 function slotTypeColor(type: string): string {
 	if (type === "dev") return "#3b82f6";
-	if (type === "code_review") return "#f59e0b";
-	if (type === "qa") return "#22c55e";
+	if (type === "plan") return "#eab308";
+	if (type === "review") return "#22c55e";
 	if (type === "orch") return "#7c6aff";
 	return "#8888a0";
 }
@@ -35,7 +36,11 @@ function WorkflowCard({
 	onDelete: (e: React.MouseEvent) => void;
 	onSetDefault: (e: React.MouseEvent) => void;
 }) {
-	const sortedSlots = [...workflow.slots].sort((a, b) => a.order - b.order);
+	const sortedSlots = [...workflow.slots].sort((a, b) => {
+		if (a.type === "plan" && b.type !== "plan") return -1;
+		if (b.type === "plan" && a.type !== "plan") return 1;
+		return a.order - b.order;
+	});
 	const [hovered, setHovered] = useState(false);
 	return (
 		<div
@@ -83,23 +88,34 @@ function WorkflowCard({
 				</div>
 				{/* Slot pipeline */}
 				<div className="flex items-center flex-wrap gap-1.5">
-					{sortedSlots.map((slot, idx) => (
-						<div key={slot.id} className="flex items-center gap-1.5">
-							{idx > 0 && <ArrowRight size={11} className="text-[#2a2a35]" />}
-							<div
-								className="flex items-center gap-[6px] bg-[#0c0c0f] border border-[#222228] rounded-md px-[9px] py-[5px]"
-								style={{ opacity: slot.enabled ? 1 : 0.35 }}
-							>
+					{sortedSlots.map((slot, idx) => {
+						const prev = sortedSlots[idx - 1];
+						const showArrow = idx > 0 && !(prev?.type === "plan" && !prev.rerun);
+						return (
+							<div key={slot.id} className="flex items-center gap-1.5">
+								{showArrow && <ArrowRight size={11} className="text-[#2a2a35]" />}
 								<div
-									className="w-[7px] h-[7px] rounded-full shrink-0"
-									style={{ background: slot.enabled ? slotTypeColor(slot.type) : "#3a3a45" }}
-								/>
-								<span className="text-[11px] font-medium text-[#c0c0d0]">{slot.name}</span>
-								<span className="font-mono text-[10px] text-[#f59e0b80]">{slot.agentBinary}</span>
-								{slot.model && <span className="font-mono text-[10px] text-[#3a3a45]">{slot.model}</span>}
+									className="flex items-center gap-[6px] bg-[#0c0c0f] border border-[#222228] rounded-md px-[9px] py-[5px]"
+									style={{ opacity: slot.enabled ? 1 : 0.35 }}
+								>
+									<div
+										className="w-[7px] h-[7px] rounded-full shrink-0"
+										style={{ background: slot.enabled ? slotTypeColor(slot.type) : "#3a3a45" }}
+									/>
+									<span className="text-[11px] font-medium text-[#c0c0d0]">{slot.name}</span>
+									{(() => {
+										const def = slot.pairs.find((p) => p.id === slot.defaultPairId) ?? slot.pairs[0];
+										return (
+											<>
+												<span className="font-mono text-[10px] text-[#f59e0b80]">{def?.binary}</span>
+												{def?.model && <span className="font-mono text-[10px] text-[#3a3a45]">{def.model}</span>}
+											</>
+										);
+									})()}
+								</div>
 							</div>
-						</div>
-					))}
+						);
+					})}
 					{sortedSlots.length === 0 && <span className="text-[11px] text-[#3a3a45]">No slots</span>}
 				</div>
 			</div>
@@ -190,10 +206,13 @@ export function WorkflowsSection({
 							id: "orch",
 							type: "orch",
 							name: "Orchestrator",
-							agentBinary: defaultBinary,
 							order: 0,
 							enabled: true,
 							prompt: EMPTY_INLINE_PROMPT,
+							...defaultSlotModelFields(defaultBinary),
+							tools: [],
+							canAdjustLevel: false,
+							rerun: false,
 						},
 					]
 				: [
@@ -201,10 +220,13 @@ export function WorkflowsSection({
 							id: "dev",
 							type: "dev",
 							name: "Dev",
-							agentBinary: defaultBinary,
 							order: 0,
 							enabled: true,
 							prompt: EMPTY_INLINE_PROMPT,
+							...defaultSlotModelFields(defaultBinary),
+							tools: [],
+							canAdjustLevel: false,
+							rerun: false,
 						},
 					],
 		};

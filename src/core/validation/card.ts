@@ -1,5 +1,16 @@
 import { z } from "zod";
-import { runtimeCardCreateRequestSchema, runtimeCardPrioritySchema } from "../api-contract.js";
+import { runtimeCardCreateRequestSchema, runtimeCardPrioritySchema, tierLevelSchema } from "../api-contract.js";
+import { modelPairFormSchema } from "./workflow.js";
+
+// Form-side per-ticket model config. Mirrors the contract's cardModelConfig but
+// uses the no-default pair form schema so RHF's input/output types stay identical.
+export const slotModelConfigFormSchema = z.object({
+	pairs: z.array(modelPairFormSchema).min(1),
+	defaultPairId: z.string(),
+	preferFree: z.boolean(),
+});
+export const cardModelConfigFormSchema = z.record(z.string(), slotModelConfigFormSchema);
+export type CardModelConfigForm = z.infer<typeof cardModelConfigFormSchema>;
 
 // Priority is optional in the form: an empty string means "no priority". We keep
 // the runtime priority enum as the source of truth and widen it with "" so the
@@ -32,10 +43,13 @@ export const subtaskDraftSchema = z.object({
 });
 export type SubtaskDraftForm = z.infer<typeof subtaskDraftSchema>;
 
-// Task creation: a single card with description + shared config.
+// Task creation: a single card with description + shared config. Per-ticket model
+// tiers (activeLevel + modelConfig) are edited here and snapshotted onto the card.
 export const createTaskFormSchema = z.object({
 	description: z.string().min(1, "Description is required"),
 	...sharedConfigShape,
+	activeLevel: tierLevelSchema,
+	modelConfig: cardModelConfigFormSchema,
 });
 export type CreateTaskForm = z.infer<typeof createTaskFormSchema>;
 

@@ -52,8 +52,94 @@ export const MODEL_OPTIONS: Record<RuntimeAgentId, ReadonlyArray<{ value: string
 
 // ─── Workflows ───────────────────────────────────────────────────────────────
 
-export const workflowSlotTypeSchema = z.enum(["dev", "code_review", "qa", "custom", "orch"]);
+// dev     — implements the task (the only slot with write access to the worktree).
+// review  — one-shot reviewer; replaces the old code_review/qa/custom slots. Tools
+//           (e.g. browser) are granted per slot, and several review slots can be
+//           chained (dev → review1 → reviewN) via `order`.
+// plan    — one-shot planner; runs once before dev and saves a plan onto the card.
+// orch    — story-only orchestrator over subtasks.
+export const workflowSlotTypeSchema = z.enum(["dev", "review", "plan", "orch"]);
 export type WorkflowSlotType = z.infer<typeof workflowSlotTypeSchema>;
+
+// ─── Model tiers ───────────────────────────────────────────────────────────────
+// A slot carries a list of model "pairs", each tagged with a capability level and
+// a free/paid flag. The card has one workflow-wide active level; every slot
+// resolves that level to its own pair (see resolvePair). The review agent may set
+// the active level on reopen (canAdjustLevel) — e.g. a trivial change → "minimal".
+export const tierLevelSchema = z.enum(["minimal", "low", "medium", "high", "max"]);
+export type TierLevel = z.infer<typeof tierLevelSchema>;
+
+// Ordered cheapest/least-capable → smartest. Used for nearest-level fallback.
+export const LEVEL_ORDER = ["minimal", "low", "medium", "high", "max"] as const;
+
+export const TIER_LEVEL_OPTIONS: ReadonlyArray<{ value: TierLevel; label: string }> = [
+	{ value: "minimal", label: "Minimal" },
+	{ value: "low", label: "Low" },
+	{ value: "medium", label: "Medium" },
+	{ value: "high", label: "High" },
+	{ value: "max", label: "Max" },
+];
+
+export const modelPairSchema = z.object({
+	id: z.string(),
+	level: tierLevelSchema,
+	isFree: z.boolean().default(false),
+	binary: runtimeAgentIdSchema,
+	model: z.string().nullable().optional(),
+	effort: effortLevelSchema.nullable().optional(),
+});
+export type ModelPair = z.infer<typeof modelPairSchema>;
+
+// Tools a slot may reach for. Granted per slot (not per agent type). Extend by
+// adding an id here and registering the matching MCP server in the review pipeline.
+export const SLOT_TOOL_IDS = ["browser"] as const;
+export const slotToolSchema = z.enum(SLOT_TOOL_IDS);
+export type SlotTool = z.infer<typeof slotToolSchema>;
+
+export const SLOT_TOOL_OPTIONS: ReadonlyArray<{ value: SlotTool; label: string }> = [
+	{ value: "browser", label: "Browser control" },
+];
+
+// The per-slot model config that is snapshotted onto a card at creation, so each
+// ticket can tune cost independently of the workflow template.
+export const slotModelConfigSchema = z.object({
+	pairs: z.array(modelPairSchema).min(1),
+	defaultPairId: z.string(),
+	preferFree: z.boolean().default(false),
+});
+export type SlotModelConfig = z.infer<typeof slotModelConfigSchema>;
+
+// Card-level snapshot: slotId → its model config.
+export const cardModelConfigSchema = z.record(z.string(), slotModelConfigSchema);
+export type CardModelConfig = z.infer<typeof cardModelConfigSchema>;
+
+// Resolve which pair a slot should use for the card's active level. Capability
+// (level) takes priority over cost: among pairs at the active level, preferFree
+// picks a free one if present, else the default/paid pair. If no pair exists at
+// the active level, walk down to the nearest lower level.
+//
+// preferFree only kicks in on a later iteration (a reopen/rework) — the first run
+// always uses the default/paid pair so quality isn't compromised up front. Pass
+// isIteration=true once the card has been through at least one cycle.
+export function resolvePair(cfg: SlotModelConfig, activeLevel: TierLevel, isIteration = false): ModelPair {
+	const usePreferFree = cfg.preferFree && isIteration;
+	const startIdx = LEVEL_ORDER.indexOf(activeLevel);
+	for (let i = startIdx; i >= 0; i--) {
+		const level = LEVEL_ORDER[i];
+		const candidates = cfg.pairs.filter((p) => p.level === level);
+		if (candidates.length === 0) continue;
+		if (usePreferFree) {
+			const free = candidates.find((p) => p.isFree);
+			if (free) return free;
+		}
+		const pick =
+			candidates.find((p) => p.id === cfg.defaultPairId) ?? candidates.find((p) => !p.isFree) ?? candidates[0];
+		if (pick) return pick;
+	}
+	const fallback = cfg.pairs.find((p) => p.id === cfg.defaultPairId) ?? cfg.pairs[0];
+	if (!fallback) throw new Error("resolvePair: slot has no model pairs");
+	return fallback;
+}
 
 // Prompt value: either inline text or a path to a file (relative to repo root,
 // or absolute). The zod preprocess accepts a bare string for legacy data and
@@ -77,14 +163,38 @@ export const workflowSlotSchema = z.object({
 	id: z.string(),
 	type: workflowSlotTypeSchema,
 	name: z.string(),
-	agentBinary: runtimeAgentIdSchema,
 	order: z.number().int().nonnegative(),
 	enabled: z.boolean(),
 	prompt: promptValueSchema.default(EMPTY_INLINE_PROMPT),
-	effort: effortLevelSchema.nullable().optional(),
-	model: z.string().nullable().optional(),
+	// Model tiers for this slot. Copied to the card at creation; the card's active
+	// level + preferFree select which pair actually runs (see resolvePair).
+	pairs: z.array(modelPairSchema).min(1),
+	defaultPairId: z.string(),
+	preferFree: z.boolean().default(false),
+	// Tools this slot may use (e.g. "browser"). Workflow-only, not ticket-editable.
+	tools: z.array(slotToolSchema).default([]),
+	// review slots only: may set the card's active level on reopen.
+	canAdjustLevel: z.boolean().default(false),
+	// plan slots only: re-run even if a plan already exists on the card.
+	rerun: z.boolean().default(false),
 });
 export type WorkflowSlot = z.infer<typeof workflowSlotSchema>;
+
+// Starter pair used when scaffolding default workflows.
+export const DEFAULT_MODEL_PAIR: ModelPair = {
+	id: "default",
+	level: "medium",
+	isFree: false,
+	binary: "claude",
+	model: null,
+	effort: null,
+};
+
+const DEFAULT_SLOT_MODEL_FIELDS: Pick<WorkflowSlot, "pairs" | "defaultPairId" | "preferFree"> = {
+	pairs: [DEFAULT_MODEL_PAIR],
+	defaultPairId: DEFAULT_MODEL_PAIR.id,
+	preferFree: false,
+};
 
 export const workflowSchema = z.object({
 	id: z.string(),
@@ -102,31 +212,52 @@ export const DEFAULT_WORKFLOW: Workflow = {
 	forStory: false,
 	slots: [
 		{
+			id: "plan",
+			type: "plan",
+			name: "Plan",
+			order: 0,
+			enabled: false,
+			prompt: EMPTY_INLINE_PROMPT,
+			...DEFAULT_SLOT_MODEL_FIELDS,
+			tools: [],
+			canAdjustLevel: false,
+			rerun: false,
+		},
+		{
 			id: "dev",
 			type: "dev",
 			name: "Dev",
-			agentBinary: "claude",
-			order: 0,
-			enabled: true,
-			prompt: EMPTY_INLINE_PROMPT,
-		},
-		{
-			id: "code_review",
-			type: "code_review",
-			name: "Code Review",
-			agentBinary: "claude",
 			order: 1,
 			enabled: true,
 			prompt: EMPTY_INLINE_PROMPT,
+			...DEFAULT_SLOT_MODEL_FIELDS,
+			tools: [],
+			canAdjustLevel: false,
+			rerun: false,
+		},
+		{
+			id: "code_review",
+			type: "review",
+			name: "Code Review",
+			order: 2,
+			enabled: true,
+			prompt: EMPTY_INLINE_PROMPT,
+			...DEFAULT_SLOT_MODEL_FIELDS,
+			tools: [],
+			canAdjustLevel: false,
+			rerun: false,
 		},
 		{
 			id: "qa",
-			type: "qa",
+			type: "review",
 			name: "QA",
-			agentBinary: "claude",
-			order: 2,
+			order: 3,
 			enabled: false,
 			prompt: EMPTY_INLINE_PROMPT,
+			...DEFAULT_SLOT_MODEL_FIELDS,
+			tools: ["browser"],
+			canAdjustLevel: false,
+			rerun: false,
 		},
 	],
 };
@@ -141,13 +272,40 @@ export const DEFAULT_STORY_WORKFLOW: Workflow = {
 			id: "orch",
 			type: "orch",
 			name: "Orchestrator",
-			agentBinary: "claude",
 			order: 0,
 			enabled: true,
 			prompt: EMPTY_INLINE_PROMPT,
+			...DEFAULT_SLOT_MODEL_FIELDS,
+			tools: [],
+			canAdjustLevel: false,
+			rerun: false,
 		},
 	],
 };
+
+// Resolve which workflow applies to a card: explicit workflowId wins, then the
+// default workflow matching the card's story-ness, then any matching, then first.
+export function resolveWorkflowForCard(
+	workflows: Workflow[],
+	card: { workflowId?: string; type?: CardType },
+): Workflow | undefined {
+	const isStory = card.type === "story";
+	return (
+		workflows.find((w) => w.id === card.workflowId) ??
+		workflows.find((w) => w.isDefault && w.forStory === isStory) ??
+		workflows.find((w) => w.forStory === isStory) ??
+		workflows[0]
+	);
+}
+
+// Snapshot a workflow's per-slot model config onto a card at creation time.
+export function snapshotModelConfig(workflow: Workflow | undefined): CardModelConfig {
+	const config: CardModelConfig = {};
+	for (const slot of workflow?.slots ?? []) {
+		config[slot.id] = { pairs: slot.pairs, defaultPairId: slot.defaultPairId, preferFree: slot.preferFree };
+	}
+	return config;
+}
 
 // ─── Default git instructions ────────────────────────────────────────────────
 // Used when a project doesn't override `gitInstructions` in its config.
@@ -333,6 +491,13 @@ export const runtimeBoardCardSchema = z.object({
 	jiraKey: z.string().optional(),
 	jiraUrl: z.string().optional(),
 	workflowId: z.string().optional(),
+	// Plan written by the one-shot plan agent; injected into the dev agent's prompt.
+	plan: z.string().optional(),
+	// Workflow-wide capability level; every slot resolves it to its own pair.
+	activeLevel: tierLevelSchema.default("medium"),
+	// Per-slot model config, snapshotted from the workflow at creation and editable
+	// per ticket (slotId → {pairs, defaultPairId, preferFree}).
+	modelConfig: cardModelConfigSchema.optional(),
 	reviewComments: z.array(runtimeReviewCommentSchema).default([]),
 	activityLog: z.array(runtimeActivityEntrySchema).default([]),
 	terminalSessions: z.array(runtimeTerminalSessionEntrySchema).default([]),
@@ -425,24 +590,6 @@ export type RuntimeProjectSecret = z.infer<typeof runtimeProjectSecretSchema>;
 export const BUILTIN_SECRET_KEYS = ["GITHUB_TOKEN"] as const;
 export type BuiltinSecretKey = (typeof BUILTIN_SECRET_KEYS)[number];
 
-// ─── QA capabilities ──────────────────────────────────────────────────────────
-// Tools a QA agent may reach for to exercise a change. The agent opts in per its
-// own judgement; this list controls which are *available* to it. Extend by adding
-// an id here and registering the matching tool for QA slots (e.g. simulator_use,
-// computer_use later).
-export const QA_CAPABILITY_IDS = ["browser"] as const;
-export type RuntimeQaCapability = (typeof QA_CAPABILITY_IDS)[number];
-
-export const QA_CAPABILITY_OPTIONS: ReadonlyArray<{ value: RuntimeQaCapability; label: string }> = [
-	{ value: "browser", label: "Browser control" },
-];
-
-// Absent from project config = all capabilities available (auto-enabled). An
-// explicit list — including an empty one for "none" — is honored exactly.
-export function resolveQaCapabilities(ids: readonly RuntimeQaCapability[] | undefined): RuntimeQaCapability[] {
-	return ids ? [...ids] : [...QA_CAPABILITY_IDS];
-}
-
 export const runtimeProjectConfigSchema = z.object({
 	name: z.string().optional(),
 	defaultAgent: runtimeAgentIdSchema.optional(),
@@ -469,9 +616,6 @@ export const runtimeProjectConfigSchema = z.object({
 	// Dev server URL for the project, used by the browser extension as the
 	// default page to annotate.
 	previewUrl: z.string().optional(),
-	// QA capabilities the QA agent may use. Absent = all available; an explicit
-	// list (including empty, for none) is honored exactly. See resolveQaCapabilities.
-	qaCapabilities: z.array(z.enum(QA_CAPABILITY_IDS)).optional(),
 });
 export type RuntimeProjectConfig = z.infer<typeof runtimeProjectConfigSchema>;
 
@@ -526,6 +670,10 @@ export const runtimeCardCreateRequestSchema = z.object({
 	workflowId: z.string().optional(),
 	descriptionAttachments: z.array(reviewAttachmentSchema).optional(),
 	branchName: z.string().optional(),
+	// Optional per-ticket overrides edited before creation. When omitted, the card
+	// snapshots the resolved workflow's pairs and defaults to the "medium" level.
+	modelConfig: cardModelConfigSchema.optional(),
+	activeLevel: tierLevelSchema.optional(),
 });
 export type RuntimeCardCreateRequest = z.infer<typeof runtimeCardCreateRequestSchema>;
 
@@ -550,6 +698,9 @@ export const runtimeCardUpdateRequestSchema = z.object({
 	subtaskIds: z.array(z.string()).optional(),
 	workflowId: z.string().optional(),
 	branchName: z.string().optional(),
+	plan: z.string().optional(),
+	activeLevel: tierLevelSchema.optional(),
+	modelConfig: cardModelConfigSchema.optional(),
 	revision: z.number(),
 });
 export type RuntimeCardUpdateRequest = z.infer<typeof runtimeCardUpdateRequestSchema>;

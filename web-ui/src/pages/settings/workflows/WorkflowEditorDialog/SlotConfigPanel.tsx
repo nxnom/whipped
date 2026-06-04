@@ -1,14 +1,41 @@
-import { RHFSwitch } from "@geckoui/geckoui";
-import { AGENT_BINARY_OPTIONS, EFFORT_OPTIONS, type RuntimeAgentId } from "@runtime-contract";
-import type { WorkflowSlotForm } from "@runtime-validation/workflow";
-import { Check, Terminal, Trash2, Type } from "lucide-react";
-import { ModelSelect } from "../ModelSelect";
+import { Button, Input, RHFSwitch, Switch } from "@geckoui/geckoui";
+import { type RuntimeAgentId, type SlotTool, TIER_LEVEL_OPTIONS } from "@runtime-contract";
+import type { ModelPairForm, WorkflowSlotForm } from "@runtime-validation/workflow";
+import { Check, Pencil, Trash2, Type } from "lucide-react";
+import { useState } from "react";
+import { ModelTiersDialog } from "./ModelTiersDialog";
+
+function ToggleRow({
+	title,
+	description,
+	checked,
+	onChange,
+}: {
+	title: string;
+	description: string;
+	checked: boolean;
+	onChange: (checked: boolean) => void;
+}) {
+	return (
+		<div className="flex items-center gap-3">
+			<div className="flex flex-col">
+				<span className="text-[13px] text-[#c0c0d0]">{title}</span>
+				<span className="text-[11px] text-[#60607a]">{description}</span>
+			</div>
+			<div className="flex-1" />
+			<Switch checked={checked} onChange={onChange} />
+		</div>
+	);
+}
+
+const levelLabel = (level: ModelPairForm["level"]) => TIER_LEVEL_OPTIONS.find((o) => o.value === level)?.label ?? level;
 
 export function SlotConfigPanel({
 	selectedSlot,
 	selectedIndex,
 	nameEditable,
 	isNew,
+	defaultBinary,
 	updateSlot,
 	onDeleteSlot,
 	onSave,
@@ -17,10 +44,18 @@ export function SlotConfigPanel({
 	selectedIndex: number;
 	nameEditable: boolean;
 	isNew: boolean;
+	defaultBinary: RuntimeAgentId;
 	updateSlot: (patch: Partial<WorkflowSlotForm>) => void;
 	onDeleteSlot: () => void;
 	onSave: () => void;
 }) {
+	const [tiersOpen, setTiersOpen] = useState(false);
+
+	const toggleBrowser = (on: boolean) => {
+		const tools = (selectedSlot?.tools ?? []).filter((t) => t !== "browser");
+		updateSlot({ tools: on ? ([...tools, "browser"] as SlotTool[]) : tools });
+	};
+
 	return (
 		<div className="flex flex-col shrink-0 overflow-hidden w-[340px] bg-[#111115] border-l border-[#2a2a35]">
 			{/* Header */}
@@ -28,102 +63,132 @@ export function SlotConfigPanel({
 				<span className="text-[13px] font-semibold text-[#f0f0f5]">Slot Configuration</span>
 			</div>
 			{selectedSlot ? (
-				<div className="flex flex-col flex-1 overflow-y-auto p-5 gap-4">
-					{/* Name */}
-					<div className="flex flex-col gap-[5px]">
-						<span className="text-[11px] font-medium text-[#60607a] tracking-[0.3px]">Name</span>
-						<div className="flex items-center gap-2 bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-2">
-							<Type size={13} className="text-[#60607a] shrink-0" />
-							<input
+				<>
+					{/* Scrollable middle */}
+					<div className="flex flex-col flex-1 min-h-0 overflow-y-auto p-5 gap-4">
+						{/* Name */}
+						<div className="flex flex-col gap-[5px]">
+							<span className="text-[11px] font-medium text-[#60607a] tracking-[0.3px]">Name</span>
+							<Input
+								prefix={<Type size={13} className="text-[#60607a]" />}
 								value={selectedSlot.name}
 								onChange={(e) => updateSlot({ name: e.target.value })}
 								readOnly={!nameEditable}
-								className="flex-1 bg-transparent outline-none text-[12px]"
-								style={{
-									color: nameEditable ? "#c0c0d0" : "#60607a",
-									cursor: nameEditable ? "text" : "default",
-								}}
 							/>
 						</div>
-					</div>
-					{/* Agent Binary */}
-					<div className="flex flex-col gap-[5px]">
-						<span className="text-[11px] font-medium text-[#60607a] tracking-[0.3px]">Agent Binary</span>
-						<div className="flex items-center gap-2 bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-2">
-							<Terminal size={14} className="text-[#f59e0b] shrink-0" />
-							<select
-								value={selectedSlot.agentBinary}
-								onChange={(e) => updateSlot({ agentBinary: e.target.value as RuntimeAgentId, model: null })}
-								className="flex-1 bg-transparent outline-none text-[12px] text-[#c0c0d0]"
-							>
-								{AGENT_BINARY_OPTIONS.map((o) => (
-									<option key={o.value} value={o.value}>
-										{o.label}
-									</option>
-								))}
-							</select>
-						</div>
-					</div>
-					{/* Model */}
-					<div className="flex flex-col gap-[5px]">
-						<span className="text-[11px] font-medium text-[#60607a] tracking-[0.3px]">Model</span>
-						<ModelSelect
-							key={selectedSlot.agentBinary}
-							agentId={selectedSlot.agentBinary}
-							value={selectedSlot.model ?? ""}
-							onChange={(v) => updateSlot({ model: v || null })}
-						/>
-					</div>
-					{/* Effort */}
-					<div className="flex flex-col gap-[5px]">
-						<span className="text-[11px] font-medium text-[#60607a] tracking-[0.3px]">Effort</span>
-						<div className="flex items-center bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-2">
-							<select
-								value={selectedSlot.effort ?? ""}
-								onChange={(e) => updateSlot({ effort: (e.target.value as WorkflowSlotForm["effort"]) || null })}
-								className="flex-1 bg-transparent outline-none text-[12px] text-[#c0c0d0]"
-							>
-								<option value="">Default</option>
-								{EFFORT_OPTIONS.map((o) => (
-									<option key={o.value} value={o.value}>
-										{o.label}
-									</option>
-								))}
-							</select>
-						</div>
-					</div>
-					{selectedSlot.type !== "dev" && (
-						<>
-							<div className="h-px bg-[#2a2a35] shrink-0" />
-							{/* Enabled toggle */}
+
+						{/* Model tiers — read-only summary; Edit opens the table dialog */}
+						<div className="flex flex-col gap-[5px]">
 							<div className="flex items-center">
-								<span className="text-[13px] text-[#c0c0d0]">Enabled</span>
+								<span className="text-[11px] font-medium text-[#60607a] tracking-[0.3px]">Model tiers</span>
 								<div className="flex-1" />
-								{selectedIndex >= 0 && <RHFSwitch name={`slots.${selectedIndex}.enabled`} />}
+								<button
+									type="button"
+									onClick={() => setTiersOpen(true)}
+									className="flex items-center gap-1 hover:opacity-80 transition-opacity bg-transparent border border-[#2a2a35] rounded-[4px] px-2 py-[3px]"
+								>
+									<Pencil size={11} className="text-[#60607a]" />
+									<span className="text-[10px] text-[#60607a]">Edit</span>
+								</button>
 							</div>
-						</>
-					)}
-					<div className="flex-1" />
-					{/* Delete + Save */}
-					<div className="flex items-center justify-end gap-2 shrink-0">
-						{selectedSlot.type !== "dev" && (
-							<button
-								onClick={onDeleteSlot}
-								className="flex items-center gap-[5px] hover:opacity-80 transition-opacity bg-transparent border border-[#ef444440] rounded-md px-3.5 py-2"
-							>
-								<Trash2 size={13} className="text-[#ef4444]" />
-								<span className="text-[12px] text-[#ef4444]">Delete</span>
-							</button>
+							<div className="flex flex-col gap-1.5">
+								{selectedSlot.pairs.map((p) => (
+									<div
+										key={p.id}
+										className="flex items-center gap-2 bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-2"
+									>
+										<span className="text-[12px] text-[#c0c0d0] shrink-0">{levelLabel(p.level)}</span>
+										<span className="text-[11px] text-[#60607a] truncate">
+											{p.binary}
+											{p.model ? `/${p.model}` : ""}
+											{p.effort ? ` · ${p.effort}` : ""}
+										</span>
+										<div className="flex-1" />
+										{p.isFree && (
+											<span className="shrink-0 text-[9px] font-medium text-[#22c55e] bg-[#22c55e15] rounded px-1.5 py-[1px]">
+												Free
+											</span>
+										)}
+										{p.id === selectedSlot.defaultPairId && (
+											<span className="shrink-0 text-[9px] font-medium text-[#7c6aff] bg-[#7c6aff15] rounded px-1.5 py-[1px]">
+												Default
+											</span>
+										)}
+									</div>
+								))}
+							</div>
+						</div>
+
+						<ToggleRow
+							title="Prefer free"
+							description="Use a free tier over a paid one at the same level"
+							checked={selectedSlot.preferFree}
+							onChange={(c) => updateSlot({ preferFree: c })}
+						/>
+
+						{selectedSlot.type !== "orch" && (
+							<ToggleRow
+								title="Browser tool"
+								description="Playwright control to exercise a running UI"
+								checked={selectedSlot.tools.includes("browser")}
+								onChange={toggleBrowser}
+							/>
 						)}
-						<button
-							onClick={onSave}
-							className="flex items-center gap-[5px] hover:opacity-80 transition-opacity bg-[#7c6aff] rounded-md px-4 py-2"
-						>
-							<Check size={13} className="text-white" />
-							<span className="text-[12px] font-medium text-white">{isNew ? "Create" : "Save"}</span>
-						</button>
+
+						{selectedSlot.type === "review" && (
+							<ToggleRow
+								title="Can adjust tier"
+								description="Let this reviewer right-size the tier on reopen"
+								checked={selectedSlot.canAdjustLevel}
+								onChange={(c) => updateSlot({ canAdjustLevel: c })}
+							/>
+						)}
+
+						{selectedSlot.type === "plan" && (
+							<ToggleRow
+								title="Re-run"
+								description="Re-plan even if the card already has a plan"
+								checked={selectedSlot.rerun}
+								onChange={(c) => updateSlot({ rerun: c })}
+							/>
+						)}
+
+						{selectedSlot.type !== "dev" && (
+							<>
+								<div className="h-px bg-[#2a2a35] shrink-0" />
+								<div className="flex items-center">
+									<span className="text-[13px] text-[#c0c0d0]">Enabled</span>
+									<div className="flex-1" />
+									{selectedIndex >= 0 && <RHFSwitch name={`slots.${selectedIndex}.enabled`} />}
+								</div>
+							</>
+						)}
 					</div>
-				</div>
+
+					{/* Fixed footer */}
+					<div className="shrink-0 flex items-center justify-end gap-2 px-5 py-4 border-t border-[#2a2a35]">
+						{selectedSlot.type !== "dev" && (
+							<Button variant="outlined" onClick={onDeleteSlot} className="!border-[#ef444440] !text-[#ef4444]">
+								<Trash2 size={13} />
+								<span className="text-[12px]">Delete</span>
+							</Button>
+						)}
+						<Button onClick={onSave}>
+							<Check size={13} />
+							<span className="text-[12px] font-medium">{isNew ? "Create" : "Save"}</span>
+						</Button>
+					</div>
+
+					{tiersOpen && (
+						<ModelTiersDialog
+							pairs={selectedSlot.pairs}
+							defaultPairId={selectedSlot.defaultPairId}
+							defaultBinary={defaultBinary}
+							onSave={(pairs: ModelPairForm[], defaultPairId: string) => updateSlot({ pairs, defaultPairId })}
+							onClose={() => setTiersOpen(false)}
+						/>
+					)}
+				</>
 			) : (
 				<div className="flex-1 flex items-center justify-center text-[12px] text-[#4a4a5a]">
 					Select a slot to configure

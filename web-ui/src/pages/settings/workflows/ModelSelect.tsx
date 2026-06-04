@@ -8,10 +8,14 @@ export function ModelSelect({
 	agentId,
 	value,
 	onChange,
+	floatingStrategy,
+	menuClassName,
 }: {
 	agentId: RuntimeAgentId;
 	value: string;
 	onChange: (v: string) => void;
+	floatingStrategy?: "fixed" | "absolute";
+	menuClassName?: string;
 }) {
 	const staticOptions = MODEL_OPTIONS[agentId];
 	const isDynamic = agentId === "opencode" || agentId === "cursor";
@@ -20,7 +24,10 @@ export function ModelSelect({
 	// agent, so Spoosh fetches (and caches) it on mount and whenever agentId
 	// changes — no effect, and `data`/`fetching` drive the UI directly.
 	const modelsRead = useRead(
-		(api) => api("agents/models").GET({ query: { agent: agentId === "cursor" ? "cursor" : "opencode" } }),
+		(api) =>
+			api("agents/models").GET({
+				query: { agent: agentId === "cursor" ? "cursor" : "opencode" },
+			}),
 		{ enabled: isDynamic },
 	);
 	const dynamicModels = modelsRead.data ?? [];
@@ -40,6 +47,8 @@ export function ModelSelect({
 			<div className="flex gap-2">
 				<div className="flex-1">
 					<Select
+						floatingStrategy={floatingStrategy}
+						menuClassName={menuClassName}
 						value={customMode ? "__custom__" : value}
 						onChange={(v) => {
 							if (v === "__custom__") {

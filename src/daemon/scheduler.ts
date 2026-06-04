@@ -26,7 +26,10 @@ import type { AgentProcess } from "../agents/agent-runner.js";
 import { spawnAgent } from "../agents/agent-runner.js";
 import {
 	DEFAULT_GIT_INSTRUCTIONS,
+	DEFAULT_MODEL_PAIR,
 	EMPTY_INLINE_PROMPT,
+	resolvePair,
+	resolveWorkflowForCard,
 	type RuntimeAgentId,
 	type RuntimeBoardCard,
 	type WorkflowSlot,
@@ -61,6 +64,7 @@ import {
 	buildSecretsEnv,
 	buildSecretsSection,
 	runParentReopenCascade,
+	runPlanPhase,
 	tryParseAgentJson,
 } from "./review-pipeline.js";
 
@@ -281,22 +285,30 @@ export class TaskScheduler {
 
 		// Reload project config early so we can resolve the dev slot + agent binary
 		const projectConfig = await loadProjectConfig(workspaceId);
-		const isStoryCard = card.type === "story";
-		const cardWorkflow =
-			projectConfig.workflows.find((w) => w.id === card.workflowId) ??
-			projectConfig.workflows.find((w) => w.isDefault && w.forStory === isStoryCard) ??
-			projectConfig.workflows.find((w) => w.forStory === isStoryCard) ??
-			projectConfig.workflows[0];
+		const cardWorkflow = resolveWorkflowForCard(projectConfig.workflows, card);
 		const devSlotEarly: WorkflowSlot = cardWorkflow?.slots.find((s) => s.type === "dev") ?? {
 			id: "dev",
 			type: "dev" as const,
 			name: "Dev",
-			agentBinary: "claude" as const,
 			order: 0,
 			enabled: true,
 			prompt: EMPTY_INLINE_PROMPT,
+			pairs: [DEFAULT_MODEL_PAIR],
+			defaultPairId: DEFAULT_MODEL_PAIR.id,
+			preferFree: false,
+			tools: [],
+			canAdjustLevel: false,
+			rerun: false,
 		};
-		const agentId = card.agentId ?? devSlotEarly.agentBinary;
+		// Resolve the concrete model pair from the card's snapshot (preferred) or the
+		// slot template, using the card's workflow-wide active level.
+		const devModelCfg = card.modelConfig?.[devSlotEarly.id] ?? {
+			pairs: devSlotEarly.pairs,
+			defaultPairId: devSlotEarly.defaultPairId,
+			preferFree: devSlotEarly.preferFree,
+		};
+		const devPair = resolvePair(devModelCfg, card.activeLevel, card.autoFixAttempts > 0);
+		const agentId = card.agentId ?? devPair.binary;
 
 		// Guard: check agent binary is available before spawning
 		const available = getAvailableAgents().map((a) => a.id);
@@ -518,6 +530,27 @@ export class TaskScheduler {
 
 			const prompt = buildTaskPrompt();
 			const secrets = projectConfig.secrets ?? [];
+
+			// Plan phase: if the workflow has an enabled plan slot, run it once (unless a
+			// plan already exists and the slot's rerun flag is off) before dev. The plan
+			// agent saves card.plan via MCP; reload so the dev prompt picks it up.
+			const planSlot = cardWorkflow?.slots.find((s) => s.type === "plan" && s.enabled);
+			if (planSlot && (!card.plan || planSlot.rerun)) {
+				await runPlanPhase(card, planSlot, {
+					workspaceId,
+					repoPath,
+					serverUrl: this.options.serverUrl,
+					mcpBinary: getMcpServerPath(),
+					worktreePath: worktree.path,
+					stateHub,
+					secrets,
+					systemPrompt: projectConfig.systemPrompt,
+					registerStopCallback: this.registerStopCallback.bind(this),
+					registerLiveProcess: this.registerLiveProcess.bind(this),
+				});
+				card = (await loadBoard(workspaceId)).cards[taskId] ?? card;
+			}
+
 			const devSystemPromptResult = buildDevAgentSystemPrompt(
 				devSlotEarly,
 				card,
@@ -581,7 +614,7 @@ export class TaskScheduler {
 						...buildTaskHookEnv(taskId, workspaceId),
 						...secretsEnv,
 						WHIPPED_SLOT: "dev",
-						...(devSlotEarly.model ? { WHIPPED_MODEL: devSlotEarly.model } : {}),
+						...(devPair.model ? { WHIPPED_MODEL: devPair.model } : {}),
 						...(agentId === "opencode" ? { [OPENCODE_CONFIG_DIR_ENV]: getOpencodeConfigDir(taskId) } : {}),
 						...(agentId === "cursor" ? { [CURSOR_CONFIG_DIR_ENV]: getCursorConfigDir(taskId) } : {}),
 					},
@@ -600,8 +633,8 @@ export class TaskScheduler {
 								: devSystemPromptResult.text
 							: undefined,
 					files: agentId === "claude" ? devSystemPromptResult.files : undefined,
-					effort: devSlotEarly.effort ?? undefined,
-					model: devSlotEarly.model ?? undefined,
+					effort: devPair.effort ?? undefined,
+					model: devPair.model ?? undefined,
 					onOutput: (data) => {
 						runningTask.outputBuffer += data;
 						stateHub.broadcastTerminalOutput(workspaceId, devStreamId, data);
@@ -708,7 +741,9 @@ export class TaskScheduler {
 						}
 
 						if (exitCode === 0) {
-							const hasReviewSlots = (cardWorkflow?.slots ?? []).some((s) => s.type !== "dev" && s.enabled);
+							const hasReviewSlots = (cardWorkflow?.slots ?? []).some(
+								(s) => (s.type === "review" || s.type === "orch") && s.enabled,
+							);
 							if (!hasReviewSlots) {
 								await moveCard(workspaceId, taskId, "ready_for_review");
 								await appendActivityLog(workspaceId, taskId, "Agent finished → moved to Ready for Review");
@@ -999,7 +1034,9 @@ export class TaskScheduler {
 					hookConfig.workflows.find((w) => w.id === card.workflowId) ??
 					hookConfig.workflows.find((w) => w.isDefault) ??
 					hookConfig.workflows[0];
-				const hookHasReview = (hookWorkflow?.slots ?? []).some((s) => s.type !== "dev" && s.enabled);
+				const hookHasReview = (hookWorkflow?.slots ?? []).some(
+					(s) => (s.type === "review" || s.type === "orch") && s.enabled,
+				);
 				if (!hookHasReview) {
 					await moveCard(workspaceId, taskId, "ready_for_review");
 					await appendActivityLog(workspaceId, taskId, "Agent finished → moved to Ready for Review");

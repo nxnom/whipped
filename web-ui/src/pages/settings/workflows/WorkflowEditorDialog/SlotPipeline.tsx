@@ -8,18 +8,16 @@ export function SlotPipeline({
 	sortedSlots,
 	selectedSlotId,
 	forStory,
-	hasCR,
-	hasQA,
+	hasPlan,
 	onSwitchSlot,
 	onAddSlot,
 }: {
 	sortedSlots: WorkflowSlotForm[];
 	selectedSlotId: string;
 	forStory: boolean;
-	hasCR: boolean;
-	hasQA: boolean;
+	hasPlan: boolean;
 	onSwitchSlot: (slotId: string) => void;
-	onAddSlot: (type: "code_review" | "qa" | "custom" | "orch") => void;
+	onAddSlot: (type: "review" | "plan" | "orch") => void;
 }) {
 	return (
 		<div className="shrink-0 px-6 py-4 border-b border-[#2a2a35]">
@@ -39,9 +37,8 @@ export function SlotPipeline({
 							</button>
 						)}
 					</MenuTrigger>
-					{!forStory && !hasCR && <MenuItem onClick={() => onAddSlot("code_review")}>Code Review</MenuItem>}
-					{!forStory && !hasQA && <MenuItem onClick={() => onAddSlot("qa")}>QA</MenuItem>}
-					{!forStory && <MenuItem onClick={() => onAddSlot("custom")}>Custom Agent</MenuItem>}
+					{!forStory && !hasPlan && <MenuItem onClick={() => onAddSlot("plan")}>Plan</MenuItem>}
+					{!forStory && <MenuItem onClick={() => onAddSlot("review")}>Review</MenuItem>}
 					{forStory && <MenuItem onClick={() => onAddSlot("orch")}>Orch Agent</MenuItem>}
 				</Menu>
 			</div>
@@ -51,9 +48,13 @@ export function SlotPipeline({
 					const isSelected = slot.id === selectedSlotId;
 					const isDisabled = !slot.enabled;
 					const color = slotTypeColor(slot.type);
+					// A one-shot plan (rerun off) runs once and detaches from the loop — no
+					// connector arrow into the slot that follows it.
+					const prev = sortedSlots[idx - 1];
+					const showArrow = idx > 0 && !(prev?.type === "plan" && !prev.rerun);
 					return (
 						<div key={slot.id} className="flex items-center">
-							{idx > 0 && (
+							{showArrow && (
 								<div className="flex items-center justify-center w-8">
 									<ArrowRight size={14} className="text-[#2a2a35]" />
 								</div>
