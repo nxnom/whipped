@@ -1211,7 +1211,7 @@ You are a conversational project assistant. You can discuss the project, help pl
 - \`kanban_add_comment\` — record a comment on a card
 
 ## Workflows
-- \`kanban_get_workflows\` — list all workflows (task and story/orch) with their agent slots, models, and prompts
+- \`kanban_get_workflows\` — list all workflows (task and story/orch) with their agent slots, model tiers, tools, and prompts
 - \`kanban_upsert_workflow\` — create or fully replace a workflow (pass complete workflow object)
 
 ## Memory
@@ -1224,7 +1224,7 @@ The Memory section injected above this prompt lists existing memories with their
 
 # Card types
 
-**task** — a normal development ticket. Runs dev → code_review → qa (based on workflow).
+**task** — a normal development ticket. Runs an optional plan slot, then dev, then any number of review slots (based on workflow).
 
 **story** — an epic with child subtasks. After ALL subtasks complete, the story runs its orchestrator (orch) workflow which reviews the whole picture and may reopen subtasks. Use \`kanban_create_story\` to create one atomically.
 
@@ -1232,7 +1232,7 @@ The Memory section injected above this prompt lists existing memories with their
 
 # Attachments
 
-When you attach files or images to a card (the \`attachments\` parameter of \`kanban_create_card\` / \`kanban_create_story\` / \`kanban_update_card\`), don't attach them silently — **reference each one inline in the description with an \`[Attachment #N]\` token** so the downstream dev/review/QA agents know which file applies where.
+When you attach files or images to a card (the \`attachments\` parameter of \`kanban_create_card\` / \`kanban_create_story\` / \`kanban_update_card\`), don't attach them silently — **reference each one inline in the description with an \`[Attachment #N]\` token** so the downstream dev and review agents know which file applies where.
 
 - \`N\` is 1-based and must match the file's position in the \`attachments\` array you pass: first file → \`[Attachment #1]\`, second → \`[Attachment #2]\`, and so on. Keep the numbering contiguous.
 - Put each token at the point in the text where that file is relevant, e.g. "Match the layout in [Attachment #1] and use the palette from [Attachment #2]." or "Reproduce the crash shown in [Attachment #1]."
@@ -1266,8 +1266,9 @@ When asked to suggest or create a workflow:
 2. Call \`kanban_get_workflows\` to see what already exists — note that task and story workflows are separate
 3. Suggest appropriate agent slots and write focused, specific prompts for each slot
 4. Use \`kanban_upsert_workflow\` to save
-   - Task workflows: always include a dev slot (type: "dev", order: 0). Add code_review, qa, or custom slots as needed.
+   - Task workflows: always include a dev slot (type: "dev"). Optionally add a plan slot (type: "plan", runs once before dev) and any number of review slots (type: "review") — chain them via \`order\`, and grant a review slot the "browser" tool for QA-style checks.
    - Story workflows: use only orch slots (type: "orch"). Set forStory: true.
+   - Each slot carries model tiers (a pair list with a default); review slots may set \`canAdjustLevel\` to right-size the tier on reopen.
 
 Slot prompts should be specific to the project's domain and the slot's role.${secretsSection ? `\n\n${secretsSection}` : ""}${systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : ""}`;
 }

@@ -497,7 +497,7 @@ server.registerTool(
 			"Record your analysis, findings, or summary as a comment on a Kanban card. Call this when you have finished your work so your output is cleanly stored.",
 		inputSchema: {
 			cardId: z.string().describe("The card ID you are reviewing"),
-			type: z.string().describe("Type of comment — use the slot id for custom agents (e.g. 'security_review')"),
+			type: z.string().describe("Type of comment — use the slot id for review agents (e.g. 'security_review')"),
 			streamId: z.string().optional().describe("The terminal session stream ID for this agent run"),
 			summary: z.string().describe("Your summary — 2-5 sentences describing what you did or found"),
 			status: z.enum(["pass", "fail", "warning", "skipped"]).optional().describe("Result status of this review step"),
@@ -591,7 +591,8 @@ server.registerTool(
 server.registerTool(
 	"kanban_get_workflows",
 	{
-		description: "Get all workflows configured for this project, including their agent slots, models, and prompts.",
+		description:
+			"Get all workflows configured for this project, including their agent slots, model tiers, tools, and prompts.",
 		inputSchema: {},
 	},
 	async () => {
@@ -890,7 +891,7 @@ server.registerTool(
 	"kanban_get_system_prompt",
 	{
 		description:
-			"Get the shared system prompt for this project. This prompt is appended to every agent — dev, code review, QA, and the assistant chat.",
+			"Get the shared system prompt for this project. This prompt is appended to every agent — plan, dev, review, and the assistant chat.",
 		inputSchema: {},
 	},
 	async () => {
@@ -904,7 +905,7 @@ server.registerTool(
 	"kanban_set_system_prompt",
 	{
 		description:
-			"Set or update the shared system prompt for this project. The prompt is appended to every agent — dev, code review, QA, and the assistant chat. Pass an empty string to clear it.",
+			"Set or update the shared system prompt for this project. The prompt is appended to every agent — plan, dev, review, and the assistant chat. Pass an empty string to clear it.",
 		inputSchema: {
 			prompt: z.string().describe("The new shared system prompt. Pass an empty string to clear the existing prompt."),
 		},
