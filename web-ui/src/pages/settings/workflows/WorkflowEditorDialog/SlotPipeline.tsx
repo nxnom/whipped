@@ -48,15 +48,15 @@ export function SlotPipeline({
 					const isSelected = slot.id === selectedSlotId;
 					const isDisabled = !slot.enabled;
 					const color = slotTypeColor(slot.type);
-					// A one-shot plan (rerun off) runs once and detaches from the loop — no
-					// connector arrow into the slot that follows it.
+					// A one-shot plan (rerun off) runs once and detaches from the loop — keep
+					// the connector's spacing but hide the arrow so the pills don't crowd.
 					const prev = sortedSlots[idx - 1];
 					const showArrow = idx > 0 && !(prev?.type === "plan" && !prev.rerun);
 					return (
 						<div key={slot.id} className="flex items-center">
-							{showArrow && (
+							{idx > 0 && (
 								<div className="flex items-center justify-center w-8">
-									<ArrowRight size={14} className="text-[#2a2a35]" />
+									<ArrowRight size={14} className={showArrow ? "text-[#2a2a35]" : "text-transparent"} />
 								</div>
 							)}
 							<button

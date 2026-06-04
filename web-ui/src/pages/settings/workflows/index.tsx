@@ -93,7 +93,7 @@ function WorkflowCard({
 						const showArrow = idx > 0 && !(prev?.type === "plan" && !prev.rerun);
 						return (
 							<div key={slot.id} className="flex items-center gap-1.5">
-								{showArrow && <ArrowRight size={11} className="text-[#2a2a35]" />}
+								{idx > 0 && <ArrowRight size={11} className={showArrow ? "text-[#2a2a35]" : "text-transparent"} />}
 								<div
 									className="flex items-center gap-[6px] bg-[#0c0c0f] border border-[#222228] rounded-md px-[9px] py-[5px]"
 									style={{ opacity: slot.enabled ? 1 : 0.35 }}

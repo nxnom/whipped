@@ -126,7 +126,7 @@ export function SlotConfigPanel({
 							onChange={(c) => updateSlot({ preferFree: c })}
 						/>
 
-						{selectedSlot.type !== "orch" && (
+						{selectedSlot.type === "review" && (
 							<ToggleRow
 								title="Browser tool"
 								description="Playwright control to exercise a running UI"

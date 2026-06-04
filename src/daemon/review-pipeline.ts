@@ -1428,7 +1428,7 @@ function buildPlanSystemPrompt(
 	customPrompt: string,
 	secrets: RuntimeProjectSecret[],
 	systemPrompt?: string,
-	browserEnabled = false,
+	priorContext = "",
 ): string {
 	const custom = customPrompt.trim() ? `\n\n## Project-specific instructions\n\n${customPrompt.trim()}` : "";
 	const secretsSection = buildSecretsSection(secrets);
@@ -1437,17 +1437,25 @@ function buildPlanSystemPrompt(
 		(card.descriptionAttachments?.length ?? 0) > 0
 			? `\n\n**Attached files** (use Read tool to view):\n${attachmentLines(card.descriptionAttachments ?? [])}`
 			: "";
-	const browserSection = browserEnabled
-		? "\n- You may use the `browser_*` MCP tools (Playwright) to inspect the running app while planning. Call `browser_close` when done."
+
+	// Re-plan: a plan already exists and the card was reopened. Show the previous
+	// plan + the reopen feedback so the agent revises rather than starting blind.
+	const existingPlan = card.plan?.trim();
+	const replanSection = existingPlan
+		? `\n\n## You are RE-PLANNING
+This card already has a plan and was reopened for rework. Revise the plan to address the feedback below — keep the parts that still hold, change what's wrong, and don't restart from scratch.
+
+### Previous plan
+${existingPlan}${priorContext}`
 		: "";
 
 	return `You are a planning agent. You do NOT write code — you produce an implementation plan that the dev agent will follow.
 
 ## Task to plan
-${card.description ?? ""}${descAttachSection}
+${card.description ?? ""}${descAttachSection}${replanSection}
 
 ## How to work
-Explore the codebase with your tools (grep, read files) so the plan is grounded in the real code, not assumptions. Identify the files to change, the approach, edge cases, and how the work should be verified.${browserSection}${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}
+Explore the codebase with your tools (grep, read files) so the plan is grounded in the real code, not assumptions. Identify the files to change, the approach, edge cases, and how the work should be verified.${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}
 
 ## When you finish
 
@@ -1455,7 +1463,7 @@ Call the \`kanban_set_plan\` MCP tool with:
    - cardId: "${card.id}"
    - plan: a concrete, step-by-step implementation plan (files to change, approach, edge cases, verification steps)
 
-This MCP call is required — the dev agent reads this plan to implement the task.`;
+This MCP call is required — the dev agent reads this plan to implement the task. It fully replaces any previous plan.`;
 }
 
 // Options the scheduler passes to run the one-shot plan agent. A subset of
@@ -1490,14 +1498,15 @@ export async function runPlanPhase(
 	const agentId = pair.binary;
 	const streamId = `${card.id}-${slot.id}-${Date.now()}`;
 	const customPrompt = resolvePromptText(slot.prompt, options.repoPath);
-	const browserEnabled = slot.tools.includes("browser");
+	// On a re-plan, fold in the reopen feedback so the agent revises the prior plan.
+	const priorContext = card.plan?.trim() ? formatPriorComments(card) : { text: "", files: [] as string[] };
 
 	const rawSystemPrompt = buildPlanSystemPrompt(
 		card,
 		customPrompt,
 		options.secrets,
 		options.systemPrompt,
-		browserEnabled,
+		priorContext.text,
 	);
 	const memContext = buildMemoryContext(workspaceId);
 	const withMemory = memContext ? `${memContext}\n\n${rawSystemPrompt}` : rawSystemPrompt;
@@ -1516,19 +1525,10 @@ export async function runPlanPhase(
 			? buildWhippedMcpServerSpec(options.mcpBinary, options.serverUrl, workspaceId, agentId)
 			: undefined;
 
-	const browserMcp: BrowserMcpServer | undefined = browserEnabled ? buildBrowserMcpServer(card.id) : undefined;
-	const browserMcpSpec = browserMcp ? { command: browserMcp.command, args: browserMcp.args } : undefined;
-	const extraMcpServers = browserMcpSpec ? { [PLAYWRIGHT_MCP_SERVER_NAME]: browserMcpSpec } : undefined;
-
 	if (agentId === "claude" && mcpConfigPath) {
-		await writeClaudeMcpConfig(
-			options.mcpBinary,
-			options.serverUrl,
-			workspaceId,
-			agentId,
-			mcpConfigPath,
-			extraMcpServers,
-		).catch(() => {});
+		await writeClaudeMcpConfig(options.mcpBinary, options.serverUrl, workspaceId, agentId, mcpConfigPath).catch(
+			() => {},
+		);
 	}
 
 	await appendActivityLog(workspaceId, card.id, `${slot.name} running (${agentId})`);
@@ -1553,14 +1553,14 @@ export async function runPlanPhase(
 		options.registerLiveProcess,
 		mcpConfigPath,
 		systemPrompt,
-		undefined,
+		priorContext.files,
 		secretsEnv,
 		pair.effort,
 		hookServerPort,
 		mcpServer,
 		pair.model,
 		slot.type,
-		browserMcpSpec,
+		undefined,
 	);
 
 	await endTerminalSession(workspaceId, card.id, streamId, Date.now(), "completed");
