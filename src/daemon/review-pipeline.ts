@@ -48,6 +48,7 @@ import {
 	moveCard,
 	saveAttachment,
 	saveTerminalBuffer,
+	stampReviewCommentMetadata,
 	updateCard,
 } from "../state/workspace-state.js";
 import { getCardBranch, getWorktreePath, resolveWorktreeOwnerId } from "../worktree/worktree-manager.js";
@@ -204,8 +205,25 @@ async function runReviewSlot(
 				? orchWorktreePath
 				: options.repoPath
 			: getWorktreePath(resolveWorktreeOwnerId(card.id, reviewBoard.cards));
+	// Comment type: use slot.type for built-ins, slot.id for custom.
+	const commentType = slot.type === "custom" ? slot.id : slot.type;
+	// Anchor a follow-up review to the HEAD a prior same-type review looked at,
+	// so we only re-show what changed since. The anchor only holds when the work
+	// was committed between rounds — with auto-commit off, HEAD never advances,
+	// so priorSha === reviewedSha and we fall back to the full diff.
+	const reviewedSha = getGitHeadSha(worktreePath);
+	const priorReviewedSha = [...(card.reviewComments ?? [])]
+		.reverse()
+		.map((c) => (c.type === commentType ? c.metadata?.reviewedSha : undefined))
+		.find((sha): sha is string => typeof sha === "string" && sha.length > 0);
+	const useIncremental = !!reviewedSha && !!priorReviewedSha && priorReviewedSha !== reviewedSha;
+	const scope: ReviewDiffScope = {
+		isFollowUp: !!priorReviewedSha,
+		useIncremental,
+		diffRef: priorReviewedSha ?? card.baseRef,
+	};
 	const stat = getGitStat(worktreePath, card.baseRef);
-	const fullDiff = getGitFullDiff(worktreePath, card.baseRef);
+	const fullDiff = getGitFullDiff(worktreePath, useIncremental ? priorReviewedSha! : card.baseRef);
 	const context = formatPriorComments(card);
 	// For orchestrator slots, preload subtask cards so we can inline them in
 	// the prompt rather than forcing the agent to call kanban_get_board.
@@ -220,6 +238,7 @@ async function runReviewSlot(
 		fullDiff,
 		customPrompt,
 		context.text,
+		scope,
 		options.secrets,
 		options.systemPrompt,
 		options.autoCommit,
@@ -293,14 +312,15 @@ async function runReviewSlot(
 	);
 	logger.info(`[review:${streamId}] ${slot.name} agent done (${Date.now() - startTime}ms)`);
 
-	// Comment type: use slot.type for built-ins, slot.id for custom
-	const commentType = slot.type === "custom" ? slot.id : slot.type;
 	const mcpComment = await getMcpComment(workspaceId, card.id, startTime, commentType);
 	if (mcpComment) {
 		const endedAt = Date.now();
 		const hasMustFixIssue = mcpComment.issues?.some((i) => i.severity === "blocking") ?? false;
 		const passed = mcpComment.status !== "fail" && !hasMustFixIssue;
 		await linkCommentToSession(workspaceId, card.id, mcpComment.createdAt, streamId);
+		// Record the HEAD this review looked at so the next same-type review can
+		// scope its diff to what changed since.
+		if (reviewedSha) await stampReviewCommentMetadata(workspaceId, card.id, mcpComment.createdAt, { reviewedSha });
 		await endTerminalSession(workspaceId, card.id, streamId, endedAt, passed ? "completed" : "failed");
 		return { passed, comment: mcpComment, storedViaMcp: true };
 	}
@@ -326,7 +346,7 @@ async function runReviewSlot(
 			streamId,
 			summary: parsed.summary,
 			issues: parsed.issues,
-			metadata: parsed.metadata,
+			metadata: reviewedSha ? { ...(parsed.metadata ?? {}), reviewedSha } : parsed.metadata,
 		};
 		await endTerminalSession(workspaceId, card.id, streamId, nowFallback, passed ? "completed" : "failed");
 		return { passed, storedViaMcp: false, comment };
@@ -339,6 +359,7 @@ async function runReviewSlot(
 		createdAt: nowFallback,
 		streamId,
 		summary: "(no result reported)",
+		metadata: reviewedSha ? { reviewedSha } : undefined,
 	};
 	await endTerminalSession(workspaceId, card.id, streamId, nowFallback, "completed");
 	return { passed: true, storedViaMcp: false, comment };
@@ -765,6 +786,12 @@ function getGitFullDiff(worktreePath: string, baseRef: string): string {
 	return sections.join("\n\n");
 }
 
+// Current HEAD commit of the worktree. Anchors a follow-up review's diff to the
+// state a prior same-type review already looked at. Empty string if unavailable.
+function getGitHeadSha(worktreePath: string): string {
+	return git(["rev-parse", "HEAD"], worktreePath);
+}
+
 /**
  * Format a single comment as a markdown block. Headings use `headingLevel`
  * (### for top-level, #### for nested-in-iteration). `stripMustFix` removes
@@ -967,6 +994,28 @@ function formatDiffBlock(fullDiff: string, baseRef: string, header = "Git diff")
 	return `Large changeset (${fullDiff.length.toLocaleString()} chars). Use \`git diff ${baseRef}...HEAD\` and read individual files to explore.`;
 }
 
+/**
+ * Whether this review is a follow-up to an earlier round and, if so, the ref to
+ * diff against. `useIncremental` is false when the work hasn't been committed
+ * since the last review (HEAD unchanged) — then we fall back to the full diff.
+ */
+type ReviewDiffScope = { isFollowUp: boolean; useIncremental: boolean; diffRef: string };
+
+/** Replaces a review agent's full checklist on follow-up rounds. */
+const FOLLOWUP_REVIEW_FOCUS = `**This is a follow-up review.** An earlier version of this work already passed review in a prior round — only the \`## New Feedback\` / \`## Current Iteration\` items triggered this run. Re-review ONLY: (1) whether those items were addressed in the changes below, and (2) whether the new changes introduced a regression or broke a caller (grep callers of anything touched to confirm). Do NOT re-litigate previously-approved code or raise issues unrelated to this round's feedback.`;
+
+/**
+ * Renders the changed-files + diff section. On an incremental follow-up the diff
+ * is scoped to what changed since the last review, with the full changeset left
+ * as a stat summary + a fetch hint so regressions can still be chased.
+ */
+function renderReviewDiff(stat: string, fullDiff: string, baseRef: string, scope: ReviewDiffScope): string {
+	if (!scope.useIncremental) {
+		return `## Changed files\n${stat}\n\n## Diff\n${formatDiffBlock(fullDiff, baseRef)}`;
+	}
+	return `## Changed files (full changeset vs \`${baseRef}\`, for context)\n${stat}\n\n## Changes since your last review (review THIS)\n_The diff below is only what changed since you last reviewed this card. The full changeset is summarised above; run \`git diff ${baseRef}...HEAD\` only if you need it to chase a regression._\n${formatDiffBlock(fullDiff, scope.diffRef, "Incremental diff")}`;
+}
+
 /** Shared instruction reminding agents how to treat the iteration-grouped comments. */
 const ITERATION_SCOPING_NOTE = `
 **About prior comments:** any \`## Previous Iterations\` or \`## Prior agent activity\` section is for context only — already addressed in earlier rounds or shown as background. Do NOT re-implement or re-verify that work unless the current iteration explicitly asks for it. Focus your effort on \`## New Feedback\` / \`## Current Iteration\`.`.trim();
@@ -1123,6 +1172,7 @@ function buildReviewSlotSystemPrompt(
 	fullDiff: string,
 	customPrompt: string,
 	priorContext: string,
+	scope: ReviewDiffScope,
 	secrets: RuntimeProjectSecret[] = [],
 	systemPrompt?: string,
 	autoCommit = true,
@@ -1131,7 +1181,17 @@ function buildReviewSlotSystemPrompt(
 ): string {
 	switch (slot.type) {
 		case "code_review":
-			return buildCodeReviewSystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets, systemPrompt);
+			return buildCodeReviewSystemPrompt(
+				slot,
+				card,
+				stat,
+				fullDiff,
+				customPrompt,
+				priorContext,
+				scope,
+				secrets,
+				systemPrompt,
+			);
 		case "qa":
 			return buildQASystemPrompt(
 				slot,
@@ -1140,6 +1200,7 @@ function buildReviewSlotSystemPrompt(
 				fullDiff,
 				customPrompt,
 				priorContext,
+				scope,
 				secrets,
 				systemPrompt,
 				browserEnabled,
@@ -1152,13 +1213,24 @@ function buildReviewSlotSystemPrompt(
 				fullDiff,
 				customPrompt,
 				priorContext,
+				scope,
 				secrets,
 				systemPrompt,
 				autoCommit,
 				subtaskCards,
 			);
 		default:
-			return buildCustomSystemPrompt(slot, card, stat, fullDiff, customPrompt, priorContext, secrets, systemPrompt);
+			return buildCustomSystemPrompt(
+				slot,
+				card,
+				stat,
+				fullDiff,
+				customPrompt,
+				priorContext,
+				scope,
+				secrets,
+				systemPrompt,
+			);
 	}
 }
 
@@ -1169,6 +1241,7 @@ function buildCodeReviewSystemPrompt(
 	fullDiff: string,
 	customPrompt: string,
 	priorContext: string,
+	scope: ReviewDiffScope,
 	secrets: RuntimeProjectSecret[],
 	systemPrompt?: string,
 ): string {
@@ -1186,20 +1259,20 @@ function buildCodeReviewSystemPrompt(
 ## Task to review
 ${card.description ?? ""}${descAttachSection}${priorContext}
 
-## Changed files
-${stat}
-
-## Diff
-${formatDiffBlock(fullDiff, card.baseRef)}
+${renderReviewDiff(stat, fullDiff, card.baseRef, scope)}
 
 ${ITERATION_SCOPING_NOTE}
 
 ## What to check
-- Correctness: does it do what the task requires?
+${
+	scope.isFollowUp
+		? FOLLOWUP_REVIEW_FOCUS
+		: `- Correctness: does it do what the task requires?
 - Security: injection, auth bypass, data exposure, unsafe operations?
 - Interface impact: grep callers of any changed function/type/export to confirm nothing breaks downstream
 - Current iteration feedback: verify every issue / request under \`## New Feedback\` or \`## Current Iteration\` has been addressed in the diff
-- Test coverage: only mention if tests exist and are missing coverage, or if existing tests are broken
+- Test coverage: only mention if tests exist and are missing coverage, or if existing tests are broken`
+}
 
 ## How to work
 Use your tools — grep for callers, read type definitions, check related modules. Don't rely only on the diff. The terminal output is observational — write findings as plain text without pass/fail words. Your only formal verdict is the \`status\` field in the MCP call below.${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}
@@ -1223,6 +1296,7 @@ function buildQASystemPrompt(
 	fullDiff: string,
 	customPrompt: string,
 	priorContext: string,
+	scope: ReviewDiffScope,
 	secrets: RuntimeProjectSecret[],
 	systemPrompt?: string,
 	browserEnabled = false,
@@ -1250,18 +1324,18 @@ function buildQASystemPrompt(
 ## Task to test
 ${card.description ?? ""}${qaDescAttachSection}${priorContext}
 
-## Changed files
-${stat}
-
-## Diff
-${formatDiffBlock(fullDiff, card.baseRef)}
+${renderReviewDiff(stat, fullDiff, card.baseRef, scope)}
 
 ${ITERATION_SCOPING_NOTE}
 
 ## What to do
-1. Identify the app type (web, API, React Native/Expo, library, etc.)
+${
+	scope.isFollowUp
+		? `${FOLLOWUP_REVIEW_FOCUS}\nRun the tests/checks relevant to what changed — you don't need to re-run the entire suite for areas untouched this round.`
+		: `1. Identify the app type (web, API, React Native/Expo, library, etc.)
 2. Run the appropriate tests — existing test suite, TypeScript checks, HTTP requests, etc.
-3. Verify every issue / request listed under \`## New Feedback\` or \`## Current Iteration\` has been addressed in the diff
+3. Verify every issue / request listed under \`## New Feedback\` or \`## Current Iteration\` has been addressed in the diff`
+}
 
 ## Proving it works in a running app
 Don't just read the diff — exercise the change. If it touches anything user-facing or runnable:
@@ -1290,6 +1364,7 @@ function buildOrchSystemPrompt(
 	fullDiff: string,
 	customPrompt: string,
 	priorContext: string,
+	scope: ReviewDiffScope,
 	secrets: RuntimeProjectSecret[],
 	systemPrompt?: string,
 	autoCommit = true,
@@ -1341,11 +1416,7 @@ ${card.description ? `\n${card.description}\n` : ""}${orchDescAttachSection}
 
 ${subtasksSection}${priorContext}
 
-## Changed files
-${stat}
-
-## Diff
-${formatDiffBlock(fullDiff, card.baseRef)}
+${renderReviewDiff(stat, fullDiff, card.baseRef, scope)}
 
 ${ITERATION_SCOPING_NOTE}
 
@@ -1385,6 +1456,7 @@ function buildCustomSystemPrompt(
 	fullDiff: string,
 	customPrompt: string,
 	priorContext: string,
+	scope: ReviewDiffScope,
 	secrets: RuntimeProjectSecret[],
 	systemPrompt?: string,
 ): string {
@@ -1400,13 +1472,9 @@ function buildCustomSystemPrompt(
 ## Task to review
 ${card.description ?? ""}${customDescAttachSection}${priorContext}
 
-## Changed files
-${stat}
+${renderReviewDiff(stat, fullDiff, card.baseRef, scope)}
 
-## Diff
-${formatDiffBlock(fullDiff, card.baseRef)}
-
-${ITERATION_SCOPING_NOTE}
+${ITERATION_SCOPING_NOTE}${scope.isFollowUp ? `\n\n${FOLLOWUP_REVIEW_FOCUS}` : ""}
 
 ## Instructions
 ${customPrompt.trim()}

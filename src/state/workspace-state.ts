@@ -935,6 +935,30 @@ export async function linkCommentToSession(
 	tx();
 }
 
+// Merge a patch into a persisted comment's metadata. Used to record the git
+// HEAD a review agent looked at, so the next same-type review can scope its
+// diff to only what changed since.
+export async function stampReviewCommentMetadata(
+	workspaceId: string,
+	cardId: string,
+	commentCreatedAt: number,
+	patch: Record<string, unknown>,
+): Promise<void> {
+	const db = getDb();
+	const tx = db.transaction(() => {
+		const row = db
+			.prepare("SELECT metadata_json FROM review_comments WHERE card_id = ? AND created_at = ?")
+			.get(cardId, commentCreatedAt) as { metadata_json: string } | undefined;
+		if (!row) return;
+		const current = safeJsonParse(row.metadata_json, {} as Record<string, unknown>);
+		const result = db
+			.prepare("UPDATE review_comments SET metadata_json = ? WHERE card_id = ? AND created_at = ?")
+			.run(JSON.stringify({ ...current, ...patch }), cardId, commentCreatedAt);
+		if (result.changes > 0) bumpBoardRevision(db, workspaceId);
+	});
+	tx();
+}
+
 // bodyHtml: the `body_html` field from GitHub API (application/vnd.github.full+json).
 // It contains pre-signed private-user-images.githubusercontent.com URLs that are
 // downloadable server-side. When provided, we use those instead of the raw asset URLs.
