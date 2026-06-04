@@ -11,6 +11,7 @@ import {
 	normalizeAttachmentTokens,
 	parseAttachmentTokenNumbers,
 } from "@/utils/attachmentTokens";
+import { refColor } from "@/utils/refColors";
 import { parseWhippedClipboard } from "@/utils/whippedPayload";
 
 interface CommentComposerProps {
@@ -230,6 +231,11 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 				<TokenTextarea
 					ref={textareaRef}
 					value={message}
+					refColorOf={
+						visualComment
+							? (n) => (n >= 1 && n <= visualComment.elements.length ? refColor(n - 1) : undefined)
+							: undefined
+					}
 					onChange={(e) => setMessage(e.target.value)}
 					onKeyDown={(e) => {
 						const edit = atomicTokenEdit(e);
@@ -270,7 +276,7 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 					}}
 					onDragOver={(e) => e.preventDefault()}
 					placeholder="Add a comment… (paste or drop images)"
-					rows={2}
+					rows={5}
 					metricsClassName="text-sm text-gray-200 px-3 pt-3 pb-1 leading-normal placeholder-gray-600"
 				/>
 				<div className="flex items-center justify-between px-3 pb-2">

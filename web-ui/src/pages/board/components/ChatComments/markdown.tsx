@@ -1,6 +1,56 @@
 import type React from "react";
 import type ReactMarkdown from "react-markdown";
 
+// Minimal hast shape we touch — avoids pulling in @types/hast.
+interface HastNode {
+	type: string;
+	tagName?: string;
+	value?: string;
+	properties?: Record<string, unknown>;
+	children?: HastNode[];
+}
+
+// Rehype plugin: wrap `#N` element references in a colour chip (matching the
+// element's badge), skipping code/pre. `colorOf` returns a colour for a valid
+// reference number or undefined to leave it untouched.
+export function refHighlightRehype(colorOf: (n: number) => string | undefined) {
+	const walk = (node: HastNode) => {
+		if (!node.children) return;
+		if (node.type === "element" && (node.tagName === "code" || node.tagName === "pre")) return;
+		const out: HastNode[] = [];
+		for (const child of node.children) {
+			if (child.type === "text" && child.value) {
+				const parts = child.value.split(/(#\d+)/g);
+				if (parts.length === 1) {
+					out.push(child);
+					continue;
+				}
+				for (const part of parts) {
+					const m = /^#(\d+)$/.exec(part);
+					const color = m ? colorOf(Number(m[1])) : undefined;
+					if (m && color) {
+						out.push({
+							type: "element",
+							tagName: "mark",
+							properties: {
+								style: `background:${color};color:#0c0c0f;border-radius:3px;padding:0 3px;font-weight:600`,
+							},
+							children: [{ type: "text", value: part }],
+						});
+					} else if (part) {
+						out.push({ type: "text", value: part });
+					}
+				}
+			} else {
+				walk(child);
+				out.push(child);
+			}
+		}
+		node.children = out;
+	};
+	return (tree: HastNode) => walk(tree);
+}
+
 // Dark-theme markdown renderers shared by every comment body.
 export function makeMdComponents(): React.ComponentProps<typeof ReactMarkdown>["components"] {
 	return {

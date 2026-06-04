@@ -11,7 +11,8 @@ import { AttachmentItem } from "./AttachmentItem";
 import { Avatar } from "./Avatar";
 import { SEVERITY_COLOR } from "./constants";
 import { displayName, formatDateLabel } from "./helpers";
-import { makeMdComponents } from "./markdown";
+import { refColor } from "@/utils/refColors";
+import { makeMdComponents, refHighlightRehype } from "./markdown";
 import type { CommentEntry } from "./types";
 
 interface VisualElement {
@@ -21,12 +22,8 @@ interface VisualElement {
 	componentChain?: string[];
 	sourceFile?: string;
 	sourceLine?: number;
+	pageUrl?: string;
 }
-
-// Must match the palette in extension/content.js so an element's color identity
-// (page outline, badge, #N mention) carries over to the board.
-const ELEMENT_PALETTE = ["#f87171", "#fbbf24", "#34d399", "#60a5fa", "#c084fc", "#f472b6", "#22d3ee", "#a3e635"];
-const colorFor = (i: number) => ELEMENT_PALETTE[i % ELEMENT_PALETTE.length];
 
 interface CommentItemProps {
 	entry: CommentEntry;
@@ -114,7 +111,21 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 						</div>
 					)}
 					<div className="prose-chat text-sm text-gray-300 leading-relaxed [overflow-wrap:anywhere]">
-						<ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={makeMdComponents()}>
+						<ReactMarkdown
+							remarkPlugins={[remarkGfm]}
+							rehypePlugins={
+								vc
+									? [
+											rehypeRaw,
+											[
+												refHighlightRehype,
+												(n: number) => (n >= 1 && n <= vcElements.length ? refColor(n - 1) : undefined),
+											],
+										]
+									: [rehypeRaw]
+							}
+							components={makeMdComponents()}
+						>
 							{comment.summary.trimEnd()}
 						</ReactMarkdown>
 					</div>
@@ -156,13 +167,13 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 									<div
 										key={idx}
 										className={classNames("flex flex-col gap-1", multi && "pl-2 border-l-2")}
-										style={multi ? { borderColor: colorFor(idx) } : undefined}
+										style={multi ? { borderColor: refColor(idx) } : undefined}
 									>
 										<div className="flex items-center gap-1.5 flex-wrap">
 											{multi && (
 												<span
 													className="flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold text-[#0c0c0f]"
-													style={{ backgroundColor: colorFor(idx) }}
+													style={{ backgroundColor: refColor(idx) }}
 												>
 													{idx + 1}
 												</span>
@@ -177,10 +188,20 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 												{el.sourceLine != null ? `:${el.sourceLine}` : ""}
 											</span>
 										)}
+										{el.pageUrl && (
+											<a
+												href={el.pageUrl}
+												target="_blank"
+												rel="noreferrer"
+												className="truncate text-[#4a4a5a] hover:text-[#8888a0] transition-colors"
+											>
+												🔗 {el.pageUrl}
+											</a>
+										)}
 									</div>
 								);
 							})}
-							{vc.pageUrl && (
+							{vc.pageUrl && !vcElements.some((e) => e.pageUrl) && (
 								<a
 									href={vc.pageUrl}
 									target="_blank"

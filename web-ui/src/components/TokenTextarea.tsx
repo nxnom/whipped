@@ -8,7 +8,9 @@ import { classNames } from "@/utils/classNames";
 // metrics via `metricsClassName` so glyphs line up exactly.
 
 const SPLIT_RE = /(\[Attachment #\d+\])/g;
+const SPLIT_RE_REFS = /(\[Attachment #\d+\]|#\d+)/g;
 const TOKEN_RE = /^\[Attachment #\d+\]$/;
+const REF_RE = /^#(\d+)$/;
 
 interface TokenTextareaProps extends Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, "value"> {
 	value: string;
@@ -16,14 +18,50 @@ interface TokenTextareaProps extends Omit<React.TextareaHTMLAttributes<HTMLTextA
 	metricsClassName?: string;
 	/** Wrapper class. */
 	className?: string;
+	/** When set, `#N` references are colour-chipped using the returned colour
+	 *  (undefined leaves the reference plain). Used for visual-comment element refs. */
+	refColorOf?: (n: number) => string | undefined;
 }
 
 export const TokenTextarea = forwardRef<HTMLTextAreaElement, TokenTextareaProps>(function TokenTextarea(
-	{ value, metricsClassName, className, onScroll, style, ...rest },
+	{ value, metricsClassName, className, onScroll, style, refColorOf, ...rest },
 	ref,
 ) {
 	const backdropRef = useRef<HTMLDivElement>(null);
-	const parts = value.split(SPLIT_RE);
+	const parts = value.split(refColorOf ? SPLIT_RE_REFS : SPLIT_RE);
+
+	const renderPart = (p: string, i: number) => {
+		if (TOKEN_RE.test(p)) {
+			return (
+				<mark
+					key={i}
+					className="rounded-[3px] bg-[#2a2a38] text-[#c4c4d4]"
+					style={{ boxDecorationBreak: "clone", WebkitBoxDecorationBreak: "clone" }}
+				>
+					{p}
+				</mark>
+			);
+		}
+		const refMatch = refColorOf ? REF_RE.exec(p) : null;
+		const refColor = refMatch ? refColorOf?.(Number(refMatch[1])) : undefined;
+		if (refColor) {
+			return (
+				<mark
+					key={i}
+					className="rounded-[3px] font-semibold"
+					style={{
+						backgroundColor: refColor,
+						color: "#0c0c0f",
+						boxDecorationBreak: "clone",
+						WebkitBoxDecorationBreak: "clone",
+					}}
+				>
+					{p}
+				</mark>
+			);
+		}
+		return <span key={i}>{p}</span>;
+	};
 
 	return (
 		<div className={classNames("relative", className)}>
@@ -35,19 +73,7 @@ export const TokenTextarea = forwardRef<HTMLTextAreaElement, TokenTextareaProps>
 					metricsClassName,
 				)}
 			>
-				{parts.map((p, i) =>
-					TOKEN_RE.test(p) ? (
-						<mark
-							key={i}
-							className="rounded-[3px] bg-[#2a2a38] text-[#c4c4d4]"
-							style={{ boxDecorationBreak: "clone", WebkitBoxDecorationBreak: "clone" }}
-						>
-							{p}
-						</mark>
-					) : (
-						<span key={i}>{p}</span>
-					),
-				)}
+				{parts.map(renderPart)}
 				{value.endsWith("\n") ? "\n" : ""}
 			</div>
 			<textarea

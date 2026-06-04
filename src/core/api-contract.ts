@@ -642,6 +642,9 @@ export const runtimeVisualElementSchema = z.object({
 	componentChain: z.array(z.string()).optional(),
 	sourceFile: z.string().optional(),
 	sourceLine: z.number().optional(),
+	// The page the element was captured on. Selections can span pages, so this is
+	// per-element rather than relying on the visualComment-level pageUrl.
+	pageUrl: z.string().optional(),
 });
 export type RuntimeVisualElement = z.infer<typeof runtimeVisualElementSchema>;
 export const runtimeVisualCommentSchema = z.object({

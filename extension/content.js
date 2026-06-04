@@ -138,7 +138,11 @@
       position: relative; z-index: 1; display: block; resize: vertical; outline: none;
       min-height: 84px; background: transparent; color: transparent;
       -webkit-text-fill-color: transparent; caret-color: #f0f0f5;
+      /* Hide the scrollbar so the textarea width never changes — otherwise the
+         backdrop's #N highlights drift out of alignment when it appears. */
+      scrollbar-width: none;
     }
+    #__wa-form textarea::-webkit-scrollbar { width: 0; height: 0; display: none; }
     #__wa-form textarea:focus { border-color: #7c6aff; }
     #__wa-form textarea::selection { background: #7c6aff55; -webkit-text-fill-color: #f0f0f5; }
     #__wa-form .actions { display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end; }
@@ -409,7 +413,9 @@
     badgeEl.className = "__wa-badge";
     document.body.appendChild(badgeEl);
 
-    selections.push({ el, selector, elementText, ri, badgeEl });
+    // Capture the URL now — selections can span pages (pass-through lets you
+    // navigate/open menus between picks), so each element remembers its own page.
+    selections.push({ el, selector, elementText, ri, badgeEl, pageUrl: location.href });
     recolorSelections();
     positionBadges();
     renderForm();
@@ -535,13 +541,17 @@
       componentChain: s.ri.componentChain || undefined,
       sourceFile: s.ri.sourceFile || undefined,
       sourceLine: s.ri.sourceLine || undefined,
+      pageUrl: s.pageUrl || undefined,
     }));
   }
 
   function buildPromptText(desc) {
     const lines = [desc];
     if (selections.length) {
-      lines.push("", `Page: ${location.href}`, "", "Elements:");
+      const uniqueUrls = [...new Set(selections.map((s) => s.pageUrl).filter(Boolean))];
+      // One shared page → a single header; spanning pages → tag each element.
+      if (uniqueUrls.length === 1) lines.push("", `Page: ${uniqueUrls[0]}`);
+      lines.push("", "Elements:");
       selections.forEach((s, i) => {
         const chain = (Array.isArray(s.ri.componentChain) && s.ri.componentChain.length)
           ? s.ri.componentChain.join(" → ")
@@ -552,6 +562,7 @@
         if (src) line += ` · 📄 ${src}`;
         lines.push(line);
         if (s.elementText) lines.push(`  > ${s.elementText}`);
+        if (uniqueUrls.length > 1 && s.pageUrl) lines.push(`  🔗 ${s.pageUrl}`);
       });
     }
     return lines.join("\n").trim();
