@@ -754,6 +754,16 @@ export async function createRuntimeServer(options: ServerOptions) {
 		res.end("whipped running");
 	});
 
+	// TUI apps use the alternate screen buffer (\x1b[?1049h/l). The raw buffer stores the
+	// exit sequence, which causes xterm.js to switch back to a blank normal screen on replay.
+	// Strip the exit sequence so the alt screen content stays visible after the process exits.
+	function prepareBufferForReplay(buffer: string): string {
+		if (buffer.includes("\x1b[?1049h")) {
+			return buffer.replaceAll("\x1b[?1049l", "");
+		}
+		return buffer;
+	}
+
 	// Single terminal WebSocket per task: /api/terminal?workspaceId=...&taskId=...
 	// On connect: immediately dump the full output buffer, then stream live output.
 	// No restore handshake needed — Node.js is single-threaded so buffer dump and
@@ -827,15 +837,15 @@ export async function createRuntimeServer(options: ServerOptions) {
 			// "" means active session with no output yet — send nothing (blank terminal).
 			const activeBuffer = schedulers.get(workspaceId)?.getOutputBuffer(taskId) ?? null;
 			if (activeBuffer !== null) {
-				if (activeBuffer && ws.readyState === 1) ws.send(activeBuffer);
+				if (activeBuffer && ws.readyState === 1) ws.send(prepareBufferForReplay(activeBuffer));
 			} else {
 				const hubSnapshot = stateHub.getTerminalBuffer(workspaceId, taskId);
 				if (hubSnapshot) {
-					if (ws.readyState === 1) ws.send(hubSnapshot);
+					if (ws.readyState === 1) ws.send(prepareBufferForReplay(hubSnapshot));
 				} else {
 					loadTerminalBuffer(workspaceId, taskId)
 						.then((diskSnapshot) => {
-							if (diskSnapshot && ws.readyState === 1) ws.send(diskSnapshot);
+							if (diskSnapshot && ws.readyState === 1) ws.send(prepareBufferForReplay(diskSnapshot));
 						})
 						.catch(() => {});
 				}
