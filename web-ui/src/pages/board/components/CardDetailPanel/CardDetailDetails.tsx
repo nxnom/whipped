@@ -1,5 +1,11 @@
-import { Input, Select, SelectOption, toast } from "@geckoui/geckoui";
-import { type RuntimeBoardCard, type TierLevel, TIER_LEVEL_OPTIONS } from "@runtime-contract";
+import { Input, toast } from "@geckoui/geckoui";
+import {
+	resolvePair,
+	type RuntimeBoardCard,
+	type SlotModelConfig,
+	TIER_LEVEL_OPTIONS,
+	type WorkflowSlot,
+} from "@runtime-contract";
 import { Check, ChevronRight, ExternalLink, Gauge, GitBranch, Pencil, X } from "lucide-react";
 import { useState } from "react";
 import { useWrite } from "@/runtime/api-client";
@@ -11,25 +17,26 @@ interface CardDetailDetailsProps {
 	card: RuntimeBoardCard;
 	workspaceId: string;
 	allCards?: Record<string, RuntimeBoardCard>;
+	workflowSlots?: WorkflowSlot[];
 	onRefresh: () => void;
 }
 
-export function CardDetailDetails({ card, workspaceId, allCards, onRefresh }: CardDetailDetailsProps) {
+export function CardDetailDetails({ card, workspaceId, allCards, workflowSlots, onRefresh }: CardDetailDetailsProps) {
 	const { trigger: updateCardTrigger } = useWrite((api) => api("cards/:id").PATCH());
 	const [descExpanded, setDescExpanded] = useState(false);
 	const [activityExpanded, setActivityExpanded] = useState(false);
 
-	const saveLevel = async (level: TierLevel) => {
-		const res = await updateCardTrigger({
-			params: { id: card.id },
-			body: { workspaceId, cardId: card.id, activeLevel: level, revision: 0 },
+	const tierLabel = TIER_LEVEL_OPTIONS.find((o) => o.value === card.activeLevel)?.label ?? card.activeLevel;
+	// What each enabled slot resolves to under the card's current level/mode — read
+	// only; level changes happen via the Reopen picker, not here.
+	const resolvedSlots = (workflowSlots ?? [])
+		.filter((s) => s.enabled)
+		.map((s) => {
+			const cfg: SlotModelConfig = card.modelConfig?.[s.id] ?? { pairs: s.pairs, mode: s.mode };
+			const pair = resolvePair(cfg, card.activeLevel);
+			return { id: s.id, name: s.name, pair };
 		});
-		if (res.error) {
-			toast.error("Failed to update model tier");
-			return;
-		}
-		onRefresh();
-	};
+
 	const [editingBranch, setEditingBranch] = useState(false);
 	const [branchInput, setBranchInput] = useState("");
 	const [savingBranch, setSavingBranch] = useState(false);
@@ -179,17 +186,26 @@ export function CardDetailDetails({ card, workspaceId, allCards, onRefresh }: Ca
 					</div>
 				)}
 
-				{/* Model tier */}
-				<div className="flex items-center gap-2 text-xs text-[#8888a0]">
-					<Gauge size={11} className="shrink-0" />
-					<span className="shrink-0">Tier</span>
-					<div className="flex-1">
-						<Select value={card.activeLevel} onChange={(v) => void saveLevel(v as TierLevel)}>
-							{TIER_LEVEL_OPTIONS.map((o) => (
-								<SelectOption key={o.value} value={o.value} label={o.label} />
-							))}
-						</Select>
+				{/* Model tier — read-only; change it via the Reopen picker */}
+				<div className="flex flex-col gap-1">
+					<div className="flex items-center gap-2 text-xs text-[#8888a0]">
+						<Gauge size={11} className="shrink-0" />
+						<span>Tier: {tierLabel}</span>
 					</div>
+					{resolvedSlots.map((s) => (
+						<div key={s.id} className="flex items-center gap-2 pl-[18px] text-[11px]">
+							<span className="text-[#8888a0] shrink-0">{s.name}</span>
+							<span className="font-mono text-[#60607a] truncate">
+								{s.pair.binary}
+								{s.pair.model ? `/${s.pair.model}` : ""}
+							</span>
+							{s.pair.isFree && (
+								<span className="shrink-0 text-[9px] font-medium text-[#22c55e] bg-[#22c55e15] rounded px-1.5 py-[1px]">
+									Free
+								</span>
+							)}
+						</div>
+					))}
 				</div>
 
 				{/* Dependencies */}

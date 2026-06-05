@@ -37,7 +37,7 @@ export function useTaskSubmit() {
 				baseRef: data.baseRef || undefined,
 				workflowId: data.workflowId || undefined,
 				branchName: data.branchName.trim() || undefined,
-				activeLevel: data.activeLevel,
+				activeLevel: data.activeLevel || undefined,
 				modelConfig: data.modelConfig,
 			},
 		});

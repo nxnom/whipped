@@ -1,6 +1,8 @@
+import type { TierLevel } from "@runtime-contract";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useWrite } from "@/runtime/api-client";
+import { ReopenPickerDialog } from "../ChatComments/ReopenPickerDialog";
 import { CommitSelector } from "./CommitSelector";
 import { DiffFileList } from "./DiffFileList";
 import { FileTreeNode } from "./FileTreeNode";
@@ -12,16 +14,21 @@ import { useDiffData } from "./useDiffData";
 interface Props {
 	workspaceId: string;
 	cardId: string;
+	activeLevel: TierLevel;
 	isReadyForReview: boolean;
 	onRefresh: () => void;
 }
 
-export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: Props) {
+export function DiffView({ workspaceId, cardId, activeLevel, isReadyForReview, onRefresh }: Props) {
 	const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 	const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set());
 	const [pendingComments, setPendingComments] = useState<PendingComment[]>([]);
 	const [openCommentKey, setOpenCommentKey] = useState<string | null>(null);
 	const [commentDraft, setCommentDraft] = useState("");
+	// When a human picks "Request changes", we collect the tier for the rework
+	// before reopening, so a stale agent-set level doesn't carry over to new scope.
+	const [reopenFeedback, setReopenFeedback] = useState<string | null>(null);
+	const [reopening, setReopening] = useState(false);
 	const draftRef = useRef<HTMLTextAreaElement>(null);
 	const diffScrollRef = useRef<HTMLDivElement>(null);
 
@@ -39,6 +46,7 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 
 	const { trigger: addReviewCommentTrigger } = useWrite((api) => api("cards/add-review-comment").POST());
 	const { trigger: submitHumanFeedbackTrigger } = useWrite((api) => api("cards/submit-human-feedback").POST());
+	const { trigger: updateCardTrigger } = useWrite((api) => api("cards/:id").PATCH());
 
 	const { selectedCommit, setSelectedCommit, files, loading, loadError, commits, baseBehindCount, refreshDiff } =
 		useDiffData(workspaceId, cardId);
@@ -134,15 +142,36 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 				},
 			});
 		}
+		setPendingComments([]);
+		// Defer the reopen until the human picks the tier for the rework.
 		if (reviewType === "request_changes") {
-			await submitHumanFeedbackTrigger({ body: { workspaceId, cardId, comment: overallFeedback || undefined } });
-		} else if (overallFeedback) {
+			setReopenFeedback(overallFeedback);
+			onRefresh();
+			return;
+		}
+		if (overallFeedback) {
 			await addReviewCommentTrigger({
 				body: { workspaceId, cardId, type: "human", actor: { type: "human", id: "human" }, summary: overallFeedback },
 			});
 		}
-		setPendingComments([]);
 		onRefresh();
+	};
+
+	const reopenWith = async (level: TierLevel) => {
+		setReopening(true);
+		try {
+			if (level !== activeLevel) {
+				await updateCardTrigger({
+					params: { id: cardId },
+					body: { workspaceId, cardId, revision: 0, activeLevel: level },
+				});
+			}
+			await submitHumanFeedbackTrigger({ body: { workspaceId, cardId, comment: reopenFeedback || undefined } });
+			setReopenFeedback(null);
+			onRefresh();
+		} finally {
+			setReopening(false);
+		}
 	};
 
 	// ── Loading / error states ────────────────────────────────────────────────
@@ -264,6 +293,15 @@ export function DiffView({ workspaceId, cardId, isReadyForReview, onRefresh }: P
 					onRemoveComment={removePending}
 				/>
 			</div>
+
+			{reopenFeedback !== null && (
+				<ReopenPickerDialog
+					currentLevel={activeLevel}
+					submitting={reopening}
+					onConfirm={(level) => void reopenWith(level)}
+					onClose={() => setReopenFeedback(null)}
+				/>
+			)}
 		</div>
 	);
 }

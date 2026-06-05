@@ -23,7 +23,6 @@ import { spawnAgent } from "../agents/agent-runner.js";
 import { type BrowserMcpServer, buildBrowserMcpServer, PLAYWRIGHT_MCP_SERVER_NAME } from "../agents/playwright-mcp.js";
 import type {
 	ModelPair,
-	PairSelectionMode,
 	RuntimeBoardCard,
 	RuntimeProjectSecret,
 	RuntimeReviewComment,
@@ -31,7 +30,7 @@ import type {
 	TierLevel,
 	WorkflowSlot,
 } from "../core/api-contract.js";
-import { DEFAULT_GIT_INSTRUCTIONS, LEVEL_ORDER, pairSelectionModeSchema, resolvePair } from "../core/api-contract.js";
+import { DEFAULT_GIT_INSTRUCTIONS, LEVEL_ORDER, resolvePair } from "../core/api-contract.js";
 import { ATTACHMENTS_DIR } from "../config/runtime-config.js";
 import { logger } from "../core/logger.js";
 import type { QaSemaphore } from "./qa-semaphore.js";
@@ -100,10 +99,6 @@ function slotCommentType(slot: WorkflowSlot): string {
 
 function isTierLevel(v: unknown): v is TierLevel {
 	return typeof v === "string" && (LEVEL_ORDER as readonly string[]).includes(v);
-}
-
-function isPairMode(v: unknown): v is PairSelectionMode {
-	return pairSelectionModeSchema.safeParse(v).success;
 }
 
 export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewPipelineOptions): Promise<void> {
@@ -201,22 +196,14 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 			await appendActivityLog(workspaceId, card.id, `${slot.name}: FAIL`);
 			if (!result.storedViaMcp) await persistComment(workspaceId, card, result.comment);
 			// Auto-adjust: a review slot allowed to tune the tier may right-size the
-			// rework via suggestedLevel (capability) and/or suggestedMode (cost). Both
-			// are card-wide, so every agent re-resolves its own model under the new policy.
+			// rework via suggestedLevel — card-wide, so every agent re-resolves its own
+			// model at the new level. (Cost mode is per-slot config, not the agent's to set.)
 			if (slot.canAdjustLevel) {
 				const suggestedLevel = result.comment.metadata?.suggestedLevel;
 				if (isTierLevel(suggestedLevel) && suggestedLevel !== card.activeLevel) {
 					await updateCard(workspaceId, card.id, { activeLevel: suggestedLevel });
 					card = { ...card, activeLevel: suggestedLevel };
 					await appendActivityLog(workspaceId, card.id, `Model tier set to "${suggestedLevel}" for rework`);
-				}
-				const suggestedMode = result.comment.metadata?.suggestedMode;
-				if (isPairMode(suggestedMode) && card.modelConfig) {
-					const nextCfg: NonNullable<RuntimeBoardCard["modelConfig"]> = {};
-					for (const [slotId, sc] of Object.entries(card.modelConfig)) nextCfg[slotId] = { ...sc, mode: suggestedMode };
-					await updateCard(workspaceId, card.id, { modelConfig: nextCfg });
-					card = { ...card, modelConfig: nextCfg };
-					await appendActivityLog(workspaceId, card.id, `Model mode set to "${suggestedMode}" for rework`);
 				}
 			}
 			await handleReviewFailure(card, options);
@@ -1305,10 +1292,7 @@ Don't just read the diff — exercise the change when it's user-facing or runnab
 		? `
 
 ## Right-sizing the rework on reopen
-When you set status "fail" (reopening for rework), you can right-size what the next round runs. This is **policy only** — it applies to every agent, each of which picks its own model accordingly; you don't choose specific models. The card is currently at tier **${card.activeLevel}**.
-- \`suggestedLevel\` — capability the fix needs: one of ${LEVEL_ORDER.join(", ")}. Lower it for clearly mechanical fixes (rename / copy / colour tweak), raise it for clearly harder/architectural work. When unsure, keep "${card.activeLevel}".
-- \`suggestedMode\` — cost policy: one of auto, preferFree, freeOnly, paidOnly. Use a free mode for trivial reworks to save cost; use paidOnly when quality matters.
-Omit either to leave it unchanged.`
+When you set status "fail" (reopening for rework), you can right-size the **tier** the next round runs at. It applies to every agent — each picks its own model for that tier; you don't choose specific models. The card is currently at tier **${card.activeLevel}**. Set \`suggestedLevel\` in the MCP call — one of ${LEVEL_ORDER.join(", ")}. Lower it for clearly mechanical fixes (rename / copy / colour tweak), raise it for clearly harder/architectural work. When unsure, keep "${card.activeLevel}"; omit it to leave the tier unchanged.`
 		: "";
 
 	return `You are a senior reviewer performing an automated review.

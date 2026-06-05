@@ -77,7 +77,7 @@ export function CreateTaskDialog({
 			branchName: "",
 			dependsOn: "",
 			waitsFor: [],
-			activeLevel: "medium",
+			activeLevel: "",
 			modelConfig: snapshotFormModelConfig(defaultTaskWorkflow),
 		}),
 		// Keyed by id (not the object) so the memo identity is stable across renders
@@ -446,7 +446,7 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 					waitsFor: isStory || data.waitsFor.length === 0 ? undefined : data.waitsFor,
 					workflowId: data.workflowId || undefined,
 					branchName: canEditBranch ? data.branchName.trim() || undefined : undefined,
-					activeLevel: data.activeLevel,
+					activeLevel: data.activeLevel || undefined,
 					modelConfig: data.modelConfig,
 					revision: 0,
 				},

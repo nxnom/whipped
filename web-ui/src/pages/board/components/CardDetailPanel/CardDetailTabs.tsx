@@ -86,6 +86,7 @@ export function CardDetailTabs({
 				<DiffView
 					workspaceId={workspaceId}
 					cardId={card.id}
+					activeLevel={card.activeLevel}
 					isReadyForReview={isReadyForReview}
 					onRefresh={onRefresh}
 				/>

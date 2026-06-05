@@ -1,9 +1,8 @@
-import { Select, SelectOption } from "@geckoui/geckoui";
+import { RHFInputGroup, RHFSelect, Select, SelectOption } from "@geckoui/geckoui";
 import {
 	PAIR_SELECTION_MODE_OPTIONS,
 	type PairSelectionMode,
 	type RuntimeAgentId,
-	type TierLevel,
 	TIER_LEVEL_OPTIONS,
 	type Workflow,
 } from "@runtime-contract";
@@ -13,14 +12,17 @@ import { Pencil } from "lucide-react";
 import { useState } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 import { ModelTiersDialog } from "@/pages/settings/workflows/WorkflowEditorDialog/ModelTiersDialog";
+import { LEVEL_COLOR } from "@/utils/levelColor";
 import { snapshotFormModelConfig } from "./tiers";
+
+// Highest capability first.
+const LEVELS_DESC = [...TIER_LEVEL_OPTIONS].reverse();
 
 // Per-ticket model tiers: the workflow-wide active level, plus per-slot a merged
 // selector — pick a mode (auto/prefer free/…) or pin a specific pair (overrides
 // mode). Pairs themselves are edited via the shared ModelTiersDialog.
 export function TicketTiersSection({ workflow }: { workflow: Workflow | undefined }) {
 	const { control, setValue } = useFormContext<CreateTaskForm>();
-	const activeLevel = useWatch({ control, name: "activeLevel" });
 	const modelConfig = (useWatch({ control, name: "modelConfig" }) as CardModelConfigForm | undefined) ?? {};
 	const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
 
@@ -66,11 +68,23 @@ export function TicketTiersSection({ workflow }: { workflow: Workflow | undefine
 	return (
 		<div className="flex flex-col gap-2">
 			<span className="text-[11px] font-medium text-[#60607a]">Model tiers</span>
-			<Select value={activeLevel} onChange={(v) => setValue("activeLevel", v as TierLevel, { shouldDirty: true })}>
-				{TIER_LEVEL_OPTIONS.map((o) => (
-					<SelectOption key={o.value} value={o.value} label={`Level: ${o.label}`} />
-				))}
-			</Select>
+			<RHFInputGroup
+				label="Level"
+				labelClassName="text-[10px] font-medium text-[#60607a] tracking-[0.3px] uppercase"
+				className="flex flex-col gap-1"
+				errorClassName="text-[11px] text-[#ef4444] mt-1"
+			>
+				<RHFSelect name="activeLevel" placeholder="Select a level…">
+					{LEVELS_DESC.map((o) => (
+						<SelectOption key={o.value} value={o.value} label={o.label}>
+							<span className="flex items-center gap-2">
+								<span className="size-2 rounded-full shrink-0" style={{ background: LEVEL_COLOR[o.value] }} />
+								{o.label}
+							</span>
+						</SelectOption>
+					))}
+				</RHFSelect>
+			</RHFInputGroup>
 			<div className="flex flex-col gap-2">
 				{sortedSlots.map((slot) => {
 					const sc = cfgFor(slot.id);

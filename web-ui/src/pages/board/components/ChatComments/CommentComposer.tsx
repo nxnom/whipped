@@ -1,7 +1,8 @@
 import { Button } from "@geckoui/geckoui";
-import type { RuntimeBoardCard, RuntimeVisualComment } from "@runtime-contract";
+import type { RuntimeBoardCard, RuntimeVisualComment, TierLevel } from "@runtime-contract";
 import { Crosshair, Paperclip, Send, X } from "lucide-react";
 import { useRef, useState } from "react";
+import { ReopenPickerDialog } from "./ReopenPickerDialog";
 import { TokenTextarea } from "@/components/TokenTextarea";
 import { uploadAttachmentFile } from "@/runtime/attachments";
 import { useWrite } from "@/runtime/api-client";
@@ -35,12 +36,27 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 	// Structured visual context captured from a Whipped extension paste; posted as
 	// a "visual-comment" so the comment renders the referenced elements.
 	const [visualComment, setVisualComment] = useState<RuntimeVisualComment | null>(null);
+	const [reopenOpen, setReopenOpen] = useState(false);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const isReadyForReview = card.columnId === "ready_for_review";
 
 	const { trigger: submitHumanFeedbackTrigger } = useWrite((api) => api("cards/submit-human-feedback").POST());
 	const { trigger: addReviewCommentTrigger } = useWrite((api) => api("cards/add-review-comment").POST());
+	const { trigger: updateCardTrigger } = useWrite((api) => api("cards/:id").PATCH());
+
+	// Reopen at a chosen tier: set the card's level so a stale agent-set level
+	// doesn't carry over to new scope, then reopen.
+	const reopenWith = async (level: TierLevel) => {
+		if (level !== card.activeLevel) {
+			await updateCardTrigger({
+				params: { id: card.id },
+				body: { workspaceId, cardId: card.id, revision: 0, activeLevel: level },
+			});
+		}
+		setReopenOpen(false);
+		await send(true);
+	};
 
 	// Shown/sent attachments are derived from the tokens still present in the
 	// text, so deleting a `[Attachment #N]` any way (mid-token, select-all, cut)
@@ -139,171 +155,181 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 	const hasContent = message.trim().length > 0 || displayed.length > 0 || visualComment != null;
 
 	return (
-		<div className="shrink-0 border-t border-[#1e1e28] p-3">
-			<input
-				ref={fileInputRef}
-				type="file"
-				accept="*/*"
-				multiple
-				className="hidden"
-				onChange={(e) => {
-					if (e.target.files) addFiles(e.target.files);
-					e.target.value = "";
-				}}
-			/>
-			<div className="rounded-lg border border-[#2a2a38] bg-[#0d0d12] focus-within:border-[#3a3a50] transition-colors">
-				{/* Pending attachment previews — derived from tokens in the text */}
-				{displayed.length > 0 && (
-					<div className="flex flex-wrap gap-2 px-3 pt-2">
-						{displayed.map((att) => (
-							<div key={att.n} className="relative group">
-								<span className="absolute -top-1 -left-1 z-10 flex items-center justify-center min-w-[15px] h-[15px] px-1 rounded-full text-[9px] font-bold text-white bg-[#3a3a50]">
-									{att.n}
-								</span>
-								{att.dataUrl ? (
-									<img
-										src={att.dataUrl}
-										alt={att.name}
-										className="h-16 w-16 object-cover rounded border border-[#2a2a38]"
-										title={att.name}
-									/>
-								) : (
-									<div
-										className="h-16 w-16 flex flex-col items-center justify-center gap-1 rounded border border-[#2a2a38] bg-[#1a1a24] px-1"
-										title={att.name}
+		<>
+			<div className="shrink-0 border-t border-[#1e1e28] p-3">
+				<input
+					ref={fileInputRef}
+					type="file"
+					accept="*/*"
+					multiple
+					className="hidden"
+					onChange={(e) => {
+						if (e.target.files) addFiles(e.target.files);
+						e.target.value = "";
+					}}
+				/>
+				<div className="rounded-lg border border-[#2a2a38] bg-[#0d0d12] focus-within:border-[#3a3a50] transition-colors">
+					{/* Pending attachment previews — derived from tokens in the text */}
+					{displayed.length > 0 && (
+						<div className="flex flex-wrap gap-2 px-3 pt-2">
+							{displayed.map((att) => (
+								<div key={att.n} className="relative group">
+									<span className="absolute -top-1 -left-1 z-10 flex items-center justify-center min-w-[15px] h-[15px] px-1 rounded-full text-[9px] font-bold text-white bg-[#3a3a50]">
+										{att.n}
+									</span>
+									{att.dataUrl ? (
+										<img
+											src={att.dataUrl}
+											alt={att.name}
+											className="h-16 w-16 object-cover rounded border border-[#2a2a38]"
+											title={att.name}
+										/>
+									) : (
+										<div
+											className="h-16 w-16 flex flex-col items-center justify-center gap-1 rounded border border-[#2a2a38] bg-[#1a1a24] px-1"
+											title={att.name}
+										>
+											<Paperclip size={16} className="shrink-0 text-gray-500" />
+											<span className="text-[10px] text-gray-400 w-full text-center truncate">{att.name}</span>
+										</div>
+									)}
+									<button
+										onClick={() => removeAttachment(att.n)}
+										className="absolute -top-1 -right-1 size-4 rounded-full bg-[#1a1a24] border border-[#3a3a50] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
 									>
-										<Paperclip size={16} className="shrink-0 text-gray-500" />
-										<span className="text-[10px] text-gray-400 w-full text-center truncate">{att.name}</span>
-									</div>
-								)}
+										<X size={10} className="text-gray-300" />
+									</button>
+								</div>
+							))}
+						</div>
+					)}
+					{/* Visual context captured from a Whipped extension paste */}
+					{visualComment && visualComment.elements.length > 0 && (
+						<div className="mx-3 mt-2 flex flex-col gap-1.5 rounded-lg border border-[#2a2a38] bg-[#0d0d12] p-2">
+							<div className="flex items-center gap-2">
+								<Crosshair size={12} className="text-[#7c6aff]" />
+								<span className="text-[11px] font-medium text-gray-400">
+									Visual context · {visualComment.elements.length}{" "}
+									{visualComment.elements.length === 1 ? "element" : "elements"}
+								</span>
+								<div className="flex-1" />
 								<button
-									onClick={() => removeAttachment(att.n)}
-									className="absolute -top-1 -right-1 size-4 rounded-full bg-[#1a1a24] border border-[#3a3a50] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+									type="button"
+									onClick={() => setVisualComment(null)}
+									className="text-[11px] text-[#60607a] hover:text-[#ef4444] transition-colors"
 								>
-									<X size={10} className="text-gray-300" />
+									Clear
 								</button>
 							</div>
-						))}
-					</div>
-				)}
-				{/* Visual context captured from a Whipped extension paste */}
-				{visualComment && visualComment.elements.length > 0 && (
-					<div className="mx-3 mt-2 flex flex-col gap-1.5 rounded-lg border border-[#2a2a38] bg-[#0d0d12] p-2">
-						<div className="flex items-center gap-2">
-							<Crosshair size={12} className="text-[#7c6aff]" />
-							<span className="text-[11px] font-medium text-gray-400">
-								Visual context · {visualComment.elements.length}{" "}
-								{visualComment.elements.length === 1 ? "element" : "elements"}
-							</span>
-							<div className="flex-1" />
-							<button
-								type="button"
-								onClick={() => setVisualComment(null)}
-								className="text-[11px] text-[#60607a] hover:text-[#ef4444] transition-colors"
-							>
-								Clear
-							</button>
+							<div className="flex flex-wrap gap-1.5">
+								{visualComment.elements.map((el, i) => {
+									const label =
+										(el.componentChain?.length ? el.componentChain.join(" → ") : el.componentName) ??
+										el.elementSelector ??
+										"element";
+									const src = el.sourceFile
+										? `${el.sourceFile.split("/").slice(-1)[0]}${el.sourceLine ? `:${el.sourceLine}` : ""}`
+										: null;
+									return (
+										<span
+											key={i}
+											className="inline-flex items-center gap-1 rounded border border-[#2a2a38] bg-[#1a1a24] px-1.5 py-0.5 text-[10px] text-gray-400"
+											title={el.elementSelector}
+										>
+											<span className="text-[#c4baff]">#{i + 1}</span>
+											<span className="truncate max-w-[180px]">🧩 {label}</span>
+											{src && <span className="text-[#4a4a5a] font-mono">📄 {src}</span>}
+										</span>
+									);
+								})}
+							</div>
 						</div>
-						<div className="flex flex-wrap gap-1.5">
-							{visualComment.elements.map((el, i) => {
-								const label =
-									(el.componentChain?.length ? el.componentChain.join(" → ") : el.componentName) ??
-									el.elementSelector ??
-									"element";
-								const src = el.sourceFile
-									? `${el.sourceFile.split("/").slice(-1)[0]}${el.sourceLine ? `:${el.sourceLine}` : ""}`
-									: null;
-								return (
-									<span
-										key={i}
-										className="inline-flex items-center gap-1 rounded border border-[#2a2a38] bg-[#1a1a24] px-1.5 py-0.5 text-[10px] text-gray-400"
-										title={el.elementSelector}
-									>
-										<span className="text-[#c4baff]">#{i + 1}</span>
-										<span className="truncate max-w-[180px]">🧩 {label}</span>
-										{src && <span className="text-[#4a4a5a] font-mono">📄 {src}</span>}
-									</span>
-								);
-							})}
-						</div>
-					</div>
-				)}
-				<TokenTextarea
-					ref={textareaRef}
-					value={message}
-					refColorOf={
-						visualComment
-							? (n) => (n >= 1 && n <= visualComment.elements.length ? refColor(n - 1) : undefined)
-							: undefined
-					}
-					onChange={(e) => setMessage(e.target.value)}
-					onKeyDown={(e) => {
-						const edit = atomicTokenEdit(e);
-						if (edit) {
-							if (!applyTextareaEdit(e.currentTarget, edit.start, edit.end, edit.insert)) {
-								setMessage(
-									e.currentTarget.value.slice(0, edit.start) + edit.insert + e.currentTarget.value.slice(edit.end),
-								);
+					)}
+					<TokenTextarea
+						ref={textareaRef}
+						value={message}
+						refColorOf={
+							visualComment
+								? (n) => (n >= 1 && n <= visualComment.elements.length ? refColor(n - 1) : undefined)
+								: undefined
+						}
+						onChange={(e) => setMessage(e.target.value)}
+						onKeyDown={(e) => {
+							const edit = atomicTokenEdit(e);
+							if (edit) {
+								if (!applyTextareaEdit(e.currentTarget, edit.start, edit.end, edit.insert)) {
+									setMessage(
+										e.currentTarget.value.slice(0, edit.start) + edit.insert + e.currentTarget.value.slice(edit.end),
+									);
+								}
+								return;
 							}
-							return;
-						}
-						if (e.key === "Enter" && !e.shiftKey) {
-							e.preventDefault();
-							void send();
-						}
-					}}
-					onPaste={(e) => {
-						// A paste from the Whipped extension carries a structured payload —
-						// insert the instruction text and capture the visual context.
-						const payload = parseWhippedClipboard(e.clipboardData.getData("text/html"));
-						if (payload) {
-							e.preventDefault();
-							insertText(payload.description);
-							if (payload.visualComment) setVisualComment(payload.visualComment);
-							return;
-						}
-						if (e.clipboardData.files.length > 0) {
-							const hasImage = Array.from(e.clipboardData.files).some((f) => f.type.startsWith("image/"));
-							if (hasImage) {
+							if (e.key === "Enter" && !e.shiftKey) {
 								e.preventDefault();
-								addFiles(e.clipboardData.files);
+								void send();
 							}
-						}
-					}}
-					onDrop={(e) => {
-						e.preventDefault();
-						if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files);
-					}}
-					onDragOver={(e) => e.preventDefault()}
-					placeholder="Add a comment… (paste or drop images)"
-					rows={5}
-					metricsClassName="text-sm text-gray-200 px-3 pt-3 pb-1 leading-normal placeholder-gray-600"
-				/>
-				<div className="flex items-center justify-between px-3 pb-2">
-					<div className="flex items-center gap-2">
-						<button
-							onClick={() => fileInputRef.current?.click()}
-							className="text-[#4a4a5a] hover:text-gray-400 transition-colors"
-							title="Attach file"
-							type="button"
-						>
-							<Paperclip size={14} />
-						</button>
-						<span className="text-[10px] text-[#3a3a4a]">↵ Send · ⇧↵ Newline</span>
-					</div>
-					<div className="flex gap-1.5">
-						{isReadyForReview && (
-							<Button variant="outlined" size="sm" disabled={sending} onClick={() => void send(true)}>
-								{hasContent ? "Request Changes" : "Reopen"}
+						}}
+						onPaste={(e) => {
+							// A paste from the Whipped extension carries a structured payload —
+							// insert the instruction text and capture the visual context.
+							const payload = parseWhippedClipboard(e.clipboardData.getData("text/html"));
+							if (payload) {
+								e.preventDefault();
+								insertText(payload.description);
+								if (payload.visualComment) setVisualComment(payload.visualComment);
+								return;
+							}
+							if (e.clipboardData.files.length > 0) {
+								const hasImage = Array.from(e.clipboardData.files).some((f) => f.type.startsWith("image/"));
+								if (hasImage) {
+									e.preventDefault();
+									addFiles(e.clipboardData.files);
+								}
+							}
+						}}
+						onDrop={(e) => {
+							e.preventDefault();
+							if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files);
+						}}
+						onDragOver={(e) => e.preventDefault()}
+						placeholder="Add a comment… (paste or drop images)"
+						rows={5}
+						metricsClassName="text-sm text-gray-200 px-3 pt-3 pb-1 leading-normal placeholder-gray-600"
+					/>
+					<div className="flex items-center justify-between px-3 pb-2">
+						<div className="flex items-center gap-2">
+							<button
+								onClick={() => fileInputRef.current?.click()}
+								className="text-[#4a4a5a] hover:text-gray-400 transition-colors"
+								title="Attach file"
+								type="button"
+							>
+								<Paperclip size={14} />
+							</button>
+							<span className="text-[10px] text-[#3a3a4a]">↵ Send · ⇧↵ Newline</span>
+						</div>
+						<div className="flex gap-1.5">
+							{isReadyForReview && (
+								<Button variant="outlined" size="sm" disabled={sending} onClick={() => setReopenOpen(true)}>
+									{hasContent ? "Request Changes" : "Reopen"}
+								</Button>
+							)}
+							<Button size="sm" disabled={sending || !hasContent} onClick={() => void send()}>
+								<Send size={11} className="mr-1" />
+								Send
 							</Button>
-						)}
-						<Button size="sm" disabled={sending || !hasContent} onClick={() => void send()}>
-							<Send size={11} className="mr-1" />
-							Send
-						</Button>
+						</div>
 					</div>
 				</div>
 			</div>
-		</div>
+			{reopenOpen && (
+				<ReopenPickerDialog
+					currentLevel={card.activeLevel}
+					submitting={sending}
+					onConfirm={(level) => void reopenWith(level)}
+					onClose={() => setReopenOpen(false)}
+				/>
+			)}
+		</>
 	);
 }

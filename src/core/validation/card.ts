@@ -53,7 +53,12 @@ export type SubtaskDraftForm = z.infer<typeof subtaskDraftSchema>;
 export const createTaskFormSchema = z.object({
 	description: z.string().min(1, "Description is required"),
 	...sharedConfigShape,
-	activeLevel: tierLevelSchema,
+	// "" = not yet chosen; the create dialog requires the user to pick a level.
+	// superRefine (not refine) so the output type stays "" | TierLevel — narrowing
+	// it would desync RHF's resolver input/output types.
+	activeLevel: z.union([tierLevelSchema, z.literal("")]).superRefine((v, ctx) => {
+		if (v === "") ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Select a level" });
+	}),
 	modelConfig: cardModelConfigFormSchema,
 });
 export type CreateTaskForm = z.infer<typeof createTaskFormSchema>;

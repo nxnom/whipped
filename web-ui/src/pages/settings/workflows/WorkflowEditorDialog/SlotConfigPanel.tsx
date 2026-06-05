@@ -142,7 +142,7 @@ export function SlotConfigPanel({
 						{selectedSlot.type === "review" && (
 							<ToggleRow
 								title="Can adjust tier"
-								description="Let this reviewer right-size the level & cost mode on reopen (all agents)"
+								description="Let this reviewer right-size the level on reopen (all agents)"
 								checked={selectedSlot.canAdjustLevel}
 								onChange={(c) => updateSlot({ canAdjustLevel: c })}
 							/>

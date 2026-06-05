@@ -58,7 +58,13 @@ export function CardDetailSidebar({
 				onStop={onStop}
 			/>
 			{!sidebarCollapsed && (
-				<CardDetailDetails card={card} workspaceId={workspaceId} allCards={allCards} onRefresh={onRefresh} />
+				<CardDetailDetails
+					card={card}
+					workspaceId={workspaceId}
+					allCards={allCards}
+					workflowSlots={workflowSlots}
+					onRefresh={onRefresh}
+				/>
 			)}
 		</div>
 	);

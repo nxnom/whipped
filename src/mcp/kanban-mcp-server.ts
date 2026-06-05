@@ -520,25 +520,12 @@ server.registerTool(
 				.describe(
 					"Only for review slots allowed to adjust the tier: the capability level the rework should run at when you fail/reopen (applies to all agents). Omit to leave unchanged.",
 				),
-			suggestedMode: z
-				.enum(["auto", "preferFree", "freeOnly", "paidOnly"])
-				.optional()
-				.describe(
-					"Only for review slots allowed to adjust the tier: the cost policy the rework should use (applies to all agents). auto = best priority; preferFree/freeOnly/paidOnly filter by cost. Omit to leave unchanged.",
-				),
 		},
 	},
-	async ({ cardId, type, streamId, summary, status, issues, attachments, metadata, suggestedLevel, suggestedMode }) => {
+	async ({ cardId, type, streamId, summary, status, issues, attachments, metadata, suggestedLevel }) => {
 		const processedAttachments = attachments?.length ? await processAttachments(attachments, cardId) : undefined;
-		// suggestedLevel/suggestedMode ride on the comment metadata; the review pipeline reads them on reopen.
-		const mergedMetadata =
-			suggestedLevel || suggestedMode
-				? {
-						...(metadata ?? {}),
-						...(suggestedLevel ? { suggestedLevel } : {}),
-						...(suggestedMode ? { suggestedMode } : {}),
-					}
-				: metadata;
+		// suggestedLevel rides on the comment metadata; the review pipeline reads it on reopen.
+		const mergedMetadata = suggestedLevel ? { ...(metadata ?? {}), suggestedLevel } : metadata;
 
 		await apiMutate("cards.addReviewComment", {
 			workspaceId,
