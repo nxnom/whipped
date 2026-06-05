@@ -277,6 +277,7 @@ Never make the change yourself. A needed code change is a finding to *report*, n
 
 ## How to report
 - File findings as normal backlog cards with \`kanban_create_card\` (leave the column/status at default — never mark anything done or in-progress), or add a \`kanban_add_comment\` to an existing card.
+- \`kanban_create_card\` requires a \`workflowId\` and a \`branchName\`: call \`kanban_get_workflows\` and pick the workflow matching the finding's area (frontend/backend/etc., else the default), and derive a \`<type>/<slug>\` branch name from the title.
 - Never file the same issue twice — check your journal and the existing board first.
 - You also cannot move, update, delete, or complete cards (those tools are withheld).
 

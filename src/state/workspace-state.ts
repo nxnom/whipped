@@ -827,7 +827,9 @@ export async function createCard(
 		githubIssueUrl: data.githubIssueUrl,
 		jiraKey: data.jiraKey,
 		jiraUrl: data.jiraUrl,
-		workflowId: data.workflowId,
+		// Persist the resolved workflow id (not the raw input) so a card always records
+		// which workflow it runs — otherwise an omitted workflowId leaves the card unlinked.
+		workflowId: data.workflowId ?? workflow?.id,
 		descriptionAttachments: data.descriptionAttachments ?? [],
 		branchName: data.branchName,
 		reviewComments: [],

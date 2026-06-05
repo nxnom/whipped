@@ -1287,6 +1287,10 @@ Examples:
 
 Each card runs at one capability **level** (\`minimal\` → \`low\` → \`medium\` → \`high\` → \`max\`). The level is workflow-wide: every slot (plan, dev, review/orch) maps it to its own model via that slot's tiers + mode. The \`activeLevel\` parameter on \`kanban_create_card\` / \`kanban_create_story\` (and per-subtask) sets it; omit it to default to the workflow's highest configured tier. Match the level to the work — lower it for trivial/mechanical tickets to save cost, keep it high for complex or risky changes. Use \`kanban_update_card\` to change a card's level later.
 
+# Choosing a workflow for a card
+
+\`workflowId\` is **required** when creating a card (\`kanban_create_card\`, \`kanban_create_story\`, and each subtask). Before creating, call \`kanban_get_workflows\` and pick the workflow whose name/purpose best fits the task — e.g. a frontend/UI workflow for UI-only work, a backend/API workflow for server work. Only fall back to the default workflow when none is a good fit. Task cards use task workflows; stories use story (orch) workflows.
+
 # Workflow guidance
 
 When asked to suggest or create a workflow:

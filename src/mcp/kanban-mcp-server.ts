@@ -219,8 +219,10 @@ Creates all subtasks first, then the story card that depends on them. The story 
 			priority: z.enum(["urgent", "high", "medium", "low"]).optional().describe("Story priority"),
 			workflowId: z
 				.string()
-				.optional()
-				.describe("ID of the story orchestrator workflow. Omit to use the default story workflow."),
+				.min(1)
+				.describe(
+					"REQUIRED. ID of the story orchestrator workflow. Call kanban_get_workflows first and pick the story workflow that best matches this story's scope; fall back to the default story workflow only if none fits.",
+				),
 			baseRef: z
 				.string()
 				.optional()
@@ -252,14 +254,16 @@ Creates all subtasks first, then the story card that depends on them. The story 
 						priority: z.enum(["urgent", "high", "medium", "low"]).optional().describe("Subtask priority"),
 						workflowId: z
 							.string()
-							.optional()
-							.describe("Workflow ID for this subtask. Omit to use the default task workflow."),
+							.min(1)
+							.describe(
+								"REQUIRED. Workflow ID for this subtask (from kanban_get_workflows). Pick the workflow matching the subtask's nature (e.g. frontend vs backend); fall back to the default task workflow only if none fits.",
+							),
 						baseRef: z.string().optional().describe("Override base branch for this subtask only"),
 						branchName: z
 							.string()
-							.optional()
+							.min(1)
 							.describe(
-								"Custom git branch name for this subtask (e.g. 'fix/user-auth-bug', 'feat/dark-mode'). Use dashes, not underscores. Omit to auto-generate from description.",
+								"REQUIRED. Git branch name for this subtask: '<type>/<slug>' (e.g. 'fix/user-auth-bug', 'feat/dark-mode'). All lowercase, dashes not underscores, ≤60 chars.",
 							),
 						dependsOn: z
 							.array(z.string())
@@ -410,7 +414,12 @@ registerTool(
 				.describe(
 					"Card IDs this card waits for — it starts in a fresh worktree from the base branch only once ALL of them are done. Mutually exclusive with dependsOn.",
 				),
-			workflowId: z.string().optional().describe("ID of the workflow to use for this task. Omit to use the default."),
+			workflowId: z
+				.string()
+				.min(1)
+				.describe(
+					"REQUIRED. ID of the workflow this task runs. Call kanban_get_workflows first, then pick the workflow whose name/purpose best matches the task (e.g. a frontend workflow for UI-only work, a backend workflow for API work). Only fall back to the default task workflow if none is a good fit.",
+				),
 			activeLevel: z
 				.enum(["minimal", "low", "medium", "high", "max"])
 				.optional()
@@ -425,9 +434,9 @@ registerTool(
 				),
 			branchName: z
 				.string()
-				.optional()
+				.min(1)
 				.describe(
-					"Custom git branch name for this card (e.g. 'fix/user-auth-bug', 'feat/dark-mode'). Use dashes, not underscores. Omit to auto-generate from description.",
+					"REQUIRED. Git branch name for this card, derived from the title: '<type>/<slug>' (e.g. 'fix/user-auth-bug', 'feat/dark-mode'). All lowercase, dashes not underscores, ≤60 chars.",
 				),
 		},
 	},
