@@ -1,13 +1,18 @@
 import { z } from "zod";
-import { runtimeCardCreateRequestSchema, runtimeCardPrioritySchema, tierLevelSchema } from "../api-contract.js";
+import {
+	pairSelectionModeSchema,
+	runtimeCardCreateRequestSchema,
+	runtimeCardPrioritySchema,
+	tierLevelSchema,
+} from "../api-contract.js";
 import { modelPairFormSchema } from "./workflow.js";
 
 // Form-side per-ticket model config. Mirrors the contract's cardModelConfig but
 // uses the no-default pair form schema so RHF's input/output types stay identical.
 export const slotModelConfigFormSchema = z.object({
 	pairs: z.array(modelPairFormSchema).min(1),
-	defaultPairId: z.string(),
-	preferFree: z.boolean(),
+	mode: pairSelectionModeSchema,
+	pinnedPairId: z.string().optional(),
 });
 export const cardModelConfigFormSchema = z.record(z.string(), slotModelConfigFormSchema);
 export type CardModelConfigForm = z.infer<typeof cardModelConfigFormSchema>;

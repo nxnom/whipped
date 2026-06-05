@@ -18,9 +18,6 @@ export function defaultPair(binary: RuntimeAgentId): ModelPairForm {
 	return { id: `pair_${Date.now()}`, level: "medium", isFree: false, binary, model: null, effort: null };
 }
 
-export function defaultSlotModelFields(
-	binary: RuntimeAgentId,
-): Pick<WorkflowSlotForm, "pairs" | "defaultPairId" | "preferFree"> {
-	const pair = defaultPair(binary);
-	return { pairs: [pair], defaultPairId: pair.id, preferFree: false };
+export function defaultSlotModelFields(binary: RuntimeAgentId): Pick<WorkflowSlotForm, "pairs" | "mode"> {
+	return { pairs: [defaultPair(binary)], mode: "auto" };
 }

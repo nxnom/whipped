@@ -1,5 +1,12 @@
 import { Select, SelectOption } from "@geckoui/geckoui";
-import { type RuntimeAgentId, type TierLevel, TIER_LEVEL_OPTIONS, type Workflow } from "@runtime-contract";
+import {
+	PAIR_SELECTION_MODE_OPTIONS,
+	type PairSelectionMode,
+	type RuntimeAgentId,
+	type TierLevel,
+	TIER_LEVEL_OPTIONS,
+	type Workflow,
+} from "@runtime-contract";
 import type { CardModelConfigForm, CreateTaskForm } from "@runtime-validation/card";
 import type { ModelPairForm } from "@runtime-validation/workflow";
 import { Pencil } from "lucide-react";
@@ -8,9 +15,9 @@ import { useFormContext, useWatch } from "react-hook-form";
 import { ModelTiersDialog } from "@/pages/settings/workflows/WorkflowEditorDialog/ModelTiersDialog";
 import { snapshotFormModelConfig } from "./tiers";
 
-// Per-ticket model tiers editor for the create/edit task dialogs. The active level
-// and each slot's tiers (snapshotted from the workflow) are held in the form and
-// edited via the shared ModelTiersDialog.
+// Per-ticket model tiers: the workflow-wide active level, plus per-slot a merged
+// selector — pick a mode (auto/prefer free/…) or pin a specific pair (overrides
+// mode). Pairs themselves are edited via the shared ModelTiersDialog.
 export function TicketTiersSection({ workflow }: { workflow: Workflow | undefined }) {
 	const { control, setValue } = useFormContext<CreateTaskForm>();
 	const activeLevel = useWatch({ control, name: "activeLevel" });
@@ -22,16 +29,32 @@ export function TicketTiersSection({ workflow }: { workflow: Workflow | undefine
 	const defaultBinary: RuntimeAgentId =
 		workflow.slots.find((s) => s.type === "dev")?.pairs[0]?.binary ?? workflow.slots[0]?.pairs[0]?.binary ?? "claude";
 
-	const editingCfg = editingSlotId
-		? (modelConfig[editingSlotId] ?? snapshotFormModelConfig(workflow)[editingSlotId])
-		: undefined;
+	const cfgFor = (slotId: string) => modelConfig[slotId] ?? snapshotFormModelConfig(workflow)[slotId];
 
-	const saveSlot = (slotId: string, pairs: ModelPairForm[], defaultPairId: string) => {
+	const editingCfg = editingSlotId ? cfgFor(editingSlotId) : undefined;
+
+	const updateSlotCfg = (slotId: string, patch: Partial<CardModelConfigForm[string]>) => {
+		const sc = cfgFor(slotId);
+		if (!sc) return;
+		setValue("modelConfig", { ...modelConfig, [slotId]: { ...sc, ...patch } }, { shouldDirty: true });
+	};
+
+	const saveSlotPairs = (slotId: string, pairs: ModelPairForm[]) => {
+		const sc = cfgFor(slotId);
+		// Drop a pin that no longer points at an existing pair.
+		const pinnedPairId = sc?.pinnedPairId && pairs.some((p) => p.id === sc.pinnedPairId) ? sc.pinnedPairId : undefined;
 		setValue(
 			"modelConfig",
-			{ ...modelConfig, [slotId]: { pairs, defaultPairId, preferFree: modelConfig[slotId]?.preferFree ?? false } },
-			{ shouldDirty: true },
+			{ ...modelConfig, [slotId]: { pairs, mode: sc?.mode ?? "auto", pinnedPairId } },
+			{
+				shouldDirty: true,
+			},
 		);
+	};
+
+	const onSelectChange = (slotId: string, value: string) => {
+		if (value.startsWith("p:")) updateSlotCfg(slotId, { pinnedPairId: value.slice(2) });
+		else updateSlotCfg(slotId, { mode: value.slice(2) as PairSelectionMode, pinnedPairId: undefined });
 	};
 
 	const sortedSlots = [...workflow.slots].sort((a, b) => {
@@ -48,33 +71,37 @@ export function TicketTiersSection({ workflow }: { workflow: Workflow | undefine
 					<SelectOption key={o.value} value={o.value} label={`Level: ${o.label}`} />
 				))}
 			</Select>
-			<div className="flex flex-col gap-1.5">
+			<div className="flex flex-col gap-2">
 				{sortedSlots.map((slot) => {
-					const sc = modelConfig[slot.id];
-					const def = sc?.pairs.find((p) => p.id === sc.defaultPairId) ?? sc?.pairs[0];
+					const sc = cfgFor(slot.id);
+					if (!sc) return null;
+					const value = sc.pinnedPairId ? `p:${sc.pinnedPairId}` : `m:${sc.mode}`;
 					return (
-						<div
-							key={slot.id}
-							className="flex items-center gap-2 bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-2"
-						>
-							<span className="text-[12px] text-[#c0c0d0] shrink-0">{slot.name}</span>
-							<span className="text-[11px] text-[#60607a] truncate">
-								{def ? `${def.binary}${def.model ? `/${def.model}` : ""}` : ""}
-							</span>
-							<div className="flex-1" />
-							{def?.isFree && (
-								<span className="shrink-0 text-[9px] font-medium text-[#22c55e] bg-[#22c55e15] rounded px-1.5 py-[1px]">
-									Free
-								</span>
-							)}
-							<button
-								type="button"
-								onClick={() => setEditingSlotId(slot.id)}
-								className="flex items-center gap-1 hover:opacity-80 transition-opacity bg-transparent border border-[#2a2a35] rounded-[4px] px-2 py-[3px]"
-							>
-								<Pencil size={11} className="text-[#60607a]" />
-								<span className="text-[10px] text-[#60607a]">Edit</span>
-							</button>
+						<div key={slot.id} className="flex flex-col gap-1 bg-[#0c0c0f] border border-[#2a2a35] rounded-md p-2">
+							<div className="flex items-center gap-2">
+								<span className="text-[12px] text-[#c0c0d0]">{slot.name}</span>
+								<div className="flex-1" />
+								<button
+									type="button"
+									onClick={() => setEditingSlotId(slot.id)}
+									className="flex items-center gap-1 hover:opacity-80 transition-opacity bg-transparent border border-[#2a2a35] rounded-[4px] px-2 py-[3px]"
+								>
+									<Pencil size={11} className="text-[#60607a]" />
+									<span className="text-[10px] text-[#60607a]">Edit tiers</span>
+								</button>
+							</div>
+							<Select value={value} onChange={(v) => onSelectChange(slot.id, v)}>
+								{PAIR_SELECTION_MODE_OPTIONS.map((o) => (
+									<SelectOption key={o.value} value={`m:${o.value}`} label={o.label} />
+								))}
+								{sc.pairs.map((p) => (
+									<SelectOption
+										key={p.id}
+										value={`p:${p.id}`}
+										label={`Pin: ${p.binary}${p.model ? `/${p.model}` : ""} @${p.level}${p.isFree ? " (free)" : ""}`}
+									/>
+								))}
+							</Select>
 						</div>
 					);
 				})}
@@ -82,9 +109,8 @@ export function TicketTiersSection({ workflow }: { workflow: Workflow | undefine
 			{editingSlotId && editingCfg && (
 				<ModelTiersDialog
 					pairs={editingCfg.pairs}
-					defaultPairId={editingCfg.defaultPairId}
 					defaultBinary={defaultBinary}
-					onSave={(pairs, defaultPairId) => saveSlot(editingSlotId, pairs, defaultPairId)}
+					onSave={(pairs) => saveSlotPairs(editingSlotId, pairs)}
 					onClose={() => setEditingSlotId(null)}
 				/>
 			)}

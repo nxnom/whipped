@@ -518,14 +518,27 @@ server.registerTool(
 				.enum(["minimal", "low", "medium", "high", "max"])
 				.optional()
 				.describe(
-					"Only for review slots allowed to adjust the tier: the model level the rework should run at when you fail/reopen. Omit to leave it unchanged.",
+					"Only for review slots allowed to adjust the tier: the capability level the rework should run at when you fail/reopen (applies to all agents). Omit to leave unchanged.",
+				),
+			suggestedMode: z
+				.enum(["auto", "preferFree", "freeOnly", "paidOnly"])
+				.optional()
+				.describe(
+					"Only for review slots allowed to adjust the tier: the cost policy the rework should use (applies to all agents). auto = best priority; preferFree/freeOnly/paidOnly filter by cost. Omit to leave unchanged.",
 				),
 		},
 	},
-	async ({ cardId, type, streamId, summary, status, issues, attachments, metadata, suggestedLevel }) => {
+	async ({ cardId, type, streamId, summary, status, issues, attachments, metadata, suggestedLevel, suggestedMode }) => {
 		const processedAttachments = attachments?.length ? await processAttachments(attachments, cardId) : undefined;
-		// suggestedLevel rides on the comment metadata; the review pipeline reads it on reopen.
-		const mergedMetadata = suggestedLevel ? { ...(metadata ?? {}), suggestedLevel } : metadata;
+		// suggestedLevel/suggestedMode ride on the comment metadata; the review pipeline reads them on reopen.
+		const mergedMetadata =
+			suggestedLevel || suggestedMode
+				? {
+						...(metadata ?? {}),
+						...(suggestedLevel ? { suggestedLevel } : {}),
+						...(suggestedMode ? { suggestedMode } : {}),
+					}
+				: metadata;
 
 		await apiMutate("cards.addReviewComment", {
 			workspaceId,
@@ -617,8 +630,7 @@ server.registerTool(
 						model?: string | null;
 						effort?: string | null;
 					}>;
-					defaultPairId: string;
-					preferFree: boolean;
+					mode: string;
 					tools: string[];
 					canAdjustLevel: boolean;
 					rerun: boolean;
@@ -633,17 +645,13 @@ server.registerTool(
 			const sorted = [...wf.slots].sort((a, b) => a.order - b.order);
 			for (const slot of sorted) {
 				const status = slot.enabled ? "enabled" : "disabled";
-				const def = slot.pairs.find((p) => p.id === slot.defaultPairId) ?? slot.pairs[0];
-				const defTag = def
-					? `, default: ${def.binary}${def.model ? `/${def.model}` : ""}@${def.level}${def.effort ? `/${def.effort}` : ""}`
+				const top = slot.pairs[0];
+				const topTag = top
+					? `, top: ${top.binary}${top.model ? `/${top.model}` : ""}@${top.level}${top.effort ? `/${top.effort}` : ""}`
 					: "";
-				const pairsTag = `, ${slot.pairs.length} tier(s)`;
+				const pairsTag = `, ${slot.pairs.length} tier(s), mode: ${slot.mode}`;
 				const toolsTag = slot.tools.length ? `, tools: ${slot.tools.join("+")}` : "";
-				const flags = [
-					slot.preferFree ? "preferFree" : "",
-					slot.canAdjustLevel ? "canAdjustLevel" : "",
-					slot.rerun ? "rerun" : "",
-				]
+				const flags = [slot.canAdjustLevel ? "canAdjustLevel" : "", slot.rerun ? "rerun" : ""]
 					.filter(Boolean)
 					.join(",");
 				const flagsTag = flags ? `, ${flags}` : "";
@@ -655,7 +663,7 @@ server.registerTool(
 						: "";
 				const prompt = promptText ? `\n    prompt: ${promptText}` : "";
 				lines.push(
-					`  - [${slot.id}] ${slot.name} (${slot.type}${defTag}${pairsTag}, ${status}${toolsTag}${flagsTag})${prompt}`,
+					`  - [${slot.id}] ${slot.name} (${slot.type}${topTag}${pairsTag}, ${status}${toolsTag}${flagsTag})${prompt}`,
 				);
 			}
 		}
@@ -717,12 +725,15 @@ server.registerTool(
 								}),
 							)
 							.min(1)
-							.describe("Model tiers for this slot. At least one. The card copies these and picks one by level."),
-						defaultPairId: z.string().describe("The pair id used by default (must match one of pairs[].id)."),
-						preferFree: z
-							.boolean()
+							.describe(
+								"Model tiers for this slot, in priority order (first = highest). The card copies these and picks one by active level + mode.",
+							),
+						mode: z
+							.enum(["auto", "preferFree", "freeOnly", "paidOnly"])
 							.optional()
-							.describe("When true, prefer a free pair at the active level over a paid one."),
+							.describe(
+								"Selection policy at the active level: auto = top priority; preferFree = top free else paid; freeOnly / paidOnly = restrict by cost. Defaults to auto.",
+							),
 						tools: z
 							.array(z.enum(["browser"]))
 							.optional()

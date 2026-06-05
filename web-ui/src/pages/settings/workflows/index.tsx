@@ -104,11 +104,11 @@ function WorkflowCard({
 									/>
 									<span className="text-[11px] font-medium text-[#c0c0d0]">{slot.name}</span>
 									{(() => {
-										const def = slot.pairs.find((p) => p.id === slot.defaultPairId) ?? slot.pairs[0];
+										const top = slot.pairs[0];
 										return (
 											<>
-												<span className="font-mono text-[10px] text-[#f59e0b80]">{def?.binary}</span>
-												{def?.model && <span className="font-mono text-[10px] text-[#3a3a45]">{def.model}</span>}
+												<span className="font-mono text-[10px] text-[#f59e0b80]">{top?.binary}</span>
+												{top?.model && <span className="font-mono text-[10px] text-[#3a3a45]">{top.model}</span>}
 											</>
 										);
 									})()}

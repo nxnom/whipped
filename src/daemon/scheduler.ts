@@ -294,8 +294,7 @@ export class TaskScheduler {
 			enabled: true,
 			prompt: EMPTY_INLINE_PROMPT,
 			pairs: [DEFAULT_MODEL_PAIR],
-			defaultPairId: DEFAULT_MODEL_PAIR.id,
-			preferFree: false,
+			mode: "auto",
 			tools: [],
 			canAdjustLevel: false,
 			rerun: false,
@@ -304,10 +303,9 @@ export class TaskScheduler {
 		// slot template, using the card's workflow-wide active level.
 		const devModelCfg = card.modelConfig?.[devSlotEarly.id] ?? {
 			pairs: devSlotEarly.pairs,
-			defaultPairId: devSlotEarly.defaultPairId,
-			preferFree: devSlotEarly.preferFree,
+			mode: devSlotEarly.mode,
 		};
-		const devPair = resolvePair(devModelCfg, card.activeLevel, card.autoFixAttempts > 0);
+		const devPair = resolvePair(devModelCfg, card.activeLevel);
 		const agentId = card.agentId ?? devPair.binary;
 
 		// Guard: check agent binary is available before spawning

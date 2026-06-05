@@ -1,27 +1,24 @@
 import { Button, Checkbox, Select, SelectOption } from "@geckoui/geckoui";
 import { AGENT_BINARY_OPTIONS, EFFORT_OPTIONS, type RuntimeAgentId, TIER_LEVEL_OPTIONS } from "@runtime-contract";
 import type { ModelPairForm } from "@runtime-validation/workflow";
-import { Plus, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { ModelSelect } from "../ModelSelect";
 
-// Full-screen editor for a slot's model tiers, as a table. The side panel shows a
-// read-only summary and opens this on Edit/Add so it stays compact.
+// Full-screen editor for a slot's model tiers, as a table. Order = priority
+// (top = highest); the side panel shows a read-only summary and opens this on Edit.
 export function ModelTiersDialog({
 	pairs,
-	defaultPairId,
 	defaultBinary,
 	onSave,
 	onClose,
 }: {
 	pairs: ModelPairForm[];
-	defaultPairId: string;
 	defaultBinary: RuntimeAgentId;
-	onSave: (pairs: ModelPairForm[], defaultPairId: string) => void;
+	onSave: (pairs: ModelPairForm[]) => void;
 	onClose: () => void;
 }) {
 	const [draft, setDraft] = useState<ModelPairForm[]>(pairs);
-	const [defId, setDefId] = useState(defaultPairId);
 
 	const patch = (id: string, p: Partial<ModelPairForm>) =>
 		setDraft((d) => d.map((row) => (row.id === id ? { ...row, ...p } : row)));
@@ -29,38 +26,42 @@ export function ModelTiersDialog({
 	const addRow = () => {
 		setDraft((d) => [
 			...d,
-			{
-				id: crypto.randomUUID(),
-				level: "medium",
-				isFree: false,
-				binary: defaultBinary,
-				model: null,
-				effort: null,
-			},
+			{ id: crypto.randomUUID(), level: "medium", isFree: false, binary: defaultBinary, model: null, effort: null },
 		]);
 	};
 
-	const deleteRow = (id: string) => {
-		setDraft((d) => (d.length <= 1 ? d : d.filter((row) => row.id !== id)));
-		setDefId((cur) => (cur === id ? (draft.find((row) => row.id !== id)?.id ?? "") : cur));
+	const deleteRow = (id: string) => setDraft((d) => (d.length <= 1 ? d : d.filter((row) => row.id !== id)));
+
+	const move = (index: number, dir: -1 | 1) => {
+		setDraft((d) => {
+			const j = index + dir;
+			if (j < 0 || j >= d.length) return d;
+			const next = [...d];
+			const a = next[index];
+			const b = next[j];
+			if (!a || !b) return d;
+			next[index] = b;
+			next[j] = a;
+			return next;
+		});
 	};
 
 	const handleSave = () => {
 		if (draft.length === 0) return;
-		const validDefault = draft.some((p) => p.id === defId) ? defId : (draft[0]?.id ?? "");
-		onSave(draft, validDefault);
+		onSave(draft);
 		onClose();
 	};
 
 	return (
 		<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70" onClick={onClose}>
 			<div
-				className="flex flex-col overflow-hidden bg-[#141418] rounded-xl border border-[#2a2a35] w-[80vw] max-w-[960px] max-h-[85vh] shadow-[0_8px_40px_4px_rgba(0,0,0,0.38)]"
+				className="flex flex-col overflow-hidden bg-[#141418] rounded-xl border border-[#2a2a35] w-[80vw] max-w-[980px] max-h-[85vh] shadow-[0_8px_40px_4px_rgba(0,0,0,0.38)]"
 				onClick={(e) => e.stopPropagation()}
 			>
 				{/* Header */}
 				<div className="flex items-center gap-3 shrink-0 px-6 py-4 border-b border-[#2a2a35]">
 					<span className="text-[15px] font-semibold text-[#f0f0f5] flex-1">Model tiers</span>
+					<span className="text-[11px] text-[#60607a]">Order = priority (top first)</span>
 					<Button variant="outlined" size="sm" onClick={addRow}>
 						<Plus size={13} />
 						<span className="text-[12px]">Add tier</span>
@@ -72,9 +73,8 @@ export function ModelTiersDialog({
 
 				{/* Table */}
 				<div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
-					<div className="grid grid-cols-[130px_130px_1fr_140px_60px_72px_32px] gap-x-3 gap-y-2 items-start">
-						{/* Column headers */}
-						{["Level", "Agent", "Model", "Effort", "Free", "Default", ""].map((h, i) => (
+					<div className="grid grid-cols-[44px_120px_120px_1fr_140px_56px_32px] gap-x-3 gap-y-2 items-start">
+						{["", "Level", "Agent", "Model", "Effort", "Free", ""].map((h, i) => (
 							<span
 								key={i}
 								className="text-[10px] font-semibold text-[#60607a] tracking-[0.5px] uppercase pb-1 border-b border-[#2a2a35]"
@@ -82,15 +82,14 @@ export function ModelTiersDialog({
 								{h}
 							</span>
 						))}
-						{/* Rows */}
-						{draft.map((pair) => (
+						{draft.map((pair, index) => (
 							<TierRow
 								key={pair.id}
 								pair={pair}
-								isDefault={pair.id === defId}
-								canDelete={draft.length > 1}
+								index={index}
+								count={draft.length}
 								onPatch={(p) => patch(pair.id, p)}
-								onMakeDefault={() => setDefId(pair.id)}
+								onMove={move}
 								onDelete={() => deleteRow(pair.id)}
 							/>
 						))}
@@ -111,21 +110,41 @@ export function ModelTiersDialog({
 
 function TierRow({
 	pair,
-	isDefault,
-	canDelete,
+	index,
+	count,
 	onPatch,
-	onMakeDefault,
+	onMove,
 	onDelete,
 }: {
 	pair: ModelPairForm;
-	isDefault: boolean;
-	canDelete: boolean;
+	index: number;
+	count: number;
 	onPatch: (p: Partial<ModelPairForm>) => void;
-	onMakeDefault: () => void;
+	onMove: (index: number, dir: -1 | 1) => void;
 	onDelete: () => void;
 }) {
 	return (
 		<>
+			<div className="flex flex-col items-center h-9 justify-center">
+				<button
+					type="button"
+					onClick={() => onMove(index, -1)}
+					disabled={index === 0}
+					title="Move up"
+					className="hover:opacity-80 transition-opacity disabled:opacity-25"
+				>
+					<ChevronUp size={13} className="text-[#8888a0]" />
+				</button>
+				<button
+					type="button"
+					onClick={() => onMove(index, 1)}
+					disabled={index === count - 1}
+					title="Move down"
+					className="hover:opacity-80 transition-opacity disabled:opacity-25"
+				>
+					<ChevronDown size={13} className="text-[#8888a0]" />
+				</button>
+			</div>
 			<Select
 				floatingStrategy="fixed"
 				value={pair.level}
@@ -168,13 +187,10 @@ function TierRow({
 			<div className="flex items-center justify-center h-9">
 				<Checkbox checked={pair.isFree} onChange={(e) => onPatch({ isFree: e.target.checked })} />
 			</div>
-			<div className="flex items-center justify-center h-9">
-				<Checkbox checked={isDefault} onChange={() => onMakeDefault()} />
-			</div>
 			<button
 				type="button"
 				onClick={onDelete}
-				disabled={!canDelete}
+				disabled={count <= 1}
 				title="Delete tier"
 				className="flex items-center justify-center h-9 hover:opacity-80 transition-opacity disabled:opacity-30"
 			>

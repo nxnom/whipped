@@ -1,5 +1,11 @@
-import { Button, Input, RHFSwitch, Switch } from "@geckoui/geckoui";
-import { type RuntimeAgentId, type SlotTool, TIER_LEVEL_OPTIONS } from "@runtime-contract";
+import { Button, Input, RHFSwitch, Select, SelectOption, Switch } from "@geckoui/geckoui";
+import {
+	PAIR_SELECTION_MODE_OPTIONS,
+	type PairSelectionMode,
+	type RuntimeAgentId,
+	type SlotTool,
+	TIER_LEVEL_OPTIONS,
+} from "@runtime-contract";
 import type { ModelPairForm, WorkflowSlotForm } from "@runtime-validation/workflow";
 import { Check, Pencil, Trash2, Type } from "lucide-react";
 import { useState } from "react";
@@ -109,22 +115,20 @@ export function SlotConfigPanel({
 												Free
 											</span>
 										)}
-										{p.id === selectedSlot.defaultPairId && (
-											<span className="shrink-0 text-[9px] font-medium text-[#7c6aff] bg-[#7c6aff15] rounded px-1.5 py-[1px]">
-												Default
-											</span>
-										)}
 									</div>
 								))}
 							</div>
 						</div>
 
-						<ToggleRow
-							title="Prefer free"
-							description="Use a free tier over a paid one at the same level"
-							checked={selectedSlot.preferFree}
-							onChange={(c) => updateSlot({ preferFree: c })}
-						/>
+						{/* Selection mode */}
+						<div className="flex flex-col gap-[5px]">
+							<span className="text-[11px] font-medium text-[#60607a] tracking-[0.3px]">Selection mode</span>
+							<Select value={selectedSlot.mode} onChange={(v) => updateSlot({ mode: v as PairSelectionMode })}>
+								{PAIR_SELECTION_MODE_OPTIONS.map((o) => (
+									<SelectOption key={o.value} value={o.value} label={o.label} />
+								))}
+							</Select>
+						</div>
 
 						{selectedSlot.type === "review" && (
 							<ToggleRow
@@ -138,7 +142,7 @@ export function SlotConfigPanel({
 						{selectedSlot.type === "review" && (
 							<ToggleRow
 								title="Can adjust tier"
-								description="Let this reviewer right-size the tier on reopen"
+								description="Let this reviewer right-size the level & cost mode on reopen (all agents)"
 								checked={selectedSlot.canAdjustLevel}
 								onChange={(c) => updateSlot({ canAdjustLevel: c })}
 							/>
@@ -182,9 +186,8 @@ export function SlotConfigPanel({
 					{tiersOpen && (
 						<ModelTiersDialog
 							pairs={selectedSlot.pairs}
-							defaultPairId={selectedSlot.defaultPairId}
 							defaultBinary={defaultBinary}
-							onSave={(pairs: ModelPairForm[], defaultPairId: string) => updateSlot({ pairs, defaultPairId })}
+							onSave={(pairs: ModelPairForm[]) => updateSlot({ pairs })}
 							onClose={() => setTiersOpen(false)}
 						/>
 					)}

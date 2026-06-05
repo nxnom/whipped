@@ -15,8 +15,7 @@ export function snapshotFormModelConfig(workflow: Workflow | undefined): CardMod
 				model: p.model ?? null,
 				effort: p.effort ?? null,
 			})),
-			defaultPairId: slot.defaultPairId,
-			preferFree: slot.preferFree,
+			mode: slot.mode,
 		};
 	}
 	return cfg;
@@ -35,8 +34,8 @@ export function cardToFormModelConfig(cfg: CardModelConfig | undefined): CardMod
 				model: p.model ?? null,
 				effort: p.effort ?? null,
 			})),
-			defaultPairId: sc.defaultPairId,
-			preferFree: sc.preferFree,
+			mode: sc.mode,
+			pinnedPairId: sc.pinnedPairId,
 		};
 	}
 	return out;

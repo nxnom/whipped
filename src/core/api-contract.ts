@@ -90,6 +90,22 @@ export const modelPairSchema = z.object({
 });
 export type ModelPair = z.infer<typeof modelPairSchema>;
 
+// How a slot picks among the pairs at the active level (pairs are ordered, top =
+// highest priority):
+//   auto       — top pair, any cost
+//   preferFree — top free pair, else top paid
+//   freeOnly   — top free pair (search lower levels for one; else top as fallback)
+//   paidOnly   — top paid pair (same fallback)
+export const pairSelectionModeSchema = z.enum(["auto", "preferFree", "freeOnly", "paidOnly"]);
+export type PairSelectionMode = z.infer<typeof pairSelectionModeSchema>;
+
+export const PAIR_SELECTION_MODE_OPTIONS: ReadonlyArray<{ value: PairSelectionMode; label: string }> = [
+	{ value: "auto", label: "Auto (priority)" },
+	{ value: "preferFree", label: "Prefer free" },
+	{ value: "freeOnly", label: "Free only" },
+	{ value: "paidOnly", label: "Paid only" },
+];
+
 // Tools a slot may reach for. Granted per slot (not per agent type). Extend by
 // adding an id here and registering the matching MCP server in the review pipeline.
 export const SLOT_TOOL_IDS = ["browser"] as const;
@@ -102,10 +118,13 @@ export const SLOT_TOOL_OPTIONS: ReadonlyArray<{ value: SlotTool; label: string }
 
 // The per-slot model config that is snapshotted onto a card at creation, so each
 // ticket can tune cost independently of the workflow template.
+//   mode         — the selection policy (snapshotted from the workflow slot).
+//   pinnedPairId — per-ticket hard override: run exactly this pair, ignoring
+//                  mode/level. Absent = follow mode.
 export const slotModelConfigSchema = z.object({
 	pairs: z.array(modelPairSchema).min(1),
-	defaultPairId: z.string(),
-	preferFree: z.boolean().default(false),
+	mode: pairSelectionModeSchema.default("auto"),
+	pinnedPairId: z.string().optional(),
 });
 export type SlotModelConfig = z.infer<typeof slotModelConfigSchema>;
 
@@ -113,30 +132,50 @@ export type SlotModelConfig = z.infer<typeof slotModelConfigSchema>;
 export const cardModelConfigSchema = z.record(z.string(), slotModelConfigSchema);
 export type CardModelConfig = z.infer<typeof cardModelConfigSchema>;
 
-// Resolve which pair a slot should use for the card's active level. Capability
-// (level) takes priority over cost: among pairs at the active level, preferFree
-// picks a free one if present, else the default/paid pair. If no pair exists at
-// the active level, walk down to the nearest lower level.
-//
-// preferFree only kicks in on a later iteration (a reopen/rework) — the first run
-// always uses the default/paid pair so quality isn't compromised up front. Pass
-// isIteration=true once the card has been through at least one cycle.
-export function resolvePair(cfg: SlotModelConfig, activeLevel: TierLevel, isIteration = false): ModelPair {
-	const usePreferFree = cfg.preferFree && isIteration;
+// Pick the candidate at a given level for a mode. Returns undefined when the mode
+// can't be satisfied at that level (free/paid-only with no match) so the caller
+// can search other levels.
+function pickByMode(candidates: ModelPair[], mode: PairSelectionMode): ModelPair | undefined {
+	switch (mode) {
+		case "preferFree":
+			return candidates.find((p) => p.isFree) ?? candidates[0];
+		case "freeOnly":
+			return candidates.find((p) => p.isFree);
+		case "paidOnly":
+			return candidates.find((p) => !p.isFree);
+		default:
+			return candidates[0];
+	}
+}
+
+// Resolve which pair a slot runs for the card's active level. A per-ticket pin
+// wins outright. Otherwise capability (level) leads: at the active level — pairs
+// kept in priority order — the mode chooses one. If the exact level has no match,
+// search upward first (a more capable tier is the safer fallback) and only then
+// downward, so a slot always resolves to something.
+export function resolvePair(cfg: SlotModelConfig, activeLevel: TierLevel): ModelPair {
+	if (cfg.pinnedPairId) {
+		const pinned = cfg.pairs.find((p) => p.id === cfg.pinnedPairId);
+		if (pinned) return pinned;
+	}
 	const startIdx = LEVEL_ORDER.indexOf(activeLevel);
-	for (let i = startIdx; i >= 0; i--) {
-		const level = LEVEL_ORDER[i];
-		const candidates = cfg.pairs.filter((p) => p.level === level);
+	// Scan order: the active level, then upward (more capable = safer), then downward.
+	const order: number[] = [];
+	for (let i = startIdx; i < LEVEL_ORDER.length; i++) order.push(i);
+	for (let i = startIdx - 1; i >= 0; i--) order.push(i);
+
+	for (const i of order) {
+		const candidates = cfg.pairs.filter((p) => p.level === LEVEL_ORDER[i]);
 		if (candidates.length === 0) continue;
-		if (usePreferFree) {
-			const free = candidates.find((p) => p.isFree);
-			if (free) return free;
-		}
-		const pick =
-			candidates.find((p) => p.id === cfg.defaultPairId) ?? candidates.find((p) => !p.isFree) ?? candidates[0];
+		const pick = pickByMode(candidates, cfg.mode);
 		if (pick) return pick;
 	}
-	const fallback = cfg.pairs.find((p) => p.id === cfg.defaultPairId) ?? cfg.pairs[0];
+	// Mode unsatisfiable anywhere (e.g. freeOnly with no free pair) → nearest top pair.
+	for (const i of order) {
+		const candidates = cfg.pairs.filter((p) => p.level === LEVEL_ORDER[i]);
+		if (candidates[0]) return candidates[0];
+	}
+	const fallback = cfg.pairs[0];
 	if (!fallback) throw new Error("resolvePair: slot has no model pairs");
 	return fallback;
 }
@@ -166,11 +205,10 @@ export const workflowSlotSchema = z.object({
 	order: z.number().int().nonnegative(),
 	enabled: z.boolean(),
 	prompt: promptValueSchema.default(EMPTY_INLINE_PROMPT),
-	// Model tiers for this slot. Copied to the card at creation; the card's active
-	// level + preferFree select which pair actually runs (see resolvePair).
+	// Model tiers for this slot, in priority order (top = highest). Copied to the
+	// card at creation; the card's active level + mode select which pair runs.
 	pairs: z.array(modelPairSchema).min(1),
-	defaultPairId: z.string(),
-	preferFree: z.boolean().default(false),
+	mode: pairSelectionModeSchema.default("auto"),
 	// Tools this slot may use (e.g. "browser"). Workflow-only, not ticket-editable.
 	tools: z.array(slotToolSchema).default([]),
 	// review slots only: may set the card's active level on reopen.
@@ -190,10 +228,9 @@ export const DEFAULT_MODEL_PAIR: ModelPair = {
 	effort: null,
 };
 
-const DEFAULT_SLOT_MODEL_FIELDS: Pick<WorkflowSlot, "pairs" | "defaultPairId" | "preferFree"> = {
+const DEFAULT_SLOT_MODEL_FIELDS: Pick<WorkflowSlot, "pairs" | "mode"> = {
 	pairs: [DEFAULT_MODEL_PAIR],
-	defaultPairId: DEFAULT_MODEL_PAIR.id,
-	preferFree: false,
+	mode: "auto",
 };
 
 export const workflowSchema = z.object({
@@ -302,7 +339,7 @@ export function resolveWorkflowForCard(
 export function snapshotModelConfig(workflow: Workflow | undefined): CardModelConfig {
 	const config: CardModelConfig = {};
 	for (const slot of workflow?.slots ?? []) {
-		config[slot.id] = { pairs: slot.pairs, defaultPairId: slot.defaultPairId, preferFree: slot.preferFree };
+		config[slot.id] = { pairs: slot.pairs, mode: slot.mode };
 	}
 	return config;
 }
@@ -496,7 +533,7 @@ export const runtimeBoardCardSchema = z.object({
 	// Workflow-wide capability level; every slot resolves it to its own pair.
 	activeLevel: tierLevelSchema.default("medium"),
 	// Per-slot model config, snapshotted from the workflow at creation and editable
-	// per ticket (slotId → {pairs, defaultPairId, preferFree}).
+	// per ticket (slotId → {pairs, mode, pinnedPairId}).
 	modelConfig: cardModelConfigSchema.optional(),
 	reviewComments: z.array(runtimeReviewCommentSchema).default([]),
 	activityLog: z.array(runtimeActivityEntrySchema).default([]),

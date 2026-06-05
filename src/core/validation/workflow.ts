@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
 	effortLevelSchema,
+	pairSelectionModeSchema,
 	runtimeAgentIdSchema,
 	slotToolSchema,
 	tierLevelSchema,
@@ -47,8 +48,7 @@ export const workflowSlotFormSchema = z.object({
 	enabled: z.boolean(),
 	prompt: promptValueFormSchema,
 	pairs: z.array(modelPairFormSchema).min(1, "At least one model tier is required"),
-	defaultPairId: z.string(),
-	preferFree: z.boolean(),
+	mode: pairSelectionModeSchema,
 	tools: z.array(slotToolSchema),
 	canAdjustLevel: z.boolean(),
 	rerun: z.boolean(),

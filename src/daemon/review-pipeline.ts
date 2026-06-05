@@ -23,6 +23,7 @@ import { spawnAgent } from "../agents/agent-runner.js";
 import { type BrowserMcpServer, buildBrowserMcpServer, PLAYWRIGHT_MCP_SERVER_NAME } from "../agents/playwright-mcp.js";
 import type {
 	ModelPair,
+	PairSelectionMode,
 	RuntimeBoardCard,
 	RuntimeProjectSecret,
 	RuntimeReviewComment,
@@ -30,7 +31,7 @@ import type {
 	TierLevel,
 	WorkflowSlot,
 } from "../core/api-contract.js";
-import { DEFAULT_GIT_INSTRUCTIONS, LEVEL_ORDER, resolvePair } from "../core/api-contract.js";
+import { DEFAULT_GIT_INSTRUCTIONS, LEVEL_ORDER, pairSelectionModeSchema, resolvePair } from "../core/api-contract.js";
 import { ATTACHMENTS_DIR } from "../config/runtime-config.js";
 import { logger } from "../core/logger.js";
 import type { QaSemaphore } from "./qa-semaphore.js";
@@ -86,10 +87,9 @@ interface ReviewSlotResult {
 function resolveSlotPair(card: RuntimeBoardCard, slot: WorkflowSlot): ModelPair {
 	const cfg: SlotModelConfig = card.modelConfig?.[slot.id] ?? {
 		pairs: slot.pairs,
-		defaultPairId: slot.defaultPairId,
-		preferFree: slot.preferFree,
+		mode: slot.mode,
 	};
-	return resolvePair(cfg, card.activeLevel, (card.autoFixAttempts ?? 0) > 0);
+	return resolvePair(cfg, card.activeLevel);
 }
 
 // Comment type for a slot: orch keeps its fixed "orch" type; every other slot is
@@ -100,6 +100,10 @@ function slotCommentType(slot: WorkflowSlot): string {
 
 function isTierLevel(v: unknown): v is TierLevel {
 	return typeof v === "string" && (LEVEL_ORDER as readonly string[]).includes(v);
+}
+
+function isPairMode(v: unknown): v is PairSelectionMode {
+	return pairSelectionModeSchema.safeParse(v).success;
 }
 
 export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewPipelineOptions): Promise<void> {
@@ -196,14 +200,23 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 		if (!result.passed) {
 			await appendActivityLog(workspaceId, card.id, `${slot.name}: FAIL`);
 			if (!result.storedViaMcp) await persistComment(workspaceId, card, result.comment);
-			// Auto-adjust: a review slot allowed to set the tier may right-size the model
-			// for the rework via suggestedLevel (stored on the comment metadata).
+			// Auto-adjust: a review slot allowed to tune the tier may right-size the
+			// rework via suggestedLevel (capability) and/or suggestedMode (cost). Both
+			// are card-wide, so every agent re-resolves its own model under the new policy.
 			if (slot.canAdjustLevel) {
-				const suggested = result.comment.metadata?.suggestedLevel;
-				if (isTierLevel(suggested) && suggested !== card.activeLevel) {
-					await updateCard(workspaceId, card.id, { activeLevel: suggested });
-					card = { ...card, activeLevel: suggested };
-					await appendActivityLog(workspaceId, card.id, `Model tier set to "${suggested}" for rework`);
+				const suggestedLevel = result.comment.metadata?.suggestedLevel;
+				if (isTierLevel(suggestedLevel) && suggestedLevel !== card.activeLevel) {
+					await updateCard(workspaceId, card.id, { activeLevel: suggestedLevel });
+					card = { ...card, activeLevel: suggestedLevel };
+					await appendActivityLog(workspaceId, card.id, `Model tier set to "${suggestedLevel}" for rework`);
+				}
+				const suggestedMode = result.comment.metadata?.suggestedMode;
+				if (isPairMode(suggestedMode) && card.modelConfig) {
+					const nextCfg: NonNullable<RuntimeBoardCard["modelConfig"]> = {};
+					for (const [slotId, sc] of Object.entries(card.modelConfig)) nextCfg[slotId] = { ...sc, mode: suggestedMode };
+					await updateCard(workspaceId, card.id, { modelConfig: nextCfg });
+					card = { ...card, modelConfig: nextCfg };
+					await appendActivityLog(workspaceId, card.id, `Model mode set to "${suggestedMode}" for rework`);
 				}
 			}
 			await handleReviewFailure(card, options);
@@ -1291,8 +1304,11 @@ Don't just read the diff — exercise the change when it's user-facing or runnab
 	const levelAdjustSection = slot.canAdjustLevel
 		? `
 
-## Right-sizing the model tier on reopen
-The card is currently at tier **${card.activeLevel}**. When you set status "fail" (reopening for rework), set \`suggestedLevel\` in the MCP call to the tier the fix actually needs — one of: ${LEVEL_ORDER.join(", ")}. Keep it at "${card.activeLevel}" unless the rework is clearly easier (mechanical rename / copy / colour tweak → "minimal" or "low") or clearly harder (architectural change → "high" or "max"). Only lower the tier when the rework is clearly mechanical; when unsure, keep "${card.activeLevel}".`
+## Right-sizing the rework on reopen
+When you set status "fail" (reopening for rework), you can right-size what the next round runs. This is **policy only** — it applies to every agent, each of which picks its own model accordingly; you don't choose specific models. The card is currently at tier **${card.activeLevel}**.
+- \`suggestedLevel\` — capability the fix needs: one of ${LEVEL_ORDER.join(", ")}. Lower it for clearly mechanical fixes (rename / copy / colour tweak), raise it for clearly harder/architectural work. When unsure, keep "${card.activeLevel}".
+- \`suggestedMode\` — cost policy: one of auto, preferFree, freeOnly, paidOnly. Use a free mode for trivial reworks to save cost; use paidOnly when quality matters.
+Omit either to leave it unchanged.`
 		: "";
 
 	return `You are a senior reviewer performing an automated review.
@@ -1491,10 +1507,9 @@ export async function runPlanPhase(
 	const { workspaceId, stateHub, worktreePath } = options;
 	const cfg: SlotModelConfig = card.modelConfig?.[slot.id] ?? {
 		pairs: slot.pairs,
-		defaultPairId: slot.defaultPairId,
-		preferFree: slot.preferFree,
+		mode: slot.mode,
 	};
-	const pair = resolvePair(cfg, card.activeLevel, (card.autoFixAttempts ?? 0) > 0);
+	const pair = resolvePair(cfg, card.activeLevel);
 	const agentId = pair.binary;
 	const streamId = `${card.id}-${slot.id}-${Date.now()}`;
 	const customPrompt = resolvePromptText(slot.prompt, options.repoPath);
