@@ -1,6 +1,6 @@
-import { LoadingButton, Switch, Textarea, Tooltip } from "@geckoui/geckoui";
+import { Switch, Tooltip } from "@geckoui/geckoui";
 import type { RecurringAgent } from "@runtime-contract";
-import { BookText, Clock, Cpu, FileText, Pencil, Play, TerminalSquare, Trash2 } from "lucide-react";
+import { BookText, Clock, Cpu, FileText, Loader2, Pencil, Play, Save, TerminalSquare, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { classNames } from "@/utils/classNames";
@@ -176,24 +176,27 @@ export function RecurringAgentDetail({
 				)}
 
 				{tab === "journal" && (
-					<div className="flex-1 overflow-y-auto">
-						<div className="flex flex-col gap-3 px-6 py-5 max-w-3xl">
-							<span className="text-[11px] text-[#4a4a5a]">
+					<div className="flex-1 min-h-0 flex flex-col px-6 py-5 gap-3">
+						<div className="flex items-center gap-2 shrink-0">
+							<span className="text-[11px] text-[#4a4a5a] flex-1">
 								The agent's notes, carried across runs. It rewrites this each run; you can edit it too.
 							</span>
-							<Textarea value={journal} onChange={(e) => setJournal(e.target.value)} rows={14} autoResize />
-							<div className="flex justify-end">
-								<LoadingButton
-									size="xs"
-									variant="outlined"
-									loading={savingJournal}
-									disabled={journal === agent.journal}
+							<Tooltip delayDuration={0} content="Save journal" side="bottom" triggerAsChild>
+								<button
+									type="button"
 									onClick={() => onSaveJournal(journal)}
+									disabled={savingJournal || journal === agent.journal}
+									className="shrink-0 text-[#60607a] hover:text-[#f0f0f5] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
 								>
-									Save journal
-								</LoadingButton>
-							</div>
+									{savingJournal ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+								</button>
+							</Tooltip>
 						</div>
+						<textarea
+							value={journal}
+							onChange={(e) => setJournal(e.target.value)}
+							className="flex-1 min-h-0 w-full resize-none rounded-lg bg-[#0d0d12] border border-[#2a2a35] px-3.5 py-3 text-[13px] text-[#f0f0f5] placeholder:text-[#3a3a45] outline-none focus:border-[#3a3a48] leading-relaxed"
+						/>
 					</div>
 				)}
 
