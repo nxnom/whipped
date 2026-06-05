@@ -1,7 +1,7 @@
 import { RHFInput, RHFSelect, SelectOption } from "@geckoui/geckoui";
 import { useState } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
-import type { RuntimeBoardCard, Workflow } from "@runtime-contract";
+import { highestWorkflowLevel, type RuntimeBoardCard, type Workflow } from "@runtime-contract";
 import { GitBranch, Plus, Workflow as WorkflowIcon } from "lucide-react";
 import { classNames } from "@/utils/classNames";
 import { COLUMN_BADGE, COLUMN_LABEL } from "./constants";
@@ -48,6 +48,7 @@ export function CreateTaskConfigSidebar({
 	// since slots differ between workflows).
 	const onWorkflowChange = (id: string) => {
 		const wf = activeWorkflows.find((w) => w.id === id);
+		setValue("activeLevel", highestWorkflowLevel(wf), { shouldDirty: true });
 		setValue("modelConfig", snapshotFormModelConfig(wf), { shouldDirty: true });
 	};
 	const switchRelationMode = (mode: "waitsFor" | "dependsOn") => {
@@ -89,8 +90,8 @@ export function CreateTaskConfigSidebar({
 					)}
 				</div>
 
-				{/* Model tiers (task only — story snapshots from its workflow on the server) */}
-				{isTask && <TicketTiersSection workflow={selectedWorkflow} />}
+				{/* Model tiers */}
+				<TicketTiersSection workflow={selectedWorkflow} />
 
 				{/* Priority */}
 				<div className="flex flex-col gap-2">

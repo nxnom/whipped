@@ -75,6 +75,10 @@ export const createStoryFormSchema = z.object({
 	priority: formPrioritySchema,
 	baseRef: runtimeCardCreateRequestSchema.shape.baseRef.unwrap().min(1, "Base branch is required"),
 	workflowId: z.string(),
+	activeLevel: z.union([tierLevelSchema, z.literal("")]).superRefine((v, ctx) => {
+		if (v === "") ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Select a level" });
+	}),
+	modelConfig: cardModelConfigFormSchema,
 	subtasks: z.array(subtaskDraftSchema).min(1, "At least one subtask is required"),
 });
 export type CreateStoryForm = z.infer<typeof createStoryFormSchema>;

@@ -73,7 +73,7 @@ export function ModelSelect({
 						onClick={() => void modelsRead.trigger()}
 						disabled={isFetching}
 						title="Refresh model list"
-						className="flex items-center justify-center px-2 rounded border border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] disabled:opacity-50 transition-colors"
+						className="flex items-center justify-center px-2 rounded border border-[var(--color-border-secondary)] bg-[#1a1a1f] hover:bg-[var(--color-surface-hover)] disabled:opacity-50 transition-colors"
 					>
 						<svg
 							className={classNames("w-4 h-4", isFetching ? "animate-spin" : "")}

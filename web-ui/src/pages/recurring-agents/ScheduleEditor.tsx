@@ -1,15 +1,8 @@
-import { Input, Select, SelectOption } from "@geckoui/geckoui";
-import type { RecurringSchedule } from "@runtime-contract";
+import { RHFInput, RHFNumberInput, RHFSelect, SelectOption } from "@geckoui/geckoui";
+import { useFormContext, useWatch } from "react-hook-form";
 import { classNames } from "@/utils/classNames";
-import {
-	CALENDAR_FREQUENCIES,
-	type CalendarFrequency,
-	DEFAULT_CALENDAR_TIME,
-	DEFAULT_INTERVAL_SECONDS,
-	INTERVAL_UNITS,
-	WEEKDAYS,
-} from "./constants";
-import { buildCron, localTimezone, parseCron, secondsToUnit, unitToSeconds } from "./helpers";
+import { CALENDAR_FREQUENCIES, type CalendarFrequency, INTERVAL_UNITS, WEEKDAYS } from "./constants";
+import { localTimezone } from "./helpers";
 
 function timezoneOptions(): string[] {
 	const supported = (Intl as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf;
@@ -33,51 +26,21 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 	);
 }
 
-export function ScheduleEditor({
-	value,
-	onChange,
-	floatingStrategy,
-}: {
-	value: RecurringSchedule;
-	onChange: (next: RecurringSchedule) => void;
-	floatingStrategy?: "fixed" | "absolute";
-}) {
-	const isInterval = value.kind === "interval";
-	const interval = isInterval ? secondsToUnit(value.intervalSeconds) : { value: 1, unit: "hours" };
-	const parsed = value.kind === "calendar" ? parseCron(value.cronExpr) : null;
-	const freq: CalendarFrequency = parsed?.freq ?? "weekly";
-	const time = parsed?.time ?? DEFAULT_CALENDAR_TIME;
-	const dayOfWeek = parsed?.dayOfWeek ?? 1;
-	const dayOfMonth = parsed?.dayOfMonth ?? 1;
-	const timezone = value.kind === "calendar" ? value.timezone : localTimezone();
-
-	const setInterval = (v: number, unit: string) =>
-		onChange({ kind: "interval", intervalSeconds: unitToSeconds(v, unit) });
-
-	const setCalendar = (
-		next: Partial<{ freq: CalendarFrequency; time: string; dow: number; dom: number; tz: string }>,
-	) =>
-		onChange({
-			kind: "calendar",
-			cronExpr: buildCron(next.freq ?? freq, next.time ?? time, next.dow ?? dayOfWeek, next.dom ?? dayOfMonth),
-			timezone: next.tz ?? timezone,
-		});
+// RHF-bound schedule editor. Reads/writes the flat schedule fields (see
+// ScheduleFields in helpers); the dialog converts them to a RecurringSchedule.
+export function ScheduleEditor() {
+	const { control, setValue } = useFormContext();
+	const kind = (useWatch({ control, name: "scheduleKind" }) ?? "interval") as "interval" | "calendar";
+	const freq = (useWatch({ control, name: "calFreq" }) ?? "weekly") as CalendarFrequency;
+	const isInterval = kind === "interval";
 
 	return (
 		<div className="flex flex-col gap-3">
 			<div className="flex gap-1 p-1 rounded-lg bg-[#1a1a1f] border border-[#2a2a35]">
-				<TabButton
-					active={isInterval}
-					onClick={() => onChange({ kind: "interval", intervalSeconds: DEFAULT_INTERVAL_SECONDS })}
-				>
+				<TabButton active={isInterval} onClick={() => setValue("scheduleKind", "interval")}>
 					Interval
 				</TabButton>
-				<TabButton
-					active={!isInterval}
-					onClick={() =>
-						onChange({ kind: "calendar", cronExpr: buildCron("weekly", time, dayOfWeek, dayOfMonth), timezone })
-					}
-				>
+				<TabButton active={!isInterval} onClick={() => setValue("scheduleKind", "calendar")}>
 					Calendar
 				</TabButton>
 			</div>
@@ -85,85 +48,64 @@ export function ScheduleEditor({
 			{isInterval ? (
 				<div className="flex items-center gap-2">
 					<span className="text-[13px] text-[#8888a0]">Every</span>
-					<Input
-						type="number"
-						min={1}
-						value={String(interval.value)}
-						inputClassName="text-center"
+					<RHFNumberInput
+						name="intervalValue"
 						className="w-20"
-						onChange={(e) => setInterval(Number(e.target.value) || 1, interval.unit)}
+						inputClassName="text-center"
+						positiveOnly
+						maxFractionDigits={0}
 					/>
 					<div className="w-32">
-						<Select
-							value={interval.unit}
-							floatingStrategy={floatingStrategy}
-							onChange={(u) => setInterval(interval.value, u)}
-						>
+						<RHFSelect name="intervalUnit">
 							{INTERVAL_UNITS.map((u) => (
 								<SelectOption key={u.value} value={u.value} label={u.label} />
 							))}
-						</Select>
+						</RHFSelect>
 					</div>
 				</div>
 			) : (
 				<div className="flex flex-col gap-2.5">
+					<RHFSelect name="calFreq">
+						{CALENDAR_FREQUENCIES.map((f) => (
+							<SelectOption key={f.value} value={f.value} label={f.label} />
+						))}
+					</RHFSelect>
 					<div className="flex items-center gap-2">
-						<div className="w-36">
-							<Select
-								value={freq}
-								floatingStrategy={floatingStrategy}
-								onChange={(f) => setCalendar({ freq: f as CalendarFrequency })}
-							>
-								{CALENDAR_FREQUENCIES.map((f) => (
-									<SelectOption key={f.value} value={f.value} label={f.label} />
-								))}
-							</Select>
-						</div>
 						{freq === "weekly" && (
-							<div className="w-36">
-								<Select
-									value={String(dayOfWeek)}
-									floatingStrategy={floatingStrategy}
-									onChange={(d) => setCalendar({ dow: Number(d) })}
-								>
+							<div className="flex-1">
+								<RHFSelect name="calDow">
 									{WEEKDAYS.map((d) => (
 										<SelectOption key={d.value} value={String(d.value)} label={d.label} />
 									))}
-								</Select>
+								</RHFSelect>
 							</div>
 						)}
 						{freq === "monthly" && (
-							<Input
-								type="number"
-								min={1}
-								max={28}
-								value={String(dayOfMonth)}
-								className="w-20"
-								inputClassName="text-center"
-								prefix="Day"
-								onChange={(e) => setCalendar({ dom: Math.min(28, Math.max(1, Number(e.target.value) || 1)) })}
-							/>
+							<div className="flex items-center gap-1.5">
+								<span className="text-[12px] text-[#8888a0]">Day</span>
+								<RHFNumberInput
+									name="calDom"
+									className="w-16"
+									inputClassName="text-center"
+									positiveOnly
+									maxFractionDigits={0}
+								/>
+							</div>
 						)}
-						<Input
+						<RHFInput
+							name="calTime"
 							type="time"
-							value={time}
-							className="w-28"
-							onChange={(e) => setCalendar({ time: e.target.value || DEFAULT_CALENDAR_TIME })}
+							className={classNames("shrink-0", freq === "daily" ? "flex-1" : "w-36")}
 						/>
 					</div>
 					<div className="flex items-center gap-2">
 						<span className="text-[13px] text-[#8888a0] w-20 shrink-0">Timezone</span>
 						<div className="flex-1">
-							<Select
-								value={timezone}
-								floatingStrategy={floatingStrategy}
-								onChange={(tz) => setCalendar({ tz })}
-								filterable
-							>
+							<RHFSelect name="calTimezone" filterable>
 								{timezoneOptions().map((tz) => (
 									<SelectOption key={tz} value={tz} label={tz} />
 								))}
-							</Select>
+							</RHFSelect>
 						</div>
 					</div>
 				</div>

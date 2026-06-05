@@ -114,6 +114,8 @@ export function useTaskSubmit() {
 				priority: data.priority || undefined,
 				baseRef: data.baseRef || undefined,
 				workflowId: data.workflowId || undefined,
+				activeLevel: data.activeLevel || undefined,
+				modelConfig: data.modelConfig,
 				subtaskIds: created.map((c) => c.realId),
 			},
 		});

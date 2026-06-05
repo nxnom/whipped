@@ -91,6 +91,8 @@ export function CreateTaskDialog({
 			priority: "",
 			baseRef: defaultBranch,
 			workflowId: defaultStoryWorkflow?.id ?? "",
+			activeLevel: highestWorkflowLevel(defaultStoryWorkflow),
+			modelConfig: snapshotFormModelConfig(defaultStoryWorkflow),
 			subtasks: [],
 		}),
 		[defaultBranch, defaultStoryWorkflow?.id],

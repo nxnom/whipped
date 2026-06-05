@@ -1,5 +1,18 @@
 import type { RecurringSchedule } from "@runtime-contract";
-import { type CalendarFrequency, INTERVAL_UNITS } from "./constants";
+import { type CalendarFrequency, DEFAULT_CALENDAR_TIME, INTERVAL_UNITS } from "./constants";
+
+// Flat form fields for the schedule editor — RHF binds to these, and they convert
+// back to a RecurringSchedule on submit.
+export interface ScheduleFields {
+	scheduleKind: "interval" | "calendar";
+	intervalValue: number;
+	intervalUnit: string;
+	calFreq: CalendarFrequency;
+	calDow: string;
+	calDom: number;
+	calTime: string;
+	calTimezone: string;
+}
 
 export function localTimezone(): string {
 	try {
@@ -45,6 +58,44 @@ export function parseCron(
 	if (dom === "*" && /^[0-6]$/.test(dow!)) return { freq: "weekly", time, dayOfWeek: Number(dow), dayOfMonth: 1 };
 	if (/^\d{1,2}$/.test(dom!) && dow === "*") return { freq: "monthly", time, dayOfWeek: 1, dayOfMonth: Number(dom) };
 	return null;
+}
+
+export function scheduleToFields(schedule: RecurringSchedule): ScheduleFields {
+	const base: ScheduleFields = {
+		scheduleKind: "interval",
+		intervalValue: 1,
+		intervalUnit: "hours",
+		calFreq: "weekly",
+		calDow: "1",
+		calDom: 1,
+		calTime: DEFAULT_CALENDAR_TIME,
+		calTimezone: localTimezone(),
+	};
+	if (schedule.kind === "calendar") {
+		const parsed = parseCron(schedule.cronExpr);
+		return {
+			...base,
+			scheduleKind: "calendar",
+			calFreq: parsed?.freq ?? "weekly",
+			calTime: parsed?.time ?? DEFAULT_CALENDAR_TIME,
+			calDow: String(parsed?.dayOfWeek ?? 1),
+			calDom: parsed?.dayOfMonth ?? 1,
+			calTimezone: schedule.timezone,
+		};
+	}
+	const { value, unit } = secondsToUnit(schedule.intervalSeconds);
+	return { ...base, scheduleKind: "interval", intervalValue: value, intervalUnit: unit };
+}
+
+export function fieldsToSchedule(f: ScheduleFields): RecurringSchedule {
+	if (f.scheduleKind === "calendar") {
+		return {
+			kind: "calendar",
+			cronExpr: buildCron(f.calFreq, f.calTime, Number(f.calDow), Number(f.calDom)),
+			timezone: f.calTimezone,
+		};
+	}
+	return { kind: "interval", intervalSeconds: unitToSeconds(Number(f.intervalValue), f.intervalUnit) };
 }
 
 export function formatSchedule(schedule: RecurringSchedule): string {
