@@ -1354,26 +1354,24 @@ function buildOrchSystemPrompt(
 			? `\n\n**Attached files** (use Read tool to view):\n${attachmentLines(card.descriptionAttachments ?? [])}`
 			: "";
 
-	// Inline subtask context: id, description, latest dev/cr/qa status & summary.
-	// Saves a kanban_get_board roundtrip at runtime.
+	// Inline subtask context: id, description, latest dev status & each review
+	// agent's latest verdict. Review comment types are slot ids (not fixed
+	// code_review/qa), so surface every AI review type generically. Saves a
+	// kanban_get_board roundtrip at runtime.
 	const subtasksSection =
 		subtaskCards.length > 0
 			? subtaskCards
 					.map((sub) => {
 						const lines = [`### [${sub.id}] (${sub.columnId})`];
 						if (sub.description) lines.push(sub.description);
-						const lastByType = (type: string) => [...(sub.reviewComments ?? [])].reverse().find((c) => c.type === type);
-						const dev = lastByType("dev");
-						const cr = lastByType("code_review");
-						const qa = lastByType("qa");
+						const latestByType = new Map<string, RuntimeReviewComment>();
+						for (const c of sub.reviewComments ?? []) latestByType.set(c.type, c);
+						const dev = latestByType.get("dev");
 						if (dev) lines.push(`\n**Dev** · ${dev.status ?? "?"}: ${dev.summary}`);
-						if (cr) {
-							const issues = (cr.issues ?? []).map((i) => `  - [${i.severity}] ${i.message}`).join("\n");
-							lines.push(`\n**Code Review** · ${cr.status ?? "?"}: ${cr.summary}${issues ? `\n${issues}` : ""}`);
-						}
-						if (qa) {
-							const issues = (qa.issues ?? []).map((i) => `  - [${i.severity}] ${i.message}`).join("\n");
-							lines.push(`\n**QA** · ${qa.status ?? "?"}: ${qa.summary}${issues ? `\n${issues}` : ""}`);
+						for (const [type, c] of latestByType) {
+							if (type === "dev" || c.actor?.type !== "ai") continue;
+							const issues = (c.issues ?? []).map((i) => `  - [${i.severity}] ${i.message}`).join("\n");
+							lines.push(`\n**${type}** · ${c.status ?? "?"}: ${c.summary}${issues ? `\n${issues}` : ""}`);
 						}
 						return lines.join("\n");
 					})
@@ -1398,7 +1396,7 @@ ${ITERATION_SCOPING_NOTE}
 
 1. **Completeness** — does the diff cover everything in the story description?
 2. **Integration** — if subtask A exposes an interface that subtask B consumes, do they actually match?
-3. **Correctness** — given the CR/QA findings already shown above, are there unresolved issues that affect the story goal?
+3. **Correctness** — given the review findings already shown above, are there unresolved issues that affect the story goal?
 4. **Consistency** — are patterns, naming, data shapes, and behaviors consistent across subtasks?
 
 You may use \`Read\` / \`grep\` on the worktree to verify, but everything you need to make a decision is already in this prompt — avoid unnecessary tool calls.
@@ -1407,7 +1405,7 @@ You may use \`Read\` / \`grep\` on the worktree to verify, but everything you ne
 
 - All data above is current; do NOT call \`kanban_get_board\` — it's redundant.
 - You will run again after any flagged subtasks are fixed, so only pass when confident the story goal is met.
-- Only flag subtasks for issues that affect the story goal. Skip minor style preferences or info-level findings already noted by CR/QA.
+- Only flag subtasks for issues that affect the story goal. Skip minor style preferences or info-level findings already noted by the review agents.
 - A flagged subtask without a specific, actionable comment blocks the dev agent — never leave the summary vague.
 - **Choosing the right subtask**: reopen the one whose scope is most semantically responsible for the issue. All subtasks share one worktree, so the dev agent can edit any file regardless of which subtask you target.${!autoCommit ? "\n- **Auto-commit is disabled**: Subtask worktrees intentionally have uncommitted changes. Do NOT flag this." : ""}
 - Your story-card summary must describe only what was built and whether it meets the story goal — nothing else.${custom}${secretsSection ? `\n\n${secretsSection}` : ""}${projectContext}

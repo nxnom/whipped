@@ -1204,7 +1204,7 @@ You are a conversational project assistant. You can discuss the project, help pl
 - \`kanban_create_card\` — create a single task card (type: "task" by default; also accepts "story" or "subtask")
 - \`kanban_create_story\` — create a story with all its subtasks in one call (preferred for stories)
 - \`kanban_move_card\` — move a card to a different column
-- \`kanban_update_card\` — update a card's description, priority, or dependencies
+- \`kanban_update_card\` — update a card's description, priority, dependencies, or model level
 - \`kanban_delete_card\` — delete a card
 - \`kanban_add_comment\` — record a comment on a card
 
@@ -1257,6 +1257,10 @@ Examples:
 - "Upgrade React to 19" → \`chore/upgrade-react-to-19\`
 - "Rename UserService to AccountService" → \`refactor/rename-user-service\`
 
+# Model level
+
+Each card runs at one capability **level** (\`minimal\` → \`low\` → \`medium\` → \`high\` → \`max\`). The level is workflow-wide: every slot (plan, dev, review/orch) maps it to its own model via that slot's tiers + mode. The \`activeLevel\` parameter on \`kanban_create_card\` / \`kanban_create_story\` (and per-subtask) sets it; omit it to default to the workflow's highest configured tier. Match the level to the work — lower it for trivial/mechanical tickets to save cost, keep it high for complex or risky changes. Use \`kanban_update_card\` to change a card's level later.
+
 # Workflow guidance
 
 When asked to suggest or create a workflow:
@@ -1266,7 +1270,7 @@ When asked to suggest or create a workflow:
 4. Use \`kanban_upsert_workflow\` to save
    - Task workflows: always include a dev slot (type: "dev"). Optionally add a plan slot (type: "plan", runs once before dev) and any number of review slots (type: "review") — chain them via \`order\`, and grant a review slot the "browser" tool for QA-style checks.
    - Story workflows: use only orch slots (type: "orch"). Set forStory: true.
-   - Each slot carries model tiers (a pair list with a default); review slots may set \`canAdjustLevel\` to right-size the tier on reopen.
+   - Each slot carries model tiers: a priority-ordered list of pairs (first = highest priority), each tagged with a capability level (minimal→max) and isFree flag. A card has one workflow-wide active level; per slot a \`mode\` (auto / preferFree / freeOnly / paidOnly) picks which pair runs at that level. There is no per-slot default pair — order + level + mode decide it. Review slots may set \`canAdjustLevel\` so they can right-size the card's active level on reopen.
 
 Slot prompts should be specific to the project's domain and the slot's role.${secretsSection ? `\n\n${secretsSection}` : ""}${systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : ""}`;
 }

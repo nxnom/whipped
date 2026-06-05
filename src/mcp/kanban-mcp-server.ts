@@ -184,6 +184,12 @@ Creates all subtasks first, then the story card that depends on them. The story 
 				.string()
 				.optional()
 				.describe("Base branch for all cards in this story. Omit to use the repo default branch."),
+			activeLevel: z
+				.enum(["minimal", "low", "medium", "high", "max"])
+				.optional()
+				.describe(
+					"Capability level for the story's orchestrator (orch) workflow. Each subtask sets its own level. Omit to default to the workflow's highest configured tier.",
+				),
 			attachments: z
 				.array(attachmentInputSchema)
 				.optional()
@@ -220,6 +226,12 @@ Creates all subtasks first, then the story card that depends on them. The story 
 							.describe(
 								"Dependencies for this subtask. Use real card IDs for existing cards on the board, or tempId values to reference other subtasks in this same batch.",
 							),
+						activeLevel: z
+							.enum(["minimal", "low", "medium", "high", "max"])
+							.optional()
+							.describe(
+								"Capability level for this subtask's dev workflow. Omit to default to the workflow's highest configured tier; lower it for trivial subtasks.",
+							),
 						attachments: z
 							.array(attachmentInputSchema)
 							.optional()
@@ -234,7 +246,7 @@ Creates all subtasks first, then the story card that depends on them. The story 
 				),
 		},
 	},
-	async ({ description, priority, workflowId, baseRef, attachments, subtasks }) => {
+	async ({ description, priority, workflowId, baseRef, activeLevel, attachments, subtasks }) => {
 		// Pass 1: create all subtasks without intra-batch deps, build tempId → realId map
 		const tempIdToRealId = new Map<string, string>();
 		const createdSubtasks: Array<{ realId: string; descFirst: string; rawDeps: string[] }> = [];
@@ -251,6 +263,7 @@ Creates all subtasks first, then the story card that depends on them. The story 
 				baseRef: subtask.baseRef || baseRef || undefined,
 				workflowId: subtask.workflowId || undefined,
 				branchName: subtask.branchName || undefined,
+				activeLevel: subtask.activeLevel,
 				dependsOn: existingDeps[0],
 			});
 			if (subtask.attachments?.length) {
@@ -295,6 +308,7 @@ Creates all subtasks first, then the story card that depends on them. The story 
 			priority,
 			baseRef: baseRef || undefined,
 			workflowId: workflowId || undefined,
+			activeLevel,
 			subtaskIds,
 		});
 		if (attachments?.length) {
@@ -356,6 +370,12 @@ server.registerTool(
 					"Card IDs this card waits for — it starts in a fresh worktree from the base branch only once ALL of them are done. Mutually exclusive with dependsOn.",
 				),
 			workflowId: z.string().optional().describe("ID of the workflow to use for this task. Omit to use the default."),
+			activeLevel: z
+				.enum(["minimal", "low", "medium", "high", "max"])
+				.optional()
+				.describe(
+					"Capability level the whole pipeline runs at (each slot maps it to its own model via the slot's pairs + mode). Higher = more capable/expensive. Omit to default to the workflow's highest configured tier; lower it for trivial work.",
+				),
 			attachments: z
 				.array(attachmentInputSchema)
 				.optional()
@@ -379,6 +399,7 @@ server.registerTool(
 		dependsOn,
 		waitsFor,
 		workflowId,
+		activeLevel,
 		attachments,
 		branchName,
 	}) => {
@@ -392,6 +413,7 @@ server.registerTool(
 			waitsFor,
 			columnId: columnId ?? "todo",
 			workflowId,
+			activeLevel,
 			branchName: branchName || undefined,
 		});
 		if (attachments?.length) {
@@ -451,6 +473,12 @@ server.registerTool(
 				),
 			workflowId: z.string().optional().describe("ID of the workflow to assign to this card"),
 			readyForDev: z.boolean().optional().describe("Whether the card is ready for the agent to pick up automatically"),
+			activeLevel: z
+				.enum(["minimal", "low", "medium", "high", "max"])
+				.optional()
+				.describe(
+					"Capability level the pipeline runs at (each slot maps it to its own model). Raise for bigger scope, lower for trivial work. Omit to leave unchanged.",
+				),
 			attachments: z
 				.array(attachmentInputSchema)
 				.optional()
@@ -459,7 +487,7 @@ server.registerTool(
 				),
 		},
 	},
-	async ({ cardId, description, priority, dependsOn, waitsFor, workflowId, readyForDev, attachments }) => {
+	async ({ cardId, description, priority, dependsOn, waitsFor, workflowId, readyForDev, activeLevel, attachments }) => {
 		let descriptionAttachments: Array<{ type: string; name: string; mimeType: string; path: string }> | undefined;
 		if (attachments?.length) {
 			const state = await apiQuery<{
@@ -483,6 +511,7 @@ server.registerTool(
 			waitsFor,
 			workflowId,
 			readyForDev,
+			activeLevel,
 			descriptionAttachments,
 			revision: 0,
 		});

@@ -345,6 +345,16 @@ export function snapshotModelConfig(workflow: Workflow | undefined): CardModelCo
 	return config;
 }
 
+// The highest tier present across a workflow's pairs — the default active level
+// for a new card so the strongest configured models run unless the user lowers it.
+export function highestWorkflowLevel(workflow: Workflow | undefined): TierLevel {
+	let bestIdx = -1;
+	for (const slot of workflow?.slots ?? []) {
+		for (const p of slot.pairs) bestIdx = Math.max(bestIdx, LEVEL_ORDER.indexOf(p.level));
+	}
+	return LEVEL_ORDER[bestIdx] ?? "medium";
+}
+
 // ─── Default git instructions ────────────────────────────────────────────────
 // Used when a project doesn't override `gitInstructions` in its config.
 // Also pre-filled as starter text in the UI when the field is empty.
@@ -711,7 +721,8 @@ export const runtimeCardCreateRequestSchema = z.object({
 	descriptionAttachments: z.array(reviewAttachmentSchema).optional(),
 	branchName: z.string().optional(),
 	// Optional per-ticket overrides edited before creation. When omitted, the card
-	// snapshots the resolved workflow's pairs and defaults to the "medium" level.
+	// snapshots the resolved workflow's pairs and defaults the active level to the
+	// workflow's highest configured tier.
 	modelConfig: cardModelConfigSchema.optional(),
 	activeLevel: tierLevelSchema.optional(),
 });

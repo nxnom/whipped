@@ -1,6 +1,6 @@
 import { RHFError, RHFInput, RHFSelect, SelectOption, toast } from "@geckoui/geckoui";
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { RuntimeBoardCard, Workflow } from "@runtime-contract";
+import { highestWorkflowLevel, type RuntimeBoardCard, type Workflow } from "@runtime-contract";
 import type { CreateStoryForm, CreateTaskForm, SubtaskDraftForm } from "@runtime-validation/card";
 import { createStoryFormSchema, createTaskFormSchema, subtaskDraftSchema } from "@runtime-validation/card";
 import { GitBranch, Plus, Workflow as WorkflowIcon, X } from "lucide-react";
@@ -17,7 +17,7 @@ import { CreateTaskConfigSidebar } from "./CreateTaskConfigSidebar";
 import { uploadImages } from "./helpers";
 import { PriorityField } from "./PriorityField";
 import { StorySubtaskList } from "./StorySubtaskList";
-import { cardToFormModelConfig, highestWorkflowLevel, snapshotFormModelConfig } from "./tiers";
+import { cardToFormModelConfig, snapshotFormModelConfig } from "./tiers";
 import { TicketTiersSection } from "./TicketTiersSection";
 import type { Mode, PendingImage, SubtaskDraft } from "./types";
 import { useTaskSubmit } from "./useTaskSubmit";
