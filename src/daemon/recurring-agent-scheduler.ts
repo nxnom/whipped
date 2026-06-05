@@ -138,7 +138,7 @@ export class RecurringAgentScheduler {
 			logger.warn({ err, agentId: agent.id }, "[recurring] failed to load project config");
 		}
 
-		const appendSystemPrompt = buildRecurringSystemPrompt(repoPath, projectSystemPrompt);
+		const appendSystemPrompt = buildRecurringSystemPrompt(repoPath, agent.journal, projectSystemPrompt);
 		const prompt = buildRecurringPrompt(agent);
 
 		if (agentBinary === "claude" && mcpConfigPath) {
@@ -243,22 +243,12 @@ export class RecurringAgentScheduler {
 }
 
 function buildRecurringPrompt(agent: RecurringAgent): string {
-	const parts = [`# Recurring task: ${agent.name}`, "", agent.instructions.trim()];
-	if (agent.journal.trim()) {
-		parts.push(
-			"",
-			"## Your journal (from previous runs)",
-			"This is what you recorded last time. Use it to avoid repeating work or filing duplicates.",
-			"",
-			agent.journal.trim(),
-		);
-	} else {
-		parts.push("", "## Your journal", "(empty — this is your first run)");
-	}
-	return parts.join("\n");
+	const task = agent.instructions.trim() || "Run your scheduled checks and report any findings.";
+	return `# Scheduled run: ${agent.name}\n\n${task}\n\nBegin now. When you're done, update your journal and end the run.`;
 }
 
-function buildRecurringSystemPrompt(repoPath: string, projectSystemPrompt?: string): string {
+function buildRecurringSystemPrompt(repoPath: string, journal: string, projectSystemPrompt?: string): string {
+	const journalBlock = journal.trim() || "(empty — this is your first run)";
 	let prompt = `You are a recurring **observer** agent for the project at \`${repoPath}\`, running on a schedule. You run once now, then exit.
 
 ## Code Writing Policy
@@ -278,11 +268,16 @@ Never make the change yourself. A needed code change is a finding to *report*, n
 ## How to report
 - File findings as normal backlog cards with \`kanban_create_card\` (leave the column/status at default — never mark anything done or in-progress), or add a \`kanban_add_comment\` to an existing card.
 - \`kanban_create_card\` requires a \`workflowId\` and a \`branchName\`: call \`kanban_get_workflows\` and pick the workflow matching the finding's area (frontend/backend/etc., else the default), and derive a \`<type>/<slug>\` branch name from the title.
+- Set \`readyForDev: true\` on cards you file so the dev agent picks them up automatically — unless your task instructions above say to leave them for manual review.
 - Never file the same issue twice — check your journal and the existing board first.
 - You also cannot move, update, delete, or complete cards (those tools are withheld).
 
-## Journal (your memory across runs)
-Before you exit, call \`update_journal\` with the full notes to keep for next time: what you checked, what you filed, and what you're watching. It REPLACES the journal, so include everything still relevant.
+## Your journal (memory from previous runs)
+This is what you recorded last time — use it to avoid repeating work or filing duplicate cards:
+
+${journalBlock}
+
+When you finish, call \`update_journal\` with the full updated notes to keep for next time (what you checked, what you filed, what you're watching). It REPLACES the journal, so include everything still relevant.
 
 ## Available tools
 \`kanban_get_board\`, \`kanban_create_card\`, \`kanban_add_comment\`, \`kanban_get_workflows\`, \`whipped_search_memory\`, \`whipped_get_memory\`, \`update_journal\`, plus read-only repo tools (Read, Grep, Glob).`;
