@@ -17,7 +17,7 @@ import { CreateTaskConfigSidebar } from "./CreateTaskConfigSidebar";
 import { uploadImages } from "./helpers";
 import { PriorityField } from "./PriorityField";
 import { StorySubtaskList } from "./StorySubtaskList";
-import { cardToFormModelConfig, snapshotFormModelConfig } from "./tiers";
+import { cardToFormModelConfig, highestWorkflowLevel, snapshotFormModelConfig } from "./tiers";
 import { TicketTiersSection } from "./TicketTiersSection";
 import type { Mode, PendingImage, SubtaskDraft } from "./types";
 import { useTaskSubmit } from "./useTaskSubmit";
@@ -77,7 +77,7 @@ export function CreateTaskDialog({
 			branchName: "",
 			dependsOn: "",
 			waitsFor: [],
-			activeLevel: "",
+			activeLevel: highestWorkflowLevel(defaultTaskWorkflow),
 			modelConfig: snapshotFormModelConfig(defaultTaskWorkflow),
 		}),
 		// Keyed by id (not the object) so the memo identity is stable across renders
