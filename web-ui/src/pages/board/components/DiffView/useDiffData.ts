@@ -8,13 +8,19 @@ import { parseDiff } from "./parser";
 export function useDiffData(workspaceId: string, cardId: string) {
 	const [selectedCommit, setSelectedCommit] = useState<string | null>(null);
 
-	const { data: commitsData } = useRead((api) => api("cards/commits").GET({ query: { workspaceId, cardId } }));
+	const { data: commitsData } = useRead((api) => api("cards/commits").GET({ query: { workspaceId, cardId } }), {
+		staleTime: 0,
+	});
 	const latestDiffRead = useRead((api) => api("cards/diff").GET({ query: { workspaceId, cardId } }), {
 		enabled: !selectedCommit,
+		staleTime: 0,
 	});
 	const commitDiffRead = useRead(
-		(api) => api("cards/diff-for-commit").GET({ query: { workspaceId, cardId, commitHash: selectedCommit ?? "" } }),
-		{ enabled: !!selectedCommit },
+		(api) =>
+			api("cards/diff-for-commit").GET({
+				query: { workspaceId, cardId, commitHash: selectedCommit ?? "" },
+			}),
+		{ enabled: !!selectedCommit, staleTime: 0 },
 	);
 
 	const activeDiffRead = selectedCommit ? commitDiffRead : latestDiffRead;
@@ -34,7 +40,16 @@ export function useDiffData(workspaceId: string, cardId: string) {
 		void activeDiffRead.trigger();
 	};
 
-	return { selectedCommit, setSelectedCommit, files, loading, loadError, commits, baseBehindCount, refreshDiff };
+	return {
+		selectedCommit,
+		setSelectedCommit,
+		files,
+		loading,
+		loadError,
+		commits,
+		baseBehindCount,
+		refreshDiff,
+	};
 }
 
 export type DiffCommit = ReturnType<typeof useDiffData>["commits"][number];
