@@ -26,8 +26,13 @@ export function BoardPage({ onOpenAgent }: Props) {
 	// list (and layout) auto-invalidate and refetch; no manual reload needed.
 	const { data: projectList } = useRead((api) => api("projects").GET());
 	const { data: layout } = useRead((api) => api("projects/layout").GET());
+	const { data: recurringAgents } = useRead(
+		(api) => api("recurring-agents").GET({ query: { workspaceId: workspaceId! } }),
+		{ enabled: !!workspaceId },
+	);
 	const { trigger: removeProject } = useWrite((api) => api("projects/:workspaceId").DELETE());
 
+	const recurringCount = recurringAgents?.length ?? 0;
 	const projects = projectList ?? [];
 	const activeProject = projects.find((p) => p.workspaceId === workspaceId) ?? null;
 
@@ -116,6 +121,11 @@ export function BoardPage({ onOpenAgent }: Props) {
 					>
 						<Clock size={15} className="text-[#60607a]" />
 						<span className="text-[12px] text-[#8888a0]">Recurring Agents</span>
+						{recurringCount > 0 && (
+							<span className="ml-auto min-w-[18px] text-center text-[11px] font-medium text-[#8888a0] bg-[#1a1a1f] border border-[#2a2a35] rounded px-1.5 py-px">
+								{recurringCount}
+							</span>
+						)}
 					</button>
 					<button
 						onClick={() => {
