@@ -135,7 +135,15 @@ export interface AgentArgsContext {
 	// Model name or alias. Empty/undefined uses the agent's default.
 	// Claude: 'opus', 'sonnet', 'haiku', or a full ID. Codex: e.g. 'gpt-5', 'gpt-5-codex'.
 	model?: string | null;
+	// Run the agent read-only (no file writes / shell). Enforced per binary:
+	// claude → --disallowedTools; opencode → the built-in read-only `plan` agent.
+	// codex/cursor have no clean flag, so they fall back to prompt-only enforcement.
+	readOnly?: boolean;
 }
+
+// Claude tools withheld in read-only mode — everything that can mutate the repo.
+// (Deny wins over --dangerously-skip-permissions, so these are truly unavailable.)
+const READONLY_DISALLOWED_TOOLS = ["Edit", "Write", "MultiEdit", "NotebookEdit", "Bash"];
 
 // "interactive": stays alive after finishing (task agents — Stop hook handles completion).
 // "print": exits when done (one-shot runs).
@@ -152,6 +160,8 @@ export function buildAgentArgs(agentId: RuntimeAgentId, prompt: string, ctx: Age
 			if (ctx.model) args.push("--model", ctx.model);
 			if (ctx.hookSettingsPath) args.push("--settings", ctx.hookSettingsPath);
 			if (ctx.mcpConfigPath) args.push("--mcp-config", ctx.mcpConfigPath);
+			// Comma-joined single value so the parser can't swallow a following positional prompt.
+			if (ctx.readOnly) args.push("--disallowedTools", READONLY_DISALLOWED_TOOLS.join(","));
 			if (ctx.appendSystemPrompt) args.push("--append-system-prompt", ctx.appendSystemPrompt);
 			if (ctx.files?.length) {
 				for (const f of ctx.files) args.push("--file", f);
@@ -183,6 +193,9 @@ export function buildAgentArgs(agentId: RuntimeAgentId, prompt: string, ctx: Age
 		}
 		case "opencode": {
 			// --agent build: built-in agent with permission "*" allow "*" (skip-permissions equivalent).
+			// Read-only is enforced in opencode.json (writeOpencodeFiles disables the
+			// write/edit/bash tools) — we keep the autonomous `build` agent rather than
+			// the built-in `plan` agent, which is an interactive approval-seeking mode.
 			if (mode === "print") {
 				// One-shot non-interactive run (review pipeline slots).
 				// `opencode run` supports --variant; --prompt is not used here (prompt is a positional).

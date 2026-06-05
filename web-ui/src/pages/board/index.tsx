@@ -1,5 +1,5 @@
 import { Menu, MenuItem, MenuTrigger } from "@geckoui/geckoui";
-import { FolderOpen, FolderPlus, Plus, Settings, WifiOff } from "lucide-react";
+import { Clock, FolderOpen, FolderPlus, Plus, Settings, WifiOff } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
@@ -106,8 +106,17 @@ export function BoardPage({ onOpenAgent }: Props) {
 					)}
 				</div>
 
-				{/* Global Settings */}
+				{/* Footer nav */}
 				<div className="border-t border-[#2a2a35] py-3 px-4 gap-1.5 flex flex-col">
+					<button
+						onClick={() => {
+							if (workspaceId) navigate(`/${encodeURIComponent(workspaceId)}/recurring-agents`);
+						}}
+						className="flex items-center gap-2.5 py-1.5 px-0.5 hover:opacity-80 transition-opacity"
+					>
+						<Clock size={15} className="text-[#60607a]" />
+						<span className="text-[12px] text-[#8888a0]">Recurring Agents</span>
+					</button>
 					<button
 						onClick={() => {
 							if (workspaceId) navigate(`/${encodeURIComponent(workspaceId)}/settings`);

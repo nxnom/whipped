@@ -46,6 +46,18 @@ export async function writeClaudeTaskHookSettings(serverPort: number): Promise<v
 	await writeFile(CLAUDE_TASK_SETTINGS_PATH, JSON.stringify(settings, null, 2));
 }
 
+// Extra positional args appended to the MCP server spec to scope its tool set.
+// `--role` gates which tools the server registers (assistant gets recurring-agent
+// management; recurring agents get update_journal); `--recurring-agent-id` tells a
+// recurring agent's update_journal which row to write. Passed as named flags so
+// they survive regardless of whether agentId is present (position-independent).
+export function buildMcpRoleArgs(role?: string, recurringAgentId?: string): string[] {
+	const args: string[] = [];
+	if (role) args.push(`--role=${role}`);
+	if (recurringAgentId) args.push(`--recurring-agent-id=${recurringAgentId}`);
+	return args;
+}
+
 // The raw {command, args} pair for the whipped MCP server. Claude consumes the
 // JSON shape via buildMcpConfig; codex inlines this spec via `-c` overrides.
 export function buildWhippedMcpServerSpec(
@@ -53,10 +65,11 @@ export function buildWhippedMcpServerSpec(
 	serverUrl: string,
 	workspaceId: string,
 	agentId?: string,
+	extraArgs: string[] = [],
 ): { command: string; args: string[] } {
 	return {
 		command: mcp.command,
-		args: [...mcp.args, serverUrl, workspaceId, ...(agentId ? [agentId] : [])],
+		args: [...mcp.args, serverUrl, workspaceId, ...(agentId ? [agentId] : []), ...extraArgs],
 	};
 }
 
@@ -70,11 +83,12 @@ function buildMcpConfig(
 	workspaceId: string,
 	agentId?: string,
 	extraServers?: ExtraMcpServers,
+	extraArgs?: string[],
 ): object {
 	return {
 		mcpServers: {
 			whipped: {
-				...buildWhippedMcpServerSpec(mcp, serverUrl, workspaceId, agentId),
+				...buildWhippedMcpServerSpec(mcp, serverUrl, workspaceId, agentId, extraArgs),
 				// MCP runs as a child of the agent; agents don't forward inherited env,
 				// so the auth token must be set explicitly on the server config.
 				env: { [MACHINE_TOKEN_ENV]: getMachineToken() ?? "" },
@@ -94,7 +108,11 @@ export async function writeClaudeAssistantSettings(
 	await mkdir(HOOKS_DIR, { recursive: true });
 	await writeFile(
 		CLAUDE_ASSISTANT_MCP_CONFIG_PATH,
-		JSON.stringify(buildMcpConfig(mcp, serverUrl, workspaceId), null, 2),
+		JSON.stringify(
+			buildMcpConfig(mcp, serverUrl, workspaceId, undefined, undefined, buildMcpRoleArgs("assistant")),
+			null,
+			2,
+		),
 	);
 }
 
@@ -107,11 +125,12 @@ export async function writeClaudeMcpConfig(
 	agentId: string,
 	configPath: string,
 	extraServers?: ExtraMcpServers,
+	extraArgs?: string[],
 ): Promise<void> {
 	await mkdir(HOOKS_DIR, { recursive: true });
 	await writeFile(
 		configPath,
-		JSON.stringify(buildMcpConfig(mcp, serverUrl, workspaceId, agentId, extraServers), null, 2),
+		JSON.stringify(buildMcpConfig(mcp, serverUrl, workspaceId, agentId, extraServers, extraArgs), null, 2),
 	);
 }
 
@@ -151,7 +170,7 @@ export async function writeOpencodeFiles(
 	id: string,
 	serverPort: number,
 	mcpServer: { command: string; args: string[] },
-	opts: { appendSystemPrompt?: string; extraMcp?: ExtraMcpServers } = {},
+	opts: { appendSystemPrompt?: string; extraMcp?: ExtraMcpServers; readOnly?: boolean } = {},
 ): Promise<void> {
 	const dir = getOpencodeConfigDir(id);
 	await mkdir(join(dir, "plugin"), { recursive: true });
@@ -160,7 +179,9 @@ export async function writeOpencodeFiles(
 	if (opts.appendSystemPrompt) systemParts.push(opts.appendSystemPrompt);
 	// Tell the agent about the task_complete tool so it knows to call it when done.
 	systemParts.push(
-		"When you have finished all your work (set PR metadata, and added your dev comment), call the `task_complete` tool to signal completion.",
+		opts.readOnly
+			? "When you have finished observing and recorded your notes with `update_journal`, call the `task_complete` tool to end the run. Do not ask for confirmation — act autonomously."
+			: "When you have finished all your work (set PR metadata, and added your dev comment), call the `task_complete` tool to signal completion.",
 	);
 
 	const systemTransformHook = `\n    "experimental.chat.system.transform": async (_input, output) => {\n      ${systemParts.map((p) => `output.system.push(${JSON.stringify(p)})`).join("\n      ")}\n    },`;
@@ -199,6 +220,14 @@ export const WhippedPlugin: Plugin = async () => {
 		]),
 	);
 	const config = {
+		// Read-only observer: disable the mutating tools entirely (so the agent
+		// doesn't try them) and deny them at the permission layer as a backstop.
+		...(opts.readOnly
+			? {
+					tools: { write: false, edit: false, patch: false, bash: false },
+					permission: { edit: "deny", write: "deny", bash: "deny" },
+				}
+			: {}),
 		mcp: {
 			whipped: {
 				type: "local",

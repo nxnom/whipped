@@ -1,6 +1,7 @@
 import type { Env } from "hono";
 import type { RunSessionStatus } from "../../core/api-contract.js";
 import type { BoardPoller } from "../../daemon/poller.js";
+import type { RecurringAgentScheduler } from "../../daemon/recurring-agent-scheduler.js";
 import type { TaskScheduler } from "../../daemon/scheduler.js";
 import type { RuntimeStateHub } from "../../server/runtime-state-hub.js";
 
@@ -17,6 +18,7 @@ export interface AppContext {
 	stateHub: RuntimeStateHub;
 	getScheduler: (workspaceId: string) => TaskScheduler | undefined;
 	getPoller: (workspaceId: string) => BoardPoller | undefined;
+	getRecurringScheduler: (workspaceId: string) => RecurringAgentScheduler | undefined;
 	ensureWorkspace: (workspaceId: string) => Promise<{ workspaceId: string; repoPath: string }>;
 	currentWorkspaceId: string | null;
 	currentRepoPath: string | null;

@@ -10,6 +10,7 @@ import { jiraController } from "./routes/jira.js";
 import { memoryController } from "./routes/memory.js";
 import { projectConfigController } from "./routes/project-config.js";
 import { projectsController } from "./routes/projects.js";
+import { recurringAgentsController } from "./routes/recurring-agents.js";
 import { runController } from "./routes/run.js";
 import { slackController } from "./routes/slack.js";
 import { terminalController } from "./routes/terminal.js";
@@ -39,6 +40,7 @@ export function createApiApp(ctx: AppContext) {
 		.route("/memory", memoryController)
 		.route("/project-config", projectConfigController)
 		.route("/projects", projectsController)
+		.route("/recurring-agents", recurringAgentsController)
 		.route("/run", runController)
 		.route("/slack", slackController)
 		.route("/terminal", terminalController)

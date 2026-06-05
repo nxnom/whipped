@@ -23,6 +23,8 @@ export interface AgentRunOptions {
 	mode?: "interactive" | "print";
 	effort?: EffortLevel | null;
 	model?: string | null;
+	// Run the agent read-only (no file writes / shell) — enforced per binary in buildAgentArgs.
+	readOnly?: boolean;
 	onOutput: (data: string) => void;
 	onExit: (exitCode: number) => void;
 }
@@ -48,6 +50,7 @@ export function spawnAgent(options: AgentRunOptions): AgentProcess {
 		files: options.files,
 		effort: options.effort,
 		model: options.model,
+		readOnly: options.readOnly,
 	});
 
 	const spawnEnv: Record<string, string> = {

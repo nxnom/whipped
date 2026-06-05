@@ -45,6 +45,11 @@ export const subtaskDraftSchema = z.object({
 	tempId: z.string(),
 	description: z.string().min(1, "Description is required"),
 	...sharedConfigShape,
+	// Same pattern as createTaskFormSchema — superRefine keeps "" | TierLevel output type.
+	activeLevel: z.union([tierLevelSchema, z.literal("")]).superRefine((v, ctx) => {
+		if (v === "") ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Select a level" });
+	}),
+	modelConfig: cardModelConfigFormSchema,
 });
 export type SubtaskDraftForm = z.infer<typeof subtaskDraftSchema>;
 

@@ -7,6 +7,7 @@ import { AssistantPanel } from "@/components/AssistantPanel";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { RunBar } from "@/components/RunBar";
 import { BoardPage } from "@/pages/board";
+import { RecurringAgentsPage } from "@/pages/recurring-agents";
 import { SettingsPage } from "@/pages/settings";
 import { useRead } from "@/runtime/api-client";
 import { firstSortedProjectId } from "@/utils/projects";
@@ -108,6 +109,8 @@ export default function App() {
 										path="/:workspaceId/board/:cardId"
 										element={<BoardPage onOpenAgent={() => setAgentOpen((v) => !v)} />}
 									/>
+									<Route path="/:workspaceId/recurring-agents" element={<RecurringAgentsPage />} />
+									<Route path="/:workspaceId/recurring-agents/:agentId" element={<RecurringAgentsPage />} />
 									<Route path="/:workspaceId/settings" element={<SettingsPage />} />
 									<Route path="/:workspaceId/settings/:section" element={<SettingsPage />} />
 									<Route path="/" element={<HomeRoute onAddProject={() => setShowAddProject(true)} />} />

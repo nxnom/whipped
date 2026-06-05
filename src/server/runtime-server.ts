@@ -15,12 +15,14 @@ import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 import { generateTaskId } from "../core/task-id.js";
 import { BoardPoller } from "../daemon/poller.js";
+import { RecurringAgentScheduler } from "../daemon/recurring-agent-scheduler.js";
 import { acquireInstanceLock, isInstanceLockError } from "../state/instance-lock.js";
 import { runReviewPipeline } from "../daemon/review-pipeline.js";
 import { QaSemaphore } from "../daemon/qa-semaphore.js";
 import { getMcpServerPath, TaskScheduler } from "../daemon/scheduler.js";
 import { createGithubClient } from "../github/github-client.js";
 import { openDb } from "../state/db.js";
+import { failStaleRecurringRuns } from "../state/recurring-agents-store.js";
 import {
 	appendActivityLog,
 	closeAllOpenTerminalSessions,
@@ -44,6 +46,12 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 async function cleanupStaleTasks(workspaceId: string, hub: RuntimeStateHub): Promise<void> {
 	const board = await loadBoard(workspaceId);
 	const now = Date.now();
+
+	// Clear recurring-agent runs orphaned by a restart/crash (still marked "running").
+	const staleRecurring = failStaleRecurringRuns(workspaceId);
+	if (staleRecurring > 0) {
+		logger.info(`[server] Cleared ${staleRecurring} stale recurring-agent run(s) for ${workspaceId}`);
+	}
 
 	// Close open terminal sessions on every card regardless of column (crashed cascade agents
 	// can leave sessions open on rfr/done/todo cards).
@@ -115,6 +123,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 	const stateHub = new RuntimeStateHub();
 	const schedulers = new Map<string, TaskScheduler>();
 	const pollers = new Map<string, BoardPoller>();
+	const recurringSchedulers = new Map<string, RecurringAgentScheduler>();
 	const runSessions = new Map<string, RunSession>();
 	type RunTerminalListener = (data: string) => void;
 	const runTerminalListeners = new Map<string, Set<RunTerminalListener>>();
@@ -303,11 +312,22 @@ export async function createRuntimeServer(options: ServerOptions) {
 			},
 		});
 
+		const recurringScheduler = new RecurringAgentScheduler({
+			workspaceId,
+			repoPath: wsRepoPath,
+			serverUrl: `http://${host}:${port}`,
+			stateHub,
+			registerStopCallback: scheduler.registerStopCallback.bind(scheduler),
+			registerLiveProcess: scheduler.registerLiveProcess.bind(scheduler),
+		});
+
 		schedulers.set(workspaceId, scheduler);
 		pollers.set(workspaceId, poller);
+		recurringSchedulers.set(workspaceId, recurringScheduler);
 
 		poller.start();
 		poller.startPRPolling();
+		recurringScheduler.start();
 
 		void slackNotifier.joinExistingChannels(workspaceId);
 	}
@@ -324,6 +344,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 			stateHub,
 			getScheduler: (id) => schedulers.get(id),
 			getPoller: (id) => pollers.get(id),
+			getRecurringScheduler: (id) => recurringSchedulers.get(id),
 			ensureWorkspace,
 			currentWorkspaceId: null,
 			currentRepoPath: null,
@@ -929,6 +950,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 		close: async () => {
 			tunnelManager.stop();
 			for (const [, poller] of pollers) poller.stop();
+			for (const [, rs] of recurringSchedulers) rs.stop();
 			// Persist failed/todo state for in-progress tasks before killing processes.
 			for (const [wsId, scheduler] of schedulers) {
 				await cleanupStaleTasks(wsId, stateHub);

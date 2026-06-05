@@ -14,7 +14,19 @@ import { DEFAULT_GIT_INSTRUCTIONS } from "../core/api-contract.js";
 
 const serverUrl = process.argv[2] ?? process.env.WHIPPED_SERVER_URL ?? "http://127.0.0.1:3000";
 const workspaceId = process.argv[3] ?? process.env.WHIPPED_WORKSPACE_ID ?? "";
-const agentId = process.argv[4] ?? "claude";
+const agentId = process.argv[4] && !process.argv[4].startsWith("--") ? process.argv[4] : "claude";
+
+// Role gates which tools this server exposes (position-independent named flags):
+//   assistant — may create/list/update/delete recurring agents.
+//   recurring — a recurring agent; may write its own journal (id below) but cannot
+//               manage recurring agents (no self-creation).
+// Anything else (task/review/unset) gets only the base board tools.
+function namedArg(flag: string): string | undefined {
+	const hit = process.argv.find((a) => a.startsWith(`${flag}=`));
+	return hit ? hit.slice(flag.length + 1) : undefined;
+}
+const mcpRole = namedArg("--role") ?? "task";
+const recurringAgentId = namedArg("--recurring-agent-id") ?? "";
 
 // Authenticates this machinery process against the daemon's auth gate.
 const apiToken = process.env.WHIPPED_API_TOKEN ?? "";
@@ -44,6 +56,11 @@ const ROUTES: Record<string, RestRoute> = {
 	"projectConfig.setSystemPrompt": { method: "POST", path: () => "project-config/system-prompt" },
 	"memory.propose": { method: "POST", path: () => "memory/propose" },
 	"memory.proposeUpdate": { method: "POST", path: () => "memory/propose-update" },
+	"recurring.list": { method: "GET", path: () => "recurring-agents" },
+	"recurring.create": { method: "POST", path: () => "recurring-agents" },
+	"recurring.update": { method: "PATCH", path: (i) => `recurring-agents/${i.id as string}` },
+	"recurring.delete": { method: "DELETE", path: (i) => `recurring-agents/${i.id as string}` },
+	"recurring.setJournal": { method: "POST", path: (i) => `recurring-agents/${i.id as string}/journal` },
 };
 
 // Mutation (POST/PATCH/DELETE): input is the JSON body.
@@ -79,6 +96,30 @@ async function apiQuery<T>(procedure: string, input: Record<string, unknown>): P
 
 const server = new McpServer({ name: "whipped", version: "1.0.0" });
 
+// A recurring (observer) agent reads and reports but never mutates the board,
+// workflows, or memory. Only these tools are exposed to the "recurring" role;
+// every other tool (move/update/delete card, set plan/pr, upsert workflow,
+// save memory, …) is withheld. Other roles are unaffected.
+const RECURRING_OBSERVER_TOOLS = new Set([
+	"kanban_get_board",
+	"kanban_create_card",
+	"kanban_add_comment",
+	"kanban_get_workflows",
+	"kanban_get_pr_meta",
+	"kanban_get_git_instructions",
+	"kanban_get_system_prompt",
+	"whipped_search_memory",
+	"whipped_get_memory",
+	"update_journal",
+]);
+
+const baseRegisterTool = server.registerTool;
+// Drop-in for server.registerTool that withholds mutating tools from observers.
+const registerTool: typeof server.registerTool = ((name: string, ...rest: unknown[]) => {
+	if (mcpRole === "recurring" && !RECURRING_OBSERVER_TOOLS.has(name)) return undefined;
+	return (baseRegisterTool as (...a: unknown[]) => unknown).call(server, name, ...rest);
+}) as typeof server.registerTool;
+
 const attachmentInputSchema = z.object({
 	type: z.string().describe("Attachment type — 'image' for images, 'file' for other files"),
 	name: z.string().describe("Human-readable name for the attachment"),
@@ -106,7 +147,7 @@ async function processAttachments(
 	return results;
 }
 
-server.registerTool(
+registerTool(
 	"kanban_get_board",
 	{
 		description: "Get the current Kanban board state including all cards and their columns.",
@@ -161,7 +202,7 @@ server.registerTool(
 	},
 );
 
-server.registerTool(
+registerTool(
 	"kanban_create_story",
 	{
 		description: `Create a story ticket with its subtasks in one atomic operation.
@@ -332,7 +373,7 @@ Creates all subtasks first, then the story card that depends on them. The story 
 	},
 );
 
-server.registerTool(
+registerTool(
 	"kanban_create_card",
 	{
 		description: "Create a new task card on the Kanban board.",
@@ -434,7 +475,7 @@ server.registerTool(
 	},
 );
 
-server.registerTool(
+registerTool(
 	"kanban_move_card",
 	{
 		description: "Move a card to a different column.",
@@ -451,7 +492,7 @@ server.registerTool(
 	},
 );
 
-server.registerTool(
+registerTool(
 	"kanban_update_card",
 	{
 		description: "Update a card's description, priority, dependencies, workflow, readyForDev flag, or attachments.",
@@ -519,7 +560,7 @@ server.registerTool(
 	},
 );
 
-server.registerTool(
+registerTool(
 	"kanban_add_comment",
 	{
 		description:
@@ -572,7 +613,7 @@ server.registerTool(
 	},
 );
 
-server.registerTool(
+registerTool(
 	"kanban_set_plan",
 	{
 		description:
@@ -588,7 +629,7 @@ server.registerTool(
 	},
 );
 
-server.registerTool(
+registerTool(
 	"kanban_delete_card",
 	{
 		description: "Delete a card from the board permanently.",
@@ -602,7 +643,7 @@ server.registerTool(
 	},
 );
 
-server.registerTool(
+registerTool(
 	"kanban_stop_task",
 	{
 		description:
@@ -617,7 +658,7 @@ server.registerTool(
 	},
 );
 
-server.registerTool(
+registerTool(
 	"kanban_get_workflows",
 	{
 		description:
@@ -687,7 +728,7 @@ server.registerTool(
 	},
 );
 
-server.registerTool(
+registerTool(
 	"kanban_upsert_workflow",
 	{
 		description:
@@ -778,7 +819,7 @@ server.registerTool(
 	},
 );
 
-server.registerTool(
+registerTool(
 	"kanban_get_pr_meta",
 	{
 		description:
@@ -828,7 +869,7 @@ server.registerTool(
 	},
 );
 
-server.registerTool(
+registerTool(
 	"kanban_set_pr_meta",
 	{
 		description:
@@ -857,7 +898,7 @@ server.registerTool(
 	},
 );
 
-server.registerTool(
+registerTool(
 	"kanban_get_git_instructions",
 	{
 		description:
@@ -883,7 +924,7 @@ server.registerTool(
 	},
 );
 
-server.registerTool(
+registerTool(
 	"kanban_set_git_instructions",
 	{
 		description:
@@ -914,7 +955,7 @@ server.registerTool(
 	},
 );
 
-server.registerTool(
+registerTool(
 	"kanban_get_system_prompt",
 	{
 		description:
@@ -928,7 +969,7 @@ server.registerTool(
 	},
 );
 
-server.registerTool(
+registerTool(
 	"kanban_set_system_prompt",
 	{
 		description:
@@ -953,7 +994,7 @@ server.registerTool(
 // Cursor Agent CLI does not fire a settings.json "stop" hook reliably, so we expose
 // task_complete as an MCP tool that cursor can call explicitly to signal completion.
 // Other agents ignore it (they use their own stop mechanisms).
-server.registerTool(
+registerTool(
 	"task_complete",
 	{
 		description:
@@ -989,7 +1030,7 @@ interface MemoryResult {
 	content: string;
 }
 
-server.registerTool(
+registerTool(
 	"whipped_search_memory",
 	{
 		description:
@@ -1012,7 +1053,7 @@ server.registerTool(
 	},
 );
 
-server.registerTool(
+registerTool(
 	"whipped_get_memory",
 	{
 		description: "Fetch the full content of a single memory by its id (from whipped_search_memory results).",
@@ -1033,7 +1074,7 @@ server.registerTool(
 
 // Write tools — dev and assistant slots.
 if (agentSlot === "dev" || agentSlot === "assistant") {
-	server.registerTool(
+	registerTool(
 		"whipped_save_memory",
 		{
 			description:
@@ -1081,7 +1122,7 @@ if (agentSlot === "dev" || agentSlot === "assistant") {
 		},
 	);
 
-	server.registerTool(
+	registerTool(
 		"whipped_update_memory",
 		{
 			description:
@@ -1113,6 +1154,161 @@ if (agentSlot === "dev" || agentSlot === "assistant") {
 				return { content: [{ type: "text", text: `Memory ${note}` }] };
 			} catch (err) {
 				return { content: [{ type: "text", text: `Update failed: ${(err as Error).message}` }] };
+			}
+		},
+	);
+}
+
+// ─── Recurring agents (role-gated) ──────────────────────────────────────────
+
+const scheduleShape = {
+	scheduleKind: z
+		.enum(["interval", "calendar"])
+		.describe("'interval' = every N seconds; 'calendar' = cron at a wall-clock time"),
+	intervalSeconds: z
+		.number()
+		.int()
+		.positive()
+		.optional()
+		.describe("Required when scheduleKind=interval (e.g. 3600 = hourly)"),
+	cronExpr: z
+		.string()
+		.optional()
+		.describe("Required when scheduleKind=calendar, e.g. '0 9 * * 1' = every Monday 09:00"),
+	timezone: z.string().optional().describe("IANA timezone, required when scheduleKind=calendar (e.g. 'Asia/Yangon')"),
+	agentBinary: z
+		.enum(["claude", "codex", "opencode", "cursor"])
+		.optional()
+		.describe("Which agent runs this; defaults to claude"),
+	model: z.string().optional().describe("Model id, e.g. 'claude-opus-4-8' or 'gpt-5.5'"),
+	effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
+	enabled: z.boolean().optional(),
+};
+
+type ScheduleInput = {
+	scheduleKind: "interval" | "calendar";
+	intervalSeconds?: number;
+	cronExpr?: string;
+	timezone?: string;
+	agentBinary?: string;
+	model?: string;
+	effort?: string;
+	enabled?: boolean;
+};
+
+function buildScheduleBody(input: ScheduleInput) {
+	const schedule =
+		input.scheduleKind === "calendar"
+			? { kind: "calendar", cronExpr: input.cronExpr ?? "0 9 * * 1", timezone: input.timezone ?? "UTC" }
+			: { kind: "interval", intervalSeconds: input.intervalSeconds ?? 3600 };
+	const model = input.agentBinary
+		? { agentId: input.agentBinary, model: input.model ?? null, effort: input.effort ?? null }
+		: undefined;
+	return { schedule, model };
+}
+
+if (mcpRole === "assistant") {
+	registerTool(
+		"recurring_create",
+		{
+			description:
+				"Create a scheduled recurring agent for this project (e.g. an hourly Jira checker or a weekly security sweep). Only you, the assistant, can create these — recurring agents cannot create others. They observe and report; they do not write code.",
+			inputSchema: {
+				name: z.string().describe("Short name, e.g. 'Security sweep'"),
+				instructions: z.string().describe("What the agent should do each run, and how to use its journal"),
+				...scheduleShape,
+			},
+		},
+		async (input) => {
+			try {
+				const { schedule, model } = buildScheduleBody(input as ScheduleInput);
+				const created = await apiMutate<{ id: string; name: string }>("recurring.create", {
+					workspaceId,
+					name: input.name,
+					instructions: input.instructions,
+					schedule,
+					model,
+					enabled: input.enabled,
+				});
+				return { content: [{ type: "text", text: `Created recurring agent "${created.name}" [${created.id}].` }] };
+			} catch (err) {
+				return { content: [{ type: "text", text: `Create failed: ${(err as Error).message}` }] };
+			}
+		},
+	);
+
+	registerTool(
+		"recurring_list",
+		{ description: "List the recurring agents configured for this project.", inputSchema: {} },
+		async () => {
+			const agents = await apiQuery<
+				Array<{ id: string; name: string; enabled: boolean; nextRunAt?: number; schedule: { kind: string } }>
+			>("recurring.list", { workspaceId });
+			if (!agents.length) return { content: [{ type: "text", text: "No recurring agents configured." }] };
+			const lines = agents.map(
+				(a) =>
+					`[${a.id}] ${a.name} — ${a.enabled ? "enabled" : "disabled"}, ${a.schedule.kind}${a.nextRunAt ? `, next ${new Date(a.nextRunAt).toISOString()}` : ""}`,
+			);
+			return { content: [{ type: "text", text: lines.join("\n") }] };
+		},
+	);
+
+	registerTool(
+		"recurring_update",
+		{
+			description: "Update a recurring agent (rename, re-schedule, change model, enable/disable).",
+			inputSchema: {
+				id: z.string(),
+				name: z.string().optional(),
+				instructions: z.string().optional(),
+				...scheduleShape,
+			},
+		},
+		async (input) => {
+			try {
+				const body: Record<string, unknown> = { id: input.id, name: input.name, instructions: input.instructions };
+				if (input.scheduleKind) {
+					const { schedule, model } = buildScheduleBody(input as ScheduleInput);
+					body.schedule = schedule;
+					if (model) body.model = model;
+				}
+				if (input.enabled !== undefined) body.enabled = input.enabled;
+				await apiMutate("recurring.update", body);
+				return { content: [{ type: "text", text: `Updated recurring agent ${input.id}.` }] };
+			} catch (err) {
+				return { content: [{ type: "text", text: `Update failed: ${(err as Error).message}` }] };
+			}
+		},
+	);
+
+	registerTool(
+		"recurring_delete",
+		{ description: "Delete a recurring agent.", inputSchema: { id: z.string() } },
+		async ({ id }) => {
+			try {
+				await apiMutate("recurring.delete", { id });
+				return { content: [{ type: "text", text: `Deleted recurring agent ${id}.` }] };
+			} catch (err) {
+				return { content: [{ type: "text", text: `Delete failed: ${(err as Error).message}` }] };
+			}
+		},
+	);
+}
+
+if (mcpRole === "recurring" && recurringAgentId) {
+	registerTool(
+		"update_journal",
+		{
+			description:
+				"Rewrite your private journal — the notes you carry across runs (e.g. what you've already filed, what you're watching). Read it at the start of a run and rewrite the full updated text here at the end. This replaces the journal entirely, so include everything worth keeping.",
+			inputSchema: { journal: z.string().describe("The full updated journal text") },
+		},
+		async ({ journal }) => {
+			try {
+				await apiMutate("recurring.setJournal", { id: recurringAgentId, journal });
+				return { content: [{ type: "text", text: "Journal saved." }] };
+			} catch (err) {
+				return { content: [{ type: "text", text: `Journal save failed: ${(err as Error).message}` }] };
 			}
 		},
 	);

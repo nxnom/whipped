@@ -76,6 +76,8 @@ export function useTaskSubmit() {
 					branchName: subtask.branchName.trim() || undefined,
 					dependsOn: existingDep,
 					readyForDev,
+					activeLevel: subtask.activeLevel || undefined,
+					modelConfig: subtask.modelConfig,
 				},
 			});
 			if (res.error || !res.data) {

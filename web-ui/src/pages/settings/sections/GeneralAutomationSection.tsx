@@ -1,6 +1,6 @@
 import { RHFNumberInput, RHFSwitch, Select, SelectOption } from "@geckoui/geckoui";
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { RuntimeProjectConfig } from "@runtime-contract";
+import { DEFAULT_AGENT_MODEL_CHOICE, type RuntimeProjectConfig } from "@runtime-contract";
 import { AlertTriangle } from "lucide-react";
 import {
 	type GeneralAutomationForm,
@@ -8,6 +8,7 @@ import {
 	generalAutomationFormSchema,
 } from "@runtime-validation/config";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
+import { AgentModelPicker } from "@/components/AgentModelPicker";
 import { BranchSelect } from "@/components/BranchSelect";
 import { SaveRow } from "../_shared";
 
@@ -162,6 +163,23 @@ export function GeneralAutomationSection({
 							/>
 						</div>
 					</FieldRow>
+				</div>
+
+				{/* Assistant */}
+				<div className="flex flex-col gap-4">
+					<SectionDivider title="Assistant" />
+					<div className="flex flex-col gap-1.5">
+						<span className="text-[13px] font-medium text-[#f0f0f5]">Agent &amp; model</span>
+						<span className="text-[11px] text-[#4a4a5a]">
+							Which agent runs the in-app assistant. Restart the assistant to apply.
+						</span>
+						<div className="mt-1 max-w-xl">
+							<AgentModelPicker
+								value={config.assistantModel ?? DEFAULT_AGENT_MODEL_CHOICE}
+								onChange={(assistantModel) => onUpdate({ ...config, assistantModel })}
+							/>
+						</div>
+					</div>
 				</div>
 
 				<SaveRow saving={saving} onSave={onSave} />

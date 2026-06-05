@@ -4,6 +4,7 @@ import { unlink } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+	buildMcpRoleArgs,
 	buildWhippedMcpServerSpec,
 	buildTaskHookEnv,
 	CLAUDE_ASSISTANT_MCP_CONFIG_PATH,
@@ -154,7 +155,6 @@ export class TaskScheduler {
 	async startAssistantAgent(): Promise<string> {
 		const { workspaceId, repoPath, serverUrl, stateHub, defaultAgent } = this.options;
 		const taskId = this.assistantAgentTaskId;
-		const agentId = defaultAgent;
 
 		// Stop any existing session first
 		const existing = this.assistantSessions.get(taskId);
@@ -170,6 +170,10 @@ export class TaskScheduler {
 		const prompt = "";
 
 		const projectConfig = await loadProjectConfig(workspaceId);
+		// The assistant's binary/model/effort are configurable (default: project/global
+		// default agent). Falls back to defaultAgent when no assistantModel is set.
+		const assistantModel = projectConfig.assistantModel;
+		const agentId = assistantModel?.agentId ?? defaultAgent;
 		const secrets = projectConfig.secrets ?? [];
 		const secretsEnv = buildSecretsEnv(secrets);
 		const assistantSystemPrompt = buildAssistantAgentSystemPrompt(repoPath, secrets, projectConfig.systemPrompt);
@@ -181,12 +185,24 @@ export class TaskScheduler {
 				logger.warn({ err }, "[scheduler] Failed to write assistant agent MCP settings");
 			});
 		} else if (agentId === "opencode") {
-			const mcpSpec = buildWhippedMcpServerSpec(getMcpServerPath(), serverUrl, workspaceId);
+			const mcpSpec = buildWhippedMcpServerSpec(
+				getMcpServerPath(),
+				serverUrl,
+				workspaceId,
+				undefined,
+				buildMcpRoleArgs("assistant"),
+			);
 			await writeOpencodeFiles(taskId, getServerPort(serverUrl), mcpSpec, { appendSystemPrompt }).catch((err) => {
 				logger.warn({ err }, "[scheduler] Failed to write opencode assistant agent files");
 			});
 		} else if (agentId === "cursor") {
-			const mcpSpec = buildWhippedMcpServerSpec(getMcpServerPath(), serverUrl, workspaceId);
+			const mcpSpec = buildWhippedMcpServerSpec(
+				getMcpServerPath(),
+				serverUrl,
+				workspaceId,
+				undefined,
+				buildMcpRoleArgs("assistant"),
+			);
 			await writeCursorConfigFiles(taskId, getServerPort(serverUrl), mcpSpec).catch((err) => {
 				logger.warn({ err }, "[scheduler] Failed to write cursor assistant agent config");
 			});
@@ -209,7 +225,17 @@ export class TaskScheduler {
 				},
 				mcpConfigPath: agentId === "claude" ? CLAUDE_ASSISTANT_MCP_CONFIG_PATH : undefined,
 				mcpServer:
-					agentId === "codex" ? buildWhippedMcpServerSpec(getMcpServerPath(), serverUrl, workspaceId) : undefined,
+					agentId === "codex"
+						? buildWhippedMcpServerSpec(
+								getMcpServerPath(),
+								serverUrl,
+								workspaceId,
+								undefined,
+								buildMcpRoleArgs("assistant"),
+							)
+						: undefined,
+				model: assistantModel?.model ?? null,
+				effort: assistantModel?.effort ?? null,
 				appendSystemPrompt: agentId !== "opencode" ? appendSystemPrompt : undefined,
 				onOutput: (data) => {
 					assistantTask.outputBuffer += data;

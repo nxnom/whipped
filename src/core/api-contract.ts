@@ -51,6 +51,17 @@ export const MODEL_OPTIONS: Record<RuntimeAgentId, ReadonlyArray<{ value: string
 	cursor: [],
 };
 
+// A fixed agent binary + model + effort pick. Used by the assistant agent and
+// recurring agents — a single configured model, no level/tier resolution.
+export const agentModelChoiceSchema = z.object({
+	agentId: runtimeAgentIdSchema.default("claude"),
+	model: z.string().nullable().optional(),
+	effort: effortLevelSchema.nullable().optional(),
+});
+export type AgentModelChoice = z.infer<typeof agentModelChoiceSchema>;
+
+export const DEFAULT_AGENT_MODEL_CHOICE: AgentModelChoice = { agentId: "claude", model: null, effort: null };
+
 // ─── Workflows ───────────────────────────────────────────────────────────────
 
 // dev     — implements the task (the only slot with write access to the worktree).
@@ -661,6 +672,8 @@ export const runtimeProjectConfigSchema = z.object({
 	// titles, descriptions, and commit messages. Empty/absent → daemon falls
 	// back to DEFAULT_GIT_INSTRUCTIONS.
 	gitInstructions: z.string().optional(),
+	// Which agent binary/model/effort the assistant agent runs as. Absent → claude.
+	assistantModel: agentModelChoiceSchema.optional(),
 });
 export type RuntimeProjectConfig = z.infer<typeof runtimeProjectConfigSchema>;
 
@@ -841,6 +854,77 @@ export function normalizeTag(raw: string): string {
 		.replace(/[^a-z0-9]+/g, "-")
 		.replace(/^-+|-+$/g, "");
 }
+
+// ─── Recurring agents ──────────────────────────────────────────────────────────
+// Scheduled, one-shot observer agents created by the assistant (never by
+// themselves). They read the board and report (no code-write tools) and keep a
+// private `journal` carried across runs. Unlike workflow slots, a recurring
+// agent runs exactly one fixed model — no level resolution.
+
+export const recurringScheduleKindSchema = z.enum(["interval", "calendar"]);
+export type RecurringScheduleKind = z.infer<typeof recurringScheduleKindSchema>;
+
+// interval  — run every `intervalSeconds` (stored in seconds; UI offers friendly units).
+// calendar  — wall-clock recurrence via cron in a timezone ("every Monday 9am").
+export const recurringScheduleSchema = z.discriminatedUnion("kind", [
+	z.object({ kind: z.literal("interval"), intervalSeconds: z.number().int().positive() }),
+	z.object({ kind: z.literal("calendar"), cronExpr: z.string().min(1), timezone: z.string().min(1) }),
+]);
+export type RecurringSchedule = z.infer<typeof recurringScheduleSchema>;
+
+export const recurringRunStatusSchema = z.enum(["running", "ok", "error", "killed"]);
+export type RecurringRunStatus = z.infer<typeof recurringRunStatusSchema>;
+
+export const recurringRunTriggerSchema = z.enum(["schedule", "manual"]);
+export type RecurringRunTrigger = z.infer<typeof recurringRunTriggerSchema>;
+
+export const recurringAgentRunSchema = z.object({
+	id: z.string(),
+	startedAt: z.number(),
+	endedAt: z.number().optional(),
+	status: recurringRunStatusSchema,
+	summary: z.string().optional(),
+	tokens: z.number().optional(),
+	trigger: recurringRunTriggerSchema.default("schedule"),
+	streamId: z.string().optional(),
+});
+export type RecurringAgentRun = z.infer<typeof recurringAgentRunSchema>;
+
+export const recurringAgentSchema = z.object({
+	id: z.string(),
+	name: z.string(),
+	instructions: z.string().default(""),
+	schedule: recurringScheduleSchema,
+	model: agentModelChoiceSchema,
+	enabled: z.boolean().default(true),
+	lastRunAt: z.number().optional(),
+	nextRunAt: z.number().optional(),
+	journal: z.string().default(""),
+	createdAt: z.number(),
+	updatedAt: z.number(),
+	recentRuns: z.array(recurringAgentRunSchema).default([]),
+});
+export type RecurringAgent = z.infer<typeof recurringAgentSchema>;
+
+export const recurringAgentCreateRequestSchema = z.object({
+	name: z.string().min(1),
+	instructions: z.string().optional(),
+	schedule: recurringScheduleSchema,
+	model: agentModelChoiceSchema.optional(),
+	enabled: z.boolean().optional(),
+});
+export type RecurringAgentCreateRequest = z.infer<typeof recurringAgentCreateRequestSchema>;
+
+export const recurringAgentUpdateRequestSchema = z.object({
+	id: z.string(),
+	name: z.string().min(1).optional(),
+	instructions: z.string().optional(),
+	schedule: recurringScheduleSchema.optional(),
+	model: agentModelChoiceSchema.optional(),
+	enabled: z.boolean().optional(),
+	journal: z.string().optional(),
+});
+export type RecurringAgentUpdateRequest = z.infer<typeof recurringAgentUpdateRequestSchema>;
 
 // ─── WebSocket events ─────────────────────────────────────────────────────────
 

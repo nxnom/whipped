@@ -688,12 +688,22 @@ function CreateSubtaskDialog({
 			branchName: editingSubtask?.branchName || "",
 			dependsOn: editingSubtask?.dependsOn ?? "",
 			waitsFor: editingSubtask?.waitsFor ?? [],
+			activeLevel: editingSubtask?.activeLevel ?? highestWorkflowLevel(defaultWorkflow),
+			modelConfig: editingSubtask?.modelConfig ?? snapshotFormModelConfig(defaultWorkflow),
 		}),
 		[editingSubtask, defaultBranch, defaultWorkflow?.id],
 	);
 
 	const methods = useForm<SubtaskDraftForm>({ resolver: zodResolver(subtaskDraftSchema), values });
 	const { control, handleSubmit, setValue, reset } = methods;
+
+	const selectedWorkflowId = useWatch({ control, name: "workflowId" }) as string | undefined;
+	const selectedWorkflow = taskWorkflows.find((w) => w.id === selectedWorkflowId);
+
+	const onWorkflowChange = (id: string) => {
+		const wf = taskWorkflows.find((w) => w.id === id);
+		setValue("modelConfig", snapshotFormModelConfig(wf), { shouldDirty: true });
+	};
 
 	// Sync the File-backed images + branch-edited flag whenever the dialog opens
 	// or switches editing target (server/external draft data, not form values).
@@ -779,12 +789,18 @@ function CreateSubtaskDialog({
 						<div className="flex-1 min-h-0 overflow-y-auto px-[18px] py-4 flex flex-col gap-5">
 							<div className="flex flex-col gap-2">
 								<span className="text-[11px] font-medium text-[#60607a]">Workflow</span>
-								<RHFSelect name="workflowId" prefix={<WorkflowIcon size={14} className="text-[#8888a0]" />}>
+								<RHFSelect
+									name="workflowId"
+									onChange={onWorkflowChange}
+									prefix={<WorkflowIcon size={14} className="text-[#8888a0]" />}
+								>
 									{taskWorkflows.map((w) => (
 										<SelectOption key={w.id} value={w.id} label={w.name + (w.isDefault ? " (default)" : "")} />
 									))}
 								</RHFSelect>
 							</div>
+
+							<TicketTiersSection workflow={selectedWorkflow} />
 
 							<div className="flex flex-col gap-2">
 								<span className="text-[11px] font-medium text-[#60607a]">Priority</span>
