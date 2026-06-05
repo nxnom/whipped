@@ -3,7 +3,7 @@ import { CheckCircle2, Circle, Loader2 } from "lucide-react";
 import { classNames } from "@/utils/classNames";
 import { formatDuration, formatTimestamp } from "./helpers";
 
-function StatusIcon({ status }: { status: RecurringAgentRun["status"] }) {
+export function StatusIcon({ status }: { status: RecurringAgentRun["status"] }) {
 	if (status === "running") return <Loader2 size={14} className="text-[#7c6aff] animate-spin" />;
 	if (status === "ok") return <CheckCircle2 size={14} className="text-[#22c55e]" />;
 	if (status === "error") return <Circle size={14} className="text-[#ef4444]" />;

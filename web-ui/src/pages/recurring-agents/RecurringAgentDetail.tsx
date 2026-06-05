@@ -4,8 +4,8 @@ import { BookText, Clock, Cpu, FileText, Loader2, Pencil, Play, Save, TerminalSq
 import { useEffect, useRef, useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { classNames } from "@/utils/classNames";
-import { formatRelative, formatSchedule } from "./helpers";
-import { RecurringRunList } from "./RecurringRunList";
+import { formatDuration, formatRelative, formatSchedule, formatTimestamp } from "./helpers";
+import { RecurringRunList, StatusIcon } from "./RecurringRunList";
 
 type DetailTab = "overview" | "journal" | "terminal";
 
@@ -18,11 +18,11 @@ function Badge({ icon, children }: { icon: React.ReactNode; children: React.Reac
 	);
 }
 
-function MetaItem({ label, value }: { label: string; value: string }) {
+function StatRow({ label, value }: { label: string; value: string }) {
 	return (
-		<div className="flex flex-col gap-0.5">
-			<span className="text-[11px] text-[#4a4a5a]">{label}</span>
-			<span className="text-[13px] text-[#f0f0f5]">{value}</span>
+		<div className="flex items-center justify-between gap-2 text-[12px]">
+			<span className="text-[#60607a]">{label}</span>
+			<span className="text-[#f0f0f5]">{value}</span>
 		</div>
 	);
 }
@@ -71,6 +71,9 @@ export function RecurringAgentDetail({
 
 	const modelLabel = [agent.model.agentId, agent.model.model, agent.model.effort].filter(Boolean).join(" · ");
 	const isRunning = agent.recentRuns.some((r) => r.status === "running");
+	const finishedRuns = agent.recentRuns.filter((r) => r.status !== "running");
+	const okRuns = finishedRuns.filter((r) => r.status === "ok").length;
+	const successRate = finishedRuns.length ? Math.round((okRuns / finishedRuns.length) * 100) : null;
 
 	const handleRunNow = () => {
 		onRunNow();
@@ -156,19 +159,64 @@ export function RecurringAgentDetail({
 			{/* Tab content */}
 			<div className="flex-1 min-h-0 flex flex-col overflow-hidden">
 				{tab === "overview" && (
-					<div className="flex-1 overflow-y-auto">
-						<div className="flex flex-col gap-6 px-6 py-5 max-w-3xl">
-							<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 p-4 rounded-lg bg-[#111115] border border-[#2a2a35]">
-								<MetaItem label="Agent" value={modelLabel} />
-								<MetaItem label="Next run" value={agent.enabled ? formatRelative(agent.nextRunAt) : "—"} />
-								<MetaItem label="Last run" value={agent.lastRunAt ? formatRelative(agent.lastRunAt) : "Never"} />
+					<div className="flex flex-1 min-h-0">
+						{/* Instructions — plain text, no card */}
+						<div className="flex-1 min-w-0 overflow-y-auto px-6 pt-5">
+							<span className="text-[13px] font-medium text-[#f0f0f5]">Instructions</span>
+							<p className="mt-2 text-[13px] text-[#8888a0] whitespace-pre-wrap leading-relaxed">
+								{agent.instructions.trim() || "No instructions."}
+							</p>
+						</div>
+
+						{/* Activity — same style as the Terminal run sidebar */}
+						<div className="w-64 shrink-0 bg-[#141418] border-l border-[#2a2a35] flex flex-col overflow-hidden">
+							<div className="px-4 py-3 border-b border-[#2a2a35] shrink-0">
+								<span className="text-xs font-semibold text-[#8888a0]">Activity</span>
 							</div>
-							<div className="flex flex-col gap-1.5">
-								<span className="text-[13px] font-medium text-[#f0f0f5]">Instructions</span>
-								{agent.instructions.trim() ? (
-									<p className="text-[13px] text-[#8888a0] whitespace-pre-wrap leading-relaxed">{agent.instructions}</p>
+							<div className="px-4 py-3 flex flex-col gap-2 border-b border-[#2a2a35] shrink-0">
+								<StatRow label="Next run" value={agent.enabled ? formatRelative(agent.nextRunAt) : "—"} />
+								<StatRow label="Last run" value={agent.lastRunAt ? formatRelative(agent.lastRunAt) : "Never"} />
+								<StatRow label="Runs" value={String(agent.recentRuns.length)} />
+								<StatRow label="Success" value={successRate !== null ? `${successRate}%` : "—"} />
+							</div>
+							<div className="flex-1 overflow-y-auto px-2 py-2">
+								{agent.recentRuns.length === 0 ? (
+									<p className="px-2 py-3 text-[11px] text-[#4a4a5a]">No runs yet.</p>
 								) : (
-									<p className="text-[13px] text-[#4a4a5a]">No instructions.</p>
+									agent.recentRuns.map((run) => {
+										const duration = formatDuration(run.startedAt, run.endedAt);
+										return (
+											<button
+												key={run.id}
+												onClick={() => {
+													if (!run.streamId) return;
+													setActiveStreamId(run.streamId);
+													setTab("terminal");
+												}}
+												disabled={!run.streamId}
+												className={classNames(
+													"w-full flex items-start gap-2 rounded px-1.5 py-2 text-left transition-colors hover:bg-white/[0.03]",
+													!run.streamId && "cursor-default",
+												)}
+											>
+												<div className="mt-0.5 shrink-0">
+													<StatusIcon status={run.status} />
+												</div>
+												<div className="flex-1 min-w-0 flex flex-col gap-0.5">
+													<span className="text-[12px] text-[#f0f0f5] truncate">{formatTimestamp(run.startedAt)}</span>
+													<span className="text-[10px] text-[#4a4a5a] flex items-center gap-1.5">
+														{run.trigger === "manual" ? "Manual" : "Scheduled"}
+														{duration && (
+															<>
+																<span>·</span>
+																<span className="font-mono">{duration}</span>
+															</>
+														)}
+													</span>
+												</div>
+											</button>
+										);
+									})
 								)}
 							</div>
 						</div>

@@ -55,7 +55,7 @@ export function ScheduleEditor() {
 						positiveOnly
 						maxFractionDigits={0}
 					/>
-					<div className="w-32">
+					<div className="w-full">
 						<RHFSelect name="intervalUnit">
 							{INTERVAL_UNITS.map((u) => (
 								<SelectOption key={u.value} value={u.value} label={u.label} />
