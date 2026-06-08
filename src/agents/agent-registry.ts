@@ -143,7 +143,7 @@ export interface AgentArgsContext {
 
 // Claude tools withheld in read-only mode — everything that can mutate the repo.
 // (Deny wins over --dangerously-skip-permissions, so these are truly unavailable.)
-const READONLY_DISALLOWED_TOOLS = ["Edit", "Write", "MultiEdit", "NotebookEdit", "Bash"];
+const READONLY_DISALLOWED_TOOLS = ["Edit", "Write", "NotebookEdit", "Bash"];
 
 // "interactive": stays alive after finishing (task agents — Stop hook handles completion).
 // "print": exits when done (one-shot runs).

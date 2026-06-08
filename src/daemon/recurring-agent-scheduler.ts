@@ -18,7 +18,12 @@ import {
 } from "../agents/agent-hooks.js";
 import type { AgentProcess } from "../agents/agent-runner.js";
 import { spawnAgent } from "../agents/agent-runner.js";
-import type { RecurringAgent, RecurringRunStatus, RecurringRunTrigger } from "../core/api-contract.js";
+import type {
+	RecurringAgent,
+	RecurringRunStatus,
+	RecurringRunTrigger,
+	RuntimeProjectSecret,
+} from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import {
@@ -31,7 +36,7 @@ import {
 import { loadProjectConfig } from "../state/workspace-state.js";
 import { saveTerminalBuffer } from "../state/workspace-state.js";
 import { getMcpServerPath } from "./scheduler.js";
-import { buildSecretsEnv } from "./review-pipeline.js";
+import { buildSecretsEnv, buildSecretsSection } from "./review-pipeline.js";
 
 // How often the loop wakes to look for due agents. Schedules carry their own
 // precise next_run_at; this only bounds how late a run can start.
@@ -129,17 +134,26 @@ export class RecurringAgentScheduler {
 		const hookServerPort = getServerPort(serverUrl);
 
 		let projectSystemPrompt: string | undefined;
+		let secrets: RuntimeProjectSecret[] = [];
 		let secretsEnv: Record<string, string> = {};
 		try {
 			const projectConfig = await loadProjectConfig(workspaceId);
 			projectSystemPrompt = projectConfig.systemPrompt;
-			secretsEnv = buildSecretsEnv(projectConfig.secrets ?? []);
+			secrets = projectConfig.secrets ?? [];
+			secretsEnv = buildSecretsEnv(secrets);
 		} catch (err) {
 			logger.warn({ err, agentId: agent.id }, "[recurring] failed to load project config");
 		}
 
-		const appendSystemPrompt = buildRecurringSystemPrompt(repoPath, agent.journal, projectSystemPrompt);
-		const prompt = buildRecurringPrompt(agent);
+		const appendSystemPrompt = buildRecurringSystemPrompt(
+			repoPath,
+			agent.name,
+			agent.instructions,
+			agent.journal,
+			secrets,
+			projectSystemPrompt,
+		);
+		const prompt = buildRecurringPrompt();
 
 		if (agentBinary === "claude" && mcpConfigPath) {
 			await writeClaudeMcpConfig(
@@ -212,6 +226,7 @@ export class RecurringAgentScheduler {
 					...secretsEnv,
 					...buildTaskHookEnv(streamId, workspaceId),
 					WHIPPED_SLOT: "recurring",
+					...(agent.model.model ? { WHIPPED_MODEL: agent.model.model } : {}),
 					...(agentBinary === "opencode" ? { [OPENCODE_CONFIG_DIR_ENV]: getOpencodeConfigDir(streamId) } : {}),
 					...(agentBinary === "cursor" ? { [CURSOR_CONFIG_DIR_ENV]: getCursorConfigDir(streamId) } : {}),
 				},
@@ -242,14 +257,24 @@ export class RecurringAgentScheduler {
 	}
 }
 
-function buildRecurringPrompt(agent: RecurringAgent): string {
-	const task = agent.instructions.trim() || "Run your scheduled checks and report any findings.";
-	return `# Scheduled run: ${agent.name}\n\n${task}\n\nBegin now. When you're done, update your journal and end the run.`;
+function buildRecurringPrompt(): string {
+	return "Begin now. When you're done, update your journal and end the run.";
 }
 
-function buildRecurringSystemPrompt(repoPath: string, journal: string, projectSystemPrompt?: string): string {
+function buildRecurringSystemPrompt(
+	repoPath: string,
+	agentName: string,
+	instructions: string,
+	journal: string,
+	secrets: RuntimeProjectSecret[],
+	projectSystemPrompt?: string,
+): string {
+	const task = instructions.trim() || "Run your scheduled checks and report any findings.";
 	const journalBlock = journal.trim() || "(empty — this is your first run)";
-	let prompt = `You are a recurring **observer** agent for the project at \`${repoPath}\`, running on a schedule. You run once now, then exit.
+	let prompt = `You are a recurring **observer** agent named "${agentName}" for the project at \`${repoPath}\`, running on a schedule. You run once now, then exit.
+
+## Your task
+${task}
 
 ## Code Writing Policy
 
@@ -282,6 +307,8 @@ When you finish, call \`update_journal\` with the full updated notes to keep for
 ## Available tools
 \`kanban_get_board\`, \`kanban_create_card\`, \`kanban_add_comment\`, \`kanban_get_workflows\`, \`whipped_search_memory\`, \`whipped_get_memory\`, \`update_journal\`, plus read-only repo tools (Read, Grep, Glob).`;
 
+	const secretsSection = buildSecretsSection(secrets);
+	if (secretsSection) prompt += `\n\n${secretsSection}`;
 	if (projectSystemPrompt?.trim()) prompt += `\n\n## Project context\n${projectSystemPrompt.trim()}`;
 	return prompt;
 }
