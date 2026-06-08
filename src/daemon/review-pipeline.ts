@@ -44,7 +44,6 @@ import { buildMemoryContext } from "../state/memory-store.js";
 import {
 	appendActivityLog,
 	appendTerminalSession,
-	clearCardSession,
 	endTerminalSession,
 	linkCommentToSession,
 	loadBoard,
@@ -74,13 +73,12 @@ interface ReviewPipelineOptions {
 	qaSemaphore: QaSemaphore;
 	registerStopCallback: (streamId: string, callback: () => void) => () => void;
 	registerLiveProcess: (streamId: string, process: AgentProcess) => () => void;
+	isStreamManuallyStopped: (streamId: string) => boolean;
 }
 
-interface ReviewSlotResult {
-	passed: boolean;
-	comment: RuntimeReviewComment;
-	storedViaMcp: boolean;
-}
+type ReviewSlotResult =
+	| { stopped: true }
+	| { stopped?: undefined; passed: boolean; comment: RuntimeReviewComment; storedViaMcp: boolean };
 
 // Resolve the concrete model pair a review slot runs at, from the card's snapshot
 // (preferred) or the slot template, using the card's workflow-wide active level.
@@ -182,6 +180,8 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 		} finally {
 			release?.();
 		}
+
+		if (result.stopped) return;
 
 		// Fold any browser screenshots the agent captured into its comment as proof,
 		// in case it didn't attach them itself.
@@ -345,6 +345,12 @@ async function runReviewSlot(
 	);
 	logger.info(`[review:${streamId}] ${slot.name} agent done (${Date.now() - startTime}ms)`);
 
+	if (options.isStreamManuallyStopped(streamId)) {
+		logger.info(`[review:${streamId}] ${slot.name} was manually stopped — ending session as stopped`);
+		await endTerminalSession(workspaceId, card.id, streamId, Date.now(), "stopped");
+		return { stopped: true as const };
+	}
+
 	const mcpComment = await getMcpComment(workspaceId, card.id, startTime, commentType);
 	if (mcpComment) {
 		const endedAt = Date.now();
@@ -414,7 +420,7 @@ const SCREENSHOT_EXTENSIONS = new Set(["png", "jpg", "jpeg", "webp"]);
 async function attachBrowserArtifacts(
 	workspaceId: string,
 	card: RuntimeBoardCard,
-	result: ReviewSlotResult,
+	result: Extract<ReviewSlotResult, { stopped?: undefined }>,
 	since: number,
 ): Promise<void> {
 	const dir = join(ATTACHMENTS_DIR, card.id);
@@ -1478,6 +1484,7 @@ export interface PlanPhaseOptions {
 	systemPrompt?: string;
 	registerStopCallback: ReviewPipelineOptions["registerStopCallback"];
 	registerLiveProcess: ReviewPipelineOptions["registerLiveProcess"];
+	isManuallyStopped: () => boolean;
 }
 
 // Run the one-shot plan agent in the card's worktree. The agent persists its
@@ -1541,13 +1548,7 @@ export async function runPlanPhase(
 
 	const secretsEnv = buildSecretsEnv(options.secrets);
 
-	let wasStopped = false;
-	const wrappedRegisterStopCallback: typeof options.registerStopCallback = (sid, cb) =>
-		options.registerStopCallback(sid, () => {
-			wasStopped = true;
-			cb();
-		});
-
+	logger.info(`[plan:${streamId}] Starting plan agent "${agentId}"`);
 	await runAgentOnce(
 		agentId,
 		"Start planning.",
@@ -1555,7 +1556,7 @@ export async function runPlanPhase(
 		workspaceId,
 		streamId,
 		stateHub,
-		wrappedRegisterStopCallback,
+		options.registerStopCallback,
 		options.registerLiveProcess,
 		mcpConfigPath,
 		systemPrompt,
@@ -1569,22 +1570,12 @@ export async function runPlanPhase(
 		undefined,
 	);
 
-	if (wasStopped) {
-		await endTerminalSession(workspaceId, card.id, streamId, Date.now(), "stopped");
-		await clearCardSession(workspaceId, card.id);
-		const board = await loadBoard(workspaceId);
-		const stoppedCard = board.cards[card.id];
-		if (stoppedCard?.columnId === "in_progress") {
-			await moveCard(workspaceId, card.id, "todo");
-			await updateCard(workspaceId, card.id, { readyForDev: false });
-			await appendActivityLog(workspaceId, card.id, "Moved back to Todo");
-		}
-		stateHub.broadcastWorkspaceUpdate(workspaceId);
-		return;
+	const stopped = options.isManuallyStopped();
+	logger.info(`[plan:${streamId}] Plan agent finished — manuallyStopped=${stopped}`);
+	await endTerminalSession(workspaceId, card.id, streamId, Date.now(), stopped ? "stopped" : "completed");
+	if (!stopped) {
+		await appendActivityLog(workspaceId, card.id, `${slot.name}: plan saved`);
 	}
-
-	await endTerminalSession(workspaceId, card.id, streamId, Date.now(), "completed");
-	await appendActivityLog(workspaceId, card.id, `${slot.name}: plan saved`);
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 }
 
@@ -1651,6 +1642,7 @@ interface CascadeOptions {
 	secrets: RuntimeProjectSecret[];
 	registerStopCallback: ReviewPipelineOptions["registerStopCallback"];
 	registerLiveProcess: ReviewPipelineOptions["registerLiveProcess"];
+	isStreamManuallyStopped: ReviewPipelineOptions["isStreamManuallyStopped"];
 	onChildReset?: (child: RuntimeBoardCard) => Promise<void>;
 }
 
@@ -1697,10 +1689,10 @@ export async function runParentReopenCascade(
 		"low",
 	);
 
-	await endTerminalSession(workspaceId, parentCard.id, streamId, Date.now(), "completed");
-	logger.info(
-		`[cascade] Cascade agent done for parent "${parentCard.description?.split("\n")[0]?.slice(0, 60) ?? parentCard.id}"`,
-	);
+	const cascadeStopped = options.isStreamManuallyStopped(streamId);
+	logger.info(`[cascade:${streamId}] Cascade agent done — manuallyStopped=${cascadeStopped}`);
+	await endTerminalSession(workspaceId, parentCard.id, streamId, Date.now(), cascadeStopped ? "stopped" : "completed");
+	if (cascadeStopped) return;
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 	// Recursively cascade on any children that were reset to todo

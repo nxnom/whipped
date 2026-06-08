@@ -271,6 +271,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 					qaSemaphore,
 					registerStopCallback: scheduler.registerStopCallback.bind(scheduler),
 					registerLiveProcess: scheduler.registerLiveProcess.bind(scheduler),
+					isStreamManuallyStopped: scheduler.isStreamManuallyStopped.bind(scheduler),
 				});
 			})()
 				.catch((err) =>

@@ -113,6 +113,10 @@ export class TaskScheduler {
 	// Same set but persists until handleHookEvent has consumed it — handles the race where
 	// the Claude Code Stop hook fires (async HTTP) after stopTask() has already killed the process.
 	private manuallyStoppedForHook = new Set<string>();
+	// Tasks stopped before the dev agent started (e.g. during plan phase).
+	private planPhaseManuallyStopped = new Set<string>();
+	// Individual review/cascade stream IDs stopped by a manual stopTask() call.
+	private manuallyStoppedStreams = new Set<string>();
 	// Tasks stopped because their parent was reopened — session set to "stopped" in onExit.
 	private parentReopenedTasks = new Set<string>();
 	// Shared worktree IDs currently in use by a dev agent — prevents sibling cards from
@@ -560,6 +564,7 @@ export class TaskScheduler {
 			// agent saves card.plan via MCP; reload so the dev prompt picks it up.
 			const planSlot = cardWorkflow?.slots.find((s) => s.type === "plan" && s.enabled);
 			if (planSlot && (!card.plan || planSlot.rerun)) {
+				logger.info(`[scheduler] task ${taskId}: starting plan phase`);
 				await runPlanPhase(card, planSlot, {
 					workspaceId,
 					repoPath,
@@ -571,9 +576,15 @@ export class TaskScheduler {
 					systemPrompt: projectConfig.systemPrompt,
 					registerStopCallback: this.registerStopCallback.bind(this),
 					registerLiveProcess: this.registerLiveProcess.bind(this),
+					isManuallyStopped: () => this.planPhaseManuallyStopped.has(taskId),
 				});
+				if (this.planPhaseManuallyStopped.has(taskId)) {
+					this.planPhaseManuallyStopped.delete(taskId);
+					logger.info(`[scheduler] task ${taskId}: plan phase was manually stopped — aborting dev launch`);
+					return;
+				}
+				logger.info(`[scheduler] task ${taskId}: plan phase done — proceeding to dev`);
 				card = (await loadBoard(workspaceId)).cards[taskId] ?? card;
-				if (card.columnId !== "in_progress") return;
 			}
 
 			const devSystemPromptResult = buildDevAgentSystemPrompt(
@@ -843,12 +854,29 @@ export class TaskScheduler {
 	stopTask(taskId: string): void {
 		const task = this.running.get(taskId);
 		if (task) {
-			logger.info(`[scheduler] Stopping task ${taskId}`);
+			logger.info(`[scheduler] stopTask: dev agent running — stopping task ${taskId}`);
 			this.manuallyStoppedTasks.add(taskId);
 			this.manuallyStoppedForHook.add(taskId);
 			task.process.kill();
 			this.running.delete(taskId);
 			void appendActivityLog(this.options.workspaceId, taskId, "Agent stopped manually");
+		} else {
+			// No dev agent yet (e.g. still in plan phase) — move the card to todo now.
+			logger.info(`[scheduler] stopTask: no dev agent running for ${taskId} — moving to todo immediately`);
+			this.planPhaseManuallyStopped.add(taskId);
+			const { workspaceId, stateHub } = this.options;
+			void (async () => {
+				const board = await loadBoard(workspaceId);
+				const card = board.cards[taskId];
+				logger.info(`[scheduler] stopTask (plan phase): card ${taskId} columnId=${card?.columnId}`);
+				if (card?.columnId === "in_progress") {
+					await moveCard(workspaceId, taskId, "todo");
+					await updateCard(workspaceId, taskId, { readyForDev: false });
+					await appendActivityLog(workspaceId, taskId, "Moved back to Todo");
+					stateHub.broadcastWorkspaceUpdate(workspaceId);
+					logger.info(`[scheduler] stopTask (plan phase): moved ${taskId} to todo`);
+				}
+			})();
 		}
 		this.stopReviewAgentsForCard(taskId);
 	}
@@ -864,6 +892,7 @@ export class TaskScheduler {
 			const cb = this.stopCallbacks.get(streamId);
 			if (!cb) continue;
 			this.stopCallbacks.delete(streamId);
+			this.manuallyStoppedStreams.add(streamId);
 			logger.info(`[scheduler] Stopping review agent ${streamId} (card ${cardId} stopped)`);
 			try {
 				cb();
@@ -871,6 +900,11 @@ export class TaskScheduler {
 				logger.warn({ err }, `[scheduler] stopReviewAgentsForCard: callback for ${streamId} threw`);
 			}
 		}
+	}
+
+	// One-shot check: returns true and removes the entry if this stream was manually stopped.
+	isStreamManuallyStopped(streamId: string): boolean {
+		return this.manuallyStoppedStreams.delete(streamId);
 	}
 
 	// Stop a task because its parent was reopened — session becomes "stopped" rather than being removed.
@@ -916,6 +950,7 @@ export class TaskScheduler {
 			secrets: projectConfig.secrets ?? [],
 			registerStopCallback: this.registerStopCallback.bind(this),
 			registerLiveProcess: this.registerLiveProcess.bind(this),
+			isStreamManuallyStopped: this.isStreamManuallyStopped.bind(this),
 			onChildReset: async (child) => {
 				const latestBoard = await loadBoard(workspaceId);
 				await this.triggerParentReopenCascade(child, latestBoard.cards);
