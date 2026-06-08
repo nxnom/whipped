@@ -20,7 +20,8 @@ process.on("uncaughtException", (err: NodeJS.ErrnoException) => {
 	throw err;
 });
 
-const VERSION = "0.1.0";
+declare const __WHIPPED_VERSION__: string;
+const VERSION = typeof __WHIPPED_VERSION__ !== "undefined" ? __WHIPPED_VERSION__ : "0.0.0-dev";
 
 function hasGitRepository(path: string): boolean {
 	const result = spawnSync("git", ["rev-parse", "--is-inside-work-tree"], {

@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "description": "Autonomous AI agent kanban board for Claude and Codex",
   "type": "module",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "bin": {
     "whipped": "dist/cli.js"
   },
@@ -12,6 +16,7 @@
   "scripts": {
     "clean": "rm -rf dist",
     "build": "pnpm clean && pnpm web:build && node scripts/build.mjs",
+    "prepublishOnly": "pnpm build",
     "dev": "NODE_ENV=development tsx src/cli.ts",
     "dev:full": "node scripts/dev-full.mjs",
     "web:dev": "pnpm --filter @whipped/web dev",

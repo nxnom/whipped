@@ -7,7 +7,7 @@ export default defineConfig({
 	plugins: [tailwindcss(), react()],
 	build: {
 		minify: false,
-		sourcemap: true,
+		sourcemap: false,
 		outDir: "../dist/web-ui",
 		emptyOutDir: true,
 	},

@@ -1,8 +1,9 @@
 import * as esbuild from "esbuild";
-import { copyFileSync, mkdirSync, readdirSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const __dirname = new URL(".", import.meta.url).pathname;
+const { version } = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf8"));
 
 const sharedConfig = {
 	bundle: true,
@@ -26,7 +27,7 @@ const sharedConfig = {
 		"zod",
 		"@modelcontextprotocol/sdk",
 	],
-	define: { "process.env.NODE_ENV": '"production"' },
+	define: { "process.env.NODE_ENV": '"production"', __WHIPPED_VERSION__: `"${version}"` },
 };
 
 // Shim require()/__filename for CJS deps that reference them at runtime inside
