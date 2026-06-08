@@ -288,11 +288,11 @@ export function KanbanCard({
 								<Square size={13} className="fill-current" />
 								Stop
 							</button>
-						) : (
+						) : onRun ? (
 							<button
 								onClick={(e) => {
 									e.stopPropagation();
-									onRun?.();
+									onRun();
 								}}
 								className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-gray-500 hover:text-emerald-400 hover:bg-[#252530] transition-colors cursor-pointer"
 								title="Run ticket"
@@ -300,7 +300,7 @@ export function KanbanCard({
 								<Play size={13} />
 								Run
 							</button>
-						)}
+						) : null}
 						{card.columnId === "todo" && onToggleReady && !isStory && (
 							<button
 								onClick={(e) => {

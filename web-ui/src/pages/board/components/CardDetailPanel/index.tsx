@@ -14,6 +14,7 @@ interface Props {
 	allCards?: Record<string, RuntimeBoardCard>;
 	workflowSlots?: WorkflowSlot[];
 	projectName?: string;
+	hasStartCommand?: boolean;
 	onClose: () => void;
 	onRefresh: () => void;
 	onDeleteCard: (cardId: string) => void;
@@ -25,6 +26,7 @@ export function CardDetailPanel({
 	allCards,
 	workflowSlots,
 	projectName,
+	hasStartCommand = false,
 	onClose,
 	onRefresh,
 	onDeleteCard,
@@ -111,6 +113,7 @@ export function CardDetailPanel({
 				externalUrl={externalUrl}
 				isStory={isStory}
 				isReadyForReview={isReadyForReview}
+				hasStartCommand={hasStartCommand}
 				merging={merging}
 				onMerge={handleCommitAndMerge}
 				onPR={handleCommitAndPR}

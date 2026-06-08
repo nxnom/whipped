@@ -10,6 +10,7 @@ interface CardDetailHeaderProps {
 	externalUrl: string | null;
 	isStory: boolean;
 	isReadyForReview: boolean;
+	hasStartCommand?: boolean;
 	merging: boolean;
 	onMerge: () => void;
 	onPR: () => void;
@@ -24,6 +25,7 @@ export function CardDetailHeader({
 	externalUrl,
 	isStory,
 	isReadyForReview,
+	hasStartCommand = false,
 	merging,
 	onMerge,
 	onPR,
@@ -61,30 +63,34 @@ export function CardDetailHeader({
 			)}
 			<div className="w-px h-[18px] bg-[#2a2a35] shrink-0" />
 			{/* Action buttons */}
-			{runSession.status === "running" && runSession.cardId === card.id ? (
-				<Tooltip delayDuration={0} content="Stop" side="bottom" triggerAsChild>
-					<button
-						onClick={() => void stopRun()}
-						className="cursor-pointer text-[#60607a] hover:text-red-400 transition-colors"
-					>
-						<Square size={15} className="fill-current" />
-					</button>
-				</Tooltip>
-			) : (
-				<Tooltip
-					delayDuration={0}
-					content={runSession.status === "running" ? "Another task is running" : "Run"}
-					side="bottom"
-					triggerAsChild
-				>
-					<button
-						onClick={() => void startRun(card.id)}
-						disabled={runSession.status === "running"}
-						className="cursor-pointer text-[#60607a] hover:text-emerald-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-					>
-						<Play size={15} />
-					</button>
-				</Tooltip>
+			{hasStartCommand && (
+				<>
+					{runSession.status === "running" && runSession.cardId === card.id ? (
+						<Tooltip delayDuration={0} content="Stop" side="bottom" triggerAsChild>
+							<button
+								onClick={() => void stopRun()}
+								className="cursor-pointer text-[#60607a] hover:text-red-400 transition-colors"
+							>
+								<Square size={15} className="fill-current" />
+							</button>
+						</Tooltip>
+					) : (
+						<Tooltip
+							delayDuration={0}
+							content={runSession.status === "running" ? "Another task is running" : "Run"}
+							side="bottom"
+							triggerAsChild
+						>
+							<button
+								onClick={() => void startRun(card.id)}
+								disabled={runSession.status === "running"}
+								className="cursor-pointer text-[#60607a] hover:text-emerald-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+							>
+								<Play size={15} />
+							</button>
+						</Tooltip>
+					)}
+				</>
 			)}
 			{!isStory && isReadyForReview && (
 				<>

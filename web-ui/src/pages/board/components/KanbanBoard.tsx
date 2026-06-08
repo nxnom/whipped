@@ -70,6 +70,7 @@ export function KanbanBoard({
 			toast.error("Failed to stop");
 		}
 	};
+	const hasStartCommand = Boolean(state.projectConfig.startCommand);
 	const detailCard = detailCardId ? (state.board.cards[detailCardId] ?? null) : null;
 	const [createDialogOpen, setCreateDialogOpen] = useState(false);
 	const [createDialogMode, setCreateDialogMode] = useState<"task" | "story">("task");
@@ -255,23 +256,27 @@ export function KanbanBoard({
 					<Plus size={12} />
 					New Task
 				</button>
-				{runSession.status === "running" && runSession.cardId === null ? (
-					<button
-						onClick={handleStop}
-						className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-red-500 text-xs text-white hover:bg-red-600 transition-colors"
-					>
-						<Square size={11} className="fill-current" />
-						Stop
-					</button>
-				) : (
-					<button
-						onClick={handleRunBase}
-						disabled={runSession.status === "running"}
-						className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#7c6aff] text-xs text-white hover:bg-[#6a5ae0] disabled:opacity-50 transition-colors"
-					>
-						<Play size={11} className="fill-current" />
-						Run
-					</button>
+				{hasStartCommand && (
+					<>
+						{runSession.status === "running" && runSession.cardId === null ? (
+							<button
+								onClick={handleStop}
+								className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-red-500 text-xs text-white hover:bg-red-600 transition-colors"
+							>
+								<Square size={11} className="fill-current" />
+								Stop
+							</button>
+						) : (
+							<button
+								onClick={handleRunBase}
+								disabled={runSession.status === "running"}
+								className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#7c6aff] text-xs text-white hover:bg-[#6a5ae0] disabled:opacity-50 transition-colors"
+							>
+								<Play size={11} className="fill-current" />
+								Run
+							</button>
+						)}
+					</>
 				)}
 				<button onClick={onOpenAgent} className="p-1.5 text-gray-600 hover:text-gray-400 transition-colors">
 					<MessageSquare size={15} />
@@ -297,6 +302,7 @@ export function KanbanBoard({
 										allCards={state.board.cards}
 										workflows={state.projectConfig.workflows}
 										runningCardId={runSession.status === "running" ? runSession.cardId : null}
+										hasStartCommand={hasStartCommand}
 										onCardClick={(card) => openCard(card.id)}
 										onCardEdit={openEditDialog}
 										onCardDelete={handleCardDelete}
@@ -328,6 +334,7 @@ export function KanbanBoard({
 						)?.slots
 					}
 					projectName={projectName}
+					hasStartCommand={hasStartCommand}
 					onClose={closeCard}
 					onRefresh={onRefresh}
 					onDeleteCard={onDeleteCard}

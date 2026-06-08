@@ -19,6 +19,7 @@ interface KanbanColumnProps {
 	allCards: Record<string, RuntimeBoardCard>;
 	workflows: Workflow[];
 	runningCardId: string | null;
+	hasStartCommand: boolean;
 	onCardClick: (card: RuntimeBoardCard) => void;
 	onCardEdit: (card: RuntimeBoardCard) => void;
 	onCardDelete: (card: RuntimeBoardCard) => void;
@@ -34,6 +35,7 @@ export function KanbanColumn({
 	allCards,
 	workflows,
 	runningCardId,
+	hasStartCommand,
 	onCardClick,
 	onCardEdit,
 	onCardDelete,
@@ -78,7 +80,7 @@ export function KanbanColumn({
 								onEdit={() => onCardEdit(card)}
 								onDelete={() => onCardDelete(card)}
 								onToggleReady={() => onCardToggleReady(card)}
-								onRun={() => onCardRun(card.id)}
+								onRun={hasStartCommand ? () => onCardRun(card.id) : undefined}
 								onStop={onCardStop}
 							/>
 						))}
