@@ -95,6 +95,11 @@ function isCommandAvailable(args: string[]): boolean {
 		stdio: ["ignore", "pipe", "ignore"],
 		timeout: 5000,
 	});
+	// A binary that isn't on PATH surfaces as a spawn error (ENOENT) with a null
+	// status — that means "not installed", not "available". Any other spawn error
+	// (e.g. the --version call timing out) still means the binary exists.
+	if (result.error) return (result.error as NodeJS.ErrnoException).code !== "ENOENT";
+	// Exited normally (0) or was killed by our timeout after starting (null) → installed.
 	return result.status === 0 || result.status === null;
 }
 

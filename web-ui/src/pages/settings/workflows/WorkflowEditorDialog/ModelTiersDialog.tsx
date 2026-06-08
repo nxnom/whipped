@@ -1,8 +1,9 @@
 import { Button, Checkbox, Select, SelectOption } from "@geckoui/geckoui";
-import { AGENT_BINARY_OPTIONS, EFFORT_OPTIONS, type RuntimeAgentId, TIER_LEVEL_OPTIONS } from "@runtime-contract";
+import { EFFORT_OPTIONS, type RuntimeAgentId, TIER_LEVEL_OPTIONS } from "@runtime-contract";
 import type { ModelPairForm } from "@runtime-validation/workflow";
 import { ChevronDown, ChevronUp, Plus, Trash2, X } from "lucide-react";
 import { useState } from "react";
+import { AgentBinarySelect } from "@/components/AgentBinarySelect";
 import { ModelSelect } from "../ModelSelect";
 
 // Full-screen editor for a slot's model tiers, as a table. Order = priority
@@ -155,16 +156,12 @@ function TierRow({
 					<SelectOption key={o.value} value={o.value} label={o.label} />
 				))}
 			</Select>
-			<Select
+			<AgentBinarySelect
 				floatingStrategy="fixed"
 				value={pair.binary}
-				onChange={(v) => onPatch({ binary: v as RuntimeAgentId, model: null })}
+				onChange={(v) => onPatch({ binary: v, model: null })}
 				menuClassName="w-fit"
-			>
-				{AGENT_BINARY_OPTIONS.map((o) => (
-					<SelectOption key={o.value} value={o.value} label={o.label} />
-				))}
-			</Select>
+			/>
 			<ModelSelect
 				key={pair.binary}
 				agentId={pair.binary}

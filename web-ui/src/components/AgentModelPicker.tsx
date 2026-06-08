@@ -1,11 +1,6 @@
 import { Select, SelectOption } from "@geckoui/geckoui";
-import {
-	AGENT_BINARY_OPTIONS,
-	type AgentModelChoice,
-	EFFORT_OPTIONS,
-	type EffortLevel,
-	type RuntimeAgentId,
-} from "@runtime-contract";
+import { type AgentModelChoice, EFFORT_OPTIONS, type EffortLevel } from "@runtime-contract";
+import { AgentBinarySelect } from "@/components/AgentBinarySelect";
 import { ModelSelect } from "@/pages/settings/workflows/ModelSelect";
 
 // Shared agent binary + model + effort picker. Used by recurring agents and the
@@ -26,17 +21,13 @@ export function AgentModelPicker({
 	return (
 		<div className="flex flex-col gap-2 sm:flex-row sm:items-start">
 			<div className="w-full sm:w-32 shrink-0">
-				<Select
+				<AgentBinarySelect
 					value={agentId}
 					floatingStrategy={floatingStrategy}
 					menuClassName={menuClassName}
 					// Models differ per binary, so reset the model when the agent changes.
-					onChange={(v) => onChange({ ...value, agentId: v as RuntimeAgentId, model: null })}
-				>
-					{AGENT_BINARY_OPTIONS.map((o) => (
-						<SelectOption key={o.value} value={o.value} label={o.label} />
-					))}
-				</Select>
+					onChange={(v) => onChange({ ...value, agentId: v, model: null })}
+				/>
 			</div>
 			<div className="flex-1 min-w-0">
 				<ModelSelect
