@@ -488,6 +488,13 @@ export type RuntimeActivityEntry = z.infer<typeof runtimeActivityEntrySchema>;
 export const runtimeTaskSessionStateSchema = z.enum(["running", "stopped", "completed", "failed", "killed"]);
 export type RuntimeTaskSessionState = z.infer<typeof runtimeTaskSessionStateSchema>;
 
+// A session that was interrupted mid-run — either the server died ("killed") or the
+// user pressed stop ("stopped"). Both resume from the last good point on next pickup;
+// the resume logic treats them identically.
+export function isResumableSessionState(state: RuntimeTaskSessionState | undefined): boolean {
+	return state === "killed" || state === "stopped";
+}
+
 // ─── Terminal sessions ────────────────────────────────────────────────────────
 
 export const runtimeTerminalSessionEntrySchema = z.object({

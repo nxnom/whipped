@@ -29,6 +29,7 @@ import {
 	DEFAULT_GIT_INSTRUCTIONS,
 	DEFAULT_MODEL_PAIR,
 	EMPTY_INLINE_PROMPT,
+	isResumableSessionState,
 	resolvePair,
 	resolveWorkflowForCard,
 	type RuntimeAgentId,
@@ -290,7 +291,7 @@ export class TaskScheduler {
 	// launch window the card is already in_progress with no open session. The poller's
 	// restart-recovery fallback uses this to avoid triggering the review pipeline mid-launch.
 	isHandlingTask(taskId: string): boolean {
-		return this.running.has(taskId) || this.startingTasks.has(taskId);
+		return this.running.has(taskId) || this.startingTasks.has(taskId) || this.planPhaseManuallyStopped.has(taskId);
 	}
 
 	// Public entry — synchronous in-flight guard wraps the real launch. The poller
@@ -445,11 +446,11 @@ export class TaskScheduler {
 		logger.info(
 			`[scheduler] Resume check for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}": lastTsState=${lastTs?.state} devPassedInThisSession=${devPassedInThisSession} lastDevComment=${lastDevComment?.status} lastDevTsStart=${lastDevTs?.startedAt} devCreatedAt=${lastDevComment?.createdAt}`,
 		);
-		if (lastTs?.state === "killed" && devPassedInThisSession) {
+		if (isResumableSessionState(lastTs?.state) && devPassedInThisSession) {
 			createWorktree(effectiveWorktreeId, repoPath, card.baseRef, hasSharedWorktree ? undefined : card.branchName);
 			if (hasSharedWorktree) this.runningSharedWorktrees.delete(effectiveWorktreeId);
 			await moveCard(workspaceId, taskId, "in_progress");
-			await appendActivityLog(workspaceId, taskId, "Dev already completed — resuming AI review from last killed step");
+			await appendActivityLog(workspaceId, taskId, "Dev already completed — resuming AI review from last session");
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
 			this.options.onTaskCompleted(taskId);
 			return;
@@ -869,13 +870,15 @@ export class TaskScheduler {
 				const board = await loadBoard(workspaceId);
 				const card = board.cards[taskId];
 				logger.info(`[scheduler] stopTask (plan phase): card ${taskId} columnId=${card?.columnId}`);
-				if (card?.columnId === "in_progress") {
+				if (card?.columnId === "in_progress" || card?.columnId === "ready_for_review") {
 					await moveCard(workspaceId, taskId, "todo");
 					await updateCard(workspaceId, taskId, { readyForDev: false });
 					await appendActivityLog(workspaceId, taskId, "Moved back to Todo");
 					stateHub.broadcastWorkspaceUpdate(workspaceId);
 					logger.info(`[scheduler] stopTask (plan phase): moved ${taskId} to todo`);
 				}
+				// Release the isHandlingTask guard so the poller doesn't block legitimate restarts.
+				this.planPhaseManuallyStopped.delete(taskId);
 			})();
 		}
 		this.stopReviewAgentsForCard(taskId);

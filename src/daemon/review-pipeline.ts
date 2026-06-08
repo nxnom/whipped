@@ -30,7 +30,7 @@ import type {
 	TierLevel,
 	WorkflowSlot,
 } from "../core/api-contract.js";
-import { DEFAULT_GIT_INSTRUCTIONS, LEVEL_ORDER, resolvePair } from "../core/api-contract.js";
+import { DEFAULT_GIT_INSTRUCTIONS, isResumableSessionState, LEVEL_ORDER, resolvePair } from "../core/api-contract.js";
 import { ATTACHMENTS_DIR } from "../config/runtime-config.js";
 import { logger } from "../core/logger.js";
 import type { QaSemaphore } from "./qa-semaphore.js";
@@ -110,7 +110,7 @@ export async function runReviewPipeline(card: RuntimeBoardCard, options: ReviewP
 	card = freshBoard.cards[card.id] ?? card;
 	const lastTs = card.terminalSessions?.at(-1);
 	// Story cards have no dev session, so resume logic doesn't apply — always run orch fresh.
-	const isResume = card.type !== "story" && lastTs?.state === "killed";
+	const isResume = card.type !== "story" && isResumableSessionState(lastTs?.state);
 	const lastDevTs = card.terminalSessions
 		?.slice()
 		.reverse()
