@@ -1,5 +1,5 @@
 import { Menu, MenuItem, MenuTrigger } from "@geckoui/geckoui";
-import { Clock, FolderOpen, FolderPlus, Plus, Settings, WifiOff } from "lucide-react";
+import { Clock, FolderOpen, FolderPlus, Plus, Settings, Star, WifiOff } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
@@ -117,7 +117,7 @@ export function BoardPage({ onOpenAgent }: Props) {
 						onClick={() => {
 							if (workspaceId) navigate(`/${encodeURIComponent(workspaceId)}/recurring-agents`);
 						}}
-						className="flex items-center gap-2.5 py-1.5 px-0.5 hover:opacity-80 transition-opacity"
+						className="flex items-center gap-2.5 py-1.5 px-0.5 hover:opacity-80 transition-opacity cursor-pointer"
 					>
 						<Clock size={15} className="text-[#60607a]" />
 						<span className="text-[12px] text-[#8888a0]">Recurring Agents</span>
@@ -131,11 +131,20 @@ export function BoardPage({ onOpenAgent }: Props) {
 						onClick={() => {
 							if (workspaceId) navigate(`/${encodeURIComponent(workspaceId)}/settings`);
 						}}
-						className="flex items-center gap-2.5 py-1.5 px-0.5 hover:opacity-80 transition-opacity"
+						className="flex items-center gap-2.5 py-1.5 px-0.5 hover:opacity-80 transition-opacity cursor-pointer"
 					>
 						<Settings size={15} className="text-[#60607a]" />
 						<span className="text-[12px] text-[#8888a0]">Global Settings</span>
 					</button>
+					<a
+						href="https://github.com/nxnom/whipped"
+						target="_blank"
+						rel="noreferrer"
+						className="flex items-center gap-2.5 -mx-2 pl-[10px] pr-2 py-1.5 rounded-[6px] border border-[#2a2a35] text-[#60607a] hover:text-[#c0c0d0] hover:border-[#3a3a45] hover:bg-[#1a1a1f] transition-colors cursor-pointer"
+					>
+						<Star size={15} className="shrink-0" />
+						<span className="text-[12px]">Star on GitHub</span>
+					</a>
 				</div>
 			</nav>
 
