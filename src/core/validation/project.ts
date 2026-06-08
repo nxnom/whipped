@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { agentModelChoiceSchema } from "../api-contract.js";
 
 // Form-level schema for the "Add Project" dialog. Pure zod (no React) so it can
 // be shared between the web form (react-hook-form resolver) and any non-UI
@@ -7,7 +8,8 @@ import { z } from "zod";
 export const addProjectSchema = z.object({
 	repoPath: z.string().min(1, "Repository path is required"),
 	deliveryMode: z.enum(["off", "pr", "yolo"]),
-	installCommand: z.string().optional(),
+	defaultBaseBranch: z.string().optional(),
+	assistantModel: agentModelChoiceSchema,
 });
 
 export type AddProjectInput = z.infer<typeof addProjectSchema>;

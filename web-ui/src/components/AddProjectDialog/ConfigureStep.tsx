@@ -1,20 +1,28 @@
-import { RHFError, RHFInput, RHFInputGroup, RHFSelect, SelectOption } from "@geckoui/geckoui";
+import { RHFSelect, SelectOption } from "@geckoui/geckoui";
+import { DEFAULT_AGENT_MODEL_CHOICE } from "@runtime-contract";
 import { AlertTriangle, ArrowLeft, Plus } from "lucide-react";
-import { useWatch } from "react-hook-form";
+import { useFormContext, useWatch } from "react-hook-form";
+import { AgentModelPicker } from "@/components/AgentModelPicker";
+import { BranchSelect } from "@/components/BranchSelect";
 
 export function ConfigureStep({
 	repoPath,
+	branches,
 	adding,
 	onBack,
 	onAdd,
 }: {
 	repoPath: string;
+	branches: string[];
 	adding: boolean;
 	onBack: () => void;
 	onAdd: () => void;
 }) {
+	const { setValue } = useFormContext();
 	const folderName = repoPath.split("/").filter(Boolean).at(-1) ?? repoPath;
 	const deliveryMode = useWatch({ name: "deliveryMode" });
+	const defaultBaseBranch = useWatch({ name: "defaultBaseBranch" }) ?? "";
+	const assistantModel = useWatch({ name: "assistantModel" }) ?? DEFAULT_AGENT_MODEL_CHOICE;
 
 	return (
 		<div className="flex-1 flex flex-col min-h-0">
@@ -53,13 +61,36 @@ export function ConfigureStep({
 					)}
 				</div>
 
+				<div className="flex flex-col gap-3.5">
+					<span className="text-[10px] font-medium uppercase text-[#4a4a5a] tracking-[1px]">Git defaults</span>
+					<div className="flex items-center justify-between gap-3">
+						<div>
+							<p className="text-[13px] text-[#c0c0d0]">Default base branch</p>
+							<p className="text-[11px] mt-0.5 text-[#4a4a5a]">Used when creating new tasks and stories.</p>
+						</div>
+						<div className="w-40">
+							<BranchSelect
+								branches={branches}
+								value={defaultBaseBranch}
+								onChange={(v) => setValue("defaultBaseBranch", v || undefined, { shouldDirty: true })}
+								placeholder="main"
+							/>
+						</div>
+					</div>
+				</div>
+
 				<div className="flex flex-col gap-2.5">
-					<span className="text-[10px] font-medium uppercase text-[#4a4a5a] tracking-[1px]">Worktree setup</span>
-					<RHFInputGroup label="Install command" labelClassName="text-[12px] text-[#8888a0]" className="flex flex-col">
-						<RHFInput name="installCommand" placeholder="pnpm install" />
-						<RHFError name="installCommand" className="text-[11px] text-[#ef4444] mt-1" />
-						<p className="text-[11px] mt-1 text-[#4a4a5a]">Runs once when a new worktree is created for a task.</p>
-					</RHFInputGroup>
+					<span className="text-[10px] font-medium uppercase text-[#4a4a5a] tracking-[1px]">Assistant</span>
+					<div className="flex flex-col gap-1.5">
+						<p className="text-[13px] text-[#c0c0d0]">Agent &amp; model</p>
+						<p className="text-[11px] text-[#4a4a5a]">Which agent runs the in-app assistant.</p>
+						<div className="mt-1">
+							<AgentModelPicker
+								value={assistantModel}
+								onChange={(next) => setValue("assistantModel", next, { shouldDirty: true })}
+							/>
+						</div>
+					</div>
 				</div>
 			</div>
 

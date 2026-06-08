@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { ATTACHMENTS_DIR, WORKSPACES_DIR } from "../../config/runtime-config.js";
 import type { RuntimeBoardCard, RuntimeProjectConfig } from "../../core/api-contract.js";
 import { runtimeProjectConfigSchema } from "../../core/api-contract.js";
+import { listLocalBranches } from "../../git/merge-operations.js";
 import { logger } from "../../core/logger.js";
 import { loadProjectsLayout, type ProjectsLayout, saveProjectsLayout } from "../../state/projects-layout.js";
 import {
@@ -48,14 +49,31 @@ export const saveProjectsLayoutData = (layout: ProjectsLayout): { ok: true } => 
 };
 
 export const checkProjectPath = async (repoPath: string) => {
-	if (!repoPath.trim()) return { valid: false, isGitRepo: false, error: null, name: null, branch: null, remote: null };
+	if (!repoPath.trim())
+		return { valid: false, isGitRepo: false, error: null, name: null, branch: null, remote: null, branches: [] };
 	const { statSync } = await import("node:fs");
 	try {
 		const stat = statSync(repoPath);
 		if (!stat.isDirectory())
-			return { valid: false, isGitRepo: false, error: "Not a directory", name: null, branch: null, remote: null };
+			return {
+				valid: false,
+				isGitRepo: false,
+				error: "Not a directory",
+				name: null,
+				branch: null,
+				remote: null,
+				branches: [],
+			};
 	} catch {
-		return { valid: false, isGitRepo: false, error: "Path does not exist", name: null, branch: null, remote: null };
+		return {
+			valid: false,
+			isGitRepo: false,
+			error: "Path does not exist",
+			name: null,
+			branch: null,
+			remote: null,
+			branches: [],
+		};
 	}
 	const r = spawnSync("git", ["rev-parse", "--git-dir"], {
 		cwd: repoPath,
@@ -71,6 +89,7 @@ export const checkProjectPath = async (repoPath: string) => {
 			name: null,
 			branch: null,
 			remote: null,
+			branches: [],
 		};
 	const branchR = spawnSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
 		cwd: repoPath,
@@ -91,7 +110,7 @@ export const checkProjectPath = async (repoPath: string) => {
 				.replace(/^git@([^:]+):/, "$1/")
 				.replace(/\.git$/, "")
 		: null;
-	return { valid: true, isGitRepo: true, error: null, name, branch, remote };
+	return { valid: true, isGitRepo: true, error: null, name, branch, remote, branches: listLocalBranches(repoPath) };
 };
 
 export const addProject = async (

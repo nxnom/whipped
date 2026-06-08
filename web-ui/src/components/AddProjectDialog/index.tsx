@@ -1,6 +1,6 @@
 import { toast } from "@geckoui/geckoui";
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { RuntimeProjectConfig } from "@runtime-contract";
+import { DEFAULT_AGENT_MODEL_CHOICE, type RuntimeProjectConfig } from "@runtime-contract";
 import { addProjectSchema } from "@runtime-validation/project";
 import { FolderPlus, X } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -18,7 +18,8 @@ export function AddProjectDialog({ onClose, onAdded }: Props) {
 		values: {
 			repoPath: "",
 			deliveryMode: "off" as const,
-			installCommand: "",
+			defaultBaseBranch: undefined,
+			assistantModel: DEFAULT_AGENT_MODEL_CHOICE,
 		},
 	});
 	const { control, getValues, setValue } = methods;
@@ -72,14 +73,23 @@ export function AddProjectDialog({ onClose, onAdded }: Props) {
 			? { name: pathData.name, branch: pathData.branch, remote: pathData.remote }
 			: { name: null, branch: null, remote: null };
 
+	// Seed the base branch with the repo's current branch once it's detected, so
+	// adding a repo checked out on `develop` defaults to `develop`. Only fills an
+	// empty value, so a user's explicit pick is never overwritten.
+	const currentBranch = repoInfo.branch;
+	useEffect(() => {
+		if (currentBranch && !getValues("defaultBaseBranch")) {
+			setValue("defaultBaseBranch", currentBranch);
+		}
+	}, [currentBranch, getValues, setValue]);
+
 	const addProjectWrite = useWrite((api) => api("projects").POST());
 
 	const handleAdd = methods.handleSubmit(async (values) => {
 		const initialConfig: Partial<RuntimeProjectConfig> = {
 			deliveryMode: values.deliveryMode,
-			worktreeSetup: values.installCommand?.trim()
-				? { filesToCopy: [], installCommand: values.installCommand.trim() }
-				: undefined,
+			defaultBaseBranch: values.defaultBaseBranch?.trim() || undefined,
+			assistantModel: values.assistantModel,
 		};
 		const res = await addProjectWrite.trigger({
 			body: { repoPath: values.repoPath.trim(), initialConfig },
@@ -182,6 +192,7 @@ export function AddProjectDialog({ onClose, onAdded }: Props) {
 					) : (
 						<ConfigureStep
 							repoPath={getValues("repoPath")}
+							branches={pathData?.branches ?? []}
 							adding={addProjectWrite.loading}
 							onBack={() => setStep("select")}
 							onAdd={() => void handleAdd()}
