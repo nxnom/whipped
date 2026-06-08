@@ -44,6 +44,7 @@ import { buildMemoryContext } from "../state/memory-store.js";
 import {
 	appendActivityLog,
 	appendTerminalSession,
+	clearCardSession,
 	endTerminalSession,
 	linkCommentToSession,
 	loadBoard,
@@ -1539,6 +1540,14 @@ export async function runPlanPhase(
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
 
 	const secretsEnv = buildSecretsEnv(options.secrets);
+
+	let wasStopped = false;
+	const wrappedRegisterStopCallback: typeof options.registerStopCallback = (sid, cb) =>
+		options.registerStopCallback(sid, () => {
+			wasStopped = true;
+			cb();
+		});
+
 	await runAgentOnce(
 		agentId,
 		"Start planning.",
@@ -1546,7 +1555,7 @@ export async function runPlanPhase(
 		workspaceId,
 		streamId,
 		stateHub,
-		options.registerStopCallback,
+		wrappedRegisterStopCallback,
 		options.registerLiveProcess,
 		mcpConfigPath,
 		systemPrompt,
@@ -1559,6 +1568,20 @@ export async function runPlanPhase(
 		slot.type,
 		undefined,
 	);
+
+	if (wasStopped) {
+		await endTerminalSession(workspaceId, card.id, streamId, Date.now(), "stopped");
+		await clearCardSession(workspaceId, card.id);
+		const board = await loadBoard(workspaceId);
+		const stoppedCard = board.cards[card.id];
+		if (stoppedCard?.columnId === "in_progress") {
+			await moveCard(workspaceId, card.id, "todo");
+			await updateCard(workspaceId, card.id, { readyForDev: false });
+			await appendActivityLog(workspaceId, card.id, "Moved back to Todo");
+		}
+		stateHub.broadcastWorkspaceUpdate(workspaceId);
+		return;
+	}
 
 	await endTerminalSession(workspaceId, card.id, streamId, Date.now(), "completed");
 	await appendActivityLog(workspaceId, card.id, `${slot.name}: plan saved`);

@@ -573,6 +573,7 @@ export class TaskScheduler {
 					registerLiveProcess: this.registerLiveProcess.bind(this),
 				});
 				card = (await loadBoard(workspaceId)).cards[taskId] ?? card;
+				if (card.columnId !== "in_progress") return;
 			}
 
 			const devSystemPromptResult = buildDevAgentSystemPrompt(
