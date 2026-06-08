@@ -1,11 +1,12 @@
 {
   "name": "whipped",
   "version": "0.1.0",
-  "description": "Autonomous AI agent kanban board for Claude and Codex",
+  "description": "Autonomous AI agent kanban board for Claude, Codex, Opencode, and Cursor.",
   "type": "module",
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "scripts/postinstall.mjs"
   ],
   "bin": {
     "whipped": "dist/cli.js"
@@ -17,6 +18,7 @@
     "clean": "rm -rf dist",
     "build": "pnpm clean && pnpm web:build && node scripts/build.mjs",
     "prepublishOnly": "pnpm build",
+    "postinstall": "node scripts/postinstall.mjs",
     "dev": "NODE_ENV=development tsx src/cli.ts",
     "dev:full": "node scripts/dev-full.mjs",
     "web:dev": "pnpm --filter @whipped/web dev",

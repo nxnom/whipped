@@ -5,6 +5,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
 import { type ProjectsSidebarHandle, ProjectsSidebar } from "@/components/ProjectsSidebar";
 import { KanbanBoard } from "./components/KanbanBoard";
+import { UpdateBanner } from "./components/UpdateBanner";
 import { useWorkspaceState } from "@/stores/board-store";
 import { useRead, useWrite } from "@/runtime/api-client";
 import { firstSortedProjectId } from "@/utils/projects";
@@ -150,6 +151,7 @@ export function BoardPage({ onOpenAgent }: Props) {
 
 			{/* Main content */}
 			<div className="flex-1 overflow-hidden flex flex-col min-h-0">
+				<UpdateBanner />
 				{!connected && !state ? (
 					<div className="flex-1 flex items-center justify-center flex-col gap-3 text-gray-500">
 						<WifiOff size={32} />

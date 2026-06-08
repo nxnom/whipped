@@ -21,6 +21,7 @@ export class RuntimeStateHub {
 	private terminalListeners = new Map<WorkspaceId, Set<TerminalOutputCallback>>();
 	private terminalBuffers = new Map<string, string>(); // key: `${workspaceId}:${streamId}`
 	private readonly MAX_TERMINAL_BUFFER_ENTRIES = 300;
+	private pendingUpdateVersion: string | null = null;
 
 	addTerminalListener(workspaceId: WorkspaceId, cb: TerminalOutputCallback): () => void {
 		if (!this.terminalListeners.has(workspaceId)) {
@@ -69,6 +70,23 @@ export class RuntimeStateHub {
 	// repoPath is a fallback only; prefer the per-workspace path registered via
 	// registerWorkspace so a snapshot reflects the requested workspace's repo
 	// (not the daemon's cwd repo, which differs when managing multiple projects).
+	broadcastUpdateAvailable(latestVersion: string): void {
+		this.pendingUpdateVersion = latestVersion;
+		const payload = JSON.stringify({ type: "update_available", latestVersion });
+		for (const [, client] of this.clients) {
+			if (client.ws.readyState === 1 /* OPEN */) {
+				client.ws.send(payload);
+			}
+		}
+	}
+
+	sendUpdateIfPending(clientId: ClientId): void {
+		if (!this.pendingUpdateVersion) return;
+		const client = this.clients.get(clientId);
+		if (!client) return;
+		this.sendToClient(client, { type: "update_available", latestVersion: this.pendingUpdateVersion });
+	}
+
 	async sendSnapshot(clientId: ClientId, workspaceId: WorkspaceId, repoPath: string): Promise<void> {
 		const client = this.clients.get(clientId);
 		if (!client) return;

@@ -1,5 +1,21 @@
 import type { RuntimeStateEvent, RuntimeWorkspaceStateResponse } from "@runtime-contract";
 import { useCallback, useEffect, useRef, useState } from "react";
+
+// Global update state — persists across workspace switches.
+let _pendingUpdate: { latestVersion: string } | null = null;
+const _updateListeners = new Set<() => void>();
+
+export function useUpdateAvailable() {
+	const [update, setUpdate] = useState(_pendingUpdate);
+	useEffect(() => {
+		const notify = () => setUpdate(_pendingUpdate);
+		_updateListeners.add(notify);
+		return () => {
+			_updateListeners.delete(notify);
+		};
+	}, []);
+	return update;
+}
 import type { ApiSchema } from "@/runtime/api-client";
 import { optimistic, useRead } from "@/runtime/api-client";
 
@@ -62,6 +78,10 @@ export function useWorkspaceState(workspaceId: string) {
 					case "snapshot":
 					case "workspace_updated":
 						applyState(msg.state);
+						break;
+					case "update_available":
+						_pendingUpdate = { latestVersion: msg.latestVersion };
+						for (const cb of _updateListeners) cb();
 						break;
 				}
 			} catch {

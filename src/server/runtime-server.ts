@@ -40,6 +40,7 @@ import { requestHasMachineToken, setMachineToken } from "../auth/machine-token.j
 import { isLocalRequest, isRequestAuthenticated, LOCAL_REQUEST_HEADER } from "../auth/request-auth.js";
 import type { AppContext, RunSession } from "../api/types/context.js";
 import { RuntimeStateHub } from "./runtime-state-hub.js";
+import { scheduleUpdateChecks } from "../core/update-check.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
@@ -82,10 +83,11 @@ interface ServerOptions {
 	port?: number;
 	host?: string;
 	repoPath: string;
+	version: string;
 }
 
 export async function createRuntimeServer(options: ServerOptions) {
-	const { port = DEFAULT_PORT, host = "127.0.0.1", repoPath } = options;
+	const { port = DEFAULT_PORT, host = "127.0.0.1", repoPath, version: VERSION } = options;
 
 	// Single-instance lock — exactly one server may own this database. proper-lockfile
 	// uses an atomic, stale-aware lock (see instance-lock.ts), robust against PID reuse and
@@ -930,6 +932,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 				if (msg.type === "subscribe" && msg.workspaceId) {
 					const clientId = stateHub.addClient(ws, msg.workspaceId);
 					void stateHub.sendSnapshot(clientId, msg.workspaceId!, repoPath);
+					stateHub.sendUpdateIfPending(clientId);
 				}
 
 				if (msg.type === "terminal_resize" && msg.workspaceId && msg.taskId && msg.cols && msg.rows) {
@@ -954,6 +957,10 @@ export async function createRuntimeServer(options: ServerOptions) {
 	});
 
 	if (_globalConfig.autoStartTunnel) tunnelManager.start();
+
+	scheduleUpdateChecks(VERSION, (latestVersion) => {
+		stateHub.broadcastUpdateAvailable(latestVersion);
+	});
 
 	return {
 		url: `http://${host}:${port}`,

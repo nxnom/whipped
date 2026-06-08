@@ -903,7 +903,8 @@ export type RuntimeStateEvent =
 	| { type: "snapshot"; state: RuntimeWorkspaceStateResponse }
 	| { type: "workspace_updated"; state: RuntimeWorkspaceStateResponse }
 	| { type: "terminal_output"; taskId: string; data: string }
-	| { type: "run_session_changed"; cardId: string | null; status: RunSessionStatus; errorMessage?: string };
+	| { type: "run_session_changed"; cardId: string | null; status: RunSessionStatus; errorMessage?: string }
+	| { type: "update_available"; latestVersion: string };
 
 // ─── Projects layout ─────────────────────────────────────────────────────────
 

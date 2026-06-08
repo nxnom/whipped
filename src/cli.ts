@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { createServer } from "node:net";
 import { Command } from "commander";
 import ora from "ora";
+import open from "open";
 import { setPasswordCommand } from "./cli/auth-command.js";
 import { getDaemonLogPath, restartDaemon, startDaemon, statusDaemon, stopDaemon } from "./cli/daemon-commands.js";
 import { readState } from "./cli/daemon-state.js";
@@ -11,6 +12,7 @@ import { DEFAULT_PORT } from "./config/runtime-config.js";
 import { installGracefulShutdownHandlers } from "./core/graceful-shutdown.js";
 import { logger } from "./core/logger.js";
 import { createRuntimeServer } from "./server/runtime-server.js";
+import { getCachedUpdateAvailable } from "./core/update-check.js";
 
 // Ignore SIGPIPE so a closed pipe/socket doesn't crash the process
 process.on("SIGPIPE", () => {});
@@ -65,16 +67,19 @@ async function runServerForeground(options: RunOptions): Promise<void> {
 
 	let server: Awaited<ReturnType<typeof createRuntimeServer>>;
 	try {
-		server = await createRuntimeServer({ port, host, repoPath });
+		server = await createRuntimeServer({ port, host, repoPath, version: VERSION });
 		spinner.succeed(`whipped running at ${server.url}`);
+		if (process.env.NODE_ENV !== "development") void open(server.url);
+		const cachedUpdate = getCachedUpdateAvailable(VERSION);
+		if (cachedUpdate) {
+			process.stderr.write(`\n  Update available: ${VERSION} → ${cachedUpdate}\n  Run: npm install -g whipped\n\n`);
+		}
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		spinner.fail(`Failed to start: ${message}`);
 		process.exit(1);
 	}
 
-	// The server never opens a browser — it only serves the API/UI. The frontend (vite in
-	// dev, or you navigating to the URL above) is responsible for opening, not the backend.
 	logger.info("Press Ctrl+C to stop. Tip: run `whipped start` to background.");
 
 	let shuttingDown = false;
