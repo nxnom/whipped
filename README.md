@@ -8,6 +8,11 @@
   Autonomous AI agent kanban board. You create tickets, the agents do the work — because they have no choice.
 </p>
 
+<p align="center">
+  <a href="https://www.npmjs.com/package/whipped"><img src="https://img.shields.io/npm/v/whipped" alt="npm version" /></a>
+  <a href="https://www.npmjs.com/package/whipped"><img src="https://img.shields.io/npm/dm/whipped" alt="npm downloads" /></a>
+</p>
+
 ## Requirements
 
 - Node.js ≥ 22
