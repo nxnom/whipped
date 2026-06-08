@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import { createServer } from "node:net";
 import { Command } from "commander";
 import ora from "ora";
@@ -25,15 +24,6 @@ process.on("uncaughtException", (err: NodeJS.ErrnoException) => {
 declare const __WHIPPED_VERSION__: string;
 const VERSION = typeof __WHIPPED_VERSION__ !== "undefined" ? __WHIPPED_VERSION__ : "0.0.0-dev";
 
-function hasGitRepository(path: string): boolean {
-	const result = spawnSync("git", ["rev-parse", "--is-inside-work-tree"], {
-		cwd: path,
-		encoding: "utf8",
-		stdio: ["ignore", "pipe", "ignore"],
-	});
-	return result.status === 0 && result.stdout.trim() === "true";
-}
-
 async function isPortAvailable(port: number, host: string): Promise<boolean> {
 	return new Promise((resolve) => {
 		const probe = createServer();
@@ -51,11 +41,6 @@ interface RunOptions {
 async function runServerForeground(options: RunOptions): Promise<void> {
 	const { port, host } = options;
 	const repoPath = process.cwd();
-
-	if (!hasGitRepository(repoPath)) {
-		logger.error("Error: whipped must be run inside a git repository.");
-		process.exit(1);
-	}
 
 	const portAvailable = await isPortAvailable(port, host);
 	if (!portAvailable) {
