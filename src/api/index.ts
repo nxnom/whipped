@@ -6,7 +6,6 @@ import { authController } from "./routes/auth.js";
 import { cardsController } from "./routes/cards.js";
 import { configController } from "./routes/config.js";
 import { fsController } from "./routes/fs.js";
-import { jiraController } from "./routes/jira.js";
 import { memoryController } from "./routes/memory.js";
 import { projectConfigController } from "./routes/project-config.js";
 import { projectsController } from "./routes/projects.js";
@@ -36,7 +35,6 @@ export function createApiApp(ctx: AppContext) {
 		.route("/cards", cardsController)
 		.route("/config", configController)
 		.route("/fs", fsController)
-		.route("/jira", jiraController)
 		.route("/memory", memoryController)
 		.route("/project-config", projectConfigController)
 		.route("/projects", projectsController)

@@ -59,7 +59,7 @@ export function CardDetailPanel({
 	const activeTerminalSession = card.terminalSessions?.find((ts) => !ts.endedAt);
 	const hasTerminalOutput = visibleSessions.length > 0;
 	const agentId = activeTerminalSession?.agentId ?? card.agentId ?? null;
-	const externalUrl = card.jiraUrl ?? card.githubIssueUrl ?? card.pr?.url ?? null;
+	const externalUrl = card.githubIssueUrl ?? card.pr?.url ?? null;
 
 	// ── Elapsed timer ──────────────────────────────────────────────────────
 	useEffect(() => {

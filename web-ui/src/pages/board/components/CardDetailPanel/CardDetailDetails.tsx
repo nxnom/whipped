@@ -240,7 +240,7 @@ export function CardDetailDetails({ card, workspaceId, allCards, workflowSlots, 
 				)}
 
 				{/* External links */}
-				{(card.githubIssueUrl || card.pr?.url || card.jiraUrl) && (
+				{(card.githubIssueUrl || card.pr?.url) && (
 					<div className="space-y-1">
 						{card.githubIssueUrl && (
 							<a
@@ -260,16 +260,6 @@ export function CardDetailDetails({ card, workspaceId, allCards, workflowSlots, 
 								className="flex items-center gap-1.5 text-xs text-green-400 hover:text-green-300"
 							>
 								<ExternalLink size={11} /> Pull Request
-							</a>
-						)}
-						{card.jiraUrl && (
-							<a
-								href={card.jiraUrl}
-								target="_blank"
-								rel="noreferrer"
-								className="flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300"
-							>
-								<ExternalLink size={11} /> {card.jiraKey}
 							</a>
 						)}
 					</div>

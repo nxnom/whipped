@@ -48,7 +48,6 @@ export function CardDetailHeader({
 				{card.description?.split("\n")[0] ?? card.id}
 			</span>
 			<div className="flex-1" />
-			{card.jiraKey && <span className="text-[10px] font-mono text-[#4a4a5a]">{card.jiraKey}</span>}
 			{externalUrl && !card.pr?.url && (
 				<a
 					href={externalUrl}

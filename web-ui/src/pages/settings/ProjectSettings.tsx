@@ -9,7 +9,6 @@ import { EnvironmentSecretsSection } from "./EnvironmentSecretsSection";
 import { MemorySection } from "./sections/MemorySection";
 import { GeneralAutomationSection } from "./sections/GeneralAutomationSection";
 import { InstructionsSection } from "./sections/InstructionsSection";
-import { IntegrationsSection } from "./sections/IntegrationsSection";
 
 function PageHeader({ title, description }: { title: string; description: string }) {
 	return (
@@ -40,10 +39,6 @@ const SECTION_META: Record<ProjectSection, { title: string; description: string 
 	memory: {
 		title: "Memory",
 		description: "Durable knowledge agents recall so they stop re-discovering the same facts.",
-	},
-	integrations: {
-		title: "Integrations",
-		description: "Connect external services to import tickets and sync data.",
 	},
 };
 
@@ -177,16 +172,6 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 						onUpdate={updateConfig}
 						onSave={handleSave}
 						onSaveSecrets={handleSaveSecrets}
-					/>
-				)}
-
-				{section === "integrations" && (
-					<IntegrationsSection
-						workspaceId={workspaceId}
-						config={config}
-						saving={saving}
-						onUpdate={updateConfig}
-						onSave={handleSave}
 					/>
 				)}
 			</div>

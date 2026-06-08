@@ -5,7 +5,6 @@ import {
 	ChevronDown,
 	FolderGit2,
 	Globe,
-	Plug,
 	Server,
 	SlidersHorizontal,
 	Slack,
@@ -29,7 +28,6 @@ const PROJECT_NAV: Array<{ id: ProjectSection; label: string; icon: React.ReactN
 	{ id: "environment", label: "Environment & Secrets", icon: <Terminal size={15} /> },
 	{ id: "instructions", label: "Instructions", icon: <BookOpen size={15} /> },
 	{ id: "memory", label: "Memory", icon: <Brain size={15} /> },
-	{ id: "integrations", label: "Integrations", icon: <Plug size={15} /> },
 ];
 
 const GLOBAL_NAV: Array<{ id: GlobalSection; label: string; icon: React.ReactNode }> = [
@@ -127,7 +125,6 @@ const PROJECT_SECTIONS = new Set<SettingsSection>([
 	"environment",
 	"instructions",
 	"memory",
-	"integrations",
 ]);
 
 export function SettingsPage() {

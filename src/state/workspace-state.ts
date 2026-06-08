@@ -55,8 +55,6 @@ interface CardRow {
 	workflow_id: string | null;
 	github_issue_url: string | null;
 	pr_json: string | null;
-	jira_key: string | null;
-	jira_url: string | null;
 	github_comment_ids_json: string;
 	worktree_path: string | null;
 	branch_name: string | null;
@@ -104,8 +102,6 @@ function cardFromRow(row: CardRow, children: ReturnType<typeof loadCardChildren>
 	if (row.workflow_id) card.workflowId = row.workflow_id;
 	if (row.github_issue_url) card.githubIssueUrl = row.github_issue_url;
 	if (pr) card.pr = pr;
-	if (row.jira_key) card.jiraKey = row.jira_key;
-	if (row.jira_url) card.jiraUrl = row.jira_url;
 	if (row.worktree_path) card.worktreePath = row.worktree_path;
 	if (row.branch_name) card.branchName = row.branch_name;
 	if (row.depends_on_id) card.dependsOn = row.depends_on_id;
@@ -225,7 +221,7 @@ function upsertCardRow(
 			id, workspace_id, description, description_attachments_json,
 			column_id, column_position, type, ready_for_dev,
 			agent_id, priority, auto_fix_attempts, base_ref, workflow_id,
-			github_issue_url, pr_json, jira_key, jira_url, github_comment_ids_json,
+			github_issue_url, pr_json, github_comment_ids_json,
 			worktree_path, branch_name, depends_on_id,
 			slack_message_ts, slack_channel_id,
 			plan, active_level, model_config_json, created_at, updated_at
@@ -233,7 +229,7 @@ function upsertCardRow(
 			?, ?, ?, ?,
 			?, ?, ?, ?,
 			?, ?, ?, ?, ?,
-			?, ?, ?, ?, ?,
+			?, ?, ?,
 			?, ?, ?,
 			?, ?,
 			?, ?, ?, ?, ?
@@ -251,8 +247,6 @@ function upsertCardRow(
 			workflow_id = excluded.workflow_id,
 			github_issue_url = excluded.github_issue_url,
 			pr_json = excluded.pr_json,
-			jira_key = excluded.jira_key,
-			jira_url = excluded.jira_url,
 			github_comment_ids_json = excluded.github_comment_ids_json,
 			worktree_path = excluded.worktree_path,
 			branch_name = excluded.branch_name,
@@ -279,8 +273,6 @@ function upsertCardRow(
 		card.workflowId ?? null,
 		card.githubIssueUrl ?? null,
 		card.pr ? JSON.stringify(card.pr) : null,
-		card.jiraKey ?? null,
-		card.jiraUrl ?? null,
 		JSON.stringify(card.githubCommentIds ?? []),
 		card.worktreePath ?? null,
 		card.branchName ?? null,
@@ -509,12 +501,10 @@ function loadProjectConfigInternal(workspaceId: string): RuntimeProjectConfig {
 		.prepare("SELECT type, config_json FROM workspace_integrations WHERE workspace_id = ? AND enabled = 1")
 		.all(workspaceId) as Array<{ type: string; config_json: string }>;
 	let github: unknown;
-	let jira: unknown;
 	for (const row of integrationRows) {
 		try {
 			const cfg = JSON.parse(decrypt(row.config_json));
 			if (row.type === "github") github = cfg;
-			else if (row.type === "jira") jira = cfg;
 		} catch {
 			// skip corrupt row
 		}
@@ -526,7 +516,6 @@ function loadProjectConfigInternal(workspaceId: string): RuntimeProjectConfig {
 		secrets,
 	};
 	if (github) merged.github = github;
-	if (jira) merged.jira = jira;
 
 	// Migrate legacy autonomousModeEnabled + autoPR booleans → deliveryMode enum.
 	// Polling is now always on, so autonomousModeEnabled is dropped; autoPR maps to "pr".
@@ -542,7 +531,7 @@ function saveProjectConfigInternal(workspaceId: string, config: RuntimeProjectCo
 	const db = getDb();
 	const now = Date.now();
 
-	const { workflows, secrets, github, jira, ...rest } = config;
+	const { workflows, secrets, github, ...rest } = config;
 
 	db.prepare("UPDATE workspaces SET settings_json = ?, updated_at = ? WHERE id = ?").run(
 		JSON.stringify(rest),
@@ -590,7 +579,6 @@ function saveProjectConfigInternal(workspaceId: string, config: RuntimeProjectCo
 		"INSERT INTO workspace_integrations (workspace_id, type, enabled, config_json, updated_at) VALUES (?, ?, 1, ?, ?)",
 	);
 	if (github) insertInt.run(workspaceId, "github", encrypt(JSON.stringify(github)), now);
-	if (jira) insertInt.run(workspaceId, "jira", encrypt(JSON.stringify(jira)), now);
 }
 
 export async function loadProjectConfig(workspaceId: string): Promise<RuntimeProjectConfig> {
@@ -783,8 +771,6 @@ export async function createCard(
 				| "subtaskIds"
 				| "columnId"
 				| "githubIssueUrl"
-				| "jiraKey"
-				| "jiraUrl"
 				| "workflowId"
 				| "descriptionAttachments"
 				| "branchName"
@@ -825,8 +811,6 @@ export async function createCard(
 		createdAt: now,
 		updatedAt: now,
 		githubIssueUrl: data.githubIssueUrl,
-		jiraKey: data.jiraKey,
-		jiraUrl: data.jiraUrl,
 		// Persist the resolved workflow id (not the raw input) so a card always records
 		// which workflow it runs — otherwise an omitted workflowId leaves the card unlinked.
 		workflowId: data.workflowId ?? workflow?.id,

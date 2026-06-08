@@ -547,8 +547,6 @@ export const runtimeBoardCardSchema = z.object({
 	updatedAt: z.number(),
 	githubIssueUrl: z.string().optional(),
 	pr: runtimePrMetaSchema.optional(),
-	jiraKey: z.string().optional(),
-	jiraUrl: z.string().optional(),
 	workflowId: z.string().optional(),
 	// Plan written by the one-shot plan agent; injected into the dev agent's prompt.
 	plan: z.string().optional(),
@@ -621,14 +619,6 @@ export type RuntimeGlobalConfig = z.infer<typeof runtimeGlobalConfigSchema>;
 
 // ─── Per-project config ───────────────────────────────────────────────────────
 
-export const runtimeJiraConfigSchema = z.object({
-	host: z.string(),
-	email: z.string(),
-	token: z.string(),
-	projectKey: z.string(),
-});
-export type RuntimeJiraConfig = z.infer<typeof runtimeJiraConfigSchema>;
-
 export const runtimeGithubConfigSchema = z.object({
 	token: z.string(),
 });
@@ -662,7 +652,6 @@ export const runtimeProjectConfigSchema = z.object({
 	autoCommit: z.boolean().default(true),
 	defaultBaseBranch: z.string().optional(),
 	github: runtimeGithubConfigSchema.optional(),
-	jira: runtimeJiraConfigSchema.optional(),
 	worktreeSetup: runtimeWorktreeSetupSchema.optional(),
 	startCommand: z.string().default(""),
 	workflows: z.array(workflowSchema).default([]),
@@ -728,8 +717,6 @@ export const runtimeCardCreateRequestSchema = z.object({
 	columnId: runtimeBoardColumnIdSchema.optional(),
 	baseRef: z.string().optional(),
 	githubIssueUrl: z.string().optional(),
-	jiraKey: z.string().optional(),
-	jiraUrl: z.string().optional(),
 	workflowId: z.string().optional(),
 	descriptionAttachments: z.array(reviewAttachmentSchema).optional(),
 	branchName: z.string().optional(),
@@ -768,24 +755,6 @@ export const runtimeCardUpdateRequestSchema = z.object({
 	revision: z.number(),
 });
 export type RuntimeCardUpdateRequest = z.infer<typeof runtimeCardUpdateRequestSchema>;
-
-// ─── Jira import ─────────────────────────────────────────────────────────────
-
-export const runtimeJiraTicketSchema = z.object({
-	key: z.string(),
-	summary: z.string(),
-	description: z.string(),
-	url: z.string(),
-	status: z.string(),
-	comments: z.array(z.object({ author: z.string(), body: z.string() })),
-});
-export type RuntimeJiraTicket = z.infer<typeof runtimeJiraTicketSchema>;
-
-export const runtimeJiraImportRequestSchema = z.object({
-	ticketKeys: z.array(z.string()),
-	workspaceId: z.string(),
-});
-export type RuntimeJiraImportRequest = z.infer<typeof runtimeJiraImportRequestSchema>;
 
 // ─── Memory ───────────────────────────────────────────────────────────────────
 

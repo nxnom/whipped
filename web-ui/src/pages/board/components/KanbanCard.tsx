@@ -251,17 +251,6 @@ export function KanbanCard({
 									<ExternalLink size={8} />
 								</a>
 							)}
-							{card.jiraKey && (
-								<a
-									href={card.jiraUrl}
-									target="_blank"
-									rel="noreferrer"
-									onClick={(e) => e.stopPropagation()}
-									className="text-xs text-blue-400 bg-blue-400/10 rounded px-1.5 py-0.5 hover:bg-blue-400/20"
-								>
-									{card.jiraKey}
-								</a>
-							)}
 							{card.baseRef && (
 								<span
 									className="flex items-center gap-1 text-[10px] text-gray-600 bg-gray-700/30 rounded px-1.5 py-0.5 font-mono"
