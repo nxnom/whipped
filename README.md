@@ -187,9 +187,9 @@ Whipped can start a [Cloudflare Tunnel](https://developers.cloudflare.com/cloudf
 
 ### Browser extension — prompt creator
 
-A standalone Chrome/Chromium extension (`extension/`) for capturing UI context off any web page. Click the toolbar icon to enter select mode, then click any element to capture its React component and source location. It builds a ready-to-paste **YAML prompt** for your AI coding agent — no server connection required. The toolbar icon is grayscale at rest and turns full color while select mode is active.
+A standalone Chrome/Chromium extension for capturing UI context off any web page. Click the toolbar icon to enter select mode, then click any element to capture its React component and source location. It builds a ready-to-paste **YAML prompt** for your AI coding agent — no server connection required.
 
-Load it unpacked from `chrome://extensions` (Developer mode → Load unpacked → pick the `extension/` folder).
+Available at [github.com/nxnom/whipped-extension](https://github.com/nxnom/whipped-extension).
 
 ### Visual comments
 
