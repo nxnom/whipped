@@ -194,7 +194,7 @@ Whipped can start a [Cloudflare Tunnel](https://developers.cloudflare.com/cloudf
 
 A standalone Chrome/Chromium extension for capturing UI context off any web page. Click the toolbar icon to enter select mode, then click any element to capture its React component and source location. It builds a ready-to-paste **YAML prompt** for your AI coding agent — no server connection required.
 
-Available at [github.com/nxnom/whipped-extension](https://github.com/nxnom/whipped-extension).
+Install from the [Chrome Web Store](https://chromewebstore.google.com/detail/codkafoociihebdklkpfjjoacenkkhci?utm_source=item-share-cb), or build from source at [github.com/nxnom/whipped-extension](https://github.com/nxnom/whipped-extension).
 
 ### Visual comments
 
