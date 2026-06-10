@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { readFile, readdir, stat, unlink } from "node:fs/promises";
+import { readdir, readFile, stat, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import {
 	buildTaskHookEnv,
@@ -21,6 +21,7 @@ import {
 import type { AgentProcess } from "../agents/agent-runner.js";
 import { spawnAgent } from "../agents/agent-runner.js";
 import { type BrowserMcpServer, buildBrowserMcpServer, PLAYWRIGHT_MCP_SERVER_NAME } from "../agents/playwright-mcp.js";
+import { ATTACHMENTS_DIR } from "../config/runtime-config.js";
 import type {
 	ModelPair,
 	RuntimeBoardCard,
@@ -31,9 +32,7 @@ import type {
 	WorkflowSlot,
 } from "../core/api-contract.js";
 import { DEFAULT_GIT_INSTRUCTIONS, isResumableSessionState, LEVEL_ORDER, resolvePair } from "../core/api-contract.js";
-import { ATTACHMENTS_DIR } from "../config/runtime-config.js";
 import { logger } from "../core/logger.js";
-import type { QaSemaphore } from "./qa-semaphore.js";
 import { resolvePromptText } from "../core/prompt-resolver.js";
 import { generateTaskId } from "../core/task-id.js";
 import { formatVisualElementsBlock, type VisualElementRef } from "../core/visual-comment.js";
@@ -54,6 +53,7 @@ import {
 	updateCard,
 } from "../state/workspace-state.js";
 import { getCardBranch, getWorktreePath, resolveWorktreeOwnerId } from "../worktree/worktree-manager.js";
+import type { QaSemaphore } from "./qa-semaphore.js";
 import { type ConflictResolver, enqueueYoloMerge } from "./yolo-merge.js";
 
 interface ReviewPipelineOptions {
@@ -1186,13 +1186,13 @@ When you finish your work:
 
 ${commitInstruction.replace(/^1\. /, "3. ")}
 
-4. Reconcile memory. Review this task's description, the user's comments, and any decision or correction that came up while you worked. If something **changed, contradicted, reversed, or superseded** an entry in the Memory list above, call \`whipped_update_memory\` on that entry's id so future tasks don't act on stale knowledge (e.g. the user says "stop using short ids, use full kebab-case" → update the id-convention memory, don't leave the old one). If a durable new fact came up with no matching memory, call \`whipped_save_memory\`. If nothing memory-worthy changed, skip this step. Do NOT create a second memory that conflicts with an existing one — update the existing one instead.`);
+4. Reconcile memory. Review this task's description, the user's comments, and any decision or correction that came up while you worked. If something **changed, contradicted, reversed, or superseded** an entry in the Memory list above, call \`whipped_update_memory\` on that entry's id so future tasks don't act on stale knowledge (e.g. the user says "stop using short ids, use full kebab-case" → update the id-convention memory, don't leave the old one). Most tasks need NO new memory — skip this step by default. Only \`whipped_save_memory\` if a cross-cutting rule or non-obvious trap came up that you'd have wanted *before* starting and that isn't already recoverable by reading the code, schema, or a controller — endpoint shapes, column lists, field names, and per-page layout are code, not memory. Do NOT create a second memory that conflicts with an existing one — update the existing one instead.`);
 
 	parts.push(`## Memory
 
 This project has its own persistent memory. The \`whipped_save_memory\` / \`whipped_update_memory\` MCP tools ARE this project's memory — do NOT use your own notes, scratch files, CLAUDE.md, or any other memory system for durable facts.
 
-When you are asked to "remember", "save to memory", "note for next time" — or you discover/decide a durable fact (a convention, architecture decision, gotcha, or a correction the user made) — record it in memory.
+When you are asked to "remember", "save to memory", "note for next time" — or you hit a cross-cutting convention, an architecture decision, a non-obvious repo-wide gotcha, or a correction the user made — record it in memory. Do NOT record what is already in the code or schema (endpoint request/response shapes, query params, column lists, field names, colour classes, per-page layout): if your note would cite the file where the truth lives, the file is the memory — skip it. Keep each entry to one focused fact in 1-3 sentences.
 
 Before recording, check the memory list injected above (each entry shows its \`[id]\`) and \`whipped_search_memory\`. If what you're recording **contradicts, reverses, supersedes, corrects, or is a near-duplicate of** an existing memory, call \`whipped_update_memory\` with that memory's id and overwrite it — do NOT create a second, conflicting entry. Only \`whipped_save_memory\` when there is genuinely no existing memory about the same thing. Use \`whipped_get_memory\` to read one in full.
 

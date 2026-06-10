@@ -1087,14 +1087,16 @@ if (agentSlot === "dev" || agentSlot === "assistant") {
 		"whipped_save_memory",
 		{
 			description:
-				"Save a durable memory so future agents don't re-discover it. Use for conventions, architecture facts, decisions, gotchas, or user corrections worth remembering across tasks. Scope 'project' = specific to this repo; 'global' = a fact shareable across projects (e.g. a framework/library convention). Keep each memory to one focused fact. The user may review project task-lessons; global lessons go to a review queue.\n\nGlobal memory REQUIRES tags — it only reaches another project that subscribes to one of its tags. Tag with the framework-qualified form when the knowledge is ecosystem-specific, and the bare form only when the fact is truly tool-level and framework-agnostic: Spoosh used via its React bindings → 'spoosh-react'; a fact about Spoosh itself → 'spoosh'; React hooks → 'react-hook' (not bare 'hook'). Reuse an existing tag from the injected memory's tag list before inventing a near-duplicate.",
+				"Save a durable memory: a cross-cutting rule or a non-obvious trap that a careful reader of the code would still get wrong. Non-derivability is the bar — NOT how long it took to find. If the fact lives in one file, the API schema, or a controller (endpoint request/response shapes, query params, column lists, field names, CSS/colour classes, per-page layout), do NOT save it — that is code, read it when you need it. The test: if your note has to cite the file where the truth lives, the file IS the memory; skip it. Save for conventions, architecture decisions, repo-wide gotchas, or user corrections. Most tasks produce nothing memory-worthy — that is the expected outcome, not a gap. Keep each memory to ONE focused fact in 1-3 sentences (~60 words max); a multi-paragraph dump is a sign it belongs in the code, not here. Scope 'project' = specific to this repo; 'global' = a fact shareable across projects (e.g. a framework/library convention). The user may review project task-lessons; global lessons go to a review queue.\n\nGlobal memory REQUIRES tags — it only reaches another project that subscribes to one of its tags. Tag with the framework-qualified form when the knowledge is ecosystem-specific, and the bare form only when the fact is truly tool-level and framework-agnostic: Spoosh used via its React bindings → 'spoosh-react'; a fact about Spoosh itself → 'spoosh'; React hooks → 'react-hook' (not bare 'hook'). Reuse an existing tag from the injected memory's tag list before inventing a near-duplicate.",
 			inputSchema: {
 				scope: z.enum(["project", "global"]).describe("'project' (this repo) or 'global' (shareable across projects)"),
 				type: z
 					.enum(["fact", "convention", "decision", "preference", "rule", "lesson", "sharp_edge"])
 					.describe("Kind of memory"),
 				title: z.string().describe("Short one-line summary"),
-				content: z.string().describe("The durable fact, in 1-3 sentences"),
+				content: z
+					.string()
+					.describe("The durable fact, in 1-3 sentences (~60 words). One fact only — not a page or endpoint spec."),
 				sourceType: z
 					.enum(["user_correction", "explicit_save", "task_lesson"])
 					.default("task_lesson")
