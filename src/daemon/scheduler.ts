@@ -1152,10 +1152,12 @@ export class TaskScheduler {
 		let outputBuffer = "";
 		let hookHandled = false;
 
+		const conflictSystemPrompt = buildConflictResolutionSystemPrompt(card, conflictedFiles, conflictGitInstructions);
+
 		if (defaultAgent === "opencode") {
 			const mcpSpec = buildWhippedMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId);
 			await writeOpencodeFiles(streamId, getServerPort(this.options.serverUrl), mcpSpec, {
-				appendSystemPrompt: CONFLICT_RESOLUTION_SYSTEM_PROMPT,
+				appendSystemPrompt: conflictSystemPrompt,
 			}).catch(() => {});
 		} else if (defaultAgent === "cursor") {
 			const mcpSpec = buildWhippedMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId);
@@ -1164,7 +1166,7 @@ export class TaskScheduler {
 
 		const proc = spawnAgent({
 			agentId: defaultAgent,
-			prompt: buildConflictResolutionPrompt(card, conflictedFiles, conflictGitInstructions),
+			prompt: buildTaskPrompt(),
 			cwd: mergeWorktreePath,
 			hookSettingsPath: defaultAgent === "claude" ? CLAUDE_TASK_SETTINGS_PATH : undefined,
 			hookServerPort: defaultAgent === "codex" ? getServerPort(this.options.serverUrl) : undefined,
@@ -1173,7 +1175,7 @@ export class TaskScheduler {
 				...(defaultAgent === "opencode" ? { [OPENCODE_CONFIG_DIR_ENV]: getOpencodeConfigDir(streamId) } : {}),
 				...(defaultAgent === "cursor" ? { [CURSOR_CONFIG_DIR_ENV]: getCursorConfigDir(streamId) } : {}),
 			},
-			appendSystemPrompt: defaultAgent !== "opencode" ? CONFLICT_RESOLUTION_SYSTEM_PROMPT : undefined,
+			appendSystemPrompt: defaultAgent !== "opencode" ? conflictSystemPrompt : undefined,
 			onOutput: (data) => {
 				outputBuffer += data;
 				stateHub.broadcastTerminalOutput(workspaceId, streamId, data);
@@ -1345,32 +1347,31 @@ When asked to suggest or create a workflow:
 Slot prompts should be specific to the project's domain and the slot's role.${secretsSection ? `\n\n${secretsSection}` : ""}${systemPrompt?.trim() ? `\n\n## Project context\n\n${systemPrompt.trim()}` : ""}`;
 }
 
-const CONFLICT_RESOLUTION_SYSTEM_PROMPT = `You are a merge conflict resolution agent. Your only job is to resolve git merge conflicts.
+function buildConflictResolutionSystemPrompt(
+	card: RuntimeBoardCard,
+	conflictedFiles: string[],
+	gitInstructions: string,
+): string {
+	return `You are a merge conflict resolution agent. Your only job is to resolve git merge conflicts.
 
 Rules:
 - Only edit files to remove conflict markers (<<<<<<< ======= >>>>>>>)
 - Preserve the intent of BOTH sides where possible; when in doubt keep the incoming (task) changes
 - Never refactor, rename, or change logic beyond resolving the conflict markers
-- Exit when done`;
+- Exit when done
 
-function buildConflictResolutionPrompt(
-	card: RuntimeBoardCard,
-	conflictedFiles: string[],
-	gitInstructions: string,
-): string {
-	return `Resolve the git merge conflicts in this repository.
+## Task being merged
 
-Task being merged:
 ${card.description?.trim() ?? ""}
 
-Conflicted files:
+## Conflicted files
+
 ${conflictedFiles.map((f) => `- ${f}`).join("\n")}
 
-Resolve each conflict, preserving the task's intent. Then stage and commit
-the resolution. Write the commit message following the project's git
-conventions below — do not use a hard-coded template.
+Resolve each conflict, preserving the task's intent. Then stage and commit the resolution. Write the commit message following the project's git conventions below — do not use a hard-coded template.
 
 ## Git conventions
+
 ${gitInstructions}`;
 }
 
