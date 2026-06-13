@@ -776,8 +776,8 @@ registerTool(
 										.describe("Capability level. The card's active level selects which pair runs."),
 									isFree: z.boolean().describe("Whether this pair uses a zero-cost model"),
 									binary: z
-										.enum(["claude", "codex", "opencode", "cursor"])
-										.describe("Agent binary: claude / codex / opencode / cursor."),
+										.enum(["claude", "codex", "opencode", "cursor", "mimo"])
+										.describe("Agent binary: claude / codex / opencode / cursor / mimo."),
 									model: z
 										.string()
 										.nullable()
@@ -1188,7 +1188,7 @@ const scheduleShape = {
 		.describe("Required when scheduleKind=calendar, e.g. '0 9 * * 1' = every Monday 09:00"),
 	timezone: z.string().optional().describe("IANA timezone, required when scheduleKind=calendar (e.g. 'Asia/Yangon')"),
 	agentBinary: z
-		.enum(["claude", "codex", "opencode", "cursor"])
+		.enum(["claude", "codex", "opencode", "cursor", "mimo"])
 		.optional()
 		.describe("Which agent runs this; defaults to claude"),
 	model: z.string().optional().describe("Model id, e.g. 'claude-opus-4-8' or 'gpt-5.5'"),

@@ -61,23 +61,34 @@ function runMigrations(db: Database.Database): void {
 		.filter((f) => /^\d+_.+\.sql$/.test(f))
 		.sort();
 
-	for (const file of files) {
-		const version = Number.parseInt(file.split("_")[0] ?? "0", 10);
-		if (!Number.isFinite(version) || version <= currentVersion) continue;
+	// Disable FK enforcement for the duration of migrations. Table-rebuild
+	// migrations drop and recreate a parent table, and `DROP TABLE` with
+	// foreign_keys=ON does an implicit row delete that fires ON DELETE CASCADE on
+	// child tables — wiping their data even though the rebuild copied the parent
+	// rows first. The pragma is a no-op inside a transaction, so it must be toggled
+	// here, around the per-migration transactions. Restored to ON afterwards.
+	db.pragma("foreign_keys = OFF");
+	try {
+		for (const file of files) {
+			const version = Number.parseInt(file.split("_")[0] ?? "0", 10);
+			if (!Number.isFinite(version) || version <= currentVersion) continue;
 
-		const sql = readFileSync(join(MIGRATIONS_DIR, file), "utf-8");
-		logger.info({ file, version }, "Running migration");
+			const sql = readFileSync(join(MIGRATIONS_DIR, file), "utf-8");
+			logger.info({ file, version }, "Running migration");
 
-		const tx = db.transaction(() => {
-			db.exec(sql);
-			db.pragma(`user_version = ${version}`);
-		});
+			const tx = db.transaction(() => {
+				db.exec(sql);
+				db.pragma(`user_version = ${version}`);
+			});
 
-		try {
-			tx();
-		} catch (err) {
-			logger.error({ err, file }, "Migration failed; rolled back");
-			throw new Error(`Migration ${file} failed: ${(err as Error).message}`);
+			try {
+				tx();
+			} catch (err) {
+				logger.error({ err, file }, "Migration failed; rolled back");
+				throw new Error(`Migration ${file} failed: ${(err as Error).message}`);
+			}
 		}
+	} finally {
+		db.pragma("foreign_keys = ON");
 	}
 }

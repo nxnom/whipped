@@ -109,6 +109,13 @@ export const AGENT_DISPLAY: Record<
 		border: "border-[#f97316]/25",
 		dotColor: "bg-[#f97316]",
 	},
+	mimo: {
+		label: "MiMo",
+		color: "text-[#fb8147]",
+		bg: "bg-[#fb8147]/10",
+		border: "border-[#fb8147]/25",
+		dotColor: "bg-[#fb8147]",
+	},
 };
 
 export function formatElapsed(sec: number): string {

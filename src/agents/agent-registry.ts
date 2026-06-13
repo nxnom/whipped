@@ -1,9 +1,11 @@
 import { spawnSync } from "node:child_process";
 import type { EffortLevel, RuntimeAgentId } from "../core/api-contract.js";
 
-export function getOpencodeModels(): string[] {
+// opencode and its fork mimo both print `provider/model` strings, one per line,
+// from `<binary> models`. Shared parser; empty list if the binary is missing.
+function getProviderModels(binary: string): string[] {
 	try {
-		const result = spawnSync("opencode", ["models"], {
+		const result = spawnSync(binary, ["models"], {
 			stdio: ["ignore", "pipe", "ignore"],
 			timeout: 10_000,
 			encoding: "utf-8",
@@ -15,9 +17,17 @@ export function getOpencodeModels(): string[] {
 				.filter((l) => l.length > 0 && l.includes("/"));
 		}
 	} catch {
-		/* opencode not installed or failed */
+		/* binary not installed or failed */
 	}
 	return [];
+}
+
+export function getOpencodeModels(): string[] {
+	return getProviderModels("opencode");
+}
+
+export function getMimoModels(): string[] {
+	return getProviderModels("mimo");
 }
 
 export function getCursorModels(): Array<{ value: string; label: string }> {
@@ -87,6 +97,12 @@ const AGENT_DEFINITIONS: AgentInfo[] = [
 		label: "Cursor Agent",
 		command: "agent",
 		checkCommand: ["agent", "--version"],
+	},
+	{
+		id: "mimo",
+		label: "MiMo Code",
+		command: "mimo",
+		checkCommand: ["mimo", "--version"],
 	},
 ];
 
@@ -196,25 +212,32 @@ export function buildAgentArgs(agentId: RuntimeAgentId, prompt: string, ctx: Age
 			}
 			return args;
 		}
-		case "opencode": {
+		// mimo (mimocode) is an opencode fork with an identical CLI surface
+		// (`run`/`--agent build`/`-m`/`--prompt`/`--variant`), so it shares this branch.
+		case "opencode":
+		case "mimo": {
 			// --agent build: built-in agent with permission "*" allow "*" (skip-permissions equivalent).
-			// Read-only is enforced in opencode.json (writeOpencodeFiles disables the
+			// Read-only is enforced in the config file (writePluginAgentFiles disables the
 			// write/edit/bash tools) — we keep the autonomous `build` agent rather than
 			// the built-in `plan` agent, which is an interactive approval-seeking mode.
 			if (mode === "print") {
 				// One-shot non-interactive run (review pipeline slots).
-				// `opencode run` supports --variant; --prompt is not used here (prompt is a positional).
+				// `run` supports --variant; --prompt is not used here (prompt is a positional).
 				const args: string[] = ["run", "--agent", "build"];
 				if (ctx.model) args.push("-m", ctx.model);
 				if (ctx.effort) {
-					const effortMap: Record<EffortLevel, string> = {
+					// --variant must match one of the model's reasoning-effort values. mimo's
+					// catalog names these exactly as whipped's EffortLevel (low/medium/high/
+					// xhigh/max), so pass the level straight through. opencode's variant scale
+					// is shifted (starts at "minimal"), so it needs remapping.
+					const OPENCODE_EFFORT_VARIANT: Record<EffortLevel, string> = {
 						low: "minimal",
 						medium: "low",
 						high: "medium",
 						xhigh: "high",
 						max: "max",
 					};
-					args.push("--variant", effortMap[ctx.effort]);
+					args.push("--variant", agentId === "mimo" ? ctx.effort : OPENCODE_EFFORT_VARIANT[ctx.effort]);
 				}
 				if (prompt.trim()) args.push(prompt);
 				return args;

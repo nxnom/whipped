@@ -10,17 +10,17 @@ import {
 	CLAUDE_ASSISTANT_MCP_CONFIG_PATH,
 	CLAUDE_TASK_SETTINGS_PATH,
 	cleanupCursorConfigDir,
-	cleanupOpencodeFiles,
+	cleanupPluginAgentFiles,
 	CURSOR_CONFIG_DIR_ENV,
 	getCursorConfigDir,
 	getMcpConfigPath,
-	getOpencodeConfigDir,
 	getServerPort,
-	OPENCODE_CONFIG_DIR_ENV,
+	isPluginConfigAgent,
+	pluginAgentConfigDirEnv,
 	writeClaudeAssistantSettings,
 	writeClaudeMcpConfig,
 	writeCursorConfigFiles,
-	writeOpencodeFiles,
+	writePluginAgentFiles,
 } from "../agents/agent-hooks.js";
 import { getAvailableAgents } from "../agents/agent-registry.js";
 import type { AgentProcess } from "../agents/agent-runner.js";
@@ -189,7 +189,7 @@ export class TaskScheduler {
 			await writeClaudeAssistantSettings(getMcpServerPath(), serverUrl, workspaceId).catch((err) => {
 				logger.warn({ err }, "[scheduler] Failed to write assistant agent MCP settings");
 			});
-		} else if (agentId === "opencode") {
+		} else if (isPluginConfigAgent(agentId)) {
 			const mcpSpec = buildWhippedMcpServerSpec(
 				getMcpServerPath(),
 				serverUrl,
@@ -197,9 +197,11 @@ export class TaskScheduler {
 				undefined,
 				buildMcpRoleArgs("assistant"),
 			);
-			await writeOpencodeFiles(taskId, getServerPort(serverUrl), mcpSpec, { appendSystemPrompt }).catch((err) => {
-				logger.warn({ err }, "[scheduler] Failed to write opencode assistant agent files");
-			});
+			await writePluginAgentFiles(agentId, taskId, getServerPort(serverUrl), mcpSpec, { appendSystemPrompt }).catch(
+				(err) => {
+					logger.warn({ err }, `[scheduler] Failed to write ${agentId} assistant agent files`);
+				},
+			);
 		} else if (agentId === "cursor") {
 			const mcpSpec = buildWhippedMcpServerSpec(
 				getMcpServerPath(),
@@ -225,7 +227,7 @@ export class TaskScheduler {
 					...secretsEnv,
 					...buildTaskHookEnv(taskId, workspaceId),
 					WHIPPED_SLOT: "assistant",
-					...(agentId === "opencode" ? { [OPENCODE_CONFIG_DIR_ENV]: getOpencodeConfigDir(taskId) } : {}),
+					...pluginAgentConfigDirEnv(agentId, taskId),
 					...(agentId === "cursor" ? { [CURSOR_CONFIG_DIR_ENV]: getCursorConfigDir(taskId) } : {}),
 				},
 				mcpConfigPath: agentId === "claude" ? CLAUDE_ASSISTANT_MCP_CONFIG_PATH : undefined,
@@ -241,7 +243,7 @@ export class TaskScheduler {
 						: undefined,
 				model: assistantModel?.model ?? null,
 				effort: assistantModel?.effort ?? null,
-				appendSystemPrompt: agentId !== "opencode" ? appendSystemPrompt : undefined,
+				appendSystemPrompt: isPluginConfigAgent(agentId) ? undefined : appendSystemPrompt,
 				onOutput: (data) => {
 					assistantTask.outputBuffer += data;
 					stateHub.broadcastTerminalOutput(workspaceId, taskId, data);
@@ -458,7 +460,7 @@ export class TaskScheduler {
 
 		// Write agent-specific config so the dev agent can call kanban_add_comment when done
 		// and fire the Stop hook when it finishes a turn.
-		const mcpConfigPath = agentId !== "opencode" && agentId !== "cursor" ? getMcpConfigPath(taskId) : undefined;
+		const mcpConfigPath = !isPluginConfigAgent(agentId) && agentId !== "cursor" ? getMcpConfigPath(taskId) : undefined;
 
 		// For shared-worktree cards, look up the owner card's branch name.
 		// Uses the owner's saved branchName if set; otherwise derives it from the title and saves it
@@ -614,9 +616,9 @@ export class TaskScheduler {
 					agentId,
 					mcpConfigPath!,
 				).catch(() => {});
-			} else if (agentId === "opencode") {
+			} else if (isPluginConfigAgent(agentId)) {
 				const mcpSpec = buildWhippedMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId, agentId);
-				await writeOpencodeFiles(taskId, getServerPort(this.options.serverUrl), mcpSpec, {
+				await writePluginAgentFiles(agentId, taskId, getServerPort(this.options.serverUrl), mcpSpec, {
 					appendSystemPrompt: devSystemPromptResult.text,
 				}).catch(() => {});
 			} else if (agentId === "cursor") {
@@ -652,7 +654,7 @@ export class TaskScheduler {
 						...secretsEnv,
 						WHIPPED_SLOT: "dev",
 						...(devPair.model ? { WHIPPED_MODEL: devPair.model } : {}),
-						...(agentId === "opencode" ? { [OPENCODE_CONFIG_DIR_ENV]: getOpencodeConfigDir(taskId) } : {}),
+						...pluginAgentConfigDirEnv(agentId, taskId),
 						...(agentId === "cursor" ? { [CURSOR_CONFIG_DIR_ENV]: getCursorConfigDir(taskId) } : {}),
 					},
 					hookSettingsPath: agentId === "claude" ? CLAUDE_TASK_SETTINGS_PATH : undefined,
@@ -662,13 +664,12 @@ export class TaskScheduler {
 						agentId === "codex"
 							? buildWhippedMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId, agentId)
 							: undefined,
-					appendSystemPrompt:
-						agentId !== "opencode"
-							? agentId === "cursor"
-								? devSystemPromptResult.text +
-									"\n\n4. Call the `task_complete` MCP tool to signal that the task is complete."
-								: devSystemPromptResult.text
-							: undefined,
+					appendSystemPrompt: isPluginConfigAgent(agentId)
+						? undefined
+						: agentId === "cursor"
+							? devSystemPromptResult.text +
+								"\n\n4. Call the `task_complete` MCP tool to signal that the task is complete."
+							: devSystemPromptResult.text,
 					files: agentId === "claude" ? devSystemPromptResult.files : undefined,
 					effort: devPair.effort ?? undefined,
 					model: devPair.model ?? undefined,
@@ -685,7 +686,7 @@ export class TaskScheduler {
 						this.running.delete(taskId);
 						if (runningTask.worktreeOwnerId) this.runningSharedWorktrees.delete(runningTask.worktreeOwnerId);
 						if (mcpConfigPath) unlink(mcpConfigPath).catch(() => {});
-						if (agentId === "opencode") void cleanupOpencodeFiles(taskId);
+						if (isPluginConfigAgent(agentId)) void cleanupPluginAgentFiles(agentId, taskId);
 						if (agentId === "cursor") void cleanupCursorConfigDir(taskId);
 
 						// Graceful shutdown already persisted the failed/todo state — bail out.
@@ -1154,9 +1155,9 @@ export class TaskScheduler {
 
 		const conflictSystemPrompt = buildConflictResolutionSystemPrompt(card, conflictedFiles, conflictGitInstructions);
 
-		if (defaultAgent === "opencode") {
+		if (isPluginConfigAgent(defaultAgent)) {
 			const mcpSpec = buildWhippedMcpServerSpec(getMcpServerPath(), this.options.serverUrl, workspaceId);
-			await writeOpencodeFiles(streamId, getServerPort(this.options.serverUrl), mcpSpec, {
+			await writePluginAgentFiles(defaultAgent, streamId, getServerPort(this.options.serverUrl), mcpSpec, {
 				appendSystemPrompt: conflictSystemPrompt,
 			}).catch(() => {});
 		} else if (defaultAgent === "cursor") {
@@ -1172,10 +1173,10 @@ export class TaskScheduler {
 			hookServerPort: defaultAgent === "codex" ? getServerPort(this.options.serverUrl) : undefined,
 			env: {
 				...buildTaskHookEnv(streamId, workspaceId),
-				...(defaultAgent === "opencode" ? { [OPENCODE_CONFIG_DIR_ENV]: getOpencodeConfigDir(streamId) } : {}),
+				...pluginAgentConfigDirEnv(defaultAgent, streamId),
 				...(defaultAgent === "cursor" ? { [CURSOR_CONFIG_DIR_ENV]: getCursorConfigDir(streamId) } : {}),
 			},
-			appendSystemPrompt: defaultAgent !== "opencode" ? conflictSystemPrompt : undefined,
+			appendSystemPrompt: isPluginConfigAgent(defaultAgent) ? undefined : conflictSystemPrompt,
 			onOutput: (data) => {
 				outputBuffer += data;
 				stateHub.broadcastTerminalOutput(workspaceId, streamId, data);
@@ -1198,7 +1199,7 @@ export class TaskScheduler {
 			this.setRecentBuffer(streamId, outputBuffer);
 			void saveTerminalBuffer(workspaceId, streamId, outputBuffer);
 			void endTerminalSession(workspaceId, card.id, streamId, Date.now(), "completed");
-			if (defaultAgent === "opencode") void cleanupOpencodeFiles(streamId);
+			if (isPluginConfigAgent(defaultAgent)) void cleanupPluginAgentFiles(defaultAgent, streamId);
 			if (defaultAgent === "cursor") void cleanupCursorConfigDir(streamId);
 			proc.kill();
 			onComplete(true).catch((err) => logger.error({ err }, `[scheduler] conflict onComplete failed for ${card.id}:`));

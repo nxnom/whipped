@@ -18,15 +18,15 @@ export function ModelSelect({
 	menuClassName?: string;
 }) {
 	const staticOptions = MODEL_OPTIONS[agentId];
-	const isDynamic = agentId === "opencode" || agentId === "cursor";
+	const isDynamic = agentId === "opencode" || agentId === "cursor" || agentId === "mimo";
 
-	// opencode/cursor expose their model list at runtime. The read is enabled per
-	// agent, so Spoosh fetches (and caches) it on mount and whenever agentId
+	// opencode/cursor/mimo expose their model list at runtime. The read is enabled
+	// per agent, so Spoosh fetches (and caches) it on mount and whenever agentId
 	// changes — no effect, and `data`/`fetching` drive the UI directly.
 	const modelsRead = useRead(
 		(api) =>
 			api("agents/models").GET({
-				query: { agent: agentId === "cursor" ? "cursor" : "opencode" },
+				query: { agent: agentId === "cursor" ? "cursor" : agentId === "mimo" ? "mimo" : "opencode" },
 			}),
 		{ enabled: isDynamic },
 	);
@@ -96,7 +96,7 @@ export function ModelSelect({
 					value={value}
 					onChange={(e) => onChange(e.target.value)}
 					placeholder={
-						agentId === "opencode"
+						agentId === "opencode" || agentId === "mimo"
 							? "e.g. anthropic/claude-opus-4-7"
 							: agentId === "cursor"
 								? "e.g. claude-opus-4-7-thinking-max"

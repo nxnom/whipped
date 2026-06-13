@@ -8,15 +8,15 @@ import {
 	CLAUDE_TASK_SETTINGS_PATH,
 	CURSOR_CONFIG_DIR_ENV,
 	cleanupCursorConfigDir,
-	cleanupOpencodeFiles,
+	cleanupPluginAgentFiles,
 	getCursorConfigDir,
 	getMcpConfigPath,
-	getOpencodeConfigDir,
 	getServerPort,
-	OPENCODE_CONFIG_DIR_ENV,
+	isPluginConfigAgent,
+	pluginAgentConfigDirEnv,
 	writeClaudeMcpConfig,
 	writeCursorConfigFiles,
-	writeOpencodeFiles,
+	writePluginAgentFiles,
 } from "../agents/agent-hooks.js";
 import type { AgentProcess } from "../agents/agent-runner.js";
 import { spawnAgent } from "../agents/agent-runner.js";
@@ -292,13 +292,14 @@ async function runReviewSlot(
 			: withMemory;
 	const triggerWord = getSlotTriggerWord(slot.type);
 
-	const mcpConfigPath = agentBinary !== "opencode" && agentBinary !== "cursor" ? getMcpConfigPath(streamId) : undefined;
+	const mcpConfigPath =
+		!isPluginConfigAgent(agentBinary) && agentBinary !== "cursor" ? getMcpConfigPath(streamId) : undefined;
 	const hookServerPort =
-		agentBinary === "codex" || agentBinary === "opencode" || agentBinary === "cursor"
+		agentBinary === "codex" || isPluginConfigAgent(agentBinary) || agentBinary === "cursor"
 			? getServerPort(options.serverUrl)
 			: undefined;
 	const mcpServer =
-		agentBinary === "codex" || agentBinary === "opencode" || agentBinary === "cursor"
+		agentBinary === "codex" || isPluginConfigAgent(agentBinary) || agentBinary === "cursor"
 			? buildWhippedMcpServerSpec(options.mcpBinary, options.serverUrl, workspaceId, agentBinary)
 			: undefined;
 
@@ -700,8 +701,10 @@ function runAgentOnce(
 	browserMcpServer?: { command: string; args: string[] },
 ): Promise<string> {
 	const extraMcp = browserMcpServer ? { [PLAYWRIGHT_MCP_SERVER_NAME]: browserMcpServer } : undefined;
-	if (agentId === "opencode" && hookServerPort != null && mcpServer) {
-		void writeOpencodeFiles(streamId, hookServerPort, mcpServer, { appendSystemPrompt, extraMcp }).catch(() => {});
+	if (isPluginConfigAgent(agentId) && hookServerPort != null && mcpServer) {
+		void writePluginAgentFiles(agentId, streamId, hookServerPort, mcpServer, { appendSystemPrompt, extraMcp }).catch(
+			() => {},
+		);
 	}
 	if (agentId === "cursor" && hookServerPort != null && mcpServer) {
 		void writeCursorConfigFiles(streamId, hookServerPort, mcpServer, extraMcp).catch(() => {});
@@ -716,7 +719,7 @@ function runAgentOnce(
 			proc.kill();
 			void saveTerminalBuffer(workspaceId, streamId, output);
 			if (mcpConfigPath) unlink(mcpConfigPath).catch(() => {});
-			if (agentId === "opencode") void cleanupOpencodeFiles(streamId);
+			if (isPluginConfigAgent(agentId)) void cleanupPluginAgentFiles(agentId, streamId);
 			if (agentId === "cursor") void cleanupCursorConfigDir(streamId);
 			resolve(output);
 		});
@@ -731,7 +734,7 @@ function runAgentOnce(
 				...buildTaskHookEnv(streamId, workspaceId),
 				...secretsEnv,
 				...(slotType ? { WHIPPED_SLOT: slotType } : {}),
-				...(agentId === "opencode" ? { [OPENCODE_CONFIG_DIR_ENV]: getOpencodeConfigDir(streamId) } : {}),
+				...pluginAgentConfigDirEnv(agentId, streamId),
 				...(agentId === "cursor" ? { [CURSOR_CONFIG_DIR_ENV]: getCursorConfigDir(streamId) } : {}),
 			},
 			hookSettingsPath: agentId === "claude" ? CLAUDE_TASK_SETTINGS_PATH : undefined,
@@ -739,7 +742,7 @@ function runAgentOnce(
 			mcpConfigPath: agentId === "claude" ? mcpConfigPath : undefined,
 			mcpServer: agentId === "codex" ? mcpServer : undefined,
 			browserMcpServer: agentId === "codex" ? browserMcpServer : undefined,
-			appendSystemPrompt: agentId !== "opencode" ? appendSystemPrompt : undefined,
+			appendSystemPrompt: isPluginConfigAgent(agentId) ? undefined : appendSystemPrompt,
 			files: agentId === "claude" ? files : undefined,
 			effort,
 			model,
@@ -753,7 +756,7 @@ function runAgentOnce(
 				unregister();
 				void saveTerminalBuffer(workspaceId, streamId, output);
 				if (mcpConfigPath) unlink(mcpConfigPath).catch(() => {});
-				if (agentId === "opencode") void cleanupOpencodeFiles(streamId);
+				if (isPluginConfigAgent(agentId)) void cleanupPluginAgentFiles(agentId, streamId);
 				if (agentId === "cursor") void cleanupCursorConfigDir(streamId);
 				resolve(output);
 			},
@@ -1520,13 +1523,13 @@ export async function runPlanPhase(
 			? `${withMemory}\n\nAfter calling \`kanban_set_plan\`, call the \`task_complete\` MCP tool to signal that you are done.`
 			: withMemory;
 
-	const mcpConfigPath = agentId !== "opencode" && agentId !== "cursor" ? getMcpConfigPath(streamId) : undefined;
+	const mcpConfigPath = !isPluginConfigAgent(agentId) && agentId !== "cursor" ? getMcpConfigPath(streamId) : undefined;
 	const hookServerPort =
-		agentId === "codex" || agentId === "opencode" || agentId === "cursor"
+		agentId === "codex" || isPluginConfigAgent(agentId) || agentId === "cursor"
 			? getServerPort(options.serverUrl)
 			: undefined;
 	const mcpServer =
-		agentId === "codex" || agentId === "opencode" || agentId === "cursor"
+		agentId === "codex" || isPluginConfigAgent(agentId) || agentId === "cursor"
 			? buildWhippedMcpServerSpec(options.mcpBinary, options.serverUrl, workspaceId, agentId)
 			: undefined;
 

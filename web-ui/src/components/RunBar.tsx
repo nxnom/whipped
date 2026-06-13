@@ -73,6 +73,7 @@ export function RunBar({ workspaceId }: RunBarProps) {
 							codex: { dot: "bg-[#22c55e]", text: "text-[#22c55e]", bg: "bg-[#22c55e]/10" },
 							cursor: { dot: "bg-[#3b82f6]", text: "text-[#3b82f6]", bg: "bg-[#3b82f6]/10" },
 							opencode: { dot: "bg-[#f97316]", text: "text-[#f97316]", bg: "bg-[#f97316]/10" },
+							mimo: { dot: "bg-[#fb8147]", text: "text-[#fb8147]", bg: "bg-[#fb8147]/10" },
 						};
 						const ac = colors[cardAgentId] ?? { dot: "bg-gray-500", text: "text-gray-400", bg: "bg-gray-500/10" };
 						return (

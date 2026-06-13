@@ -5,16 +5,16 @@ import {
 	buildWhippedMcpServerSpec,
 	CLAUDE_TASK_SETTINGS_PATH,
 	cleanupCursorConfigDir,
-	cleanupOpencodeFiles,
+	cleanupPluginAgentFiles,
 	CURSOR_CONFIG_DIR_ENV,
 	getCursorConfigDir,
 	getMcpConfigPath,
-	getOpencodeConfigDir,
 	getServerPort,
-	OPENCODE_CONFIG_DIR_ENV,
+	isPluginConfigAgent,
+	pluginAgentConfigDirEnv,
 	writeClaudeMcpConfig,
 	writeCursorConfigFiles,
-	writeOpencodeFiles,
+	writePluginAgentFiles,
 } from "../agents/agent-hooks.js";
 import type { AgentProcess } from "../agents/agent-runner.js";
 import { spawnAgent } from "../agents/agent-runner.js";
@@ -165,10 +165,11 @@ export class RecurringAgentScheduler {
 				undefined,
 				roleArgs,
 			).catch((err) => logger.warn({ err }, "[recurring] failed to write claude MCP config"));
-		} else if (agentBinary === "opencode") {
-			await writeOpencodeFiles(streamId, hookServerPort, mcpServer, { appendSystemPrompt, readOnly: true }).catch(
-				(err) => logger.warn({ err }, "[recurring] failed to write opencode files"),
-			);
+		} else if (isPluginConfigAgent(agentBinary)) {
+			await writePluginAgentFiles(agentBinary, streamId, hookServerPort, mcpServer, {
+				appendSystemPrompt,
+				readOnly: true,
+			}).catch((err) => logger.warn({ err }, `[recurring] failed to write ${agentBinary} files`));
 		} else if (agentBinary === "cursor") {
 			await writeCursorConfigFiles(streamId, hookServerPort, mcpServer).catch((err) =>
 				logger.warn({ err }, "[recurring] failed to write cursor config"),
@@ -184,7 +185,7 @@ export class RecurringAgentScheduler {
 
 		const cleanup = (): void => {
 			if (mcpConfigPath) unlink(mcpConfigPath).catch(() => {});
-			if (agentBinary === "opencode") void cleanupOpencodeFiles(streamId);
+			if (isPluginConfigAgent(agentBinary)) void cleanupPluginAgentFiles(agentBinary, streamId);
 			if (agentBinary === "cursor") void cleanupCursorConfigDir(streamId);
 		};
 
@@ -227,18 +228,18 @@ export class RecurringAgentScheduler {
 					...buildTaskHookEnv(streamId, workspaceId),
 					WHIPPED_SLOT: "recurring",
 					...(agent.model.model ? { WHIPPED_MODEL: agent.model.model } : {}),
-					...(agentBinary === "opencode" ? { [OPENCODE_CONFIG_DIR_ENV]: getOpencodeConfigDir(streamId) } : {}),
+					...pluginAgentConfigDirEnv(agentBinary, streamId),
 					...(agentBinary === "cursor" ? { [CURSOR_CONFIG_DIR_ENV]: getCursorConfigDir(streamId) } : {}),
 				},
 				hookSettingsPath: agentBinary === "claude" ? CLAUDE_TASK_SETTINGS_PATH : undefined,
 				hookServerPort: agentBinary === "codex" ? hookServerPort : undefined,
 				mcpConfigPath,
 				mcpServer: agentBinary === "codex" ? mcpServer : undefined,
-				appendSystemPrompt: agentBinary !== "opencode" ? appendSystemPrompt : undefined,
+				appendSystemPrompt: isPluginConfigAgent(agentBinary) ? undefined : appendSystemPrompt,
 				model: agent.model.model,
 				effort: agent.model.effort,
 				// Observer agents are read-only: claude blocks file/shell tools via
-				// --disallowedTools, opencode disables them in its config. codex/cursor
+				// --disallowedTools, opencode/mimo disable them in their config. codex/cursor
 				// fall back to prompt-only enforcement.
 				readOnly: true,
 				onOutput: (data) => {

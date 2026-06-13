@@ -86,7 +86,7 @@ export function spawnAgent(options: AgentRunOptions): AgentProcess {
 		kill() {
 			if (exited) return;
 			// SIGTERM first so claude/codex can flush; escalate to SIGKILL for TUI
-			// agents (opencode, cursor) that swallow SIGTERM and otherwise stay alive.
+			// agents (opencode, mimo, cursor) that swallow SIGTERM and otherwise stay alive.
 			try {
 				treeKill(pty.pid, "SIGTERM");
 			} catch {

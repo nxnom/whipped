@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // ─── Agent ───────────────────────────────────────────────────────────────────
 
-export const runtimeAgentIdSchema = z.enum(["claude", "codex", "opencode", "cursor"]);
+export const runtimeAgentIdSchema = z.enum(["claude", "codex", "opencode", "cursor", "mimo"]);
 export type RuntimeAgentId = z.infer<typeof runtimeAgentIdSchema>;
 
 export const AGENT_BINARY_OPTIONS: ReadonlyArray<{ value: RuntimeAgentId; label: string }> = [
@@ -10,6 +10,7 @@ export const AGENT_BINARY_OPTIONS: ReadonlyArray<{ value: RuntimeAgentId; label:
 	{ value: "codex", label: "codex" },
 	{ value: "opencode", label: "opencode" },
 	{ value: "cursor", label: "cursor" },
+	{ value: "mimo", label: "mimo" },
 ];
 
 export const effortLevelSchema = z.enum(["low", "medium", "high", "xhigh", "max"]);
@@ -50,6 +51,9 @@ export const MODEL_OPTIONS: Record<RuntimeAgentId, ReadonlyArray<{ value: string
 	// cursor supports many models — no fixed presets.
 	// The UI fetches the live list via agents.cursorModels and renders a Select.
 	cursor: [],
+	// mimo (mimocode) lists models as provider/model strings, like opencode —
+	// no fixed presets; the UI fetches the live list and renders a Select.
+	mimo: [],
 };
 
 // A fixed agent binary + model + effort pick. Used by the assistant agent and

@@ -27,6 +27,30 @@
   (`import { x } from "../core/api-contract.js"`). No path aliases on the backend.
 - Frontend aliases: `@/*` → `web-ui/src/*`, `@runtime-contract`, and `@runtime-trpc` (temporary — removed once tRPC is gone).
 
+## Agents (CLI binaries)
+- Supported agent binaries are the `runtimeAgentIdSchema` enum in `src/core/api-contract.ts` — the source
+  of truth. Adding one touches: that enum + `AGENT_BINARY_OPTIONS` + `MODEL_OPTIONS`; `AGENT_DEFINITIONS`
+  and `buildAgentArgs` in `src/agents/agent-registry.ts`; the spawn/hook wiring in `src/daemon/`
+  (`scheduler.ts`, `recurring-agent-scheduler.ts`, `review-pipeline.ts`); the `agentBinary`/`binary`
+  enums in `src/mcp/kanban-mcp-server.ts`; and the frontend display maps (`CardDetailPanel/constants.ts`,
+  `RunBar.tsx`, `KanbanCard.tsx`) + `ModelSelect.tsx`. **And a DB migration** (see below) — `cards.agent_id`
+  and `terminal_sessions.agent_id` have a `CHECK (agent_id IN (...))` constraint that rejects unknown binaries.
+- opencode and mimo (mimocode, an opencode fork) share one plugin-config mechanism in
+  `src/agents/agent-hooks.ts` (`PLUGIN_AGENT_SPECS`): a per-task config dir via a `*_CONFIG_DIR` env var
+  holding a JSON config + a `plugin/whipped.ts`. mimo's plugin must NOT `import` from `@mimo-ai/plugin`
+  (that package isn't published at the CLI version, so the import fails and the plugin is dropped) — it
+  defines the tool as a plain object instead.
+
+## DB migrations (`src/state/`)
+- better-sqlite3, no ORM. Migrations are `src/state/migrations/NNN_name.sql`, run in numeric order by
+  `runMigrations` in `src/state/db.ts`, tracked via `PRAGMA user_version`. Add the next-numbered file; never
+  edit a shipped migration.
+- The runner disables `foreign_keys` for the whole migration pass and restores it after. So table-rebuild
+  migrations can `DROP`/recreate a parent without cascade-wiping children.
+- SQLite can't alter a `CHECK`/column in place: rebuild the table (create `_new` with the changed schema,
+  `INSERT … SELECT`, drop old, `RENAME`, recreate indexes) — see `013_agent_id_add_mimo.sql`. Copy the exact
+  current column set/order (later `ALTER`s may have changed it), and use explicit column lists, not `SELECT *`.
+
 ## Frontend (web-ui)
 - Use `@geckoui/geckoui` components wherever they fit instead of hand-rolling. **Load the geckoui skill**
   before using them; don't guess props.
