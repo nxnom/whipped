@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+// The assistant agent isn't tied to a card: its task id is a synthetic
+// `<prefix><workspaceId>`, never a row in `cards`. Used to keep it out of
+// card-id foreign keys (e.g. memories.origin_card_id).
+export const ASSISTANT_AGENT_PREFIX = "__assistant__:";
+
 // ─── Agent ───────────────────────────────────────────────────────────────────
 
 export const runtimeAgentIdSchema = z.enum(["claude", "codex", "opencode", "cursor", "mimo"]);

@@ -26,6 +26,7 @@ import { getAvailableAgents } from "../agents/agent-registry.js";
 import type { AgentProcess } from "../agents/agent-runner.js";
 import { spawnAgent } from "../agents/agent-runner.js";
 import {
+	ASSISTANT_AGENT_PREFIX,
 	DEFAULT_GIT_INSTRUCTIONS,
 	DEFAULT_MODEL_PAIR,
 	EMPTY_INLINE_PROMPT,
@@ -93,8 +94,6 @@ interface RunningTask {
 
 const FAST_EXIT_THRESHOLD_MS = 8_000;
 const MAX_RECENT_BUFFERS = 100;
-
-const ASSISTANT_AGENT_PREFIX = "__assistant__:";
 
 export class TaskScheduler {
 	private running = new Map<string, RunningTask>();

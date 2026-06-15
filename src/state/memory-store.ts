@@ -179,6 +179,12 @@ export function createMemory(input: CreateMemoryInput): RuntimeMemory {
 		throw new Error("global-scoped memory requires at least one tag");
 	}
 	const originWorkspaceId = input.originWorkspaceId ?? workspaceId;
+	// origin_card_id is a FK (ON DELETE SET NULL). Drop a stale/unknown card id
+	// rather than letting the insert fail the foreign-key constraint.
+	const originCardId =
+		input.originCardId && db.prepare("SELECT 1 FROM cards WHERE id = ?").get(input.originCardId)
+			? input.originCardId
+			: null;
 	const tx = db.transaction(() => {
 		db.prepare(
 			`INSERT INTO memories (
@@ -195,7 +201,7 @@ export function createMemory(input: CreateMemoryInput): RuntimeMemory {
 			input.content,
 			input.sourceType,
 			input.importance ?? 1,
-			input.originCardId ?? null,
+			originCardId,
 			input.originAgent ? JSON.stringify(input.originAgent) : null,
 			input.status ?? "approved",
 			now,

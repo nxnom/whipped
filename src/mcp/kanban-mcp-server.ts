@@ -10,7 +10,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { DEFAULT_GIT_INSTRUCTIONS } from "../core/api-contract.js";
+import { ASSISTANT_AGENT_PREFIX, DEFAULT_GIT_INSTRUCTIONS } from "../core/api-contract.js";
 
 const serverUrl = process.argv[2] ?? process.env.WHIPPED_SERVER_URL ?? "http://127.0.0.1:3000";
 const workspaceId = process.argv[3] ?? process.env.WHIPPED_WORKSPACE_ID ?? "";
@@ -1028,7 +1028,10 @@ registerTool(
 // is a stdio child). Read tools are available to every slot; write tools are
 // registered for the dev and assistant slots.
 const agentSlot = process.env.WHIPPED_SLOT ?? "";
-const memoryCardId = process.env.WHIPPED_HOOK_TASK_ID ?? "";
+const hookTaskId = process.env.WHIPPED_HOOK_TASK_ID ?? "";
+// The assistant agent's task id is synthetic (no row in `cards`), so it must not
+// be used as an origin_card_id foreign key — only real card ids qualify.
+const memoryCardId = hookTaskId.startsWith(ASSISTANT_AGENT_PREFIX) ? "" : hookTaskId;
 const memoryModel = process.env.WHIPPED_MODEL ?? "";
 
 interface MemoryResult {
