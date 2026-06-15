@@ -111,6 +111,7 @@ const RECURRING_OBSERVER_TOOLS = new Set([
 	"whipped_search_memory",
 	"whipped_get_memory",
 	"update_journal",
+	"disable_self",
 ]);
 
 const baseRegisterTool = server.registerTool;
@@ -1323,6 +1324,23 @@ if (mcpRole === "recurring" && recurringAgentId) {
 				return { content: [{ type: "text", text: "Journal saved." }] };
 			} catch (err) {
 				return { content: [{ type: "text", text: `Journal save failed: ${(err as Error).message}` }] };
+			}
+		},
+	);
+
+	registerTool(
+		"disable_self",
+		{
+			description:
+				"Disable yourself so you stop running on schedule. Use this once your assigned task is complete and there is nothing left to watch for — e.g. a one-off job that has finished, or a condition you were waiting on that is now resolved. This only pauses future runs; the user can re-enable you later. It does not affect the current run, which finishes normally.",
+			inputSchema: {},
+		},
+		async () => {
+			try {
+				await apiMutate("recurring.update", { id: recurringAgentId, enabled: false });
+				return { content: [{ type: "text", text: "Disabled. No further scheduled runs until re-enabled." }] };
+			} catch (err) {
+				return { content: [{ type: "text", text: `Disable failed: ${(err as Error).message}` }] };
 			}
 		},
 	);

@@ -305,8 +305,10 @@ ${journalBlock}
 
 When you finish, call \`update_journal\` with the full updated notes to keep for next time (what you checked, what you filed, what you're watching). It REPLACES the journal, so include everything still relevant.
 
+If your task is a one-off that is now complete, or the condition you were watching for is resolved and there is nothing left to do on future runs, call \`disable_self\` to stop running on schedule. This only pauses future runs (the user can re-enable you); the current run still finishes normally. Update your journal before disabling.
+
 ## Available tools
-\`kanban_get_board\`, \`kanban_create_card\`, \`kanban_add_comment\`, \`kanban_get_workflows\`, \`whipped_search_memory\`, \`whipped_get_memory\`, \`update_journal\`, plus read-only repo tools (Read, Grep, Glob).`;
+\`kanban_get_board\`, \`kanban_create_card\`, \`kanban_add_comment\`, \`kanban_get_workflows\`, \`whipped_search_memory\`, \`whipped_get_memory\`, \`update_journal\`, \`disable_self\`, plus read-only repo tools (Read, Grep, Glob).`;
 
 	const secretsSection = buildSecretsSection(secrets);
 	if (secretsSection) prompt += `\n\n${secretsSection}`;
