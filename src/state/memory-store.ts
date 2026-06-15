@@ -404,7 +404,7 @@ export function searchMemories(query: string, workspaceId?: string | null, limit
 // Includes approved project memory and global memory routed to this workspace
 // (top by importance). Returns an empty string when there's nothing to inject.
 // Each memory carries its id so the agent can target it with whipped_update_memory.
-export function buildMemoryContext(workspaceId: string, memoryLimit = 40): string {
+export function buildMemoryContext(workspaceId: string, memoryLimit = 40, opts?: { readOnly?: boolean }): string {
 	const sections: string[] = [];
 
 	const fmt = (m: RuntimeMemory) => {
@@ -425,13 +425,21 @@ export function buildMemoryContext(workspaceId: string, memoryLimit = 40): strin
 
 	if (sections.length === 0) return "";
 
+	// Observers (read-only) can neither save nor update memory, so omit the
+	// update-tool hint and the tag-reuse guidance (which only matters when saving).
+	const readOnly = opts?.readOnly ?? false;
 	const knownTags = listTags();
 	const tagLine =
-		knownTags.length > 0 ? `\n\nExisting tags (reuse before inventing new ones): ${knownTags.join(", ")}.` : "";
+		!readOnly && knownTags.length > 0
+			? `\n\nExisting tags (reuse before inventing new ones): ${knownTags.join(", ")}.`
+			: "";
+	const recallLine = readOnly
+		? "Use `whipped_search_memory` / `whipped_get_memory` to recall more."
+		: "Use `whipped_search_memory` / `whipped_get_memory` to recall more, and `whipped_update_memory` to correct an entry that's now wrong.";
 
 	return [
 		"## Memory",
-		`This is whipped's persistent project memory — durable knowledge from past work. Each entry is prefixed with its id. Use \`whipped_search_memory\` / \`whipped_get_memory\` to recall more, and \`whipped_update_memory\` to correct an entry that's now wrong. Treat these as hints, not gospel: if a memory references a file, symbol, or rule, verify it still holds before relying on it.${tagLine}`,
+		`This is whipped's persistent project memory — durable knowledge from past work. Each entry is prefixed with its id. ${recallLine} Treat these as hints, not gospel: if a memory references a file, symbol, or rule, verify it still holds before relying on it.${tagLine}`,
 		...sections,
 	].join("\n\n");
 }

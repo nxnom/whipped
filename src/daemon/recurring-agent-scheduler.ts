@@ -33,6 +33,7 @@ import {
 	markRecurringRan,
 	startRecurringRun,
 } from "../state/recurring-agents-store.js";
+import { buildMemoryContext } from "../state/memory-store.js";
 import { loadProjectConfig } from "../state/workspace-state.js";
 import { saveTerminalBuffer } from "../state/workspace-state.js";
 import { getMcpServerPath } from "./scheduler.js";
@@ -145,7 +146,7 @@ export class RecurringAgentScheduler {
 			logger.warn({ err, agentId: agent.id }, "[recurring] failed to load project config");
 		}
 
-		const appendSystemPrompt = buildRecurringSystemPrompt(
+		const baseSystemPrompt = buildRecurringSystemPrompt(
 			repoPath,
 			agent.name,
 			agent.instructions,
@@ -153,6 +154,10 @@ export class RecurringAgentScheduler {
 			secrets,
 			projectSystemPrompt,
 		);
+		// Inject persistent memory like dev/assistant agents, read-only: observers
+		// can recall memory but cannot save or update it.
+		const memContext = buildMemoryContext(workspaceId, 40, { readOnly: true });
+		const appendSystemPrompt = memContext ? `${memContext}\n\n${baseSystemPrompt}` : baseSystemPrompt;
 		const prompt = buildRecurringPrompt();
 
 		if (agentBinary === "claude" && mcpConfigPath) {
