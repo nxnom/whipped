@@ -224,6 +224,9 @@ export function buildAgentArgs(agentId: RuntimeAgentId, prompt: string, ctx: Age
 				// One-shot non-interactive run (review pipeline slots).
 				// `run` supports --variant; --prompt is not used here (prompt is a positional).
 				const args: string[] = ["run", "--agent", "build"];
+				// mimo-only: auto-decide without prompting and trust the workspace so a
+				// non-interactive run never blocks on the trust/ask prompts.
+				if (agentId === "mimo") args.push("--never-ask", "--trust");
 				if (ctx.model) args.push("-m", ctx.model);
 				if (ctx.effort) {
 					// --variant must match one of the model's reasoning-effort values. mimo's
@@ -245,6 +248,8 @@ export function buildAgentArgs(agentId: RuntimeAgentId, prompt: string, ctx: Age
 			// Interactive TUI (dev agent). `--prompt` seeds the initial message.
 			// --variant is not available on the root TUI command.
 			const args: string[] = ["--agent", "build"];
+			// mimo-only: auto-decide without prompting and trust the workspace.
+			if (agentId === "mimo") args.push("--never-ask", "--trust");
 			if (ctx.model) args.push("-m", ctx.model);
 			if (prompt.trim()) args.push("--prompt", prompt);
 			return args;
