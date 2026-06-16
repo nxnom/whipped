@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.0] - 2026-06-16
+
+### Added
+- Recurring agents can now disable themselves via a `disable_self` MCP tool — useful for one-off
+  scheduled tasks that should stop running once complete (the user can re-enable them later).
+- Recurring agents now receive whipped's persistent project memory in their prompt (read-only),
+  matching the dev and assistant agents, so observers are aware of existing conventions and decisions.
+- mimo now starts with `--never-ask` and `--trust` so non-interactive runs don't block on the
+  trust/ask prompts.
+
+### Fixed
+- The assistant agent no longer errors with a foreign-key constraint failure when saving a memory —
+  its synthetic, card-less task id is no longer used as an `origin_card_id`, and a stale/unknown
+  card id is dropped to null instead of failing the insert.
+
 ## [0.3.0] - 2026-06-13
 
 ### Added
