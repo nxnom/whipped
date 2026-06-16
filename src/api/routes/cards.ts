@@ -219,12 +219,14 @@ export const cardsController = new Hono<AppEnv>()
 				cardId: z.string(),
 				comment: z.string().optional(),
 				attachments: z.array(reviewAttachmentSchema).optional(),
+				type: z.string().optional(),
+				metadata: z.record(z.string(), z.unknown()).optional(),
 			}),
 		),
 		async (c) => {
 			const ctx = c.var.ctx;
-			const { workspaceId, cardId, comment, attachments } = c.req.valid("json");
-			const result = await submitHumanFeedbackService(workspaceId, cardId, comment, attachments);
+			const { workspaceId, cardId, comment, attachments, type, metadata } = c.req.valid("json");
+			const result = await submitHumanFeedbackService(workspaceId, cardId, comment, attachments, type, metadata);
 			ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 			if (result.reopenCascade) {
 				const scheduler = ctx.getScheduler(workspaceId);

@@ -281,6 +281,12 @@ export class TaskScheduler {
 		return this.options.maxParallelTasks;
 	}
 
+	// Config can change at runtime; the poller re-syncs this each tick so a
+	// changed "Max Parallel Tasks" takes effect without restarting the daemon.
+	setMaxParallelTasks(limit: number): void {
+		this.options.maxParallelTasks = limit;
+	}
+
 	canAcceptTask(inFlightCount?: number): boolean {
 		const count = inFlightCount ?? this.running.size;
 		return count < this.options.maxParallelTasks;

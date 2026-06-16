@@ -578,23 +578,26 @@ export const submitHumanFeedbackService = async (
 	cardId: string,
 	comment: string | undefined,
 	attachments: RuntimeReviewAttachment[] | undefined,
+	type?: string,
+	metadata?: Record<string, unknown>,
 ): Promise<SubmitHumanFeedbackResult> => {
 	const board = await loadBoard(workspaceId);
 	const card = board.cards[cardId];
 	if (!card) throw NotFoundError("Card");
 
 	const trimmed = comment?.trim();
-	const hasContent = trimmed || (attachments?.length ?? 0) > 0;
+	const hasContent = trimmed || (attachments?.length ?? 0) > 0 || metadata != null;
 	const updatedComments = hasContent
 		? [
 				...(card.reviewComments ?? []),
 				{
 					id: generateTaskId(),
-					type: "human" as const,
+					type: type ?? "human",
 					actor: { type: "human" as const, id: "human" },
 					createdAt: Date.now(),
 					summary: trimmed ?? "Feedback with attachments",
 					attachments: attachments?.length ? attachments : undefined,
+					...(metadata ? { metadata } : {}),
 				},
 			]
 		: (card.reviewComments ?? []);

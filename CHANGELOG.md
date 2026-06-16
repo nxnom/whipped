@@ -14,6 +14,11 @@
 - The assistant agent no longer errors with a foreign-key constraint failure when saving a memory —
   its synthetic, card-less task id is no longer used as an `origin_card_id`, and a stale/unknown
   card id is dropped to null instead of failing the insert.
+- Changing "Max Parallel Tasks" now takes effect without restarting the daemon — the poller re-syncs
+  the concurrency limit from the latest project/global config each tick (previously it was frozen at
+  startup).
+- Visual comments are no longer lost when reopening a card via "Reopen / Request Changes" — the visual
+  context is now carried through the human-feedback path, matching the "Send" path.
 
 ## [0.3.0] - 2026-06-13
 

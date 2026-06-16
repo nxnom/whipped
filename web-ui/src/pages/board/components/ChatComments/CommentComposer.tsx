@@ -128,7 +128,13 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 
 			if (requestChanges) {
 				await submitHumanFeedbackTrigger({
-					body: { workspaceId, cardId: card.id, comment: summaryText || undefined, attachments: atts },
+					body: {
+						workspaceId,
+						cardId: card.id,
+						comment: summaryText || undefined,
+						attachments: atts,
+						...(visualComment ? { type: "visual-comment", metadata: { visualComment } } : {}),
+					},
 				});
 			} else {
 				await addReviewCommentTrigger({

@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { loadGlobalConfig } from "../config/runtime-config.js";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 import { generateTaskId } from "../core/task-id.js";
@@ -229,6 +230,13 @@ export class BoardPoller {
 	async poll(): Promise<void> {
 		const { workspaceId, repoPath, scheduler, stateHub, onCardReadyForReview } = this.options;
 		const state = await loadWorkspaceState(workspaceId, repoPath);
+
+		// Re-sync the concurrency limit from fresh config so a runtime change to
+		// "Max Parallel Tasks" takes effect without restarting the daemon. Only the
+		// project value is loaded with the board; fall back to global when it's unset.
+		const effectiveLimit =
+			state.projectConfig.maxParallelTasks ?? (await loadGlobalConfig()).maxParallelTasks;
+		scheduler.setMaxParallelTasks(effectiveLimit);
 
 		const board = state.board;
 		const pendingCards: RuntimeBoardCard[] = [];
