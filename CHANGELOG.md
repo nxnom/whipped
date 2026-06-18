@@ -10,6 +10,8 @@
   plus stories and subtasks. The whole batch is created atomically — all-or-nothing. A **Copy prompt** button
   hands any AI assistant a schema-aware prompt (embedding the project's live workflow ids/names) so its
   fenced-JSON output pastes straight back in.
+- The "update available" banner now has a **What's new** link to the changelog, so you can see what changed
+  before updating.
 
 ### Fixed
 - Story cards on the board now show their subtask progress (e.g. "3 subtasks · 1/3") — the indicator was

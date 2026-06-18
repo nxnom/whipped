@@ -3,6 +3,14 @@
   "version": "0.5.0",
   "description": "Autonomous AI agent kanban board for Claude, Codex, Opencode, and Cursor.",
   "type": "module",
+  "homepage": "https://github.com/nxnom/whipped#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nxnom/whipped.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nxnom/whipped/issues"
+  },
   "files": [
     "dist",
     "README.md",

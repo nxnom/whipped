@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useUpdateAvailable } from "@/stores/board-store";
 
 const DISMISSED_KEY = (v: string) => `whipped:update-dismissed:${v}`;
+const CHANGELOG_URL = "https://github.com/nxnom/whipped/blob/HEAD/CHANGELOG.md";
 
 export function UpdateBanner() {
 	const update = useUpdateAvailable();
@@ -24,6 +25,14 @@ export function UpdateBanner() {
 	return (
 		<div className="flex items-center gap-3 shrink-0 px-4 py-2 bg-[#16160a] border-b border-[#3a3a15] text-[#c8b866]">
 			<span className="text-[12px]">Update available — v{update.latestVersion} is out.</span>
+			<a
+				href={CHANGELOG_URL}
+				target="_blank"
+				rel="noopener noreferrer"
+				className="text-[11px] underline underline-offset-2 hover:text-[#e0d080] transition-colors"
+			>
+				What's new
+			</a>
 			<button
 				onClick={copy}
 				className="text-[11px] font-mono px-2 py-0.5 rounded border border-[#3a3a15] bg-[#1e1e0e] hover:bg-[#252510] transition-colors"
