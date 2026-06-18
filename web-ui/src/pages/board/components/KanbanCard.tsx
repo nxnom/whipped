@@ -90,6 +90,17 @@ export function KanbanCard({
 	});
 	const allDepsMet = deps.length > 0 && metDeps.length === deps.length;
 
+	// A story tracks progress over its subtasks (not dependsOn/waitsFor).
+	const subtaskIds = card.subtaskIds ?? [];
+	const metSubtasks = subtaskIds.filter((id) => {
+		const col = allCards[id]?.columnId;
+		return col === "ready_for_review" || col === "done";
+	});
+	// A subtask links back to the story that owns it.
+	const parentStory = isSubtask
+		? Object.values(allCards).find((c) => c.type === "story" && c.subtaskIds?.includes(card.id))
+		: undefined;
+
 	const borderClass = (snapshot_isDragging: boolean) => {
 		if (snapshot_isDragging) return "border-blue-500 shadow-lg shadow-blue-500/20 rotate-1";
 		if (isStory) return "border-purple-800";
@@ -159,19 +170,21 @@ export function KanbanCard({
 							</div>
 						)}
 
-						{/* Story progress bar */}
-						{isStory && deps.length > 0 && (
+						{/* Story progress bar — driven by its subtasks */}
+						{isStory && subtaskIds.length > 0 && (
 							<div className="mt-2.5">
 								<div className="flex items-center justify-between mb-1">
-									<span className="text-[10px] text-gray-500">Progress</span>
+									<span className="text-[10px] text-gray-500">
+										{subtaskIds.length} subtask{subtaskIds.length === 1 ? "" : "s"}
+									</span>
 									<span className="text-[10px] text-gray-400">
-										{metDeps.length}/{deps.length}
+										{metSubtasks.length}/{subtaskIds.length}
 									</span>
 								</div>
 								<div className="h-1 bg-[#2a2a35] rounded-full overflow-hidden">
 									<div
 										className="h-full bg-purple-500 rounded-full transition-all"
-										style={{ width: `${deps.length > 0 ? (metDeps.length / deps.length) * 100 : 0}%` }}
+										style={{ width: `${(metSubtasks.length / subtaskIds.length) * 100}%` }}
 									/>
 								</div>
 							</div>
@@ -179,8 +192,12 @@ export function KanbanCard({
 
 						<div className="mt-2.5 flex items-center gap-2 flex-wrap">
 							{isSubtask && (
-								<span className="text-[10px] text-gray-500 bg-[#2a2a35] rounded px-1.5 py-0.5 font-medium">
-									subtask
+								<span
+									title={parentStory ? `Subtask of: ${parentStory.description?.split("\n")[0]}` : "Subtask"}
+									className="flex items-center gap-1 text-[10px] text-gray-500 bg-[#2a2a35] rounded px-1.5 py-0.5 font-medium max-w-[180px]"
+								>
+									<Layers size={10} className="shrink-0 text-purple-400/70" />
+									<span className="truncate">{parentStory?.description?.split("\n")[0] ?? "subtask"}</span>
 								</span>
 							)}
 							{!isStory && card.columnId === "todo" && card.readyForDev && (

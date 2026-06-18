@@ -841,6 +841,123 @@ export async function createCard(
 	return card;
 }
 
+// Bulk import: create many cards atomically. Rows may reference each other via a
+// tempId (dependsOn/waitsFor/subtaskIds), resolved to real ids here. All rows are
+// inserted first (with dependsOn deferred) so a forward self-reference never trips
+// the FK regardless of array order; relations are wired in a second pass — the
+// whole thing runs in one transaction, so a failure rolls back the entire batch.
+export async function createCardsBulk(
+	workspaceId: string,
+	items: Array<
+		Pick<RuntimeBoardCard, "description"> &
+			Partial<
+				Pick<
+					RuntimeBoardCard,
+					| "type"
+					| "agentId"
+					| "priority"
+					| "readyForDev"
+					| "dependsOn"
+					| "waitsFor"
+					| "subtaskIds"
+					| "columnId"
+					| "baseRef"
+					| "githubIssueUrl"
+					| "workflowId"
+					| "descriptionAttachments"
+					| "branchName"
+					| "modelConfig"
+					| "activeLevel"
+				>
+			> & { tempId?: string }
+	>,
+	baseRef: string,
+): Promise<RuntimeBoardCard[]> {
+	const db = getDb();
+	const now = Date.now();
+	const projectConfig = loadProjectConfigInternal(workspaceId);
+
+	const realIds = items.map(() => generateTaskId());
+	const tempIdToRealId = new Map<string, string>();
+	items.forEach((item, i) => {
+		if (item.tempId) tempIdToRealId.set(item.tempId, realIds[i]!);
+	});
+	// A reference resolves to a sibling's real id when it names a tempId, otherwise
+	// it's assumed to be an existing card id and passed through untouched.
+	const resolveRef = (ref: string): string => tempIdToRealId.get(ref) ?? ref;
+
+	const cards: RuntimeBoardCard[] = items.map((item, i) => {
+		const type = item.type ?? "task";
+		const columnId = item.columnId ?? "todo";
+		const workflow = resolveWorkflowForCard(projectConfig.workflows, { workflowId: item.workflowId, type });
+		const waitsFor = (item.waitsFor ?? []).map(resolveRef);
+		const dependsOn = item.dependsOn ? resolveRef(item.dependsOn) : undefined;
+		return {
+			id: realIds[i]!,
+			description: item.description,
+			columnId,
+			type,
+			readyForDev: item.readyForDev ?? type === "story",
+			agentId: item.agentId,
+			priority: item.priority,
+			// dependsOn (stacking) and waitsFor (gate) are mutually exclusive — waitsFor wins.
+			dependsOn: waitsFor.length > 0 ? undefined : dependsOn,
+			waitsFor,
+			subtaskIds: (item.subtaskIds ?? []).map(resolveRef),
+			autoFixAttempts: 0,
+			activeLevel: item.activeLevel ?? highestWorkflowLevel(workflow),
+			modelConfig: item.modelConfig ?? snapshotModelConfig(workflow),
+			baseRef: item.baseRef ?? baseRef,
+			createdAt: now,
+			updatedAt: now,
+			githubIssueUrl: item.githubIssueUrl,
+			workflowId: item.workflowId ?? workflow?.id,
+			descriptionAttachments: item.descriptionAttachments ?? [],
+			branchName: item.branchName,
+			reviewComments: [],
+			activityLog: [],
+			terminalSessions: [],
+			githubCommentIds: [],
+		};
+	});
+
+	// Column positions append after whatever already exists, counted once per column.
+	const columnCounts = new Map<string, number>();
+	const nextPosition = (columnId: RuntimeBoardColumnId): number => {
+		if (!columnCounts.has(columnId)) {
+			const row = db
+				.prepare("SELECT COUNT(*) AS n FROM cards WHERE workspace_id = ? AND column_id = ?")
+				.get(workspaceId, columnId) as { n: number };
+			columnCounts.set(columnId, row.n);
+		}
+		const pos = columnCounts.get(columnId)!;
+		columnCounts.set(columnId, pos + 1);
+		return pos;
+	};
+
+	const tx = db.transaction(() => {
+		// Pass 1: insert every card row with dependsOn deferred so all ids exist before any FK is set.
+		for (const card of cards) {
+			upsertCardRow(db, workspaceId, { ...card, dependsOn: undefined }, nextPosition(card.columnId));
+		}
+		// Pass 2: wire dependsOn (skip dangling refs) + child relations now that every row exists.
+		const setDep = db.prepare("UPDATE cards SET depends_on_id = ? WHERE id = ?");
+		for (const card of cards) {
+			if (card.dependsOn && db.prepare("SELECT 1 FROM cards WHERE id = ?").get(card.dependsOn)) {
+				setDep.run(card.dependsOn, card.id);
+			} else if (card.dependsOn) {
+				card.dependsOn = undefined;
+			}
+			replaceCardWaitsFor(db, card.id, card.waitsFor ?? []);
+			replaceCardSubtasks(db, card.id, card.subtaskIds ?? []);
+		}
+		bumpBoardRevision(db, workspaceId);
+	});
+	tx();
+
+	return cards;
+}
+
 export async function appendActivityLog(workspaceId: string, cardId: string, message: string): Promise<void> {
 	const db = getDb();
 	const tx = db.transaction(() => {

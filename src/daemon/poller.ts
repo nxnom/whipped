@@ -234,8 +234,7 @@ export class BoardPoller {
 		// Re-sync the concurrency limit from fresh config so a runtime change to
 		// "Max Parallel Tasks" takes effect without restarting the daemon. Only the
 		// project value is loaded with the board; fall back to global when it's unset.
-		const effectiveLimit =
-			state.projectConfig.maxParallelTasks ?? (await loadGlobalConfig()).maxParallelTasks;
+		const effectiveLimit = state.projectConfig.maxParallelTasks ?? (await loadGlobalConfig()).maxParallelTasks;
 		scheduler.setMaxParallelTasks(effectiveLimit);
 
 		const board = state.board;

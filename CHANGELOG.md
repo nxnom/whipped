@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.5.0] - 2026-06-18
+
+### Added
+- **Bulk ticket import** — an Import button on the board opens a dialog where you can paste (or upload) a
+  JSON array of tickets and create many at once. It shows a live preview with per-row validation, maps each
+  ticket's `workflowId` (an omitted or unknown id falls back to the default workflow, flagged in the preview),
+  and supports intra-batch relationships (`dependsOn`/`waitsFor`/`subtaskIds` referencing a sibling's `tempId`)
+  plus stories and subtasks. The whole batch is created atomically — all-or-nothing. A **Copy prompt** button
+  hands any AI assistant a schema-aware prompt (embedding the project's live workflow ids/names) so its
+  fenced-JSON output pastes straight back in.
+
+### Fixed
+- Story cards on the board now show their subtask progress (e.g. "3 subtasks · 1/3") — the indicator was
+  reading `dependsOn`/`waitsFor`, which stories don't use, so it never rendered. Subtask cards now also show
+  the parent story they belong to.
+
 ## [0.4.0] - 2026-06-16
 
 ### Added

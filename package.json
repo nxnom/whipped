@@ -1,6 +1,6 @@
 {
   "name": "whipped",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Autonomous AI agent kanban board for Claude, Codex, Opencode, and Cursor.",
   "type": "module",
   "files": [

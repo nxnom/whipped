@@ -3,6 +3,7 @@ import type {
 	RuntimeBoardCard,
 	RuntimeBoardColumnId,
 	RuntimeBoardData,
+	RuntimeBulkCardImportItem,
 	RuntimeCardCreateRequest,
 	RuntimeCardUpdateRequest,
 	RuntimeReviewAttachment,
@@ -31,6 +32,7 @@ import {
 	appendActivityLog,
 	clearCardSession,
 	createCard,
+	createCardsBulk,
 	deleteCard,
 	listWorkspaces,
 	loadBoard,
@@ -109,6 +111,54 @@ export const createCardService = async (
 		);
 		throw err;
 	}
+};
+
+export interface BulkImportRowError {
+	index: number;
+	message: string;
+}
+
+// Validates a whole import batch up front and creates it atomically (all-or-nothing).
+// Rejects with per-row errors if anything is off: no task workflow configured, a
+// story/subtask without a story workflow, an empty description, or a dependency
+// reference that names neither a sibling tempId nor an existing card.
+export const bulkCreateCardsService = async (
+	workspaceId: string,
+	items: RuntimeBulkCardImportItem[],
+	requestedBase: string | undefined,
+): Promise<{ cards: RuntimeBoardCard[] }> => {
+	const workspaces = await listWorkspaces();
+	const ws = workspaces.find((w) => w.workspaceId === workspaceId);
+	if (!ws) throw NotFoundError("Workspace");
+
+	const config = await loadProjectConfig(workspaceId);
+	if (config.workflows.filter((w) => !w.forStory).length === 0) {
+		throw BadRequestError("Create at least one workflow before importing tickets.");
+	}
+	const hasStoryWorkflow = config.workflows.some((w) => w.forStory);
+
+	const board = await loadBoard(workspaceId);
+	const existingCardIds = new Set(Object.keys(board.cards));
+	const tempIds = new Set(items.map((it) => it.tempId).filter((t): t is string => Boolean(t)));
+
+	const errors: BulkImportRowError[] = [];
+	items.forEach((item, index) => {
+		if (!item.description?.trim()) errors.push({ index, message: "description is required" });
+		if ((item.type === "story" || item.type === "subtask") && !hasStoryWorkflow) {
+			errors.push({ index, message: "story/subtask tickets require a story workflow — create one first" });
+		}
+		const refs = [...(item.dependsOn ? [item.dependsOn] : []), ...(item.waitsFor ?? []), ...(item.subtaskIds ?? [])];
+		for (const ref of refs) {
+			if (!tempIds.has(ref) && !existingCardIds.has(ref)) {
+				errors.push({ index, message: `unknown reference "${ref}"` });
+			}
+		}
+	});
+	if (errors.length > 0) throw BadRequestError("Import validation failed", errors);
+
+	const baseRef = requestedBase || config.defaultBaseBranch || getDefaultBranch(ws.repoPath);
+	const cards = await createCardsBulk(workspaceId, items, baseRef);
+	return { cards };
 };
 
 export const listBranchesService = async (

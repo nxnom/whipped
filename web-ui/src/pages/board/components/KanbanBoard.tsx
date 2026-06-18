@@ -13,6 +13,7 @@ import {
 	Plus,
 	Settings,
 	Square,
+	Upload,
 	Zap,
 } from "lucide-react";
 import { useState } from "react";
@@ -20,6 +21,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useRead, useWrite } from "@/runtime/api-client";
 import { useRunSession } from "@/stores/run-session-store";
 import { CardDetailPanel } from "./CardDetailPanel";
+import { ImportDialog } from "./ImportDialog";
 import { CreateTaskDialog, EditTaskDialog } from "./TaskDialog";
 import { KanbanColumn } from "./KanbanColumn";
 
@@ -74,6 +76,7 @@ export function KanbanBoard({
 	const detailCard = detailCardId ? (state.board.cards[detailCardId] ?? null) : null;
 	const [createDialogOpen, setCreateDialogOpen] = useState(false);
 	const [createDialogMode, setCreateDialogMode] = useState<"task" | "story">("task");
+	const [importDialogOpen, setImportDialogOpen] = useState(false);
 	const [editDialogCard, setEditDialogCard] = useState<RuntimeBoardCard | null>(null);
 
 	const { data: branchesData } = useRead((api) => api("cards/branches").GET({ query: { workspaceId } }));
@@ -237,6 +240,14 @@ export function KanbanBoard({
 					Stop All
 				</button>
 				<button
+					onClick={() => setImportDialogOpen(true)}
+					title="Bulk import tickets from JSON"
+					className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#1a1a1f] border border-[#2a2a35] text-xs text-gray-500 hover:border-[#3a3a48] transition-colors"
+				>
+					<Upload size={12} />
+					Import
+				</button>
+				<button
 					onClick={() => {
 						setCreateDialogMode("story");
 						setCreateDialogOpen(true);
@@ -345,6 +356,16 @@ export function KanbanBoard({
 				open={createDialogOpen}
 				onClose={() => setCreateDialogOpen(false)}
 				initialMode={createDialogMode}
+				workspaceId={workspaceId}
+				allCards={state.board.cards}
+				workflows={state.projectConfig.workflows}
+				onRefresh={onRefresh}
+				navigate={(path) => navigate(path)}
+			/>
+
+			<ImportDialog
+				open={importDialogOpen}
+				onClose={() => setImportDialogOpen(false)}
 				workspaceId={workspaceId}
 				allCards={state.board.cards}
 				workflows={state.projectConfig.workflows}

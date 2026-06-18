@@ -745,6 +745,21 @@ export const runtimeCardCreateRequestSchema = z.object({
 });
 export type RuntimeCardCreateRequest = z.infer<typeof runtimeCardCreateRequestSchema>;
 
+// One ticket in a bulk import. Same shape as a single create, plus an optional
+// tempId so rows can reference each other (dependsOn/waitsFor/subtaskIds may name
+// a sibling's tempId, resolved to the real id during the batch insert).
+export const runtimeBulkCardImportItemSchema = runtimeCardCreateRequestSchema.extend({
+	tempId: z.string().optional(),
+});
+export type RuntimeBulkCardImportItem = z.infer<typeof runtimeBulkCardImportItemSchema>;
+
+export const runtimeBulkCardsCreateRequestSchema = z.object({
+	// Batch-wide base branch; an item's own baseRef overrides it, else resolved server-side.
+	baseRef: z.string().optional(),
+	cards: z.array(runtimeBulkCardImportItemSchema).min(1),
+});
+export type RuntimeBulkCardsCreateRequest = z.infer<typeof runtimeBulkCardsCreateRequestSchema>;
+
 export const runtimeCardMoveRequestSchema = z.object({
 	cardId: z.string(),
 	targetColumnId: runtimeBoardColumnIdSchema,

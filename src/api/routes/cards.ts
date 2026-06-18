@@ -4,6 +4,7 @@ import {
 	reviewActorSchema,
 	reviewAttachmentSchema,
 	reviewIssueSchema,
+	runtimeBulkCardsCreateRequestSchema,
 	runtimeCardCreateRequestSchema,
 	runtimeCardMoveRequestSchema,
 	runtimeCardUpdateRequestSchema,
@@ -13,6 +14,7 @@ import { zv } from "../middleware/zv.js";
 import {
 	abortMergeService,
 	addReviewCommentService,
+	bulkCreateCardsService,
 	deleteReviewCommentService,
 	commitAndMergeService,
 	commitAndPRService,
@@ -41,6 +43,13 @@ export const cardsController = new Hono<AppEnv>()
 		const card = await createCardService(workspaceId, cardData, baseRef);
 		ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 		return c.json(card);
+	})
+	.post("/bulk", zv("json", runtimeBulkCardsCreateRequestSchema.extend({ workspaceId: z.string() })), async (c) => {
+		const ctx = c.var.ctx;
+		const { workspaceId, baseRef, cards } = c.req.valid("json");
+		const result = await bulkCreateCardsService(workspaceId, cards, baseRef);
+		ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
+		return c.json(result);
 	})
 	.get(
 		"/branches",
