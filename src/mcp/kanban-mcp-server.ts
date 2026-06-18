@@ -48,7 +48,6 @@ const ROUTES: Record<string, RestRoute> = {
 	"cards.move": { method: "POST", path: () => "cards/move" },
 	"cards.delete": { method: "DELETE", path: (i) => `cards/${i.cardId as string}` },
 	"cards.addReviewComment": { method: "POST", path: () => "cards/add-review-comment" },
-	"cards.interruptTask": { method: "POST", path: () => "cards/interrupt-task" },
 	"cards.setPrMeta": { method: "POST", path: () => "cards/set-pr-meta" },
 	"cards.setPlan": { method: "POST", path: () => "cards/set-plan" },
 	"workflows.upsert": { method: "POST", path: () => "workflows" },
@@ -650,21 +649,6 @@ registerTool(
 	async ({ cardId }) => {
 		await apiMutate("cards.delete", { workspaceId, cardId });
 		return { content: [{ type: "text", text: `Deleted card ${cardId}.` }] };
-	},
-);
-
-registerTool(
-	"kanban_stop_task",
-	{
-		description:
-			"Stop an in-progress agent task. The session is marked 'stopped' (preserving history) so the card can be restarted later. Use this before moving a child card to todo when its parent was reopened.",
-		inputSchema: {
-			cardId: z.string().describe("The card ID of the in-progress task to stop"),
-		},
-	},
-	async ({ cardId }) => {
-		await apiMutate("cards.interruptTask", { workspaceId, cardId });
-		return { content: [{ type: "text", text: `Task ${cardId} interrupted.` }] };
 	},
 );
 

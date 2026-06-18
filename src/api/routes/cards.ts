@@ -156,12 +156,6 @@ export const cardsController = new Hono<AppEnv>()
 		const ctx = c.var.ctx;
 		const { workspaceId, cardId, targetColumnId, targetIndex } = c.req.valid("json");
 		const result = await moveCardService(workspaceId, cardId, targetColumnId, targetIndex);
-		if (result.reopenCascade) {
-			const scheduler = ctx.getScheduler(workspaceId);
-			if (scheduler) {
-				void scheduler.triggerParentReopenCascade(result.reopenCascade.movedCard, result.reopenCascade.boardCards);
-			}
-		}
 		ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 		return c.json(result.board);
 	})
@@ -237,12 +231,6 @@ export const cardsController = new Hono<AppEnv>()
 			const { workspaceId, cardId, comment, attachments, type, metadata } = c.req.valid("json");
 			const result = await submitHumanFeedbackService(workspaceId, cardId, comment, attachments, type, metadata);
 			ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
-			if (result.reopenCascade) {
-				const scheduler = ctx.getScheduler(workspaceId);
-				if (scheduler) {
-					void scheduler.triggerParentReopenCascade(result.reopenCascade.feedbackCard, result.reopenCascade.boardCards);
-				}
-			}
 			return c.json({ ok: result.ok });
 		},
 	)
@@ -259,13 +247,6 @@ export const cardsController = new Hono<AppEnv>()
 		const ctx = c.var.ctx;
 		const { workspaceId, cardId } = c.req.valid("json");
 		ctx.getScheduler(workspaceId)?.stopTask(cardId);
-		ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
-		return c.json({ ok: true });
-	})
-	.post("/interrupt-task", zv("json", z.object({ workspaceId: z.string(), cardId: z.string() })), async (c) => {
-		const ctx = c.var.ctx;
-		const { workspaceId, cardId } = c.req.valid("json");
-		ctx.getScheduler(workspaceId)?.interruptForParentReopen(cardId);
 		ctx.stateHub.broadcastWorkspaceUpdate(workspaceId);
 		return c.json({ ok: true });
 	})

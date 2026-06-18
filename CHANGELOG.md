@@ -16,6 +16,14 @@
   reading `dependsOn`/`waitsFor`, which stories don't use, so it never rendered. Subtask cards now also show
   the parent story they belong to.
 
+### Removed
+- The parent-reopen cascade agent. Reopening a parent task no longer spawns an LLM agent that inspects the
+  dependent child tickets, decides whether to reset them, and comments on each. Now that a dependent ticket
+  shares its parent's worktree and branch, the child already sees the parent's changes directly — the agent's
+  `git merge` remediation had become a no-op and its conflict-guessing was unreliable. To revise a child's
+  work after changing a parent, mention it in the parent ticket (e.g. "update the consumer call sites too").
+  This also drops the now-unused `kanban_stop_task` MCP tool and the `/cards/interrupt-task` endpoint.
+
 ## [0.4.0] - 2026-06-16
 
 ### Added

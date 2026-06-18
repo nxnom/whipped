@@ -54,7 +54,7 @@ async function cleanupStaleTasks(workspaceId: string, hub: RuntimeStateHub): Pro
 		logger.info(`[server] Cleared ${staleRecurring} stale recurring-agent run(s) for ${workspaceId}`);
 	}
 
-	// Close open terminal sessions on every card regardless of column (crashed cascade agents
+	// Close open terminal sessions on every card regardless of column (a crashed agent run
 	// can leave sessions open on rfr/done/todo cards).
 	for (const card of Object.values(board.cards)) {
 		if (card.terminalSessions?.some((s) => s.endedAt === undefined)) {

@@ -66,7 +66,6 @@ import {
 	buildDevAgentSystemPrompt,
 	buildSecretsEnv,
 	buildSecretsSection,
-	runParentReopenCascade,
 	runPlanPhase,
 	tryParseAgentJson,
 } from "./review-pipeline.js";
@@ -115,10 +114,8 @@ export class TaskScheduler {
 	private manuallyStoppedForHook = new Set<string>();
 	// Tasks stopped before the dev agent started (e.g. during plan phase).
 	private planPhaseManuallyStopped = new Set<string>();
-	// Individual review/cascade stream IDs stopped by a manual stopTask() call.
+	// Individual review stream IDs stopped by a manual stopTask() call.
 	private manuallyStoppedStreams = new Set<string>();
-	// Tasks stopped because their parent was reopened — session set to "stopped" in onExit.
-	private parentReopenedTasks = new Set<string>();
 	// Shared worktree IDs currently in use by a dev agent — prevents sibling cards from
 	// running concurrently in the same worktree directory.
 	private runningSharedWorktrees = new Set<string>();
@@ -715,14 +712,6 @@ export class TaskScheduler {
 							return;
 						}
 
-						// If stopped due to parent reopen, mark session as stopped (not failed).
-						if (this.parentReopenedTasks.has(taskId)) {
-							this.parentReopenedTasks.delete(taskId);
-							await endTerminalSession(workspaceId, taskId, devStreamId, Date.now(), "stopped");
-							stateHub.broadcastWorkspaceUpdate(workspaceId);
-							return;
-						}
-
 						// Synchronous check — must happen before any await.
 						// The Stop hook sets this flag before calling kill() so that when
 						// onExit fires (synchronously during kill), we skip the duplicate
@@ -914,57 +903,6 @@ export class TaskScheduler {
 	// One-shot check: returns true and removes the entry if this stream was manually stopped.
 	isStreamManuallyStopped(streamId: string): boolean {
 		return this.manuallyStoppedStreams.delete(streamId);
-	}
-
-	// Stop a task because its parent was reopened — session becomes "stopped" rather than being removed.
-	interruptForParentReopen(taskId: string): void {
-		const task = this.running.get(taskId);
-		if (task) {
-			logger.info(`[scheduler] Interrupting task ${taskId} due to parent reopen`);
-			this.setRecentBuffer(task.streamId, task.outputBuffer);
-			void saveTerminalBuffer(this.options.workspaceId, task.streamId, task.outputBuffer);
-			this.parentReopenedTasks.add(taskId);
-			task.process.kill();
-			this.running.delete(taskId);
-		}
-	}
-
-	async triggerParentReopenCascade(
-		parentCard: RuntimeBoardCard,
-		boardCards: Record<string, RuntimeBoardCard>,
-	): Promise<void> {
-		if (parentCard.type !== "task") return;
-
-		const { workspaceId, repoPath, serverUrl, stateHub } = this.options;
-
-		const childCards = Object.values(boardCards).filter(
-			(card) =>
-				card.dependsOn?.includes(parentCard.id) &&
-				(card.columnId === "in_progress" || card.columnId === "ready_for_review"),
-		);
-
-		if (childCards.length === 0) return;
-
-		logger.info(
-			`[scheduler] triggerParentReopenCascade: ${childCards.length} children for parent "${parentCard.description?.split("\n")[0]?.slice(0, 60) ?? parentCard.id}"`,
-		);
-
-		const projectConfig = await loadProjectConfig(workspaceId);
-		void runParentReopenCascade(parentCard, childCards, {
-			workspaceId,
-			repoPath,
-			serverUrl,
-			mcpBinary: getMcpServerPath(),
-			stateHub,
-			secrets: projectConfig.secrets ?? [],
-			registerStopCallback: this.registerStopCallback.bind(this),
-			registerLiveProcess: this.registerLiveProcess.bind(this),
-			isStreamManuallyStopped: this.isStreamManuallyStopped.bind(this),
-			onChildReset: async (child) => {
-				const latestBoard = await loadBoard(workspaceId);
-				await this.triggerParentReopenCascade(child, latestBoard.cards);
-			},
-		});
 	}
 
 	getOutputBuffer(streamId: string): string | null {

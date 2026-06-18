@@ -453,9 +453,6 @@ export class BoardPoller {
 				await moveCard(workspaceId, taskId, "reopened");
 				await appendActivityLog(workspaceId, taskId, `${reason} → Reopened`);
 				await clearCardSession(workspaceId, taskId);
-				const refreshedBoard = await loadBoard(workspaceId);
-				const refreshedCard = refreshedBoard.cards[taskId] ?? card;
-				void scheduler.triggerParentReopenCascade(refreshedCard, refreshedBoard.cards);
 				updated = true;
 			}
 

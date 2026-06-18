@@ -469,8 +469,6 @@ export const updateCardService = async (
 
 export type MoveCardResult = {
 	board: RuntimeBoardData;
-	// Card + board snapshot the caller needs to trigger the reopen cascade (only set for "reopened").
-	reopenCascade?: { movedCard: RuntimeBoardCard; boardCards: Record<string, RuntimeBoardCard> };
 };
 
 export const moveCardService = async (
@@ -486,11 +484,6 @@ export const moveCardService = async (
 	}
 	if (targetColumnId === "reopened") {
 		await updateCard(workspaceId, cardId, { autoFixAttempts: 0 });
-		const movedBoard = await loadBoard(workspaceId);
-		const movedCard = movedBoard.cards[cardId];
-		if (movedCard) {
-			return { board, reopenCascade: { movedCard, boardCards: movedBoard.cards } };
-		}
 	}
 	return { board };
 };
@@ -619,8 +612,6 @@ export const deleteReviewCommentService = async (input: DeleteReviewCommentInput
 
 export type SubmitHumanFeedbackResult = {
 	ok: true;
-	// Card + board snapshot the caller needs to trigger the reopen cascade.
-	reopenCascade?: { feedbackCard: RuntimeBoardCard; boardCards: Record<string, RuntimeBoardCard> };
 };
 
 export const submitHumanFeedbackService = async (
@@ -656,11 +647,6 @@ export const submitHumanFeedbackService = async (
 	await clearCardSession(workspaceId, cardId);
 	await appendActivityLog(workspaceId, cardId, "Human feedback submitted → moved to Reopened");
 
-	const feedbackBoard = await loadBoard(workspaceId);
-	const feedbackCard = feedbackBoard.cards[cardId];
-	if (feedbackCard) {
-		return { ok: true, reopenCascade: { feedbackCard, boardCards: feedbackBoard.cards } };
-	}
 	return { ok: true };
 };
 
