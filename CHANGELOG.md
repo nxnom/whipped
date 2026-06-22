@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.5.1] - 2026-06-19
+
+### Removed
+- The Fable 5 model option from Claude's model presets.
+
 ## [0.5.0] - 2026-06-18
 
 ### Added

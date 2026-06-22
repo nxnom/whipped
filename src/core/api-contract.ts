@@ -35,7 +35,6 @@ export const EFFORT_OPTIONS: ReadonlyArray<{ value: EffortLevel; label: string }
 // the aliases ("opus"/"sonnet"/"haiku") also work but drift over time.
 export const MODEL_OPTIONS: Record<RuntimeAgentId, ReadonlyArray<{ value: string; label: string }>> = {
 	claude: [
-		{ value: "claude-fable-5", label: "Fable 5" },
 		{ value: "claude-opus-4-8", label: "Opus 4.8" },
 		{ value: "claude-opus-4-7", label: "Opus 4.7" },
 		{ value: "claude-opus-4-6", label: "Opus 4.6" },
