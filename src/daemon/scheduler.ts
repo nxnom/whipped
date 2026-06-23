@@ -1,8 +1,8 @@
-import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { cp, link, mkdir, stat, symlink, unlink } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import * as nodePty from "node-pty";
 import {
 	buildMcpRoleArgs,
 	buildWhippedMcpServerSpec,
@@ -559,28 +559,61 @@ export class TaskScheduler {
 				}
 
 				if (installCommand.trim()) {
-					await appendActivityLog(workspaceId, taskId, `Running: ${installCommand.trim()}`);
-					stateHub.broadcastWorkspaceUpdate(workspaceId);
-					await new Promise<void>((resolve) => {
-						const [shell, shellArgs] = getShellInvocation(installCommand.trim());
-						const proc = spawn(shell, shellArgs, {
-							cwd: worktree.path,
-							stdio: "ignore",
-							env: { ...process.env, REPO_PATH: repoPath },
-						});
-						proc.on("close", (code) => {
-							if (code !== 0) {
-								logger.error(`[scheduler] Install command failed (code ${code}) for task ${taskId}`);
-								void appendActivityLog(
-									workspaceId,
-									taskId,
-									`Install command failed (code ${code}) — proceeding anyway`,
-								);
-							}
-							resolve();
-						});
+					const installCmd = installCommand.trim();
+					await appendActivityLog(workspaceId, taskId, `Running: ${installCmd}`);
+
+					// Capture install output in a terminal session so it streams live and stays
+					// rewatchable from the Workflow Pipeline sidebar, just like an agent run —
+					// otherwise a complex install script is untraceable from the activity log.
+					const installStartedAt = Date.now();
+					const installStreamId = `${taskId}-install-${installStartedAt}`;
+					await appendTerminalSession(workspaceId, taskId, {
+						streamId: installStreamId,
+						type: "install",
+						startedAt: installStartedAt,
+						state: "running",
 					});
-					await appendActivityLog(workspaceId, taskId, "Install complete");
+					stateHub.broadcastWorkspaceUpdate(workspaceId);
+
+					let installBuffer = "";
+					const emitInstall = (data: string) => {
+						installBuffer += data;
+						stateHub.broadcastTerminalOutput(workspaceId, installStreamId, data);
+					};
+					emitInstall(`\x1b[1;36m$ ${installCmd}\x1b[0m\r\n`);
+
+					const exitCode = await new Promise<number>((resolveExit) => {
+						const [shell, shellArgs] = getShellInvocation(installCmd);
+						// node-pty (not child_process) so xterm renders colored, TTY-aware output cleanly.
+						const proc = nodePty.spawn(shell, shellArgs, {
+							name: "xterm-256color",
+							cols: 220,
+							rows: 50,
+							cwd: worktree.path,
+							env: { ...(process.env as Record<string, string>), REPO_PATH: repoPath, TERM: "xterm-256color" },
+						});
+						proc.onData(emitInstall);
+						proc.onExit(({ exitCode }) => resolveExit(exitCode ?? 0));
+					});
+
+					if (exitCode !== 0) {
+						logger.error(`[scheduler] Install command failed (code ${exitCode}) for task ${taskId}`);
+						emitInstall(`\r\n\x1b[1;31mInstall command failed (code ${exitCode}) — proceeding anyway\x1b[0m\r\n`);
+						await appendActivityLog(workspaceId, taskId, `Install command failed (code ${exitCode}) — proceeding anyway`);
+					} else {
+						emitInstall("\r\n\x1b[1;32mInstall complete\x1b[0m\r\n");
+						await appendActivityLog(workspaceId, taskId, "Install complete");
+					}
+
+					this.setRecentBuffer(installStreamId, installBuffer);
+					await saveTerminalBuffer(workspaceId, installStreamId, installBuffer);
+					await endTerminalSession(
+						workspaceId,
+						taskId,
+						installStreamId,
+						Date.now(),
+						exitCode === 0 ? "completed" : "failed",
+					);
 					stateHub.broadcastWorkspaceUpdate(workspaceId);
 				}
 			}

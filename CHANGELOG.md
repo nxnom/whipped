@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.8.0] - 2026-06-24
+
+### Added
+- **Install command output is now traceable** — a task's worktree install command runs as a first-class
+  step in the **Workflow Pipeline** sidebar (labelled "Install"), right alongside the agent runs. Its
+  output streams live and stays rewatchable after it finishes, so a complex install script is no longer a
+  black box visible only as a one-line "Install complete" in the activity log. Previously the command's
+  output was discarded entirely.
+
 ## [0.7.0] - 2026-06-23
 
 ### Fixed

@@ -2,7 +2,7 @@ import { Tooltip } from "@geckoui/geckoui";
 import type { RuntimeBoardCard, WorkflowSlot } from "@runtime-contract";
 import { CheckCircle2, ChevronLeft, ChevronRight, Circle, Loader2, Square } from "lucide-react";
 import { classNames } from "@/utils/classNames";
-import { slotDuration } from "./constants";
+import { SESSION_TYPE_LABELS, slotDuration } from "./constants";
 
 type TerminalSession = NonNullable<RuntimeBoardCard["terminalSessions"]>[number];
 
@@ -52,7 +52,10 @@ export function WorkflowPipeline({
 				<div className="flex flex-col items-center pb-4 gap-0">
 					{sessions.length > 0 ? (
 						sessions.map((session, idx) => {
-							const slotName = workflowSlots?.find((s) => s.id === session.type)?.name ?? session.type;
+							const slotName =
+								workflowSlots?.find((s) => s.id === session.type)?.name ??
+								SESSION_TYPE_LABELS[session.type] ??
+								session.type;
 							const status = sessionStatus(session);
 							const isFocused = activeStreamId === session.streamId;
 							return (
@@ -95,7 +98,10 @@ export function WorkflowPipeline({
 				<div className="flex flex-col px-[18px] pb-4 max-h-72 overflow-y-auto">
 					{sessions.length > 0 ? (
 						sessions.map((session, idx) => {
-							const slotName = workflowSlots?.find((s) => s.id === session.type)?.name ?? session.type;
+							const slotName =
+								workflowSlots?.find((s) => s.id === session.type)?.name ??
+								SESSION_TYPE_LABELS[session.type] ??
+								session.type;
 							const status = sessionStatus(session);
 							const duration = slotDuration(session.startedAt, session.endedAt);
 							const isFocused = activeStreamId === session.streamId;

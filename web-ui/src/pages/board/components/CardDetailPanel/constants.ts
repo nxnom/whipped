@@ -118,6 +118,11 @@ export const AGENT_DISPLAY: Record<
 	},
 };
 
+// Labels for terminal-session types that aren't workflow slots (e.g. worktree install).
+export const SESSION_TYPE_LABELS: Record<string, string> = {
+	install: "Install",
+};
+
 export function formatElapsed(sec: number): string {
 	return `${Math.floor(sec / 60)}m ${(sec % 60).toString().padStart(2, "0")}s`;
 }
