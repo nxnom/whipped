@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { runtimeGlobalConfigSchema, runtimeProjectSecretSchema, runtimeWorktreeSetupSchema } from "../api-contract.js";
+import {
+	notificationSoundsConfigSchema,
+	runtimeGlobalConfigSchema,
+	runtimeProjectSecretSchema,
+	runtimeWorktreeSetupSchema,
+} from "../api-contract.js";
 
 // ─── Global runtime config form ────────────────────────────────────────────────
 //
@@ -17,6 +22,15 @@ export const globalConfigFormSchema = runtimeGlobalConfigSchema.extend({
 export type GlobalConfigForm = z.infer<typeof globalConfigFormSchema>;
 // Input shape RHF holds (numeric fields are strings before coercion).
 export type GlobalConfigFormInput = z.input<typeof globalConfigFormSchema>;
+
+// ─── Notification sounds form ─────────────────────────────────────────────────
+//
+// All-boolean toggles reused verbatim from the runtime contract. The input shape
+// has every field optional (each has a default), the output shape is fully set.
+
+export const notificationSoundsFormSchema = notificationSoundsConfigSchema;
+export type NotificationSoundsForm = z.infer<typeof notificationSoundsFormSchema>;
+export type NotificationSoundsFormInput = z.input<typeof notificationSoundsFormSchema>;
 
 // ─── Environment (worktree setup + start command) form ──────────────────────────
 //

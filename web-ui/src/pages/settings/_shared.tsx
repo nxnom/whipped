@@ -1,7 +1,7 @@
 import { Button } from "@geckoui/geckoui";
 
 export type ProjectSection = "general-automation" | "workflows" | "environment" | "instructions" | "memory";
-export type GlobalSection = "runtime" | "tunnel" | "slack";
+export type GlobalSection = "runtime" | "notifications" | "tunnel" | "slack";
 export type SettingsSection = ProjectSection | GlobalSection;
 
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {

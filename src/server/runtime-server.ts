@@ -14,6 +14,7 @@ import { ATTACHMENTS_DIR, DEFAULT_PORT, loadGlobalConfig, WHIPPED_HOME_DIR } fro
 import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 import { generateTaskId } from "../core/task-id.js";
+import { playNotificationSound } from "../notifications/sound-player.js";
 import { BoardPoller } from "../daemon/poller.js";
 import { RecurringAgentScheduler } from "../daemon/recurring-agent-scheduler.js";
 import { acquireInstanceLock, isInstanceLockError } from "../state/instance-lock.js";
@@ -179,6 +180,7 @@ export async function createRuntimeServer(options: ServerOptions) {
 				session.status = "error";
 				session.errorMessage = `Process exited with code ${exitCode}`;
 				stateHub.broadcastRunSessionChange(workspaceId, cardId, "error", session.errorMessage);
+				void playNotificationSound("runError");
 			}
 		});
 	}

@@ -41,6 +41,7 @@ import { logger } from "../core/logger.js";
 import { resolvePromptText } from "../core/prompt-resolver.js";
 import { generateTaskId } from "../core/task-id.js";
 import { commitIfDirty, pushBranch } from "../git/merge-operations.js";
+import { playNotificationSound } from "../notifications/sound-player.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { buildMemoryContext } from "../state/memory-store.js";
 import {
@@ -779,6 +780,7 @@ export class TaskScheduler {
 							if (!hasReviewSlots) {
 								await moveCard(workspaceId, taskId, "ready_for_review");
 								await appendActivityLog(workspaceId, taskId, "Agent finished → moved to Ready for Review");
+								void playNotificationSound("readyForReview");
 							} else {
 								await appendActivityLog(workspaceId, taskId, "Agent finished → AI review starting");
 							}
@@ -807,6 +809,7 @@ export class TaskScheduler {
 							}
 
 							await moveCard(workspaceId, taskId, destination);
+							void playNotificationSound(destination === "blocked" ? "blocked" : "reopened");
 							// Worktree is intentionally kept when blocked so prior commits survive a manual restart
 						}
 						stateHub.broadcastWorkspaceUpdate(workspaceId);
@@ -1047,6 +1050,7 @@ export class TaskScheduler {
 				if (!hookHasReview) {
 					await moveCard(workspaceId, taskId, "ready_for_review");
 					await appendActivityLog(workspaceId, taskId, "Agent finished → moved to Ready for Review");
+					void playNotificationSound("readyForReview");
 				} else {
 					await appendActivityLog(workspaceId, taskId, "Agent finished → AI review starting");
 				}

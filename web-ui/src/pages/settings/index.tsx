@@ -1,5 +1,6 @@
 import {
 	ArrowLeft,
+	Bell,
 	BookOpen,
 	Brain,
 	ChevronDown,
@@ -17,6 +18,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useRead } from "@/runtime/api-client";
 import { useWorkspaceState } from "@/stores/board-store";
 import { GlobalSettings } from "./GlobalSettings";
+import { NotificationsSettings } from "./NotificationsSettings";
 import { ProjectSettings } from "./ProjectSettings";
 import { SlackSettings } from "./SlackSettings";
 import { TunnelSettings } from "./TunnelSettings";
@@ -32,6 +34,7 @@ const PROJECT_NAV: Array<{ id: ProjectSection; label: string; icon: React.ReactN
 
 const GLOBAL_NAV: Array<{ id: GlobalSection; label: string; icon: React.ReactNode }> = [
 	{ id: "runtime", label: "Runtime Config", icon: <Server size={15} /> },
+	{ id: "notifications", label: "Notifications", icon: <Bell size={15} /> },
 	{ id: "tunnel", label: "Tunnel", icon: <Globe size={15} /> },
 	{ id: "slack", label: "Slack", icon: <Slack size={15} /> },
 ];
@@ -191,6 +194,8 @@ export function SettingsPage() {
 					<SlackSettings />
 				) : section === "tunnel" ? (
 					<TunnelSettings />
+				) : section === "notifications" ? (
+					<NotificationsSettings />
 				) : (
 					<GlobalSettings section={section as GlobalSection} />
 				)}

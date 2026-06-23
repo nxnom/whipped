@@ -70,4 +70,15 @@ for (const file of readdirSync(migrationsSrc)) {
 	}
 }
 
+// Copy notification sound files. The bundle flattens to dist/cli.js, so
+// sound-player.ts's import.meta.url-relative "sounds" dir resolves to dist/sounds.
+const soundsSrc = "src/notifications/sounds";
+const soundsDst = "dist/sounds";
+mkdirSync(soundsDst, { recursive: true });
+for (const file of readdirSync(soundsSrc)) {
+	if (file.endsWith(".wav")) {
+		copyFileSync(join(soundsSrc, file), join(soundsDst, file));
+	}
+}
+
 console.log("Build complete.");

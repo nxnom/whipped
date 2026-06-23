@@ -38,6 +38,7 @@ import { generateTaskId } from "../core/task-id.js";
 import { formatVisualElementsBlock, type VisualElementRef } from "../core/visual-comment.js";
 import { commitIfDirty, createGithubPR, pushBranch } from "../git/merge-operations.js";
 import type { GithubClient } from "../github/github-client.js";
+import { playNotificationSound } from "../notifications/sound-player.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { buildMemoryContext } from "../state/memory-store.js";
 import {
@@ -614,6 +615,7 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 	await moveCard(workspaceId, card.id, "ready_for_review");
 	await appendActivityLog(workspaceId, card.id, "All reviews passed → moved to Ready for Review");
 	stateHub.broadcastWorkspaceUpdate(workspaceId);
+	void playNotificationSound("readyForReview");
 
 	if (deliveryMode === "off") return;
 

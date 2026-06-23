@@ -5,6 +5,7 @@ import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 import { generateTaskId } from "../core/task-id.js";
 import { fetchCommentBodyHtml, fetchPRInfo } from "../git/merge-operations.js";
+import { playNotificationSound } from "../notifications/sound-player.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import {
 	appendActivityLog,
@@ -405,6 +406,7 @@ export class BoardPoller {
 						`[poller] ${readyEntries.length} new comment(s) from GitHub PR for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}"`,
 					);
 					await appendActivityLog(workspaceId, taskId, `${readyEntries.length} new comment(s) imported from GitHub PR`);
+					void playNotificationSound("prComment");
 				}
 				updated = true;
 			}
@@ -417,6 +419,7 @@ export class BoardPoller {
 				await moveCard(workspaceId, taskId, "done");
 				await clearCardSession(workspaceId, taskId);
 				await appendActivityLog(workspaceId, taskId, "PR merged on GitHub → Done");
+				void playNotificationSound("done");
 				// Remove the shared worktree only once every card that uses it is done —
 				// stacked children and story subtasks all share the owner's worktree and
 				// would break if it were removed while any of them is still in flight.
@@ -437,6 +440,7 @@ export class BoardPoller {
 				await moveCard(workspaceId, taskId, "blocked");
 				await clearCardSession(workspaceId, taskId);
 				await appendActivityLog(workspaceId, taskId, "PR closed without merging → Blocked");
+				void playNotificationSound("blocked");
 				updated = true;
 			} else if (info.mergeable === "CONFLICTING") {
 				if (!card.terminalSessions?.some((ts) => !ts.endedAt)) {
@@ -453,6 +457,7 @@ export class BoardPoller {
 				await moveCard(workspaceId, taskId, "reopened");
 				await appendActivityLog(workspaceId, taskId, `${reason} → Reopened`);
 				await clearCardSession(workspaceId, taskId);
+				void playNotificationSound("reopened");
 				updated = true;
 			}
 

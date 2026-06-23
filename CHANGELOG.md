@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.6.0] - 2026-06-23
+
+### Added
+- **Notification sounds** — Whipped can now play a sound on the machine running the daemon (so you hear it
+  even when no browser is open) whenever a task needs your attention. A new **Settings → Notifications**
+  section, off by default, has a master toggle plus a per-event switch for each of: a task moving to
+  **Ready for Review**, a **new comment** on its PR, a PR being **merged** (Done), a task being **reopened**
+  after changes were requested, a task becoming **blocked**, and a run/preview process **exiting with an
+  error**. Each event has its own distinct chime.
+
 ## [0.5.1] - 2026-06-19
 
 ### Removed

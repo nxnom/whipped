@@ -599,6 +599,31 @@ export const runtimeBoardDataSchema = z.object({
 });
 export type RuntimeBoardData = z.infer<typeof runtimeBoardDataSchema>;
 
+// ─── Notification sounds (played on the daemon host, not the browser) ─────────
+
+export const NOTIFICATION_SOUND_EVENTS = [
+	"readyForReview",
+	"prComment",
+	"done",
+	"reopened",
+	"blocked",
+	"runError",
+] as const;
+export type NotificationSoundEvent = (typeof NOTIFICATION_SOUND_EVENTS)[number];
+
+// Master `enabled` is off by default so the daemon stays silent until the user
+// opts in. Per-event flags default on, so flipping the master switch enables all.
+export const notificationSoundsConfigSchema = z.object({
+	enabled: z.boolean().default(false),
+	readyForReview: z.boolean().default(true),
+	prComment: z.boolean().default(true),
+	done: z.boolean().default(true),
+	reopened: z.boolean().default(true),
+	blocked: z.boolean().default(true),
+	runError: z.boolean().default(true),
+});
+export type NotificationSoundsConfig = z.infer<typeof notificationSoundsConfigSchema>;
+
 // ─── Global config (shared defaults across all projects) ──────────────────────
 
 export const runtimeGlobalConfigSchema = z.object({
@@ -609,6 +634,7 @@ export const runtimeGlobalConfigSchema = z.object({
 	pollingIntervalSeconds: z.number().int().positive().default(30),
 	prPollingIntervalSeconds: z.number().int().positive().default(60),
 	terminalApp: z.string().optional(),
+	notificationSounds: notificationSoundsConfigSchema.prefault({}),
 	slackEnabled: z.boolean().default(true),
 	slackBotToken: z.string().optional(),
 	slackSigningSecret: z.string().optional(),
