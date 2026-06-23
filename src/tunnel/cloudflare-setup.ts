@@ -3,6 +3,7 @@ import { mkdir, writeFile, readFile, access, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import open from "open";
 import { DEFAULT_PORT } from "../config/runtime-config.js";
 import { logger } from "../core/logger.js";
 
@@ -55,7 +56,8 @@ export async function openCloudflaredLogin(force = false): Promise<{ alreadyLogg
 				resolved = true;
 				const loginUrl = match[1]!.trim();
 				logger.info(`[cloudflared-login] Auth URL: ${loginUrl}`);
-				spawn("open", [loginUrl], { stdio: "ignore" });
+				// Best-effort browser launch; cross-platform via the `open` package.
+				open(loginUrl).catch(() => {});
 				proc.unref();
 				resolve({ alreadyLoggedIn: false, loginUrl });
 			}

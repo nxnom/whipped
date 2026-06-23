@@ -48,7 +48,9 @@ function appExists(bundle: string): boolean {
 }
 
 function binaryExists(bin: string): boolean {
-	const r = spawnSync("which", [bin], { stdio: ["ignore", "pipe", "ignore"], encoding: "utf-8" });
+	// Windows has no `which`; use `where` (which.exe doesn't exist, where.exe does).
+	const finder = process.platform === "win32" ? "where" : "which";
+	const r = spawnSync(finder, [bin], { stdio: ["ignore", "pipe", "ignore"], encoding: "utf-8" });
 	return r.status === 0 && r.stdout.trim().length > 0;
 }
 

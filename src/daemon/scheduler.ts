@@ -39,6 +39,7 @@ import {
 } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 import { resolvePromptText } from "../core/prompt-resolver.js";
+import { getShellInvocation } from "../core/shell.js";
 import { generateTaskId } from "../core/task-id.js";
 import { commitIfDirty, pushBranch } from "../git/merge-operations.js";
 import { playNotificationSound } from "../notifications/sound-player.js";
@@ -540,7 +541,8 @@ export class TaskScheduler {
 					await appendActivityLog(workspaceId, taskId, `Running: ${installCommand.trim()}`);
 					stateHub.broadcastWorkspaceUpdate(workspaceId);
 					await new Promise<void>((resolve) => {
-						const proc = spawn("sh", ["-c", installCommand.trim()], {
+						const [shell, shellArgs] = getShellInvocation(installCommand.trim());
+						const proc = spawn(shell, shellArgs, {
 							cwd: worktree.path,
 							stdio: "ignore",
 							env: { ...process.env, REPO_PATH: repoPath },

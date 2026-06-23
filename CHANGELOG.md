@@ -3,11 +3,24 @@
 ## [0.6.1] - 2026-06-23
 
 ### Fixed
-- **Windows: agents failed to launch with "File not found:"** — agent processes are spawned through
-  node-pty, whose Windows (conpty) backend does not search `PATHEXT` for a bare command name the way
-  `child_process` does, so launching e.g. `claude` threw `File not found:` even when `claude.exe` was on
-  `PATH`. The agent command is now resolved to its absolute executable path (via `where.exe`, preferring a
-  native `.exe`) before spawning. No change on macOS/Linux.
+A round of Windows portability fixes — several features hardcoded Unix shells/tools that don't exist on
+Windows, so they crashed with `File not found:` / `ENOENT` or silently no-op'd:
+- **Agents failed to launch with "File not found:"** — agent processes are spawned through node-pty, whose
+  Windows (conpty) backend does not search `PATHEXT` for a bare command name the way `child_process` does,
+  so launching e.g. `claude` threw `File not found:` even when `claude.exe` was on `PATH`. The agent command
+  is now resolved to its absolute executable path (via `where.exe`, preferring a native `.exe`) before
+  spawning.
+- **Run/preview commands and per-task install commands failed** — these were launched through `/bin/bash -c`
+  / `sh -c`, which don't exist on Windows. A shared `getShellInvocation` helper now runs command strings
+  through `cmd.exe /c` (via `ComSpec`) on Windows and `$SHELL -c` on POSIX.
+- **`whipped logs --follow` crashed** — it shelled out to `tail -f`. On Windows it now follows the log via
+  PowerShell `Get-Content -Wait -Tail`.
+- **Windows Terminal / PowerShell were never detected** in the "Open in terminal" picker — detection used
+  `which`, which doesn't exist on Windows; it now uses `where`.
+- **Cloudflare tunnel login couldn't open the browser** — it spawned the macOS-only `open` command (with no
+  error handler, risking an unhandled error event); it now uses the cross-platform `open` package.
+- **Notification sounds were silent on Windows** — playback only supported macOS (`afplay`) and Linux
+  (`paplay`); Windows now plays the WAV chimes via PowerShell's `SoundPlayer`.
 
 ### Changed
 - Moved the pnpm `onlyBuiltDependencies` and `overrides` settings out of `package.json` into

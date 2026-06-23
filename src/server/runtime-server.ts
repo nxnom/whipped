@@ -13,6 +13,7 @@ import { clearState, readState, writeState } from "../cli/daemon-state.js";
 import { ATTACHMENTS_DIR, DEFAULT_PORT, loadGlobalConfig, WHIPPED_HOME_DIR } from "../config/runtime-config.js";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
+import { getShellInvocation } from "../core/shell.js";
 import { generateTaskId } from "../core/task-id.js";
 import { playNotificationSound } from "../notifications/sound-player.js";
 import { BoardPoller } from "../daemon/poller.js";
@@ -133,8 +134,10 @@ export async function createRuntimeServer(options: ServerOptions) {
 
 	function startRun(workspaceId: string, cardId: string | null, command: string, cwd: string): void {
 		stopRun(workspaceId);
-		const shell = process.env.SHELL ?? "/bin/bash";
-		const pty = nodePty.spawn(shell, ["-c", command], {
+		// Run the command through the platform shell (cmd.exe on Windows — node-pty's
+		// conpty backend can't resolve `/bin/bash` there — and $SHELL on POSIX).
+		const [shell, shellArgs] = getShellInvocation(command);
+		const pty = nodePty.spawn(shell, shellArgs, {
 			name: "xterm-256color",
 			cols: 120,
 			rows: 40,

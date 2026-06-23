@@ -36,9 +36,13 @@ function playOnHost(file: string): void {
 	const [command, args] =
 		process.platform === "darwin"
 			? (["afplay", [file]] as const)
-			: process.platform === "linux"
-				? (["paplay", [file]] as const)
-				: [null, null];
+			: process.platform === "win32"
+				? // PowerShell's SoundPlayer plays the WAV chimes synchronously in the
+					// detached child (it exits once done); no extra binary needed.
+					(["powershell", ["-NoProfile", "-Command", `(New-Object Media.SoundPlayer '${file}').PlaySync()`]] as const)
+				: process.platform === "linux"
+					? (["paplay", [file]] as const)
+					: [null, null];
 	if (!command) return; // unsupported platform — best-effort no-op
 
 	const child = spawn(command, [...args], { stdio: "ignore", detached: true });

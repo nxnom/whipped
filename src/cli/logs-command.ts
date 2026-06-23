@@ -24,11 +24,16 @@ export async function runLogs(options: LogsOptions): Promise<void> {
 	}
 
 	if (options.follow) {
-		const child = spawn("tail", ["-f", "-n", String(options.lines), path], {
+		// Windows has no `tail`; PowerShell's `Get-Content -Wait -Tail N` is the equivalent.
+		const [cmd, args] =
+			process.platform === "win32"
+				? (["powershell", ["-NoProfile", "-Command", `Get-Content -Path '${path}' -Tail ${options.lines} -Wait`]] as const)
+				: (["tail", ["-f", "-n", String(options.lines), path]] as const);
+		const child = spawn(cmd, args, {
 			stdio: "inherit",
 		});
 		child.on("error", (err) => {
-			console.error(`Failed to spawn tail: ${err.message}`);
+			console.error(`Failed to follow log file: ${err.message}`);
 			process.exit(1);
 		});
 		child.on("exit", (code) => process.exit(code ?? 0));
