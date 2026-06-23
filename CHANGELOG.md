@@ -7,7 +7,9 @@
   step in the **Workflow Pipeline** sidebar (labelled "Install"), right alongside the agent runs. Its
   output streams live and stays rewatchable after it finishes, so a complex install script is no longer a
   black box visible only as a one-line "Install complete" in the activity log. Previously the command's
-  output was discarded entirely.
+  output was discarded entirely. The install step can also be **stopped** from the sidebar like an agent;
+  stopping it resets the task to its initial state (worktree removed, card back to Todo) so the next run
+  starts fresh and re-runs the install.
 
 ## [0.7.0] - 2026-06-23
 

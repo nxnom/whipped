@@ -3,6 +3,7 @@ import { cp, link, mkdir, stat, symlink, unlink } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as nodePty from "node-pty";
+import treeKill from "tree-kill";
 import {
 	buildMcpRoleArgs,
 	buildWhippedMcpServerSpec,
@@ -60,6 +61,7 @@ import {
 import {
 	createWorktree,
 	getCardBranch,
+	removeWorktreeAsync,
 	resolveWorktreeOwnerId,
 	getWorktreePath,
 	titleToBranch,
@@ -118,6 +120,12 @@ export class TaskScheduler {
 	private planPhaseManuallyStopped = new Set<string>();
 	// Individual review stream IDs stopped by a manual stopTask() call.
 	private manuallyStoppedStreams = new Set<string>();
+	// Worktree-setup install commands currently running, keyed by taskId — so stopTask()
+	// can kill the install PTY before the dev agent has even started.
+	private runningInstalls = new Map<string, nodePty.IPty>();
+	// Tasks whose install was manually stopped — signals the install runner to reset the
+	// task to its initial state instead of proceeding to the agent.
+	private manuallyStoppedInstalls = new Set<string>();
 	// Shared worktree IDs currently in use by a dev agent — prevents sibling cards from
 	// running concurrently in the same worktree directory.
 	private runningSharedWorktrees = new Set<string>();
@@ -592,9 +600,42 @@ export class TaskScheduler {
 							cwd: worktree.path,
 							env: { ...(process.env as Record<string, string>), REPO_PATH: repoPath, TERM: "xterm-256color" },
 						});
+						this.runningInstalls.set(taskId, proc);
 						proc.onData(emitInstall);
 						proc.onExit(({ exitCode }) => resolveExit(exitCode ?? 0));
 					});
+					this.runningInstalls.delete(taskId);
+
+					this.setRecentBuffer(installStreamId, installBuffer);
+
+					// Daemon shutting down — cleanupStaleTasks persists the card state; just save
+					// the buffer (mirrors the dev agent onExit) and bail without touching the board.
+					if (this.isShuttingDown) {
+						await saveTerminalBuffer(workspaceId, installStreamId, installBuffer);
+						return;
+					}
+
+					// Manual stop during install: reset the task to its initial state so the next run
+					// starts fresh (re-copies files + re-runs install). Removing the half-set-up
+					// worktree is what forces createWorktree to rebuild it (isNew) on the retry.
+					if (this.manuallyStoppedInstalls.delete(taskId)) {
+						emitInstall("\r\n\x1b[1;33mInstall stopped — task reset\x1b[0m\r\n");
+						await saveTerminalBuffer(workspaceId, installStreamId, installBuffer);
+						await endTerminalSession(workspaceId, taskId, installStreamId, Date.now(), "stopped");
+						if (hasSharedWorktree) this.runningSharedWorktrees.delete(effectiveWorktreeId);
+						await removeWorktreeAsync(effectiveWorktreeId, repoPath, worktree.branch);
+						await clearCardSession(workspaceId, taskId);
+						// Always clear readyForDev so the poller doesn't immediately re-pick and
+						// restart the card — a stop should stay stopped until the user re-triggers it.
+						await updateCard(workspaceId, taskId, { readyForDev: false });
+						const stoppedBoard = await loadBoard(workspaceId);
+						if (stoppedBoard.cards[taskId]?.columnId === "in_progress") {
+							await moveCard(workspaceId, taskId, "todo");
+							await appendActivityLog(workspaceId, taskId, "Moved back to Todo");
+						}
+						stateHub.broadcastWorkspaceUpdate(workspaceId);
+						return;
+					}
 
 					if (exitCode !== 0) {
 						logger.error(`[scheduler] Install command failed (code ${exitCode}) for task ${taskId}`);
@@ -605,7 +646,6 @@ export class TaskScheduler {
 						await appendActivityLog(workspaceId, taskId, "Install complete");
 					}
 
-					this.setRecentBuffer(installStreamId, installBuffer);
 					await saveTerminalBuffer(workspaceId, installStreamId, installBuffer);
 					await endTerminalSession(
 						workspaceId,
@@ -907,6 +947,17 @@ export class TaskScheduler {
 	}
 
 	stopTask(taskId: string): void {
+		const installProc = this.runningInstalls.get(taskId);
+		if (installProc) {
+			// Stopped while the worktree install command is still running, before any agent.
+			// Flag it so the install runner resets the task to its initial state, then kill the PTY.
+			logger.info(`[scheduler] stopTask: install running — stopping task ${taskId}`);
+			this.manuallyStoppedInstalls.add(taskId);
+			this.runningInstalls.delete(taskId);
+			killInstallProcess(installProc);
+			void appendActivityLog(this.options.workspaceId, taskId, "Install stopped manually");
+			return;
+		}
 		const task = this.running.get(taskId);
 		if (task) {
 			logger.info(`[scheduler] stopTask: dev agent running — stopping task ${taskId}`);
@@ -1213,6 +1264,12 @@ export class TaskScheduler {
 		for (const [taskId] of this.running) {
 			this.stopTask(taskId);
 		}
+		// Install PTYs aren't tracked in `running`; kill them directly. isShuttingDown is
+		// already set, so the install runner saves its buffer and bails without touching the board.
+		for (const proc of this.runningInstalls.values()) {
+			killInstallProcess(proc);
+		}
+		this.runningInstalls.clear();
 		this.stopAssistantAgent();
 	}
 
@@ -1230,6 +1287,17 @@ export class TaskScheduler {
 //   - files        → POSIX uses a file symlink. Windows file symlinks need admin, so
 //                     we hard-link instead (shares content, same volume, no privilege)
 //                     and fall back to a plain copy if even that fails (e.g. cross-volume).
+// Hard-kill an install command's PTY and its whole process tree. Install commands hold no
+// state worth flushing, and tools like `npm`/`pnpm install` spawn children that a bare
+// pty.kill() (SIGHUP) can orphan — so SIGKILL the tree by pid, as the agent runner does.
+function killInstallProcess(proc: nodePty.IPty): void {
+	try {
+		treeKill(proc.pid, "SIGKILL");
+	} catch {
+		/* process may already be gone */
+	}
+}
+
 async function shareIntoWorktree(src: string, dst: string): Promise<void> {
 	const isDir = (await stat(src)).isDirectory();
 	if (process.platform !== "win32") {
