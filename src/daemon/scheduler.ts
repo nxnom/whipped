@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { cp, mkdir, stat, symlink, unlink } from "node:fs/promises";
+import { cp, link, mkdir, stat, symlink, unlink } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -527,17 +527,16 @@ export class TaskScheduler {
 						await mkdir(dirname(dst), { recursive: true });
 						try {
 							if (entry.symlink) {
-								// Symlink (share from the repo) instead of copying — for big reusable
-								// dirs like node_modules / vendor. Windows dirs use a junction, which
-								// needs no admin rights (real symlinks do); files fall back to a symlink.
-								const isDir = (await stat(src)).isDirectory();
-								const type = process.platform === "win32" ? (isDir ? "junction" : "file") : isDir ? "dir" : "file";
-								await symlink(src, dst, type);
+								// Share from the repo instead of copying — for big reusable dirs like
+								// node_modules / vendor. See shareIntoWorktree for the per-OS strategy.
+								await shareIntoWorktree(src, dst);
 								linked.push(entry.path);
 							} else {
 								// Async cp keeps the event loop free while copying large trees, so the
 								// daemon doesn't freeze for every other workspace/request during setup.
-								await cp(src, dst, { recursive: true });
+								// dereference: follow any symlinks inside the tree and copy their target
+								// contents as real files — recreating a symlink needs admin on Windows.
+								await cp(src, dst, { recursive: true, dereference: true });
 								copied.push(entry.path);
 							}
 						} catch (err) {
@@ -1188,6 +1187,30 @@ export class TaskScheduler {
 	// and do not overwrite the failed/todo state written by cleanupStaleTasks().
 	prepareShutdown(): void {
 		this.isShuttingDown = true;
+	}
+}
+
+// Share a repo path into a new worktree (the `symlink: true` setup option), picking
+// the lightest mechanism that needs no elevation:
+//   - directories  → symlink. On Windows a junction works without admin (real dir
+//                     symlinks need Developer Mode); POSIX uses a normal dir symlink.
+//   - files        → POSIX uses a file symlink. Windows file symlinks need admin, so
+//                     we hard-link instead (shares content, same volume, no privilege)
+//                     and fall back to a plain copy if even that fails (e.g. cross-volume).
+async function shareIntoWorktree(src: string, dst: string): Promise<void> {
+	const isDir = (await stat(src)).isDirectory();
+	if (process.platform !== "win32") {
+		await symlink(src, dst, isDir ? "dir" : "file");
+		return;
+	}
+	if (isDir) {
+		await symlink(src, dst, "junction");
+		return;
+	}
+	try {
+		await link(src, dst);
+	} catch {
+		await cp(src, dst, { recursive: true, dereference: true });
 	}
 }
 
