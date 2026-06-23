@@ -1,6 +1,6 @@
 {
   "name": "whipped",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Autonomous AI agent kanban board for Claude, Codex, Opencode, and Cursor.",
   "type": "module",
   "homepage": "https://github.com/nxnom/whipped#readme",
@@ -22,6 +22,7 @@
   "engines": {
     "node": ">=22"
   },
+  "packageManager": "pnpm@11.8.0",
   "scripts": {
     "clean": "rm -rf dist",
     "build": "pnpm clean && pnpm web:build && node scripts/build.mjs",
@@ -67,15 +68,5 @@
     "esbuild": "^0.27.4",
     "tsx": "^4.20.3",
     "typescript": "^5.9.3"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "better-sqlite3",
-      "esbuild",
-      "node-pty"
-    ],
-    "overrides": {
-      "hono": "4.12.23"
-    }
   }
 }

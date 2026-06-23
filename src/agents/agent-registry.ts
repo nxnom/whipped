@@ -129,12 +129,45 @@ export function getAvailableAgents(): AgentInfo[] {
 	});
 }
 
+// node-pty's conpty backend on Windows spawns via CreateProcess, which — unlike
+// child_process — does NOT search PATHEXT for a bare command name. So
+// spawn("claude", …) throws "File not found:" even when claude.exe is on PATH.
+// Resolve the command to its absolute path (with extension) up front so conpty
+// gets a concrete target. `where.exe` returns matches in PATHEXT order (.EXE
+// before .CMD), so the first line prefers a native exe over an npm .cmd shim.
+const resolvedCommandCache = new Map<string, string>();
+function resolveCommandPath(command: string): string {
+	if (process.platform !== "win32") return command;
+	const cached = resolvedCommandCache.get(command);
+	if (cached) return cached;
+	try {
+		const result = spawnSync("where.exe", [command], {
+			stdio: ["ignore", "pipe", "ignore"],
+			timeout: 5000,
+			encoding: "utf-8",
+		});
+		if (result.status === 0 && result.stdout) {
+			const first = result.stdout
+				.split(/\r?\n/)
+				.map((l) => l.trim())
+				.filter(Boolean)[0];
+			if (first) {
+				resolvedCommandCache.set(command, first);
+				return first;
+			}
+		}
+	} catch {
+		/* fall back to the bare name; spawn surfaces a clear error if it's truly missing */
+	}
+	return command;
+}
+
 export function getAgentCommand(agentId: RuntimeAgentId): string {
 	const agent = AGENT_DEFINITIONS.find((a) => a.id === agentId);
 	if (!agent) {
 		throw new Error(`Unknown agent: ${agentId}`);
 	}
-	return agent.command;
+	return resolveCommandPath(agent.command);
 }
 
 // Agent-agnostic launch context. Claude consumes file paths (settings/mcp);
