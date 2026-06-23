@@ -27,7 +27,10 @@ export async function runLogs(options: LogsOptions): Promise<void> {
 		// Windows has no `tail`; PowerShell's `Get-Content -Wait -Tail N` is the equivalent.
 		const [cmd, args] =
 			process.platform === "win32"
-				? (["powershell", ["-NoProfile", "-Command", `Get-Content -Path '${path}' -Tail ${options.lines} -Wait`]] as const)
+				? ([
+						"powershell",
+						["-NoProfile", "-Command", `Get-Content -Path '${path}' -Tail ${options.lines} -Wait`],
+					] as const)
 				: (["tail", ["-f", "-n", String(options.lines), path]] as const);
 		const child = spawn(cmd, args, {
 			stdio: "inherit",

@@ -640,7 +640,11 @@ export class TaskScheduler {
 					if (exitCode !== 0) {
 						logger.error(`[scheduler] Install command failed (code ${exitCode}) for task ${taskId}`);
 						emitInstall(`\r\n\x1b[1;31mInstall command failed (code ${exitCode}) — proceeding anyway\x1b[0m\r\n`);
-						await appendActivityLog(workspaceId, taskId, `Install command failed (code ${exitCode}) — proceeding anyway`);
+						await appendActivityLog(
+							workspaceId,
+							taskId,
+							`Install command failed (code ${exitCode}) — proceeding anyway`,
+						);
 					} else {
 						emitInstall("\r\n\x1b[1;32mInstall complete\x1b[0m\r\n");
 						await appendActivityLog(workspaceId, taskId, "Install complete");
