@@ -21,6 +21,10 @@ Windows, so they crashed with `File not found:` / `ENOENT` or silently no-op'd:
   error handler, risking an unhandled error event); it now uses the cross-platform `open` package.
 - **Notification sounds were silent on Windows** — playback only supported macOS (`afplay`) and Linux
   (`paplay`); Windows now plays the WAV chimes via PowerShell's `SoundPlayer`.
+- **Worktree cleanup failed with `EBUSY`** — removing a task's worktree directory could race the agent
+  process's teardown; Windows refuses to delete a directory that is still any live process's working
+  directory (unlike POSIX). Directory removal now retries with linear backoff (`fs.rm` `maxRetries`/
+  `retryDelay`) to ride out the brief window between the agent being killed and its handles being released.
 
 ### Changed
 - Moved the pnpm `onlyBuiltDependencies` and `overrides` settings out of `package.json` into

@@ -167,9 +167,13 @@ export async function removeWorktreeAsync(taskId: string, repoPath: string, bran
 	const t0 = Date.now();
 	logger.info(`[cleanup:${taskId}] starting worktree removal`);
 
-	// Step 1: delete the directory first — prune only removes refs whose path is gone
+	// Step 1: delete the directory first — prune only removes refs whose path is gone.
+	// maxRetries/retryDelay ride out Windows EBUSY/EPERM: a just-killed agent process
+	// (or AV/Search indexer) can briefly keep a handle open on a file in the worktree,
+	// and Windows — unlike POSIX — refuses rmdir while any handle is open. The linear
+	// backoff (~11s total) outlasts the agent's SIGTERM→SIGKILL teardown.
 	try {
-		await rm(worktreePath, { recursive: true, force: true });
+		await rm(worktreePath, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 		logger.info(`[cleanup:${taskId}] rm worktree dir done (${Date.now() - t0}ms)`);
 	} catch (err) {
 		logger.error({ err }, `[cleanup:${taskId}] rm worktree dir failed:`);

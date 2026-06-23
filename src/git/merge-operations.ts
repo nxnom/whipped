@@ -91,7 +91,9 @@ export function attemptMerge(repoPath: string, effectiveWorktreeId: string, task
 	const worktreePath = join(WORKTREES_DIR, effectiveWorktreeId);
 
 	if (existsSync(worktreePath)) {
-		rmSync(worktreePath, { recursive: true, force: true });
+		// Retry to ride out transient Windows EBUSY/EPERM locks. Kept short — rmSync is
+		// synchronous and blocks the event loop while retrying. See removeWorktreeAsync.
+		rmSync(worktreePath, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 		git(["worktree", "prune"], repoPath);
 	}
 
