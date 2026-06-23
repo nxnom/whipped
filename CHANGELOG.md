@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.6.1] - 2026-06-23
+## [0.7.0] - 2026-06-23
 
 ### Fixed
 A round of Windows portability fixes — several features hardcoded Unix shells/tools that don't exist on

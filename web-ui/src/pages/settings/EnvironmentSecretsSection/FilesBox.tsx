@@ -47,7 +47,7 @@ export function FilesBox({
 	};
 
 	return (
-		<div className="flex flex-col gap-1.5 bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-2 flex-1">
+		<div className="flex flex-col gap-0.5 bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-2 flex-1">
 			{rootFiles === null && <span className="text-[11px] py-1 text-[#4a4a5a]">Scanning...</span>}
 
 			{rootFiles !== null && allFiles.length === 0 && (
@@ -59,29 +59,34 @@ export function FilesBox({
 				const checked = !!entry;
 				const isManual = !discoveredSet.has(file);
 				return (
-					<label key={file} className="flex items-center gap-2 cursor-pointer group">
+					<label
+						key={file}
+						className="flex items-center gap-2 cursor-pointer group -mx-2 px-2 py-1 rounded transition-colors hover:bg-[#17171f]"
+					>
+						{/* Link/copy toggle in a fixed-width slot before the checkbox so rows stay aligned */}
+						<span className="shrink-0 w-4 flex justify-center">
+							{entry && (
+								<button
+									type="button"
+									title={
+										entry.symlink
+											? "Symlinked (shared from repo). Click to copy instead."
+											: "Copied into worktree. Click to symlink (share from repo, e.g. node_modules)."
+									}
+									onClick={(e) => {
+										e.preventDefault();
+										setSymlink(file, !entry.symlink);
+									}}
+									className={`transition-colors ${
+										entry.symlink ? "text-[#7aa2f7]" : "text-[#45455a] hover:text-[#9a9ab0]"
+									}`}
+								>
+									<Link2 size={12} />
+								</button>
+							)}
+						</span>
 						<CustomCheckbox checked={checked} onChange={(v) => toggle(file, v)} />
 						<span className="flex-1 text-[12px] font-mono text-[#c0c0d0]">{file}</span>
-						{entry && (
-							<button
-								type="button"
-								title={
-									entry.symlink
-										? "Symlinked (shared from repo). Click to copy instead."
-										: "Copied into worktree. Click to symlink (share from repo, e.g. node_modules)."
-								}
-								onClick={(e) => {
-									e.preventDefault();
-									setSymlink(file, !entry.symlink);
-								}}
-								className={`flex items-center gap-1 text-[10px] font-mono px-1 py-0.5 rounded transition-opacity ${
-									entry.symlink ? "text-[#7aa2f7]" : "text-[#60607a] opacity-0 group-hover:opacity-100"
-								}`}
-							>
-								<Link2 size={11} />
-								{entry.symlink ? "link" : "copy"}
-							</button>
-						)}
 						{isManual && (
 							<button
 								type="button"
@@ -99,7 +104,8 @@ export function FilesBox({
 			})}
 
 			{/* Add file row */}
-			<div className="flex items-center gap-2 pt-1">
+			<div className="flex items-center gap-2 pt-1.5">
+				<span className="shrink-0 w-4" />
 				<div className="shrink-0 w-4 h-4 border border-[#2a2a35] rounded-[3px]" />
 				<input
 					value={addInput}
