@@ -3,6 +3,7 @@ import {
 	notificationSoundsConfigSchema,
 	runtimeGlobalConfigSchema,
 	runtimeProjectSecretSchema,
+	runtimeWorktreeCopyEntrySchema,
 	runtimeWorktreeSetupSchema,
 } from "../api-contract.js";
 
@@ -39,6 +40,9 @@ export type NotificationSoundsFormInput = z.input<typeof notificationSoundsFormS
 // EnvironmentSecretsSection.
 
 export const environmentFormSchema = runtimeWorktreeSetupSchema.extend({
+	// The form always works with normalized copy entries (legacy-string tolerance
+	// lives in the persistence schema), so the RHF value type stays clean.
+	filesToCopy: z.array(runtimeWorktreeCopyEntrySchema).default([]),
 	startCommand: z.string().default(""),
 });
 export type EnvironmentForm = z.infer<typeof environmentFormSchema>;

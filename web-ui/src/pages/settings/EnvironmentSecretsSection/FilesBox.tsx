@@ -1,5 +1,6 @@
 import { toast } from "@geckoui/geckoui";
-import { X } from "lucide-react";
+import type { RuntimeWorktreeCopyEntry } from "@runtime-contract";
+import { Link2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRead } from "@/runtime/api-client";
 import { CustomCheckbox } from "./CustomCheckbox";
@@ -10,8 +11,8 @@ export function FilesBox({
 	onChange,
 }: {
 	workspaceId: string;
-	filesToCopy: string[];
-	onChange: (files: string[]) => void;
+	filesToCopy: RuntimeWorktreeCopyEntry[];
+	onChange: (files: RuntimeWorktreeCopyEntry[]) => void;
 }) {
 	const [addInput, setAddInput] = useState("");
 
@@ -23,16 +24,25 @@ export function FilesBox({
 
 	const rootFiles = data?.files ?? null;
 	const discoveredSet = new Set(rootFiles ?? []);
-	const allFiles = [...new Set([...(rootFiles ?? []), ...filesToCopy])].sort();
+	const byPath = new Map(filesToCopy.map((e) => [e.path, e]));
+	const allFiles = [...new Set([...(rootFiles ?? []), ...filesToCopy.map((e) => e.path)])].sort();
 
 	const toggle = (file: string, checked: boolean) => {
-		onChange(checked ? [...new Set([...filesToCopy, file])] : filesToCopy.filter((f) => f !== file));
+		if (checked) {
+			if (!byPath.has(file)) onChange([...filesToCopy, { path: file, symlink: false }]);
+		} else {
+			onChange(filesToCopy.filter((e) => e.path !== file));
+		}
+	};
+
+	const setSymlink = (file: string, symlink: boolean) => {
+		onChange(filesToCopy.map((e) => (e.path === file ? { ...e, symlink } : e)));
 	};
 
 	const addManual = () => {
 		const val = addInput.trim();
 		if (!val) return;
-		onChange([...new Set([...filesToCopy, val])]);
+		if (!byPath.has(val)) onChange([...filesToCopy, { path: val, symlink: false }]);
 		setAddInput("");
 	};
 
@@ -45,17 +55,39 @@ export function FilesBox({
 			)}
 
 			{allFiles.map((file) => {
-				const checked = filesToCopy.includes(file);
+				const entry = byPath.get(file);
+				const checked = !!entry;
 				const isManual = !discoveredSet.has(file);
 				return (
 					<label key={file} className="flex items-center gap-2 cursor-pointer group">
 						<CustomCheckbox checked={checked} onChange={(v) => toggle(file, v)} />
 						<span className="flex-1 text-[12px] font-mono text-[#c0c0d0]">{file}</span>
-						{isManual && (
+						{entry && (
 							<button
+								type="button"
+								title={
+									entry.symlink
+										? "Symlinked (shared from repo). Click to copy instead."
+										: "Copied into worktree. Click to symlink (share from repo, e.g. node_modules)."
+								}
 								onClick={(e) => {
 									e.preventDefault();
-									onChange(filesToCopy.filter((f) => f !== file));
+									setSymlink(file, !entry.symlink);
+								}}
+								className={`flex items-center gap-1 text-[10px] font-mono px-1 py-0.5 rounded transition-opacity ${
+									entry.symlink ? "text-[#7aa2f7]" : "text-[#60607a] opacity-0 group-hover:opacity-100"
+								}`}
+							>
+								<Link2 size={11} />
+								{entry.symlink ? "link" : "copy"}
+							</button>
+						)}
+						{isManual && (
+							<button
+								type="button"
+								onClick={(e) => {
+									e.preventDefault();
+									onChange(filesToCopy.filter((f) => f.path !== file));
 								}}
 								className="opacity-0 group-hover:opacity-100 transition-opacity text-[#60607a]"
 							>

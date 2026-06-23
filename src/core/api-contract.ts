@@ -666,8 +666,20 @@ export const runtimeGithubConfigSchema = z.object({
 });
 export type RuntimeGithubConfig = z.infer<typeof runtimeGithubConfigSchema>;
 
+// A path to bring into a new worktree. `symlink: true` links it (junction on
+// Windows for dirs) instead of copying — lets large reusable dirs like
+// node_modules / vendor be shared from the repo with ~zero disk/time cost.
+export const runtimeWorktreeCopyEntrySchema = z.object({
+	path: z.string().min(1),
+	symlink: z.boolean().default(false),
+});
+export type RuntimeWorktreeCopyEntry = z.infer<typeof runtimeWorktreeCopyEntrySchema>;
+
 export const runtimeWorktreeSetupSchema = z.object({
-	filesToCopy: z.array(z.string()).default([]),
+	// Legacy configs stored bare strings; accept and normalize them to copy entries.
+	filesToCopy: z
+		.array(z.union([z.string().transform((path) => ({ path, symlink: false })), runtimeWorktreeCopyEntrySchema]))
+		.default([]),
 	installCommand: z.string().default(""),
 });
 export type RuntimeWorktreeSetup = z.infer<typeof runtimeWorktreeSetupSchema>;

@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
-import { cpSync, existsSync, mkdirSync } from "node:fs";
-import { unlink } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { cp, mkdir, stat, symlink, unlink } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -519,20 +519,42 @@ export class TaskScheduler {
 
 				if (filesToCopy.length > 0) {
 					const copied: string[] = [];
-					for (const relPath of filesToCopy) {
-						const src = join(repoPath, relPath);
+					const linked: string[] = [];
+					for (const entry of filesToCopy) {
+						const src = join(repoPath, entry.path);
 						if (!existsSync(src)) continue;
-						const dst = join(worktree.path, relPath);
-						mkdirSync(dirname(dst), { recursive: true });
+						const dst = join(worktree.path, entry.path);
+						await mkdir(dirname(dst), { recursive: true });
 						try {
-							cpSync(src, dst, { recursive: true });
-							copied.push(relPath);
-						} catch {
-							/* best-effort */
+							if (entry.symlink) {
+								// Symlink (share from the repo) instead of copying — for big reusable
+								// dirs like node_modules / vendor. Windows dirs use a junction, which
+								// needs no admin rights (real symlinks do); files fall back to a symlink.
+								const isDir = (await stat(src)).isDirectory();
+								const type = process.platform === "win32" ? (isDir ? "junction" : "file") : isDir ? "dir" : "file";
+								await symlink(src, dst, type);
+								linked.push(entry.path);
+							} else {
+								// Async cp keeps the event loop free while copying large trees, so the
+								// daemon doesn't freeze for every other workspace/request during setup.
+								await cp(src, dst, { recursive: true });
+								copied.push(entry.path);
+							}
+						} catch (err) {
+							logger.warn(
+								{ err },
+								`[scheduler] worktree setup: failed to ${entry.symlink ? "link" : "copy"} ${entry.path}`,
+							);
 						}
 					}
-					if (copied.length > 0) {
-						await appendActivityLog(workspaceId, taskId, `Copied to worktree: ${copied.join(", ")}`);
+					const summary = [
+						copied.length ? `Copied: ${copied.join(", ")}` : "",
+						linked.length ? `Linked: ${linked.join(", ")}` : "",
+					]
+						.filter(Boolean)
+						.join(" · ");
+					if (summary) {
+						await appendActivityLog(workspaceId, taskId, `Worktree setup — ${summary}`);
 						stateHub.broadcastWorkspaceUpdate(workspaceId);
 					}
 				}

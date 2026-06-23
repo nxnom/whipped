@@ -1,6 +1,6 @@
 import { RHFInput } from "@geckoui/geckoui";
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { RuntimeProjectConfig } from "@runtime-contract";
+import type { RuntimeProjectConfig, RuntimeWorktreeCopyEntry } from "@runtime-contract";
 import { type EnvironmentForm, type EnvironmentFormInput, environmentFormSchema } from "@runtime-validation/config";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { monoInputClassName } from "./constants";
@@ -33,9 +33,9 @@ export function WorktreeSetupForm({
 	});
 	const { control, setValue } = methods;
 
-	const filesToCopy = useWatch({ control, name: "filesToCopy" }) ?? [];
+	const filesToCopy = (useWatch({ control, name: "filesToCopy" }) ?? []) as RuntimeWorktreeCopyEntry[];
 
-	const setFiles = (files: string[]) => {
+	const setFiles = (files: RuntimeWorktreeCopyEntry[]) => {
 		setValue("filesToCopy", files, { shouldDirty: true });
 		onUpdate({ ...config, worktreeSetup: { ...setup, filesToCopy: files } });
 	};
