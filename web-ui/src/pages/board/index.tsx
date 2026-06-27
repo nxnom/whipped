@@ -42,7 +42,7 @@ export function BoardPage({ onOpenAgent }: Props) {
 		if (projects.length === 0) return;
 		if (projects.some((p) => p.workspaceId === workspaceId)) return;
 		const id = (layout ? firstSortedProjectId(layout, projects) : null) ?? projects[0]!.workspaceId;
-		navigate(`/${encodeURIComponent(id)}/board`, { replace: true });
+		navigate(`/${encodeURIComponent(id)}/board`);
 	}, [projectList, layout, workspaceId, navigate]);
 
 	const switchProject = (wsId: string) => {
@@ -54,7 +54,7 @@ export function BoardPage({ onOpenAgent }: Props) {
 		if (wsId !== workspaceId) return;
 		const remaining = projects.filter((p) => p.workspaceId !== wsId);
 		const nextId = (layout ? firstSortedProjectId(layout, remaining) : null) ?? remaining[0]?.workspaceId;
-		navigate(nextId ? `/${encodeURIComponent(nextId)}/board` : "/", { replace: true });
+		navigate(nextId ? `/${encodeURIComponent(nextId)}/board` : "/");
 	};
 
 	return (

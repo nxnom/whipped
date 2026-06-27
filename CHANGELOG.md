@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.8.1] - 2026-06-27
+
+- Fix navigation behaviour set to replace.
+
 ## [0.8.0] - 2026-06-24
 
 ### Added

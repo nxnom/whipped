@@ -89,8 +89,8 @@ export function KanbanBoard({
 	const currentBranch = branchesData?.defaultBranch ?? "";
 
 	const openCard = (id: string) =>
-		navigate(`/${encodeURIComponent(workspaceId)}/board/${encodeURIComponent(id)}`, { replace: true });
-	const closeCard = () => navigate(`/${encodeURIComponent(workspaceId)}/board`, { replace: true });
+		navigate(`/${encodeURIComponent(workspaceId)}/board/${encodeURIComponent(id)}`);
+	const closeCard = () => navigate(`/${encodeURIComponent(workspaceId)}/board`);
 
 	const handleCardDelete = (card: RuntimeBoardCard) => {
 		ConfirmDialog.show({
@@ -106,7 +106,7 @@ export function KanbanBoard({
 					onRefresh();
 				} catch {
 					toast.error("Failed to delete task");
-					onRefresh(); // revert optimistic update on failure
+					onRefresh();
 				}
 			},
 			onCancel: ({ dismiss }) => dismiss(),

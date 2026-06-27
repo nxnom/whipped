@@ -31,7 +31,7 @@ export function RecurringAgentsPage() {
 	// Auto-select the first agent when landing on the page with none selected.
 	useEffect(() => {
 		if (agentId || agents.length === 0) return;
-		navigate(`/${encodeURIComponent(wsId)}/recurring-agents/${encodeURIComponent(agents[0]!.id)}`, { replace: true });
+		navigate(`/${encodeURIComponent(wsId)}/recurring-agents/${encodeURIComponent(agents[0]!.id)}`);
 	}, [agentId, agents, wsId, navigate]);
 
 	const select = (id: string) => navigate(`/${encodeURIComponent(wsId)}/recurring-agents/${encodeURIComponent(id)}`);
