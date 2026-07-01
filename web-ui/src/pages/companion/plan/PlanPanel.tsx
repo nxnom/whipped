@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, MessageSquarePlus } from "lucide-react";
+import { ChevronLeft, ChevronRight, MessageSquare, MessageSquarePlus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { classNames } from "@/utils/classNames";
 import { PlanBlockRenderer } from "./PlanBlockRenderer";
@@ -114,6 +114,25 @@ export function PlanPanel({ sessionId, workspaceId }: { sessionId: string; works
 								answers={answers}
 								onAnswer={(name, value) => setAnswers((prev) => ({ ...prev, [name]: value }))}
 							/>
+							{comments
+								.filter((c) => c.blockId === block.id)
+								.map((c) => (
+									<div
+										key={c.id}
+										className="flex items-start gap-1.5 ml-1 pl-2.5 py-0.5 border-l border-dashed border-[#3a3a48]"
+									>
+										<MessageSquare size={11} className="mt-0.5 shrink-0 text-gray-600" />
+										<span className="flex-1 text-[11px] text-gray-400 italic">{c.text}</span>
+										{isLatest && (
+											<button
+												onClick={() => setComments((prev) => prev.filter((existing) => existing.id !== c.id))}
+												className="shrink-0 text-gray-600 hover:text-red-400 transition-colors"
+											>
+												<X size={11} />
+											</button>
+										)}
+									</div>
+								))}
 							{isLatest &&
 								(commentDraftFor === block.id ? (
 									<div className="flex flex-col gap-1.5">
@@ -165,7 +184,6 @@ export function PlanPanel({ sessionId, workspaceId }: { sessionId: string; works
 						blocks={activePlan.blocks}
 						answers={answers}
 						comments={comments}
-						onRemoveComment={(id) => setComments((prev) => prev.filter((c) => c.id !== id))}
 						sendFeedback={sendFeedback}
 						onSent={() => {
 							setAnswers({});

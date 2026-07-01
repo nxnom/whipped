@@ -1,6 +1,6 @@
 import { Button, Dialog, Textarea, toast } from "@geckoui/geckoui";
 import type { PlanBlock } from "@runtime-contract";
-import { Check, Send, X } from "lucide-react";
+import { Check, Send } from "lucide-react";
 import { useState } from "react";
 import { composePlanFeedbackMessage } from "./compose";
 import { PlanApproveOutcomeDialog } from "./PlanApproveOutcomeDialog";
@@ -12,7 +12,6 @@ export function PlanFeedbackComposer({
 	blocks,
 	answers,
 	comments,
-	onRemoveComment,
 	sendFeedback,
 	onSent,
 }: {
@@ -21,7 +20,6 @@ export function PlanFeedbackComposer({
 	blocks: PlanBlock[];
 	answers: PlanAnswers;
 	comments: PlanComment[];
-	onRemoveComment: (id: string) => void;
 	sendFeedback: (text: string) => Promise<void>;
 	onSent: () => void;
 }) {
@@ -78,24 +76,6 @@ export function PlanFeedbackComposer({
 
 	return (
 		<div className="flex flex-col gap-2 border-t border-[#2a2a35] p-3 shrink-0">
-			{comments.length > 0 && (
-				<div className="flex flex-col gap-1.5">
-					{comments.map((c) => (
-						<div
-							key={c.id}
-							className="flex items-start gap-2 rounded-md bg-[#1a1a24] border border-[#2a2a38] px-2.5 py-1.5"
-						>
-							<span className="flex-1 text-[11px] text-gray-300">{c.text}</span>
-							<button
-								onClick={() => onRemoveComment(c.id)}
-								className="shrink-0 text-gray-600 hover:text-red-400 transition-colors"
-							>
-								<X size={12} />
-							</button>
-						</div>
-					))}
-				</div>
-			)}
 			<Textarea
 				placeholder="Anything else to add? (optional)"
 				value={note}
