@@ -3,6 +3,7 @@ import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 import "@xterm/xterm/css/xterm.css";
 import { classNames } from "@/utils/classNames";
+import { xtermTheme } from "./xtermTheme";
 
 interface RunTerminalProps {
 	workspaceId: string;
@@ -17,12 +18,7 @@ export function RunTerminal({ workspaceId, className }: RunTerminalProps) {
 		if (!container) return;
 
 		const term = new Terminal({
-			theme: {
-				background: "#030712",
-				foreground: "#d1d5db",
-				cursor: "#60a5fa",
-				selectionBackground: "#374151",
-			},
+			theme: xtermTheme(),
 			fontSize: 12,
 			fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
 			cursorBlink: true,

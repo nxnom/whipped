@@ -121,7 +121,7 @@ export function CardDetailPanel({
 	};
 
 	return (
-		<div className="fixed inset-0 z-10 bg-[#050505] flex flex-col overflow-hidden">
+		<div className="fixed inset-0 z-10 bg-whip-bg flex flex-col overflow-hidden">
 			<CardDetailHeader
 				card={card}
 				workspaceId={workspaceId}

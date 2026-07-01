@@ -162,7 +162,7 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 
 	return (
 		<>
-			<div className="shrink-0 border-t border-[#1e1e28] p-3">
+			<div className="shrink-0 border-t border-[#1f1f1f] p-3">
 				<input
 					ref={fileInputRef}
 					type="file"
@@ -174,7 +174,7 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 						e.target.value = "";
 					}}
 				/>
-				<div className="rounded-lg border border-[#2a2a2a] bg-[#111111] focus-within:border-[#3a3a3a] transition-colors">
+				<div className="rounded-lg border border-[#2a2a2a] bg-whip-bg focus-within:border-[#3a3a3a] transition-colors">
 					{/* Pending attachment previews — derived from tokens in the text */}
 					{displayed.length > 0 && (
 						<div className="flex flex-wrap gap-2 px-3 pt-2">
@@ -242,7 +242,7 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 											className="inline-flex items-center gap-1 rounded border border-[#2a2a2a] bg-[#161616] px-1.5 py-0.5 text-[10px] text-[#8a8f98]"
 											title={el.elementSelector}
 										>
-											<span className="text-[#c4baff]">#{i + 1}</span>
+											<span className="text-[#c4b5fd]">#{i + 1}</span>
 											<span className="truncate max-w-[180px]">🧩 {label}</span>
 											{src && <span className="text-[#5f6672] font-mono">📄 {src}</span>}
 										</span>
@@ -312,7 +312,7 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 							>
 								<Paperclip size={14} />
 							</button>
-							<span className="text-[10px] text-[#3a3a4a]">↵ Send · ⇧↵ Newline</span>
+							<span className="text-[10px] text-[#5f6672]">↵ Send · ⇧↵ Newline</span>
 						</div>
 						<div className="flex gap-1.5">
 							{isReadyForReview && (

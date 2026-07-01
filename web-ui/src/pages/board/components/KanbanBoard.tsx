@@ -189,7 +189,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, projectName }: Kan
 	};
 
 	return (
-		<div className="flex-1 overflow-hidden flex flex-col relative bg-[#050505]">
+		<div className="flex-1 overflow-hidden flex flex-col relative bg-whip-bg">
 			<div className="flex items-center gap-4 px-6 py-0 h-[82px] border-b border-[#1f1f1f] shrink-0">
 				{/* Title block */}
 				<div className="flex flex-col gap-[7px] w-[300px] shrink-0">
@@ -262,7 +262,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, projectName }: Kan
 							</button>
 						)}
 					</MenuTrigger>
-					<div className="flex items-center gap-2 px-2.5 py-2 rounded-md bg-[#050505]">
+					<div className="flex items-center gap-2 px-2.5 py-2 rounded-md bg-whip-bg">
 						<span className={`size-[7px] rounded-full ${automationActive ? "bg-[#ffffff]" : "bg-[#22c55e]"}`} />
 						<span className="text-xs font-semibold text-[#ededed]">
 							{runningCount > 0 ? `${runningCount} agent${runningCount === 1 ? "" : "s"} running` : "No agents running"}

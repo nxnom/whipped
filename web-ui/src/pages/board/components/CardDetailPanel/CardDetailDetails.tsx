@@ -154,14 +154,14 @@ export function CardDetailDetails({ card, workspaceId, allCards, workflowSlots, 
 								<button
 									onClick={() => void saveBranchName()}
 									disabled={savingBranch}
-									className="p-1 rounded text-[#5f6672] hover:text-[#22c55e] hover:bg-[#111111] transition-colors disabled:opacity-50"
+									className="p-1 rounded text-[#5f6672] hover:text-[#22c55e] hover:bg-[#161616] transition-colors disabled:opacity-50"
 								>
 									<Check size={12} />
 								</button>
 								<button
 									onClick={cancelEditBranch}
 									disabled={savingBranch}
-									className="p-1 rounded text-[#5f6672] hover:text-[#8a8f98] hover:bg-[#111111] transition-colors disabled:opacity-50"
+									className="p-1 rounded text-[#5f6672] hover:text-[#8a8f98] hover:bg-[#161616] transition-colors disabled:opacity-50"
 								>
 									<X size={12} />
 								</button>
@@ -174,7 +174,7 @@ export function CardDetailDetails({ card, workspaceId, allCards, workflowSlots, 
 								{canEditBranch && (
 									<button
 										onClick={startEditBranch}
-										className="p-0.5 rounded text-[#5f6672] hover:text-[#8a8f98] hover:bg-[#111111] transition-colors"
+										className="p-0.5 rounded text-[#5f6672] hover:text-[#8a8f98] hover:bg-[#161616] transition-colors"
 									>
 										<Pencil size={10} />
 									</button>
@@ -221,7 +221,7 @@ export function CardDetailDetails({ card, workspaceId, allCards, workflowSlots, 
 								return (
 									<div
 										key={depId}
-										className="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-[#111111] border border-[#2a2a2a]"
+										className="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-[#161616] border border-[#2a2a2a]"
 									>
 										<span className="text-xs text-[#ededed] truncate">{dep.description?.split("\n")[0] ?? dep.id}</span>
 										<span

@@ -9,7 +9,7 @@ interface Props {
 
 export function AuthLayout({ title, subtitle, children }: Props) {
 	return (
-		<div className="dark min-h-screen flex items-center justify-center bg-[#050505] text-[#ededed]">
+		<div className="dark min-h-screen flex items-center justify-center bg-whip-bg text-[#ededed]">
 			<div className="w-[360px] flex flex-col gap-6 rounded-xl border border-[#2a2a2a] bg-[#0b0b0b] p-8">
 				<div className="flex flex-col items-center gap-3">
 					<div className="flex items-center justify-center w-14 h-14 rounded-full bg-[#ffffff10]">

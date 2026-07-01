@@ -16,7 +16,7 @@ export function InlineCommentBox({
 }) {
 	return (
 		<div className="mx-4 my-2 font-sans">
-			<div className="rounded-lg border border-[#2a2a2a] bg-[#111111] focus-within:border-[#3a3a3a] transition-colors">
+			<div className="rounded-lg border border-[#2a2a2a] bg-whip-bg focus-within:border-[#3a3a3a] transition-colors">
 				<textarea
 					ref={draftRef}
 					value={value}

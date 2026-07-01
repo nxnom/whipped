@@ -63,7 +63,7 @@ export function SubmitReviewDropdown({ pendingComments, onSubmit }: SubmitReview
 			</button>
 
 			{open && (
-				<div className="absolute top-full right-0 mt-1.5 z-50 w-[400px] font-sans bg-[#13131a] border border-[#2a2a2a] rounded-lg shadow-2xl overflow-hidden">
+				<div className="absolute top-full right-0 mt-1.5 z-50 w-[400px] font-sans bg-[#0b0b0b] border border-[#2a2a2a] rounded-lg shadow-2xl overflow-hidden">
 					{/* Dropdown header */}
 					<div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2a2a]">
 						<span className="text-sm font-semibold text-[#ededed]">Finish your review</span>
@@ -98,7 +98,7 @@ export function SubmitReviewDropdown({ pendingComments, onSubmit }: SubmitReview
 						)}
 
 						{/* Feedback textarea */}
-						<div className="rounded-lg border border-[#2a2a2a] bg-[#111111] focus-within:border-[#3a3a3a] transition-colors">
+						<div className="rounded-lg border border-[#2a2a2a] bg-whip-bg focus-within:border-[#3a3a3a] transition-colors">
 							<textarea
 								autoFocus
 								value={overallFeedback}
@@ -145,7 +145,7 @@ export function SubmitReviewDropdown({ pendingComments, onSubmit }: SubmitReview
 					</div>
 
 					{/* Dropdown footer */}
-					<div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-[#2a2a2a] bg-[#0f0f16]">
+					<div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-[#2a2a2a] bg-[#0b0b0b]">
 						<Button variant="outlined" size="sm" onClick={() => setOpen(false)}>
 							Cancel
 						</Button>

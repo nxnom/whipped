@@ -56,9 +56,9 @@ export function SettingsPage() {
 	};
 
 	return (
-		<div className="flex-1 overflow-hidden flex bg-[#0f0f10]">
+		<div className="flex-1 overflow-hidden flex bg-whip-bg">
 			{/* Sidebar */}
-			<aside className="w-[220px] shrink-0 flex flex-col bg-[#0b0b0b] border-r border-[#2a2a2a]">
+			<aside className="w-[220px] shrink-0 flex flex-col bg-whip-bg border-r border-[#2a2a2a]">
 				{/* Header */}
 				<button
 					onClick={() => navigate(`/${encodeURIComponent(workspaceId)}/board`)}

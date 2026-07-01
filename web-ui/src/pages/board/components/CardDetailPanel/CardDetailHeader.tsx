@@ -41,7 +41,7 @@ export function CardDetailHeader({
 	const columnStatus = COLUMN_STATUS[card.columnId];
 
 	return (
-		<div className="flex items-center gap-3 px-6 h-14 border-b border-[#1f1f1f] bg-[#050505] shrink-0">
+		<div className="flex items-center gap-3 px-6 h-14 border-b border-[#1f1f1f] bg-whip-bg shrink-0">
 			<button onClick={onClose} className="text-[#8a8f98] hover:text-[#ededed] transition-colors" title="Back to board">
 				<ArrowLeft size={18} />
 			</button>

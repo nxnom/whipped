@@ -97,7 +97,7 @@ export default function App() {
 
 	return (
 		<>
-			<div className="dark flex flex-col h-screen bg-[#050505] text-[#ededed] overflow-hidden">
+			<div className="dark flex flex-col h-screen bg-whip-bg text-[#ededed] overflow-hidden">
 				{activeWorkspaceId && <Topbar workspaceId={activeWorkspaceId} onOpenAgent={() => setAgentOpen((v) => !v)} />}
 				<div className="flex-1 overflow-hidden flex">
 					<main className="flex-1 overflow-hidden flex flex-col">

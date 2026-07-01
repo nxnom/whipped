@@ -206,9 +206,9 @@ export function DiffView({ workspaceId, cardId, activeLevel, isReadyForReview, o
 	const fileTree = buildFileTree(files);
 
 	return (
-		<div className="flex-1 min-h-0 flex flex-col font-mono text-xs bg-[#050505] relative">
+		<div className="flex-1 min-h-0 flex flex-col font-mono text-xs bg-whip-bg relative">
 			{/* Top bar */}
-			<div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-[#1f1f1f] bg-[#111111] font-sans">
+			<div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-[#1f1f1f] bg-whip-bg font-sans">
 				<span className="text-[#8a8f98] text-xs">
 					{files.length} file{files.length !== 1 ? "s" : ""}
 					{" · "}
@@ -248,7 +248,7 @@ export function DiffView({ workspaceId, cardId, activeLevel, isReadyForReview, o
 			<div className="flex flex-1 min-h-0">
 				{/* File tree sidebar */}
 				<div
-					className="relative shrink-0 border-r border-[#1e1e28] overflow-y-auto bg-[#111111] py-2"
+					className="relative shrink-0 border-r border-[#1f1f1f] overflow-y-auto bg-whip-bg py-2"
 					style={{ width: sidebarWidth }}
 				>
 					<FileTreeNode
@@ -271,7 +271,7 @@ export function DiffView({ workspaceId, cardId, activeLevel, isReadyForReview, o
 						className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-white/20 transition-colors z-10 group"
 						title="Drag to resize"
 					>
-						<div className="absolute inset-y-0 right-0 w-px bg-[#1e1e28] group-hover:bg-white/60 transition-colors" />
+						<div className="absolute inset-y-0 right-0 w-px bg-[#1f1f1f] group-hover:bg-white/60 transition-colors" />
 					</div>
 				</div>
 

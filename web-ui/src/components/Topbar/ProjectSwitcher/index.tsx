@@ -48,7 +48,7 @@ function Footer({
 		<div className="flex items-center gap-2 pt-2 border-t border-[#1f1f1f]">
 			<button
 				onClick={() => sidebarRef.current?.addFolder()}
-				className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-md bg-[#050505] border border-[#1f1f1f] text-[#8a8f98] hover:text-[#ededed] transition-colors text-xs"
+				className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-md bg-whip-bg border border-[#1f1f1f] text-[#8a8f98] hover:text-[#ededed] transition-colors text-xs"
 			>
 				<FolderPlus size={13} />
 				New Folder
@@ -113,7 +113,7 @@ export function ProjectSwitcher({
 				)}
 			</MenuTrigger>
 
-			<div className="flex items-center gap-2 h-[34px] px-2.5 rounded-md bg-[#050505] border border-[#1f1f1f]">
+			<div className="flex items-center gap-2 h-[34px] px-2.5 rounded-md bg-whip-bg border border-[#1f1f1f]">
 				<Search size={14} className="text-[#5f6672] shrink-0" />
 				<input
 					value={search}

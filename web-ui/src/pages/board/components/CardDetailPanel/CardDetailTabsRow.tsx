@@ -30,7 +30,7 @@ export function CardDetailTabsRow({
 	const agentBadge = agentId ? (AGENT_DISPLAY[agentId] ?? null) : null;
 
 	return (
-		<div className="flex items-center gap-3.5 px-6 h-11 border-b border-[#1f1f1f] bg-[#050505] shrink-0">
+		<div className="flex items-center gap-3.5 px-6 h-11 border-b border-[#1f1f1f] bg-whip-bg shrink-0">
 			<div className="flex items-center h-full">
 				{tabs.map(({ id, label, Icon }) => (
 					<button

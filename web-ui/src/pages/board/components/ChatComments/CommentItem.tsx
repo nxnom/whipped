@@ -69,15 +69,15 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 		<div>
 			{showDate && (
 				<div className="flex items-center gap-3 px-4 my-3">
-					<div className="flex-1 h-px bg-[#1e1e28]" />
+					<div className="flex-1 h-px bg-[#1f1f1f]" />
 					<span className="text-[11px] text-[#5f6672] font-medium shrink-0">{formatDateLabel(comment.createdAt)}</span>
-					<div className="flex-1 h-px bg-[#1e1e28]" />
+					<div className="flex-1 h-px bg-[#1f1f1f]" />
 				</div>
 			)}
 
 			<div
 				className={classNames(
-					"group flex items-start gap-3 px-4 hover:bg-[#13131a]",
+					"group flex items-start gap-3 px-4 hover:bg-[#111111]",
 					showHeader ? "mt-3 pb-0.5" : "py-0.5",
 				)}
 			>
@@ -86,7 +86,7 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 					{showHeader ? (
 						<Avatar comment={comment} />
 					) : (
-						<span className="block w-8 text-center text-[8px] text-[#3a3a4a] opacity-0 group-hover:opacity-100 transition-opacity tabular-nums whitespace-nowrap pt-1">
+						<span className="block w-8 text-center text-[8px] text-[#5f6672] opacity-0 group-hover:opacity-100 transition-opacity tabular-nums whitespace-nowrap pt-1">
 							{new Date(comment.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
 						</span>
 					)}
@@ -102,7 +102,7 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 							</span>
 							{sourceCardTitle && (
 								<span
-									className="text-[10px] px-1.5 py-0.5 rounded font-medium text-[#6a6a80] bg-[#161616] border border-[#2a2a2a] truncate max-w-[160px]"
+									className="text-[10px] px-1.5 py-0.5 rounded font-medium text-[#8a8f98] bg-[#161616] border border-[#2a2a2a] truncate max-w-[160px]"
 									title={sourceCardTitle}
 								>
 									{sourceCardTitle}
@@ -157,7 +157,7 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 								<span className="px-1.5 py-0.5 rounded text-[10px] font-medium text-[#f5f5f5] bg-[#8b5cf6]/15">
 									Visual
 								</span>
-								{vcElements.length > 1 && <span className="text-[#6a6a80]">{vcElements.length} elements</span>}
+								{vcElements.length > 1 && <span className="text-[#8a8f98]">{vcElements.length} elements</span>}
 							</div>
 							{vcElements.map((el, idx) => {
 								const shortFile = el.sourceFile?.split("/").slice(-2).join("/");
@@ -178,10 +178,10 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 													{idx + 1}
 												</span>
 											)}
-											{el.elementSelector && <code className="font-mono text-[#c4baff]">{el.elementSelector}</code>}
-											{chainDisplay && <span className="text-[#6a6a80]">🧩 {chainDisplay}</span>}
+											{el.elementSelector && <code className="font-mono text-[#c4b5fd]">{el.elementSelector}</code>}
+											{chainDisplay && <span className="text-[#8a8f98]">🧩 {chainDisplay}</span>}
 										</div>
-										{el.elementText && <div className="text-[#a0a0b8] italic line-clamp-2">"{el.elementText}"</div>}
+										{el.elementText && <div className="text-[#8a8f98] italic line-clamp-2">"{el.elementText}"</div>}
 										{shortFile && (
 											<span className="font-mono text-[#5f6672]">
 												{shortFile}
@@ -240,7 +240,7 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 					onClick={handleDelete}
 					title="Delete comment"
 					aria-label="Delete comment"
-					className="shrink-0 mt-2 p-1 rounded text-[#5f6672] opacity-0 group-hover:opacity-100 transition-opacity hover:text-[#ff3b4d] hover:bg-[#1e1e28]"
+					className="shrink-0 mt-2 p-1 rounded text-[#5f6672] opacity-0 group-hover:opacity-100 transition-opacity hover:text-[#ff3b4d] hover:bg-[#1f1f1f]"
 				>
 					<Trash2 className="w-3.5 h-3.5" />
 				</button>

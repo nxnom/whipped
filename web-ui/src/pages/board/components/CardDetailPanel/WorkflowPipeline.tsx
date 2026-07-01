@@ -155,7 +155,7 @@ export function WorkflowPipeline({
 											className={classNames(
 												"text-xs",
 												isFocused
-													? "text-[#c4baff]"
+													? "text-[#c4b5fd]"
 													: status === "running"
 														? "font-semibold text-[#ededed]"
 														: status === "completed"

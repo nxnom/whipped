@@ -67,7 +67,7 @@ export function CompanionDiffPanel({ sessionId }: { sessionId: string }) {
 	const fileTree = buildFileTree(files);
 
 	return (
-		<div className="flex-1 min-h-0 flex flex-col font-mono text-xs bg-[#050505]">
+		<div className="flex-1 min-h-0 flex flex-col font-mono text-xs bg-whip-bg">
 			<div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-[#1f1f1f] bg-[#111111] font-sans">
 				<span className="text-[#8a8f98] text-xs">
 					{files.length} file{files.length !== 1 ? "s" : ""}

@@ -68,7 +68,7 @@ export function CardDetailTabs({
 	};
 
 	return (
-		<div className="flex-1 min-w-0 flex flex-col bg-[#050505]">
+		<div className="flex-1 min-w-0 flex flex-col bg-whip-bg">
 			{rightTab === "terminal" &&
 				(hasTerminalOutput ? (
 					<div className="flex-1 min-h-0 flex flex-col gap-2.5 p-5 bg-[#070707]">

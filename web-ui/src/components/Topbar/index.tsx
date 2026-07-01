@@ -55,7 +55,7 @@ export function Topbar({ workspaceId, onOpenAgent }: TopbarProps) {
 
 	return (
 		<>
-			<header className="flex items-center gap-4 h-16 px-5 shrink-0 bg-[#050505] border-b border-[#1f1f1f]">
+			<header className="flex items-center gap-4 h-16 px-5 shrink-0 bg-whip-bg border-b border-[#1f1f1f]">
 				<div className="flex items-center gap-2.5 w-[170px] shrink-0">
 					<img src={logo} alt="Whipped" className="shrink-0 size-7 rounded-[7px] object-cover" />
 					<span className="text-[17px] font-bold text-[#ededed]">Whipped</span>

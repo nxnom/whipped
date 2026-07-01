@@ -48,9 +48,9 @@ export function DiffFileList({
 				const filePendingComments = pendingComments.filter((c) => c.file === path);
 
 				return (
-					<div key={path} id={fileElemId(path)} className="border-b border-[#1e1e28]">
+					<div key={path} id={fileElemId(path)} className="border-b border-[#1f1f1f]">
 						{/* File header */}
-						<div className="flex items-center gap-2 px-3 py-2 bg-[#111118] border-b border-[#1e1e28] sticky top-0 z-10">
+						<div className="flex items-center gap-2 px-3 py-2 bg-[#111111] border-b border-[#1f1f1f] sticky top-0 z-10">
 							<button
 								onClick={() => onToggleCollapse(path)}
 								className="text-[#5f6672] hover:text-[#8a8f98] shrink-0 transition-colors"
@@ -107,7 +107,7 @@ export function DiffFileList({
 							file.hunks.map((hunk, hi) => (
 								<div key={hi}>
 									{/* Hunk header */}
-									<div className="px-2 py-0.5 bg-[#0d1a2d] text-[#4a7aad]/90 border-y border-[#1a2d3d]/60 whitespace-pre font-mono text-[11px]">
+									<div className="px-2 py-0.5 bg-[#161616] text-[#8a8f98] border-y border-[#2a2a2a] whitespace-pre font-mono text-[11px]">
 										{hunk.header}
 									</div>
 
@@ -118,19 +118,19 @@ export function DiffFileList({
 										const linePending = pendingComments.filter((c) => c.lineKey === lineKey);
 
 										const rowBg =
-											line.type === "added" ? "bg-[#0f3321]" : line.type === "removed" ? "bg-[#330f10]" : "";
+											line.type === "added" ? "bg-[#22c55e]/10" : line.type === "removed" ? "bg-[#ff3b4d]/10" : "";
 										const numBg =
 											line.type === "added"
-												? "bg-[#143d27]"
+												? "bg-[#22c55e]/20"
 												: line.type === "removed"
-													? "bg-[#3d1416]"
+													? "bg-[#ff3b4d]/20"
 													: "bg-transparent";
 										const numColor =
 											line.type === "added"
 												? "text-[#22c55e]"
 												: line.type === "removed"
 													? "text-[#ff3b4d]"
-													: "text-[#3a3a4a]";
+													: "text-[#5f6672]";
 										const sign = line.type === "added" ? "+" : line.type === "removed" ? "-" : " ";
 										const signColor =
 											line.type === "added"
@@ -140,10 +140,10 @@ export function DiffFileList({
 													: "text-transparent";
 										const textColor =
 											line.type === "added"
-												? "text-[#b7f5d0]"
+												? "text-[#86efac]"
 												: line.type === "removed"
-													? "text-[#ffd0d2]"
-													: "text-[#6b6b80]";
+													? "text-[#fca5a5]"
+													: "text-[#8a8f98]";
 
 										return (
 											<div key={li}>
@@ -154,7 +154,7 @@ export function DiffFileList({
 													{/* Line number */}
 													<div
 														className={classNames(
-															"w-10 shrink-0 text-right pr-2 py-0.5 select-none border-r border-[#1e1e28] font-mono text-[11px]",
+															"w-10 shrink-0 text-right pr-2 py-0.5 select-none border-r border-[#1f1f1f] font-mono text-[11px]",
 															numBg,
 															numColor,
 														)}
@@ -173,7 +173,7 @@ export function DiffFileList({
 													{/* Hover comment button */}
 													<button
 														onClick={() => (openCommentKey === lineKey ? onCloseComment() : onOpenComment(lineKey))}
-														className="absolute right-1 top-0.5 opacity-0 group-hover:opacity-100 transition-opacity text-[#ededed] hover:text-white p-0.5 rounded bg-[#1a1a28]"
+														className="absolute right-1 top-0.5 opacity-0 group-hover:opacity-100 transition-opacity text-[#ededed] hover:text-white p-0.5 rounded bg-[#161616]"
 													>
 														<Plus size={11} />
 													</button>

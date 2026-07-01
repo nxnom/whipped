@@ -49,7 +49,7 @@ export function CommitSelector({ commits, selectedCommit, onSelectCommit }: Comm
 			</button>
 
 			{open && (
-				<div className="absolute top-full left-0 mt-1 z-50 bg-[#13131a] border border-[#2a2a2a] rounded-lg shadow-2xl min-w-[320px] overflow-hidden py-1">
+				<div className="absolute top-full left-0 mt-1 z-50 bg-[#0b0b0b] border border-[#2a2a2a] rounded-lg shadow-2xl min-w-[320px] overflow-hidden py-1">
 					<button
 						onClick={() => select(null)}
 						className={classNames(
@@ -60,7 +60,7 @@ export function CommitSelector({ commits, selectedCommit, onSelectCommit }: Comm
 						<span className="font-mono text-[#5f6672] w-14 shrink-0 text-left">All</span>
 						<span>Show all changes</span>
 					</button>
-					<div className="h-px bg-[#1e1e28] mx-2 my-1" />
+					<div className="h-px bg-[#1f1f1f] mx-2 my-1" />
 					{commits.map((c) => (
 						<button
 							key={c.hash}

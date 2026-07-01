@@ -179,7 +179,7 @@
 
 /* ─── Textarea ───────────────────────────────────────────────────────────── */
 .dark .GeckoUITextarea {
-	background-color: #111111;
+	background-color: var(--color-whip-bg);
 	color: #ededed;
 	font-size: 13px;
 }
