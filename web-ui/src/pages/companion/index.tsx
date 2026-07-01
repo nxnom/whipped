@@ -37,6 +37,19 @@ export function CompanionPage() {
 
 	const select = (id: string) => navigate(`/${encodeURIComponent(wsId)}/companion/${encodeURIComponent(id)}`);
 
+	// Landing on the page with no session selected: jump straight to the most
+	// recently active one (installing or running) so you don't land on an empty
+	// state when something's actually happening. Falls back to nothing selected
+	// when every session is idle — never steals focus from an idle session the
+	// user explicitly picked.
+	useEffect(() => {
+		if (sessionId || sessions.length === 0) return;
+		const active = sessions
+			.filter((s) => s.status === "running" || s.status === "installing")
+			.sort((a, b) => b.updatedAt - a.updatedAt)[0];
+		if (active) navigate(`/${encodeURIComponent(wsId)}/companion/${encodeURIComponent(active.id)}`);
+	}, [sessionId, sessions, wsId, navigate]);
+
 	const handleStop = async () => {
 		if (!selected) return;
 		const res = await stop.trigger({ params: { id: selected.id }, query: { workspaceId: wsId } });

@@ -26,7 +26,17 @@ export function CompanionStartDialog({
 	onCreated: (sessionId: string) => void;
 }) {
 	const taskWorkflows = workflows.filter((w) => !w.forStory);
-	const [model, setModel] = useState<AgentModelChoice>(DEFAULT_AGENT_MODEL_CHOICE);
+	// Same "default, else first" pick as the ticket create dialog (TaskDialog.tsx).
+	const defaultTaskWorkflow = taskWorkflows.find((w) => w.isDefault) ?? taskWorkflows[0];
+
+	const modelFromWorkflow = (workflow?: Workflow): AgentModelChoice => {
+		const pair = workflow?.slots.find((s) => s.type === "dev")?.pairs[0];
+		return pair
+			? { agentId: pair.binary, model: pair.model ?? null, effort: pair.effort ?? null }
+			: DEFAULT_AGENT_MODEL_CHOICE;
+	};
+
+	const [model, setModel] = useState<AgentModelChoice>(() => modelFromWorkflow(defaultTaskWorkflow));
 
 	const { data: branchesData } = useRead((api) => api("cards/branches").GET({ query: { workspaceId } }));
 	const branches = branchesData?.branches ?? [];
@@ -34,10 +44,11 @@ export function CompanionStartDialog({
 
 	// `values` (not `defaultValues`) so the form reactively picks up defaultBranch
 	// once the async branches read resolves, per the project's default-branch
-	// seeding convention (see TaskDialog.tsx).
+	// seeding convention (see TaskDialog.tsx). Workflow defaults to the project's
+	// default task workflow rather than "no workflow".
 	const values = useMemo<CompanionStartForm>(
-		() => ({ useWorktree: true, baseRef: defaultBranch, branchName: "", workflowId: "" }),
-		[defaultBranch],
+		() => ({ useWorktree: true, baseRef: defaultBranch, branchName: "", workflowId: defaultTaskWorkflow?.id ?? "" }),
+		[defaultBranch, defaultTaskWorkflow?.id],
 	);
 	const methods = useForm<CompanionStartForm>({ resolver: zodResolver(companionStartFormSchema), values });
 	const { control, setValue } = methods;
@@ -45,10 +56,7 @@ export function CompanionStartDialog({
 	const { create } = useCompanionSessions(workspaceId);
 
 	const onWorkflowChange = (id: string) => {
-		const workflow = taskWorkflows.find((w) => w.id === id);
-		const devSlot = workflow?.slots.find((s) => s.type === "dev");
-		const pair = devSlot?.pairs[0];
-		if (pair) setModel({ agentId: pair.binary, model: pair.model ?? null, effort: pair.effort ?? null });
+		setModel(modelFromWorkflow(taskWorkflows.find((w) => w.id === id)));
 	};
 
 	const baseRef = useWatch({ control, name: "baseRef" });
