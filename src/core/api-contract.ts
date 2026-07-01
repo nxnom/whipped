@@ -1077,7 +1077,15 @@ export const planBlockSchema = z.discriminatedUnion("type", [
 	// Rendered via dangerouslySetInnerHTML, unsanitized — same trust boundary as
 	// the markdown block's rehype-raw pass-through (the agent is the user's own
 	// coding agent, not untrusted third-party input).
-	z.object({ id: z.string(), type: z.literal("html"), body: z.string() }),
+	z.object({
+		id: z.string(),
+		type: z.literal("html"),
+		body: z
+			.string()
+			.describe(
+				'Raw HTML rendered via dangerouslySetInnerHTML at runtime. Use this whenever the developer wants to see UI, layout, or visual design — a dashboard, a page structure, a component arrangement — since markdown can only describe that in prose while an actual html mockup shows it. It is NOT run through the app\'s build-time Tailwind compiler, so Tailwind utility classes (e.g. class="grid grid-cols-3 gap-4") produce no CSS and render unstyled — style the mockup with inline style="..." attributes, or a <style> block scoped to unique ids/classes you define within the same body.',
+			),
+	}),
 	z.object({
 		id: z.string(),
 		type: z.literal("diagram"),
