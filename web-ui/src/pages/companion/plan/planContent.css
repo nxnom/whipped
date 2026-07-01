@@ -1,0 +1,58 @@
+/* ─── Plan block content ────────────────────────────────────────────────────
+   Shared by MarkdownBlock (react-markdown output) and HtmlBlock (raw injected
+   HTML) via the `.plan-content` class — both need the same width-prone
+   elements (images, embeds, tables, pre/code) kept inside the resizable
+   panel, and HtmlBlock has no per-element className hook to style tables
+   individually, so this covers both through plain descendant selectors
+   instead of duplicating Tailwind's `[&_x]:` arbitrary-variant syntax.
+
+   Palette matches the code block styling in ChatComments/markdown.tsx:
+   border #2a2a38, background #1a1a24.
+   ──────────────────────────────────────────────────────────────────────── */
+
+.plan-content {
+	max-width: 100%;
+}
+
+.plan-content img,
+.plan-content video,
+.plan-content iframe {
+	max-width: 100%;
+}
+
+.plan-content img {
+	height: auto;
+}
+
+.plan-content pre {
+	max-width: 100%;
+	overflow-x: auto;
+	white-space: pre-wrap;
+}
+
+.plan-content table {
+	display: block;
+	max-width: 100%;
+	overflow-x: auto;
+	border-collapse: collapse;
+	margin: 4px 0;
+	font-size: 12px;
+}
+
+.plan-content th,
+.plan-content td {
+	border: 1px solid #2a2a38;
+	padding: 6px 10px;
+	text-align: left;
+	vertical-align: top;
+}
+
+.plan-content th {
+	background: #1a1a24;
+	color: #f0f0f5;
+	font-weight: 600;
+}
+
+.plan-content td {
+	color: #d1d5db;
+}
