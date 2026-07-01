@@ -81,6 +81,7 @@ export function CanvasBody({
 							block={block}
 							answers={answers}
 							onAnswer={(name, value) => setAnswers((prev) => ({ ...prev, [name]: value }))}
+							disabled={!isLatest}
 						/>
 						{comments
 							.filter((c) => c.blockId === block.id)

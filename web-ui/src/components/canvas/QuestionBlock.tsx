@@ -1,5 +1,6 @@
 import { Checkbox, Input, Radio, Textarea } from "@geckoui/geckoui";
 import type { QuestionInput } from "@runtime-contract";
+import { classNames } from "@/utils/classNames";
 import type { CanvasAnswers } from "./types";
 
 function titleCase(s: string): string {
@@ -18,10 +19,12 @@ function SingleChoiceField({
 	input,
 	value,
 	onChange,
+	disabled,
 }: {
 	input: Extract<QuestionInput, { kind: "single_choice" }>;
 	value: string | undefined;
 	onChange: (v: string) => void;
+	disabled?: boolean;
 }) {
 	return (
 		<div className="flex flex-col gap-1.5">
@@ -37,9 +40,13 @@ function SingleChoiceField({
 						value={opt.value}
 						checked={value === opt.value}
 						onChange={() => onChange(opt.value)}
+						disabled={disabled}
 						className="mt-[3px]"
 					/>
-					<span className="flex flex-col cursor-pointer" onClick={() => onChange(opt.value)}>
+					<span
+						className={classNames("flex flex-col", disabled ? "cursor-default" : "cursor-pointer")}
+						onClick={() => !disabled && onChange(opt.value)}
+					>
 						<span className="text-[13px] text-gray-200">{opt.label}</span>
 						{opt.description && <span className="text-[11px] text-gray-500">{opt.description}</span>}
 					</span>
@@ -53,10 +60,12 @@ function MultiChoiceField({
 	input,
 	value,
 	onChange,
+	disabled,
 }: {
 	input: Extract<QuestionInput, { kind: "multi_choice" }>;
 	value: string[];
 	onChange: (v: string[]) => void;
+	disabled?: boolean;
 }) {
 	const selected = new Set(value);
 	const toggle = (v: string) => {
@@ -75,9 +84,12 @@ function MultiChoiceField({
 			{input.options.map((opt) => (
 				<div key={opt.value} className="flex items-start gap-2">
 					<div className="mt-[2px]">
-						<Checkbox checked={selected.has(opt.value)} onChange={() => toggle(opt.value)} />
+						<Checkbox checked={selected.has(opt.value)} onChange={() => toggle(opt.value)} disabled={disabled} />
 					</div>
-					<span className="flex flex-col cursor-pointer" onClick={() => toggle(opt.value)}>
+					<span
+						className={classNames("flex flex-col", disabled ? "cursor-default" : "cursor-pointer")}
+						onClick={() => !disabled && toggle(opt.value)}
+					>
 						<span className="text-[13px] text-gray-200">{opt.label}</span>
 						{opt.description && <span className="text-[11px] text-gray-500">{opt.description}</span>}
 					</span>
@@ -91,10 +103,12 @@ function TextField({
 	input,
 	value,
 	onChange,
+	disabled,
 }: {
 	input: Extract<QuestionInput, { kind: "text" }>;
 	value: string;
 	onChange: (v: string) => void;
+	disabled?: boolean;
 }) {
 	return (
 		<div className="flex flex-col gap-1.5">
@@ -104,9 +118,20 @@ function TextField({
 				</span>
 			)}
 			{input.multiline ? (
-				<Textarea placeholder={input.placeholder} value={value} onChange={(e) => onChange(e.target.value)} rows={3} />
+				<Textarea
+					placeholder={input.placeholder}
+					value={value}
+					onChange={(e) => onChange(e.target.value)}
+					rows={3}
+					disabled={disabled}
+				/>
 			) : (
-				<Input placeholder={input.placeholder} value={value} onChange={(e) => onChange(e.target.value)} />
+				<Input
+					placeholder={input.placeholder}
+					value={value}
+					onChange={(e) => onChange(e.target.value)}
+					disabled={disabled}
+				/>
 			)}
 		</div>
 	);
@@ -116,10 +141,12 @@ function LeafField({
 	input,
 	answers,
 	onAnswer,
+	disabled,
 }: {
 	input: Exclude<QuestionInput, { kind: "composite" }>;
 	answers: CanvasAnswers;
 	onAnswer: (name: string, value: string | string[]) => void;
+	disabled?: boolean;
 }) {
 	const label = input.label ?? titleCase(input.name);
 	switch (input.kind) {
@@ -129,6 +156,7 @@ function LeafField({
 					input={{ ...input, label }}
 					value={answers[input.name] as string | undefined}
 					onChange={(v) => onAnswer(input.name, v)}
+					disabled={disabled}
 				/>
 			);
 		case "multi_choice":
@@ -137,6 +165,7 @@ function LeafField({
 					input={{ ...input, label }}
 					value={(answers[input.name] as string[] | undefined) ?? []}
 					onChange={(v) => onAnswer(input.name, v)}
+					disabled={disabled}
 				/>
 			);
 		case "text":
@@ -145,6 +174,7 @@ function LeafField({
 					input={{ ...input, label }}
 					value={(answers[input.name] as string | undefined) ?? ""}
 					onChange={(v) => onAnswer(input.name, v)}
+					disabled={disabled}
 				/>
 			);
 	}
@@ -154,19 +184,21 @@ export function QuestionBlock({
 	input,
 	answers,
 	onAnswer,
+	disabled,
 }: {
 	input: QuestionInput;
 	answers: CanvasAnswers;
 	onAnswer: (name: string, value: string | string[]) => void;
+	disabled?: boolean;
 }) {
 	if (input.kind === "composite") {
 		return (
 			<div className="flex flex-col gap-3">
 				{input.parts.map((part) => (
-					<LeafField key={part.name} input={part} answers={answers} onAnswer={onAnswer} />
+					<LeafField key={part.name} input={part} answers={answers} onAnswer={onAnswer} disabled={disabled} />
 				))}
 			</div>
 		);
 	}
-	return <LeafField input={input} answers={answers} onAnswer={onAnswer} />;
+	return <LeafField input={input} answers={answers} onAnswer={onAnswer} disabled={disabled} />;
 }
