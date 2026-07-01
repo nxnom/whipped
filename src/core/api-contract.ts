@@ -995,7 +995,7 @@ export const companionSessionSchema = z.object({
 	model: z.string().nullable(),
 	effort: effortLevelSchema.nullable(),
 	status: companionSessionStatusSchema.default("stopped"),
-	savedPlanId: z.string().nullable(),
+	savedCanvasId: z.string().nullable(),
 	createdAt: z.number(),
 	updatedAt: z.number(),
 });
@@ -1008,14 +1008,17 @@ export const companionSessionCreateRequestSchema = z.object({
 	branchName: z.string().optional(),
 	workflowId: z.string().optional(),
 	model: agentModelChoiceSchema.optional(),
-	savedPlanId: z.string().optional(),
+	savedCanvasId: z.string().optional(),
 });
 export type CompanionSessionCreateRequest = z.infer<typeof companionSessionCreateRequestSchema>;
 
-// ─── Plan panel ───────────────────────────────────────────────────────────────
-// A structured plan pushed via the `whipped_show_plan` MCP tool (shared by the
-// companion and assistant agents) — markdown, raw HTML, mermaid diagrams, and
-// interactive question blocks interleaved. Versioned (each push appends, never overwrites); the developer's
+// ─── Canvas ───────────────────────────────────────────────────────────────────
+// A structured canvas pushed via the `whipped_show_canvas` MCP tool (shared by
+// the companion and assistant agents) — markdown, raw HTML, mermaid diagrams,
+// and interactive question blocks interleaved. Not just for plans — a canvas
+// is equally the right surface for a set of questions, a report, or findings;
+// "plan" is one trigger phrase among several that opens it, not the whole
+// concept. Versioned (each push appends, never overwrites); the developer's
 // answers/comments are composed into one message and typed into the agent's
 // terminal — there is no separate response channel, so nothing here is ever
 // sent back as structured data.
@@ -1035,7 +1038,7 @@ export type ChoiceOption = z.infer<typeof choiceOptionSchema>;
 // every question explicitly (answered, or "(not answered)") so the agent can
 // judge for itself whether to re-ask a required-but-skipped question next time.
 const REQUIRED_FIELD_DESCRIPTION =
-	'Signal only — not enforced by the panel, the developer can send/approve without answering. If this comes back "(not answered)" and you still need it, ask again in your next plan version.';
+	'Signal only — not enforced by the panel, the developer can send/approve without answering. If this comes back "(not answered)" and you still need it, ask again in your next canvas version.';
 
 const questionLeafInputSchema = z.discriminatedUnion("kind", [
 	z.object({
@@ -1072,7 +1075,7 @@ export const questionInputSchema = z.discriminatedUnion("kind", [
 ]);
 export type QuestionInput = z.infer<typeof questionInputSchema>;
 
-export const planBlockSchema = z.discriminatedUnion("type", [
+export const canvasBlockSchema = z.discriminatedUnion("type", [
 	z.object({ id: z.string(), type: z.literal("markdown"), body: z.string() }),
 	// Rendered via dangerouslySetInnerHTML, unsanitized — same trust boundary as
 	// the markdown block's rehype-raw pass-through (the agent is the user's own
@@ -1095,29 +1098,30 @@ export const planBlockSchema = z.discriminatedUnion("type", [
 	}),
 	z.object({ id: z.string(), type: z.literal("question"), prompt: z.string(), input: questionInputSchema }),
 ]);
-export type PlanBlock = z.infer<typeof planBlockSchema>;
+export type CanvasBlock = z.infer<typeof canvasBlockSchema>;
 
-export const planDocumentSchema = z.object({
+export const canvasDocumentSchema = z.object({
 	version: z.number(),
 	createdAt: z.number(),
-	blocks: z.array(planBlockSchema),
+	blocks: z.array(canvasBlockSchema),
 });
-export type PlanDocument = z.infer<typeof planDocumentSchema>;
+export type CanvasDocument = z.infer<typeof canvasDocumentSchema>;
 
-// A plan consolidated (by the agent, via `whipped_save_plan`) from a session's
-// version history and saved to the workspace's reusable plan library. A session
-// linked to one (via `CompanionSession.savedPlanId`) updates the same row on
-// subsequent saves instead of creating duplicates — see companion-saved-plans-service.ts.
-export const companionSavedPlanSchema = z.object({
+// A canvas consolidated (by the agent, via `whipped_save_canvas`) from a
+// session's version history and saved to the workspace's reusable canvas
+// library. A session linked to one (via `CompanionSession.savedCanvasId`)
+// updates the same row on subsequent saves instead of creating duplicates —
+// see companion-saved-canvases-service.ts.
+export const companionSavedCanvasSchema = z.object({
 	id: z.string(),
 	workspaceId: z.string(),
 	title: z.string(),
-	blocks: z.array(planBlockSchema),
+	blocks: z.array(canvasBlockSchema),
 	sourceSessionId: z.string().nullable(),
 	createdAt: z.number(),
 	updatedAt: z.number(),
 });
-export type CompanionSavedPlan = z.infer<typeof companionSavedPlanSchema>;
+export type CompanionSavedCanvas = z.infer<typeof companionSavedCanvasSchema>;
 
 // ─── WebSocket events ─────────────────────────────────────────────────────────
 
@@ -1128,7 +1132,7 @@ export type RuntimeStateEvent =
 	| { type: "workspace_updated"; state: RuntimeWorkspaceStateResponse }
 	| { type: "terminal_output"; taskId: string; data: string }
 	| { type: "run_session_changed"; cardId: string | null; status: RunSessionStatus; errorMessage?: string }
-	| { type: "companion_plan_updated"; sessionId: string; plan: PlanDocument }
+	| { type: "companion_canvas_updated"; sessionId: string; canvas: CanvasDocument }
 	| { type: "update_available"; latestVersion: string };
 
 // ─── Projects layout ─────────────────────────────────────────────────────────

@@ -1,13 +1,13 @@
 import { Checkbox, Input, Radio, Textarea } from "@geckoui/geckoui";
 import type { QuestionInput } from "@runtime-contract";
-import type { PlanAnswers } from "./types";
+import type { CanvasAnswers } from "./types";
 
 function titleCase(s: string): string {
 	return s.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
 }
 
 // The developer isn't blocked from sending without answering a required
-// question (see PlanFeedbackComposer) — this just tells them the agent
+// question (see CanvasFeedbackComposer) — this just tells them the agent
 // considers it important, so a comment-only skip is a deliberate choice.
 export function RequiredMark({ required }: { required?: boolean }) {
 	if (!required) return null;
@@ -115,7 +115,7 @@ function LeafField({
 	onAnswer,
 }: {
 	input: Exclude<QuestionInput, { kind: "composite" }>;
-	answers: PlanAnswers;
+	answers: CanvasAnswers;
 	onAnswer: (name: string, value: string | string[]) => void;
 }) {
 	const label = input.label ?? titleCase(input.name);
@@ -153,7 +153,7 @@ export function QuestionBlock({
 	onAnswer,
 }: {
 	input: QuestionInput;
-	answers: PlanAnswers;
+	answers: CanvasAnswers;
 	onAnswer: (name: string, value: string | string[]) => void;
 }) {
 	if (input.kind === "composite") {

@@ -1,5 +1,5 @@
 import type { WebSocket } from "ws";
-import type { PlanDocument, RunSessionStatus, RuntimeStateEvent } from "../core/api-contract.js";
+import type { CanvasDocument, RunSessionStatus, RuntimeStateEvent } from "../core/api-contract.js";
 import { loadWorkspaceState } from "../state/workspace-state.js";
 import { slackNotifier } from "../slack/slack-notifier.js";
 
@@ -140,8 +140,8 @@ export class RuntimeStateHub {
 		this.broadcastToWorkspace(workspaceId, { type: "run_session_changed", cardId, status, errorMessage });
 	}
 
-	broadcastCompanionPlanUpdate(workspaceId: WorkspaceId, sessionId: string, plan: PlanDocument): void {
-		this.broadcastToWorkspace(workspaceId, { type: "companion_plan_updated", sessionId, plan });
+	broadcastCompanionCanvasUpdate(workspaceId: WorkspaceId, sessionId: string, canvas: CanvasDocument): void {
+		this.broadcastToWorkspace(workspaceId, { type: "companion_canvas_updated", sessionId, canvas });
 	}
 
 	private broadcastToWorkspace(workspaceId: WorkspaceId, event: RuntimeStateEvent): void {

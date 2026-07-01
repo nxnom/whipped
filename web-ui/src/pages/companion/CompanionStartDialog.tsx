@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { AgentModelPicker } from "@/components/AgentModelPicker";
 import { BranchSelect } from "@/components/BranchSelect";
-import { useSavedPlans } from "@/components/plan/useSavedPlans";
+import { useSavedCanvases } from "@/components/canvas/useSavedCanvases";
 import { useRead } from "@/runtime/api-client";
 import { useCompanionSessions } from "./useCompanionSessions";
 
@@ -55,18 +55,18 @@ export function CompanionStartDialog({
 	const { control, setValue } = methods;
 
 	const { create } = useCompanionSessions(workspaceId);
-	const { list: savedPlansList, remove: removeSavedPlan } = useSavedPlans(workspaceId);
-	const savedPlans = savedPlansList.data?.plans ?? [];
-	const [savedPlanId, setSavedPlanId] = useState("");
+	const { list: savedCanvasesList, remove: removeSavedCanvas } = useSavedCanvases(workspaceId);
+	const savedCanvases = savedCanvasesList.data?.canvases ?? [];
+	const [savedCanvasId, setSavedCanvasId] = useState("");
 
 	const onWorkflowChange = (id: string) => {
 		setModel(modelFromWorkflow(taskWorkflows.find((w) => w.id === id)));
 	};
 
-	const onDeleteSavedPlan = async (id: string) => {
-		await removeSavedPlan.trigger({ params: { id } });
-		if (savedPlanId === id) setSavedPlanId("");
-		void savedPlansList.trigger();
+	const onDeleteSavedCanvas = async (id: string) => {
+		await removeSavedCanvas.trigger({ params: { id } });
+		if (savedCanvasId === id) setSavedCanvasId("");
+		void savedCanvasesList.trigger();
 	};
 
 	const baseRef = useWatch({ control, name: "baseRef" });
@@ -81,7 +81,7 @@ export function CompanionStartDialog({
 				branchName: v.useWorktree ? v.branchName.trim() : undefined,
 				workflowId: v.workflowId || undefined,
 				model,
-				savedPlanId: savedPlanId || undefined,
+				savedCanvasId: savedCanvasId || undefined,
 			},
 		});
 		if (res.error || !res.data) {
@@ -140,18 +140,18 @@ export function CompanionStartDialog({
 							</div>
 						)}
 
-						{savedPlans.length > 0 && (
+						{savedCanvases.length > 0 && (
 							<div className="flex flex-col gap-1.5">
-								<FieldLabel>Start from saved plan (optional)</FieldLabel>
+								<FieldLabel>Start from saved canvas (optional)</FieldLabel>
 								<Select
-									value={savedPlanId}
-									onChange={(v) => setSavedPlanId(v as string)}
+									value={savedCanvasId}
+									onChange={(v) => setSavedCanvasId(v as string)}
 									placeholder="None — start fresh"
 									prefix={<FileText size={13} className="text-[#8888a0]" />}
 								>
 									<SelectOption value="" label="None — start fresh" />
-									{savedPlans.map((p) => (
-										<SelectOption key={p.id} value={p.id} label={p.title} onRemove={() => onDeleteSavedPlan(p.id)} />
+									{savedCanvases.map((p) => (
+										<SelectOption key={p.id} value={p.id} label={p.title} onRemove={() => onDeleteSavedCanvas(p.id)} />
 									))}
 								</Select>
 							</div>

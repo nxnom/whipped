@@ -10,7 +10,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { ASSISTANT_AGENT_PREFIX, DEFAULT_GIT_INSTRUCTIONS, planBlockSchema } from "../core/api-contract.js";
+import { ASSISTANT_AGENT_PREFIX, canvasBlockSchema, DEFAULT_GIT_INSTRUCTIONS } from "../core/api-contract.js";
 
 const serverUrl = process.argv[2] ?? process.env.WHIPPED_SERVER_URL ?? "http://127.0.0.1:3000";
 const workspaceId = process.argv[3] ?? process.env.WHIPPED_WORKSPACE_ID ?? "";
@@ -21,8 +21,8 @@ const agentId = process.argv[4] && !process.argv[4].startsWith("--") ? process.a
 //   recurring — a recurring agent; may write its own journal (id below) but cannot
 //               manage recurring agents (no self-creation).
 //   companion — a standalone coding session outside the ticket lifecycle; may look
-//               up a card for context, and push a plan to its own session's plan
-//               panel (id below), but has no other kanban tool access.
+//               up a card for context, and push a canvas to its own session
+//               (id below), but has no other kanban tool access.
 // Anything else (task/review/unset) gets only the base board tools.
 function namedArg(flag: string): string | undefined {
 	const hit = process.argv.find((a) => a.startsWith(`${flag}=`));
@@ -64,8 +64,8 @@ const ROUTES: Record<string, RestRoute> = {
 	"recurring.update": { method: "PATCH", path: (i) => `recurring-agents/${i.id as string}` },
 	"recurring.delete": { method: "DELETE", path: (i) => `recurring-agents/${i.id as string}` },
 	"recurring.setJournal": { method: "POST", path: (i) => `recurring-agents/${i.id as string}/journal` },
-	"companion.showPlan": { method: "POST", path: (i) => `companion-sessions/${i.sessionId as string}/plan` },
-	"companion.savePlan": { method: "POST", path: (i) => `companion-sessions/${i.sessionId as string}/save-plan` },
+	"companion.showCanvas": { method: "POST", path: (i) => `companion-sessions/${i.sessionId as string}/canvas` },
+	"companion.saveCanvas": { method: "POST", path: (i) => `companion-sessions/${i.sessionId as string}/save-canvas` },
 };
 
 // Mutation (POST/PATCH/DELETE): input is the JSON body.
@@ -123,11 +123,11 @@ const RECURRING_OBSERVER_TOOLS = new Set([
 // code) but is not part of the ticket lifecycle — it may look up a card for
 // context but must never create/edit/comment on one. Git instructions and the
 // project system prompt are already baked into its spawned prompt (like the dev
-// agent), so it doesn't need those lookup tools either. whipped_show_plan is
-// the one sanctioned "write" here — it pushes to the session's own plan panel,
+// agent), so it doesn't need those lookup tools either. whipped_show_canvas is
+// the one sanctioned "write" here — it pushes to the session's own canvas,
 // not the board, so it's an exception to the read-only rule above, not a
 // contradiction of it.
-const COMPANION_ALLOWED_TOOLS = new Set(["kanban_get_board", "whipped_show_plan", "whipped_save_plan"]);
+const COMPANION_ALLOWED_TOOLS = new Set(["kanban_get_board", "whipped_show_canvas", "whipped_save_canvas"]);
 
 const baseRegisterTool = server.registerTool;
 // Drop-in for server.registerTool that withholds mutating tools from observers.
@@ -1347,61 +1347,64 @@ if (mcpRole === "recurring" && recurringAgentId) {
 	);
 }
 
-// Plan mode: pushes a structured plan to a panel the developer can answer,
+// Canvas: pushes structured, interactive content — a plan, a report,
+// findings, a set of questions — to a surface the developer can answer,
 // comment on, and approve. Shared by the companion agent (its own session's
-// plan panel) and the assistant agent (a per-workspace singleton session, so
+// canvas) and the assistant agent (a per-workspace singleton session, so
 // its id is derived rather than passed in — there's no per-session CLI arg
 // for it the way companion has companionSessionId).
-const planSessionId =
+const canvasSessionId =
 	mcpRole === "companion"
 		? companionSessionId
 		: mcpRole === "assistant"
 			? `${ASSISTANT_AGENT_PREFIX}${workspaceId}`
 			: "";
 
-if (planSessionId) {
+if (canvasSessionId) {
 	registerTool(
-		"whipped_show_plan",
+		"whipped_show_canvas",
 		{
 			description:
-				"Push a structured plan — markdown, raw HTML, mermaid diagrams, and interactive questions — to the developer's plan panel. Use markdown for the plan's reasoning, steps, and options; use an html block whenever the developer wants to see UI, layout, or visual design — a dashboard, a page structure, a component arrangement — since a real mockup shows it and markdown can only describe it in prose. HTML blocks are rendered unsanitized via dangerouslySetInnerHTML at runtime — NOT compiled by the app's build-time Tailwind setup, so Tailwind utility classes in that HTML produce no styling; style mockups with inline style attributes or a <style> block instead. Each call appends a new version; it does not overwrite the last one. Call this AT MOST ONCE per turn — never call it twice in a row before the developer has replied. If you're not happy with a version before they've responded, that's still one call: think it through and send the version you actually want, don't push a draft and then immediately push a fix. The developer's answers, comments, and notes come back as a normal follow-up chat message — there is no separate response channel.",
-			inputSchema: { blocks: z.array(planBlockSchema).describe("Ordered plan blocks: markdown, diagram, or question") },
+				"Push structured, interactive content — a plan, a report, findings, or a set of questions — to the developer's canvas: markdown, raw HTML, mermaid diagrams, and interactive questions. Use markdown for reasoning, steps, and options; use an html block whenever the developer wants to see UI, layout, or visual design — a dashboard, a page structure, a component arrangement — since a real mockup shows it and markdown can only describe it in prose. HTML blocks are rendered unsanitized via dangerouslySetInnerHTML at runtime — NOT compiled by the app's build-time Tailwind setup, so Tailwind utility classes in that HTML produce no styling; style mockups with inline style attributes or a <style> block instead. Each call appends a new version; it does not overwrite the last one. Call this AT MOST ONCE per turn — never call it twice in a row before the developer has replied. If you're not happy with a version before they've responded, that's still one call: think it through and send the version you actually want, don't push a draft and then immediately push a fix. The developer's answers, comments, and notes come back as a normal follow-up chat message — there is no separate response channel.",
+			inputSchema: {
+				blocks: z.array(canvasBlockSchema).describe("Ordered canvas blocks: markdown, html, diagram, or question"),
+			},
 		},
 		async ({ blocks }) => {
 			try {
-				await apiMutate("companion.showPlan", { sessionId: planSessionId, workspaceId, blocks });
-				return { content: [{ type: "text", text: "Plan sent to the developer's panel." }] };
+				await apiMutate("companion.showCanvas", { sessionId: canvasSessionId, workspaceId, blocks });
+				return { content: [{ type: "text", text: "Canvas sent to the developer." }] };
 			} catch (err) {
-				return { content: [{ type: "text", text: `Failed to send plan: ${(err as Error).message}` }] };
+				return { content: [{ type: "text", text: `Failed to send canvas: ${(err as Error).message}` }] };
 			}
 		},
 	);
 
 	registerTool(
-		"whipped_save_plan",
+		"whipped_save_canvas",
 		{
 			description:
-				"Consolidate everything proposed across this session's plan versions into ONE final, coherent plan and save it to the project's reusable plan library, so it can seed future work later. If this session already has a saved plan (resumed from one, or already saved once), this UPDATES that same plan instead of creating a duplicate — call it again whenever you finish a meaningful chunk of work, describing what's done explicitly in the blocks, so a future resumption knows what's already handled and what's left.",
+				"Consolidate everything proposed across this session's canvas versions into ONE final, coherent canvas and save it to the project's reusable canvas library, so it can seed future work later. If this session already has a saved canvas (resumed from one, or already saved once), this UPDATES that same canvas instead of creating a duplicate — call it again whenever you finish a meaningful chunk of work, describing what's done explicitly in the blocks, so a future resumption knows what's already handled and what's left.",
 			inputSchema: {
-				title: z.string().describe("Short, descriptive title for the saved plan"),
+				title: z.string().describe("Short, descriptive title for the saved canvas"),
 				blocks: z
-					.array(planBlockSchema)
+					.array(canvasBlockSchema)
 					.describe(
-						"The final, consolidated plan — merge every prior version's content into one coherent plan, don't just resend the latest version verbatim",
+						"The final, consolidated canvas — merge every prior version's content into one coherent canvas, don't just resend the latest version verbatim",
 					),
 			},
 		},
 		async ({ title, blocks }) => {
 			try {
-				const saved = await apiMutate<{ title: string }>("companion.savePlan", {
-					sessionId: planSessionId,
+				const saved = await apiMutate<{ title: string }>("companion.saveCanvas", {
+					sessionId: canvasSessionId,
 					workspaceId,
 					title,
 					blocks,
 				});
-				return { content: [{ type: "text", text: `Plan saved as "${saved.title}".` }] };
+				return { content: [{ type: "text", text: `Canvas saved as "${saved.title}".` }] };
 			} catch (err) {
-				return { content: [{ type: "text", text: `Failed to save plan: ${(err as Error).message}` }] };
+				return { content: [{ type: "text", text: `Failed to save canvas: ${(err as Error).message}` }] };
 			}
 		},
 	);

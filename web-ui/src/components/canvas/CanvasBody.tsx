@@ -1,28 +1,28 @@
-import type { PlanDocument } from "@runtime-contract";
+import type { CanvasDocument } from "@runtime-contract";
 import { MessageSquare, MessageSquarePlus, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { classNames } from "@/utils/classNames";
-import { PlanBlockRenderer } from "./PlanBlockRenderer";
-import { PlanFeedbackComposer } from "./PlanFeedbackComposer";
-import { PlanVersionSelector } from "./PlanVersionSelector";
-import type { PlanAnswers, PlanComment } from "./types";
+import { CanvasBlockRenderer } from "./CanvasBlockRenderer";
+import { CanvasFeedbackComposer } from "./CanvasFeedbackComposer";
+import { CanvasVersionSelector } from "./CanvasVersionSelector";
+import type { CanvasAnswers, CanvasComment } from "./types";
 
-// All the interactive plan-viewing/feedback logic (version selection, answers,
-// per-block comments, the composer), independent of how it's presented — the
-// two current shells are the companion sidebar (PlanPanel.tsx) and the
-// assistant's full-page dialog (AssistantPlanDialog.tsx). Takes plans/
-// sendFeedback as props rather than fetching them itself, so each shell owns
-// its own single data-fetching hook call and decides independently whether to
-// render at all.
-export function PlanBody({
+// All the interactive canvas-viewing/feedback logic (version selection,
+// answers, per-block comments, the composer), independent of how it's
+// presented — the two current shells are the companion sidebar
+// (CanvasPanel.tsx) and the assistant's full-page dialog
+// (AssistantCanvasDialog.tsx). Takes canvases/sendFeedback as props rather
+// than fetching them itself, so each shell owns its own single
+// data-fetching hook call and decides independently whether to render at all.
+export function CanvasBody({
 	sessionId,
-	plans,
+	canvases,
 	sendFeedback,
 	headerActions,
 	onClose,
 }: {
 	sessionId: string;
-	plans: PlanDocument[];
+	canvases: CanvasDocument[];
 	sendFeedback: (text: string) => Promise<void>;
 	headerActions?: React.ReactNode;
 	// Fires once feedback actually lands — after Send, or after Approve's
@@ -32,12 +32,12 @@ export function PlanBody({
 	onClose?: () => void;
 }) {
 	const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
-	const [answers, setAnswers] = useState<PlanAnswers>({});
-	const [comments, setComments] = useState<PlanComment[]>([]);
+	const [answers, setAnswers] = useState<CanvasAnswers>({});
+	const [comments, setComments] = useState<CanvasComment[]>([]);
 	const [commentDraftFor, setCommentDraftFor] = useState<string | null>(null);
 	const [commentDraft, setCommentDraft] = useState("");
 
-	const latestVersion = plans[0]?.version ?? null;
+	const latestVersion = canvases[0]?.version ?? null;
 
 	// Follow the latest version as new ones arrive; reset staged feedback since
 	// it was composed against the previous version's blocks/ids.
@@ -48,10 +48,10 @@ export function PlanBody({
 		setComments([]);
 	}, [latestVersion]);
 
-	if (plans.length === 0) return null;
+	if (canvases.length === 0) return null;
 
-	const activePlan = plans.find((p) => p.version === selectedVersion) ?? plans[0]!;
-	const isLatest = activePlan.version === latestVersion;
+	const activeCanvas = canvases.find((p) => p.version === selectedVersion) ?? canvases[0]!;
+	const isLatest = activeCanvas.version === latestVersion;
 
 	const addComment = (blockId: string) => {
 		if (!commentDraft.trim()) return;
@@ -63,11 +63,11 @@ export function PlanBody({
 	return (
 		<div className="flex-1 flex flex-col overflow-hidden">
 			<div className="flex items-center justify-between px-3 py-2.5 border-b border-[#2a2a35] shrink-0">
-				<span className="text-[13px] font-semibold text-[#f0f0f5]">Plan</span>
+				<span className="text-[13px] font-semibold text-[#f0f0f5]">Canvas</span>
 				<div className="flex items-center gap-2">
-					<PlanVersionSelector
-						plans={plans}
-						selectedVersion={activePlan.version}
+					<CanvasVersionSelector
+						canvases={canvases}
+						selectedVersion={activeCanvas.version}
 						onSelectVersion={setSelectedVersion}
 					/>
 					{headerActions}
@@ -75,9 +75,9 @@ export function PlanBody({
 			</div>
 
 			<div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 flex flex-col gap-4">
-				{activePlan.blocks.map((block) => (
+				{activeCanvas.blocks.map((block) => (
 					<div key={block.id} className="group relative flex flex-col gap-1.5">
-						<PlanBlockRenderer
+						<CanvasBlockRenderer
 							block={block}
 							answers={answers}
 							onAnswer={(name, value) => setAnswers((prev) => ({ ...prev, [name]: value }))}
@@ -146,10 +146,10 @@ export function PlanBody({
 			</div>
 
 			{isLatest && (
-				<PlanFeedbackComposer
+				<CanvasFeedbackComposer
 					sessionId={sessionId}
-					version={activePlan.version}
-					blocks={activePlan.blocks}
+					version={activeCanvas.version}
+					blocks={activeCanvas.blocks}
 					answers={answers}
 					comments={comments}
 					sendFeedback={sendFeedback}

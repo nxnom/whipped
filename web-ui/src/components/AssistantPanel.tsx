@@ -3,9 +3,9 @@ import { type AgentModelChoice, DEFAULT_AGENT_MODEL_CHOICE } from "@runtime-cont
 import { Bot, ClipboardList, FileText, Square, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { AgentModelPicker } from "@/components/AgentModelPicker";
-import { AssistantPlanDialog } from "@/components/AssistantPlanDialog";
-import { usePlanVersions } from "@/components/plan/usePlanVersions";
-import { useSavedPlans } from "@/components/plan/useSavedPlans";
+import { AssistantCanvasDialog } from "@/components/AssistantCanvasDialog";
+import { useCanvasVersions } from "@/components/canvas/useCanvasVersions";
+import { useSavedCanvases } from "@/components/canvas/useSavedCanvases";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { useRead, useWrite } from "@/runtime/api-client";
 import { useWorkspaceState } from "@/stores/board-store";
@@ -27,8 +27,8 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 	const [starting, setStarting] = useState(false);
 	const startingRef = useRef(false);
 	const [pickedModel, setPickedModel] = useState<AgentModelChoice | null>(null);
-	const [savedPlanId, setSavedPlanId] = useState("");
-	const [planDialogOpen, setPlanDialogOpen] = useState(false);
+	const [savedCanvasId, setSavedCanvasId] = useState("");
+	const [canvasDialogOpen, setCanvasDialogOpen] = useState(false);
 	const [width, setWidth] = useState(DEFAULT_WIDTH);
 	const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
@@ -41,23 +41,23 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 	});
 	const { trigger: startSessionRequest } = useWrite((api) => api("agent/session").POST());
 	const { trigger: stopSessionRequest } = useWrite((api) => api("agent/session").DELETE());
-	const { plans, sendFeedback } = usePlanVersions(workspaceId, taskId ?? "");
-	const { list: savedPlansList, remove: removeSavedPlan } = useSavedPlans(workspaceId);
-	const savedPlans = savedPlansList.data?.plans ?? [];
+	const { canvases, sendFeedback } = useCanvasVersions(workspaceId, taskId ?? "");
+	const { list: savedCanvasesList, remove: removeSavedCanvas } = useSavedCanvases(workspaceId);
+	const savedCanvases = savedCanvasesList.data?.canvases ?? [];
 
-	const onDeleteSavedPlan = async (id: string) => {
-		await removeSavedPlan.trigger({ params: { id } });
-		if (savedPlanId === id) setSavedPlanId("");
-		void savedPlansList.trigger();
+	const onDeleteSavedCanvas = async (id: string) => {
+		await removeSavedCanvas.trigger({ params: { id } });
+		if (savedCanvasId === id) setSavedCanvasId("");
+		void savedCanvasesList.trigger();
 	};
 
-	// A new plan version arriving is worth surfacing even if the developer
+	// A new canvas version arriving is worth surfacing even if the developer
 	// closed a previous one — this only depends on the latest version number,
 	// so it doesn't reopen the dialog on every unrelated re-render.
 	useEffect(() => {
-		if (plans[0]?.version === undefined) return;
-		setPlanDialogOpen(true);
-	}, [plans[0]?.version]);
+		if (canvases[0]?.version === undefined) return;
+		setCanvasDialogOpen(true);
+	}, [canvases[0]?.version]);
 
 	const onDragStart = (e: React.MouseEvent) => {
 		e.preventDefault();
@@ -109,7 +109,7 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 		setStarting(true);
 		try {
 			const { data: result } = await startSessionRequest({
-				body: { workspaceId, override: modelValue, savedPlanId: savedPlanId || undefined },
+				body: { workspaceId, override: modelValue, savedCanvasId: savedCanvasId || undefined },
 			});
 			setTaskId(result?.taskId ?? null);
 		} finally {
@@ -140,8 +140,8 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 						<h2 className="text-sm font-medium text-[#f0f0f5]">Assistant</h2>
 					</div>
 					<div className="flex items-center gap-2">
-						{plans.length > 0 && (
-							<Button variant="ghost" size="sm" onClick={() => setPlanDialogOpen(true)}>
+						{canvases.length > 0 && (
+							<Button variant="ghost" size="sm" onClick={() => setCanvasDialogOpen(true)}>
 								<ClipboardList size={13} />
 							</Button>
 						)}
@@ -167,16 +167,21 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 							</p>
 							<div className="w-full max-w-sm flex flex-col gap-2">
 								<AgentModelPicker value={modelValue} onChange={setPickedModel} />
-								{savedPlans.length > 0 && (
+								{savedCanvases.length > 0 && (
 									<Select
-										value={savedPlanId}
-										onChange={(v) => setSavedPlanId(v as string)}
-										placeholder="Start from saved plan (optional)"
+										value={savedCanvasId}
+										onChange={(v) => setSavedCanvasId(v as string)}
+										placeholder="Start from saved canvas (optional)"
 										prefix={<FileText size={13} className="text-[#8888a0]" />}
 									>
 										<SelectOption value="" label="None — start fresh" />
-										{savedPlans.map((p) => (
-											<SelectOption key={p.id} value={p.id} label={p.title} onRemove={() => onDeleteSavedPlan(p.id)} />
+										{savedCanvases.map((p) => (
+											<SelectOption
+												key={p.id}
+												value={p.id}
+												label={p.title}
+												onRemove={() => onDeleteSavedCanvas(p.id)}
+											/>
 										))}
 									</Select>
 								)}
@@ -189,12 +194,12 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 				</div>
 			</div>
 			{taskId && (
-				<AssistantPlanDialog
+				<AssistantCanvasDialog
 					sessionId={taskId}
-					plans={plans}
+					canvases={canvases}
 					sendFeedback={sendFeedback}
-					open={planDialogOpen}
-					onClose={() => setPlanDialogOpen(false)}
+					open={canvasDialogOpen}
+					onClose={() => setCanvasDialogOpen(false)}
 				/>
 			)}
 		</div>

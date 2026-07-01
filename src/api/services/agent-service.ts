@@ -4,9 +4,9 @@ import type { TaskScheduler } from "../../daemon/scheduler.js";
 export const startAgentSession = async (
 	scheduler: TaskScheduler,
 	override?: AgentModelChoice,
-	savedPlanId?: string,
+	savedCanvasId?: string,
 ) => ({
-	taskId: await scheduler.startAssistantAgent(override, savedPlanId),
+	taskId: await scheduler.startAssistantAgent(override, savedCanvasId),
 });
 
 export const stopAgentSession = async (scheduler: TaskScheduler | undefined) => {

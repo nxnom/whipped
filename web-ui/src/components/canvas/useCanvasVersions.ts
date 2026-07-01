@@ -20,11 +20,11 @@ function sleep(ms: number): Promise<void> {
 // (sessionId is a real companion session id) and the assistant agent
 // (sessionId is its synthetic per-workspace id) — sessionId may be empty
 // before an assistant session exists, in which case this stays idle (no
-// fetch, no socket) rather than fetching plans for a nonsense id.
-export function usePlanVersions(workspaceId: string, sessionId: string) {
+// fetch, no socket) rather than fetching canvases for a nonsense id.
+export function useCanvasVersions(workspaceId: string, sessionId: string) {
 	const enabled = Boolean(sessionId);
 	const { data, trigger: refetch } = useRead(
-		(api) => api("companion-sessions/:id/plans").GET({ params: { id: sessionId } }),
+		(api) => api("companion-sessions/:id/canvases").GET({ params: { id: sessionId } }),
 		{ enabled },
 	);
 	const wsRef = useRef<WebSocket | null>(null);
@@ -52,11 +52,11 @@ export function usePlanVersions(workspaceId: string, sessionId: string) {
 			if (ws !== wsRef.current) return;
 			try {
 				const msg = JSON.parse(event.data as string) as RuntimeStateEvent;
-				if (msg.type === "companion_plan_updated" && msg.sessionId === sessionId) {
+				if (msg.type === "companion_canvas_updated" && msg.sessionId === sessionId) {
 					optimistic((cache) =>
-						cache("companion-sessions/:id/plans")
+						cache("companion-sessions/:id/canvases")
 							.filter((entry) => entry.params.id === sessionId)
-							.set((current) => ({ plans: [msg.plan, ...(current?.plans ?? [])] })),
+							.set((current) => ({ canvases: [msg.canvas, ...(current?.canvases ?? [])] })),
 					);
 				}
 			} catch {
@@ -82,17 +82,17 @@ export function usePlanVersions(workspaceId: string, sessionId: string) {
 		};
 	}, [connect]);
 
-	const { trigger: sendPlanFeedbackTrigger } = useWrite((api) => api("terminal/input").POST());
+	const { trigger: sendCanvasFeedbackTrigger } = useWrite((api) => api("terminal/input").POST());
 
 	const sendFeedback = useCallback(
 		async (composedText: string) => {
 			const wrapped = `\x1b[200~${composedText}\x1b[201~`;
-			await sendPlanFeedbackTrigger({ body: { workspaceId, taskId: sessionId, data: wrapped } });
+			await sendCanvasFeedbackTrigger({ body: { workspaceId, taskId: sessionId, data: wrapped } });
 			await sleep(SUBMIT_DELAY_MS);
-			await sendPlanFeedbackTrigger({ body: { workspaceId, taskId: sessionId, data: "\r" } });
+			await sendCanvasFeedbackTrigger({ body: { workspaceId, taskId: sessionId, data: "\r" } });
 		},
-		[sendPlanFeedbackTrigger, workspaceId, sessionId],
+		[sendCanvasFeedbackTrigger, workspaceId, sessionId],
 	);
 
-	return { plans: data?.plans ?? [], sendFeedback };
+	return { canvases: data?.canvases ?? [], sendFeedback };
 }

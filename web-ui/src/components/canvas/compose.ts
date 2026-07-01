@@ -1,7 +1,7 @@
-import type { PlanBlock, QuestionInput } from "@runtime-contract";
-import type { PlanAnswers, PlanComment } from "./types";
+import type { CanvasBlock, QuestionInput } from "@runtime-contract";
+import type { CanvasAnswers, CanvasComment } from "./types";
 
-function excerpt(block: PlanBlock): string {
+function excerpt(block: CanvasBlock): string {
 	if (block.type === "markdown") return block.body.split("\n")[0]?.slice(0, 60) ?? block.id;
 	if (block.type === "html")
 		return (
@@ -18,7 +18,7 @@ function excerpt(block: PlanBlock): string {
 // explicitly ("(not answered)") rather than omitted, so the agent can never
 // mistake "skipped because optional" for "this didn't render" or "this is
 // broken". Omitting silent gaps here is exactly what caused that confusion.
-function formatAnswer(input: QuestionInput, answers: PlanAnswers): string[] {
+function formatAnswer(input: QuestionInput, answers: CanvasAnswers): string[] {
 	if (input.kind === "composite") return input.parts.flatMap((part) => formatAnswer(part, answers));
 	const value = answers[input.name];
 	const label = input.label ?? input.name;
@@ -40,20 +40,20 @@ function formatAnswer(input: QuestionInput, answers: PlanAnswers): string[] {
 // terminal write — mirrors DiffView's reviewSummary() pattern. `approved` adds
 // an explicit go-ahead marker without discarding whatever else was staged —
 // approving and leaving feedback aren't mutually exclusive.
-export function composePlanFeedbackMessage(
+export function composeCanvasFeedbackMessage(
 	version: number,
-	blocks: PlanBlock[],
-	answers: PlanAnswers,
-	comments: PlanComment[],
+	blocks: CanvasBlock[],
+	answers: CanvasAnswers,
+	comments: CanvasComment[],
 	note: string,
 	approved: boolean,
 ): string {
-	const sections: string[] = [`## Feedback on plan v${version}`];
+	const sections: string[] = [`## Feedback on canvas v${version}`];
 
 	if (approved) sections.push("**Approved — go ahead.**");
 
 	const answerLines = blocks
-		.filter((b): b is Extract<PlanBlock, { type: "question" }> => b.type === "question")
+		.filter((b): b is Extract<CanvasBlock, { type: "question" }> => b.type === "question")
 		.flatMap((b) => [`**Q: ${b.prompt}**`, ...formatAnswer(b.input, answers)]);
 	if (answerLines.length) sections.push(answerLines.join("\n"));
 

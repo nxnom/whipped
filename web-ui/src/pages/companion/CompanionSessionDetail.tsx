@@ -5,9 +5,9 @@ import { useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { useRunSession } from "@/stores/run-session-store";
 import { classNames } from "@/utils/classNames";
+import { CanvasPanel } from "./canvas/CanvasPanel";
 import { CompanionDiffPanel } from "./CompanionDiffPanel";
 import { STATUS_DOT_CLASS, STATUS_LABEL } from "./constants";
-import { PlanPanel } from "./plan/PlanPanel";
 import { useCompanionActions } from "./useCompanionActions";
 
 type DetailTab = "terminal" | "diff";
@@ -171,7 +171,7 @@ export function CompanionSessionDetail({
 					workspaceId={workspaceId}
 					className={classNames("flex-1 min-h-0", tab !== "terminal" && "hidden")}
 				/>
-				{tab === "terminal" && <PlanPanel sessionId={session.id} workspaceId={workspaceId} />}
+				{tab === "terminal" && <CanvasPanel sessionId={session.id} workspaceId={workspaceId} />}
 				{tab === "diff" && <CompanionDiffPanel sessionId={session.id} />}
 			</div>
 		</div>

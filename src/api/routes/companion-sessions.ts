@@ -1,16 +1,16 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { companionSessionCreateRequestSchema, planBlockSchema } from "../../core/api-contract.js";
+import { canvasBlockSchema, companionSessionCreateRequestSchema } from "../../core/api-contract.js";
 import { NotFoundError } from "../errors/http-errors.js";
 import { zv } from "../middleware/zv.js";
+import { createCompanionCanvasEntry, listCompanionCanvasesEntry } from "../services/companion-canvases-service.js";
 import {
 	getCompanionCommitsService,
 	getCompanionDiffForCommitService,
 	getCompanionDiffService,
 } from "../services/companion-diff-service.js";
 import { commitAndMergeCompanionService, commitAndPRCompanionService } from "../services/companion-merge-service.js";
-import { createCompanionPlanEntry, listCompanionPlansEntry } from "../services/companion-plans-service.js";
-import { clearCompanionPlansEntry, saveCompanionPlanEntry } from "../services/companion-saved-plans-service.js";
+import { clearCompanionCanvasesEntry, saveCompanionCanvasEntry } from "../services/companion-saved-canvases-service.js";
 import {
 	createCompanionSessionEntry,
 	discardCompanionSessionEntry,
@@ -122,35 +122,35 @@ export const companionSessionsController = new Hono<AppEnv>()
 		},
 	)
 	.post(
-		"/:id/plan",
+		"/:id/canvas",
 		zv("param", z.object({ id: z.string() })),
-		zv("json", z.object({ workspaceId: z.string(), blocks: z.array(planBlockSchema) })),
+		zv("json", z.object({ workspaceId: z.string(), blocks: z.array(canvasBlockSchema) })),
 		async (c) => {
 			const ctx = c.var.ctx;
 			const { id } = c.req.valid("param");
 			const { workspaceId, blocks } = c.req.valid("json");
-			const plan = await createCompanionPlanEntry(id, workspaceId, blocks);
-			ctx.stateHub.broadcastCompanionPlanUpdate(workspaceId, id, plan);
-			return c.json(plan);
+			const canvas = await createCompanionCanvasEntry(id, workspaceId, blocks);
+			ctx.stateHub.broadcastCompanionCanvasUpdate(workspaceId, id, canvas);
+			return c.json(canvas);
 		},
 	)
-	.get("/:id/plans", zv("param", z.object({ id: z.string() })), async (c) => {
+	.get("/:id/canvases", zv("param", z.object({ id: z.string() })), async (c) => {
 		const { id } = c.req.valid("param");
-		return c.json(await listCompanionPlansEntry(id));
+		return c.json(await listCompanionCanvasesEntry(id));
 	})
-	.delete("/:id/plans", zv("param", z.object({ id: z.string() })), async (c) => {
+	.delete("/:id/canvases", zv("param", z.object({ id: z.string() })), async (c) => {
 		const { id } = c.req.valid("param");
-		await clearCompanionPlansEntry(id);
+		await clearCompanionCanvasesEntry(id);
 		return c.json({ ok: true });
 	})
 	.post(
-		"/:id/save-plan",
+		"/:id/save-canvas",
 		zv("param", z.object({ id: z.string() })),
-		zv("json", z.object({ workspaceId: z.string(), title: z.string(), blocks: z.array(planBlockSchema) })),
+		zv("json", z.object({ workspaceId: z.string(), title: z.string(), blocks: z.array(canvasBlockSchema) })),
 		async (c) => {
 			const { id } = c.req.valid("param");
 			const { workspaceId, title, blocks } = c.req.valid("json");
-			const saved = await saveCompanionPlanEntry(id, workspaceId, title, blocks);
+			const saved = await saveCompanionCanvasEntry(id, workspaceId, title, blocks);
 			return c.json(saved);
 		},
 	);

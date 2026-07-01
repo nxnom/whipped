@@ -51,8 +51,8 @@ export async function writeClaudeTaskHookSettings(serverPort: number): Promise<v
 // Denies Claude Code's own built-in EnterPlanMode/ExitPlanMode tools for
 // companion and assistant sessions — this removes them from Claude's context
 // entirely, so neither agent can trigger its native plan-mode workflow and
-// both instead always use the whipped_show_plan MCP tool for anything
-// plan-shaped, per their system prompts. No hooks needed here (neither has a
+// both instead always use the whipped_show_canvas MCP tool for anything
+// canvas-shaped, per their system prompts. No hooks needed here (neither has a
 // Stop/UserPromptSubmit task lifecycle, unlike dev-agent tasks), and no
 // skipDangerousModePermissionPrompt — both are meant to be interactively
 // supervised, unlike the fully-autonomous, unattended dev agent.
@@ -69,8 +69,8 @@ export async function writeClaudeCompanionSettings(): Promise<void> {
 // `--role` gates which tools the server registers (assistant gets recurring-agent
 // management; recurring agents get update_journal); `--recurring-agent-id` tells a
 // recurring agent's update_journal which row to write; `--companion-session-id`
-// tells a companion agent's whipped_show_plan which session to push a plan onto
-// (the assistant role derives its own plan session id instead, from workspaceId —
+// tells a companion agent's whipped_show_canvas which session to push a canvas onto
+// (the assistant role derives its own canvas session id instead, from workspaceId —
 // see kanban-mcp-server.ts — so it needs no equivalent flag here).
 // Passed as named flags so they survive regardless of whether agentId is present
 // (position-independent).

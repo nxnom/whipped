@@ -1,12 +1,12 @@
 import { Button, Dialog, Textarea, toast } from "@geckoui/geckoui";
-import type { PlanBlock } from "@runtime-contract";
+import type { CanvasBlock } from "@runtime-contract";
 import { Check, Send } from "lucide-react";
 import { useState } from "react";
-import { composePlanFeedbackMessage } from "./compose";
-import { PlanApproveOutcomeDialog } from "./PlanApproveOutcomeDialog";
-import type { PlanAnswers, PlanComment } from "./types";
+import { CanvasApproveOutcomeDialog } from "./CanvasApproveOutcomeDialog";
+import { composeCanvasFeedbackMessage } from "./compose";
+import type { CanvasAnswers, CanvasComment } from "./types";
 
-export function PlanFeedbackComposer({
+export function CanvasFeedbackComposer({
 	sessionId,
 	version,
 	blocks,
@@ -17,9 +17,9 @@ export function PlanFeedbackComposer({
 }: {
 	sessionId: string;
 	version: number;
-	blocks: PlanBlock[];
-	answers: PlanAnswers;
-	comments: PlanComment[];
+	blocks: CanvasBlock[];
+	answers: CanvasAnswers;
+	comments: CanvasComment[];
 	sendFeedback: (text: string) => Promise<void>;
 	onSent: () => void;
 }) {
@@ -47,10 +47,10 @@ export function PlanFeedbackComposer({
 	// "none of these options fit, add one for X") has to be able to submit
 	// without picking a wrong answer just to satisfy a required field. The
 	// composed message always states unanswered questions explicitly (see
-	// compose.ts), so the agent can decide whether to re-ask in its next plan
+	// compose.ts), so the agent can decide whether to re-ask in its next canvas
 	// version rather than assuming silence means "resolved".
 	const handleSend = () =>
-		void submit(composePlanFeedbackMessage(version, blocks, answers, comments, note, false), "Feedback sent");
+		void submit(composeCanvasFeedbackMessage(version, blocks, answers, comments, note, false), "Feedback sent");
 
 	// Approve doesn't send anything by itself — it only opens the Save/Delete
 	// dialog. Nothing reaches the agent until that dialog's Save or Delete is
@@ -60,11 +60,11 @@ export function PlanFeedbackComposer({
 	const handleApprove = () => {
 		Dialog.show({
 			content: ({ dismiss }) => (
-				<PlanApproveOutcomeDialog
+				<CanvasApproveOutcomeDialog
 					dismiss={dismiss}
 					sessionId={sessionId}
 					sendFeedback={sendFeedback}
-					composedApproval={composePlanFeedbackMessage(version, blocks, answers, comments, note, true)}
+					composedApproval={composeCanvasFeedbackMessage(version, blocks, answers, comments, note, true)}
 					onSent={() => {
 						setNote("");
 						onSent();

@@ -1,17 +1,17 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRef, useState } from "react";
-import { PlanBody } from "@/components/plan/PlanBody";
-import { usePlanVersions } from "@/components/plan/usePlanVersions";
+import { CanvasBody } from "@/components/canvas/CanvasBody";
+import { useCanvasVersions } from "@/components/canvas/useCanvasVersions";
 
 const MIN_WIDTH = 320;
 const MAX_WIDTH_RATIO = 0.9;
 const DEFAULT_WIDTH = 420;
-const WIDTH_STORAGE_KEY = "companion-plan-width";
+const WIDTH_STORAGE_KEY = "companion-canvas-width";
 
 const getMaxWidth = () => window.innerWidth * MAX_WIDTH_RATIO;
 
-export function PlanPanel({ sessionId, workspaceId }: { sessionId: string; workspaceId: string }) {
-	const { plans, sendFeedback } = usePlanVersions(workspaceId, sessionId);
+export function CanvasPanel({ sessionId, workspaceId }: { sessionId: string; workspaceId: string }) {
+	const { canvases, sendFeedback } = useCanvasVersions(workspaceId, sessionId);
 
 	const [collapsed, setCollapsed] = useState(false);
 	const [width, setWidth] = useState(() => {
@@ -24,7 +24,7 @@ export function PlanPanel({ sessionId, workspaceId }: { sessionId: string; works
 	};
 	const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
-	if (plans.length === 0) return null;
+	if (canvases.length === 0) return null;
 
 	const onDragStart = (e: React.MouseEvent) => {
 		e.preventDefault();
@@ -60,9 +60,9 @@ export function PlanPanel({ sessionId, workspaceId }: { sessionId: string; works
 				className="w-1 shrink-0 cursor-col-resize hover:bg-[#7c6aff]/40 active:bg-[#7c6aff]/60 transition-colors bg-[#2a2a35]"
 			/>
 			<div className="flex-1 border-l border-[#2a2a35] flex flex-col overflow-hidden bg-[#141418]">
-				<PlanBody
+				<CanvasBody
 					sessionId={sessionId}
-					plans={plans}
+					canvases={canvases}
 					sendFeedback={sendFeedback}
 					headerActions={
 						<button

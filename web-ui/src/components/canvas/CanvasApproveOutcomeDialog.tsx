@@ -3,9 +3,9 @@ import { useState } from "react";
 import { optimistic, useWrite } from "@/runtime/api-client";
 
 const SAVE_INSTRUCTION =
-	"Please consolidate everything you've proposed across this session's plan versions into one final plan and save it via the whipped_save_plan tool with a short title.";
+	"Please consolidate everything you've proposed across this session's canvas versions into one final canvas and save it via the whipped_save_canvas tool with a short title.";
 
-export function PlanApproveOutcomeDialog({
+export function CanvasApproveOutcomeDialog({
 	dismiss,
 	sessionId,
 	sendFeedback,
@@ -20,7 +20,7 @@ export function PlanApproveOutcomeDialog({
 }) {
 	const [saving, setSaving] = useState(false);
 	const [deleting, setDeleting] = useState(false);
-	const { trigger: deletePlans } = useWrite((api) => api("companion-sessions/:id/plans").DELETE());
+	const { trigger: deleteCanvases } = useWrite((api) => api("companion-sessions/:id/canvases").DELETE());
 
 	// Nothing was sent when Approve was clicked — this is the first (and only)
 	// message that reaches the agent, folding the approval together with the
@@ -30,7 +30,7 @@ export function PlanApproveOutcomeDialog({
 		try {
 			await sendFeedback(`${composedApproval}\n\n${SAVE_INSTRUCTION}`);
 			onSent();
-			toast.success("Plan approved — asked the agent to save it");
+			toast.success("Canvas approved — asked the agent to save it");
 			dismiss();
 		} catch {
 			toast.error("Failed to send feedback");
@@ -50,20 +50,20 @@ export function PlanApproveOutcomeDialog({
 			setDeleting(false);
 			return;
 		}
-		const res = await deletePlans({ params: { id: sessionId } });
+		const res = await deleteCanvases({ params: { id: sessionId } });
 		if (res.error) {
-			toast.error("Approved, but failed to delete plan history");
+			toast.error("Approved, but failed to delete canvas history");
 			onSent();
 			dismiss();
 			return;
 		}
 		optimistic((cache) =>
-			cache("companion-sessions/:id/plans")
+			cache("companion-sessions/:id/canvases")
 				.filter((entry) => entry.params.id === sessionId)
-				.set(() => ({ plans: [] })),
+				.set(() => ({ canvases: [] })),
 		);
 		onSent();
-		toast.success("Plan approved and history deleted");
+		toast.success("Canvas approved and history deleted");
 		dismiss();
 	};
 
@@ -73,7 +73,7 @@ export function PlanApproveOutcomeDialog({
 				<h3 className="text-base font-semibold text-gray-100">Approve and...</h3>
 				<p className="text-sm text-gray-400 mt-1">
 					Your approval hasn't been sent yet. Save asks the agent to consolidate every version into one final, reusable
-					plan; Delete clears this session's plan history instead. Either way sends your approval to the agent.
+					canvas; Delete clears this session's canvas history instead. Either way sends your approval to the agent.
 				</p>
 			</div>
 			<div className="flex justify-end gap-2">

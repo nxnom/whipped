@@ -1,14 +1,14 @@
 import { ChevronDown, FileText } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { classNames } from "@/utils/classNames";
-import type { PlanDocument } from "./types";
+import type { CanvasDocument } from "./types";
 
-export function PlanVersionSelector({
-	plans,
+export function CanvasVersionSelector({
+	canvases,
 	selectedVersion,
 	onSelectVersion,
 }: {
-	plans: PlanDocument[];
+	canvases: CanvasDocument[];
 	selectedVersion: number;
 	onSelectVersion: (version: number) => void;
 }) {
@@ -29,7 +29,7 @@ export function PlanVersionSelector({
 		setOpen(false);
 	};
 
-	if (plans.length <= 1) return null;
+	if (canvases.length <= 1) return null;
 
 	return (
 		<div className="relative" ref={ref}>
@@ -44,7 +44,7 @@ export function PlanVersionSelector({
 
 			{open && (
 				<div className="absolute top-full left-0 mt-1 z-50 bg-[#13131a] border border-[#2a2a38] rounded-lg shadow-2xl min-w-[180px] overflow-hidden py-1">
-					{plans.map((p) => (
+					{canvases.map((p) => (
 						<button
 							key={p.version}
 							onClick={() => select(p.version)}

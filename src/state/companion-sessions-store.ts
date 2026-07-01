@@ -16,7 +16,7 @@ interface CompanionSessionRow {
 	model: string | null;
 	effort: string | null;
 	status: string;
-	saved_plan_id: string | null;
+	saved_canvas_id: string | null;
 	created_at: number;
 	updated_at: number;
 }
@@ -35,7 +35,7 @@ function sessionFromRow(row: CompanionSessionRow): CompanionSession {
 		model: row.model,
 		effort: row.effort as EffortLevel | null,
 		status: row.status as CompanionSessionStatus,
-		savedPlanId: row.saved_plan_id,
+		savedCanvasId: row.saved_canvas_id,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
@@ -65,7 +65,7 @@ export interface CreateCompanionSessionInput {
 	agentId: RuntimeAgentId;
 	model: string | null;
 	effort: EffortLevel | null;
-	savedPlanId: string | null;
+	savedCanvasId: string | null;
 }
 
 export function createCompanionSession(workspaceId: string, input: CreateCompanionSessionInput): CompanionSession {
@@ -76,7 +76,7 @@ export function createCompanionSession(workspaceId: string, input: CreateCompani
 		.prepare(
 			`INSERT INTO companion_sessions
 				(id, workspace_id, name, use_worktree, base_ref, branch_name, worktree_path, workflow_id, seed_prompt,
-				 agent_id, model, effort, status, saved_plan_id, created_at, updated_at)
+				 agent_id, model, effort, status, saved_canvas_id, created_at, updated_at)
 			 VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, 'stopped', ?, ?, ?)`,
 		)
 		.run(
@@ -91,7 +91,7 @@ export function createCompanionSession(workspaceId: string, input: CreateCompani
 			input.agentId,
 			input.model,
 			input.effort,
-			input.savedPlanId,
+			input.savedCanvasId,
 			now,
 			now,
 		);
@@ -101,10 +101,10 @@ export function createCompanionSession(workspaceId: string, input: CreateCompani
 	return created;
 }
 
-export function setCompanionSessionSavedPlanId(id: string, savedPlanId: string | null): void {
+export function setCompanionSessionSavedCanvasId(id: string, savedCanvasId: string | null): void {
 	getDb()
-		.prepare("UPDATE companion_sessions SET saved_plan_id = ?, updated_at = ? WHERE id = ?")
-		.run(savedPlanId, Date.now(), id);
+		.prepare("UPDATE companion_sessions SET saved_canvas_id = ?, updated_at = ? WHERE id = ?")
+		.run(savedCanvasId, Date.now(), id);
 }
 
 export function setCompanionSessionWorktreePath(id: string, worktreePath: string | null): void {

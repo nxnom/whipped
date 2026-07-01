@@ -1,17 +1,17 @@
-import type { PlanBlock } from "@runtime-contract";
+import type { CanvasBlock } from "@runtime-contract";
 import { HtmlBlock } from "./HtmlBlock";
 import { MarkdownBlock } from "./MarkdownBlock";
 import { MermaidBlock } from "./MermaidBlock";
 import { QuestionBlock, RequiredMark } from "./QuestionBlock";
-import type { PlanAnswers } from "./types";
+import type { CanvasAnswers } from "./types";
 
-export function PlanBlockRenderer({
+export function CanvasBlockRenderer({
 	block,
 	answers,
 	onAnswer,
 }: {
-	block: PlanBlock;
-	answers: PlanAnswers;
+	block: CanvasBlock;
+	answers: CanvasAnswers;
 	onAnswer: (name: string, value: string | string[]) => void;
 }) {
 	switch (block.type) {
