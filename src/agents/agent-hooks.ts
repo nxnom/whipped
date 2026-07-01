@@ -8,6 +8,7 @@ const HOOKS_DIR = join(WHIPPED_HOME_DIR, "hooks");
 export const CLAUDE_TASK_SETTINGS_PATH = join(HOOKS_DIR, "claude-task-settings.json");
 export const CLAUDE_ASSISTANT_MCP_CONFIG_PATH = join(HOOKS_DIR, "claude-assistant-mcp-config.json");
 export const CLAUDE_REVIEW_MCP_CONFIG_PATH = join(HOOKS_DIR, "claude-review-mcp-config.json");
+export const CLAUDE_COMPANION_SETTINGS_PATH = join(HOOKS_DIR, "claude-companion-settings.json");
 
 export const HOOK_TASK_ID_ENV = "WHIPPED_HOOK_TASK_ID";
 export const HOOK_WORKSPACE_ID_ENV = "WHIPPED_HOOK_WORKSPACE_ID";
@@ -45,6 +46,23 @@ export async function writeClaudeTaskHookSettings(serverPort: number): Promise<v
 
 	await mkdir(HOOKS_DIR, { recursive: true });
 	await writeFile(CLAUDE_TASK_SETTINGS_PATH, JSON.stringify(settings, null, 2));
+}
+
+// Denies Claude Code's own built-in EnterPlanMode/ExitPlanMode tools for
+// companion sessions — this removes them from Claude's context entirely, so a
+// companion agent can never trigger its native plan-mode workflow and instead
+// always uses the companion_show_plan MCP tool for anything plan-shaped, per
+// the companion system prompt. No hooks needed here (companion has no
+// Stop/UserPromptSubmit task lifecycle, unlike dev-agent tasks), and no
+// skipDangerousModePermissionPrompt — companion is meant to be interactively
+// supervised, unlike the fully-autonomous, unattended dev agent.
+export async function writeClaudeCompanionSettings(): Promise<void> {
+	const settings = {
+		permissions: { deny: ["EnterPlanMode", "ExitPlanMode"] },
+	};
+
+	await mkdir(HOOKS_DIR, { recursive: true });
+	await writeFile(CLAUDE_COMPANION_SETTINGS_PATH, JSON.stringify(settings, null, 2));
 }
 
 // Extra positional args appended to the MCP server spec to scope its tool set.

@@ -10,6 +10,7 @@ import {
 } from "../services/companion-diff-service.js";
 import { commitAndMergeCompanionService, commitAndPRCompanionService } from "../services/companion-merge-service.js";
 import { createCompanionPlanEntry, listCompanionPlansEntry } from "../services/companion-plans-service.js";
+import { clearCompanionPlansEntry, saveCompanionPlanEntry } from "../services/companion-saved-plans-service.js";
 import {
 	createCompanionSessionEntry,
 	discardCompanionSessionEntry,
@@ -136,4 +137,20 @@ export const companionSessionsController = new Hono<AppEnv>()
 	.get("/:id/plans", zv("param", z.object({ id: z.string() })), async (c) => {
 		const { id } = c.req.valid("param");
 		return c.json(await listCompanionPlansEntry(id));
-	});
+	})
+	.delete("/:id/plans", zv("param", z.object({ id: z.string() })), async (c) => {
+		const { id } = c.req.valid("param");
+		await clearCompanionPlansEntry(id);
+		return c.json({ ok: true });
+	})
+	.post(
+		"/:id/save-plan",
+		zv("param", z.object({ id: z.string() })),
+		zv("json", z.object({ workspaceId: z.string(), title: z.string(), blocks: z.array(planBlockSchema) })),
+		async (c) => {
+			const { id } = c.req.valid("param");
+			const { workspaceId, title, blocks } = c.req.valid("json");
+			const saved = await saveCompanionPlanEntry(id, workspaceId, title, blocks);
+			return c.json(saved);
+		},
+	);

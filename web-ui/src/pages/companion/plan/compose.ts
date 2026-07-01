@@ -14,11 +14,16 @@ function excerpt(block: PlanBlock): string {
 	return block.prompt.slice(0, 60);
 }
 
+// Always emits a line per leaf input — an unanswered question is stated
+// explicitly ("(not answered)") rather than omitted, so the agent can never
+// mistake "skipped because optional" for "this didn't render" or "this is
+// broken". Omitting silent gaps here is exactly what caused that confusion.
 function formatAnswer(input: QuestionInput, answers: PlanAnswers): string[] {
 	if (input.kind === "composite") return input.parts.flatMap((part) => formatAnswer(part, answers));
 	const value = answers[input.name];
 	const label = input.label ?? input.name;
-	if (value === undefined || (Array.isArray(value) && value.length === 0) || value === "") return [];
+	const empty = value === undefined || (Array.isArray(value) && value.length === 0) || value === "";
+	if (empty) return [`- ${label}: (not answered)`];
 	if (input.kind === "single_choice") {
 		const opt = input.options.find((o) => o.value === value);
 		return [`- ${label}: ${opt?.label ?? value}`];
@@ -49,10 +54,7 @@ export function composePlanFeedbackMessage(
 
 	const answerLines = blocks
 		.filter((b): b is Extract<PlanBlock, { type: "question" }> => b.type === "question")
-		.flatMap((b) => {
-			const lines = formatAnswer(b.input, answers);
-			return lines.length ? [`**Q: ${b.prompt}**`, ...lines] : [];
-		});
+		.flatMap((b) => [`**Q: ${b.prompt}**`, ...formatAnswer(b.input, answers)]);
 	if (answerLines.length) sections.push(answerLines.join("\n"));
 
 	if (comments.length) {

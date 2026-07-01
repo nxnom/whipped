@@ -65,6 +65,7 @@ const ROUTES: Record<string, RestRoute> = {
 	"recurring.delete": { method: "DELETE", path: (i) => `recurring-agents/${i.id as string}` },
 	"recurring.setJournal": { method: "POST", path: (i) => `recurring-agents/${i.id as string}/journal` },
 	"companion.showPlan": { method: "POST", path: (i) => `companion-sessions/${i.sessionId as string}/plan` },
+	"companion.savePlan": { method: "POST", path: (i) => `companion-sessions/${i.sessionId as string}/save-plan` },
 };
 
 // Mutation (POST/PATCH/DELETE): input is the JSON body.
@@ -126,7 +127,7 @@ const RECURRING_OBSERVER_TOOLS = new Set([
 // the one sanctioned "write" here — it pushes to the session's own plan panel,
 // not the board, so it's an exception to the read-only rule above, not a
 // contradiction of it.
-const COMPANION_ALLOWED_TOOLS = new Set(["kanban_get_board", "companion_show_plan"]);
+const COMPANION_ALLOWED_TOOLS = new Set(["kanban_get_board", "companion_show_plan", "companion_save_plan"]);
 
 const baseRegisterTool = server.registerTool;
 // Drop-in for server.registerTool that withholds mutating tools from observers.
@@ -1351,7 +1352,7 @@ if (mcpRole === "companion" && companionSessionId) {
 		"companion_show_plan",
 		{
 			description:
-				"Push a structured plan — markdown, raw HTML, mermaid diagrams, and interactive questions — to the developer's plan panel. HTML blocks are rendered unsanitized, so only use them for genuinely custom layout that markdown can't express. Each call appends a new version; it does not overwrite the last one. The developer's answers, comments, and notes come back as a normal follow-up chat message — there is no separate response channel.",
+				"Push a structured plan — markdown, raw HTML, mermaid diagrams, and interactive questions — to the developer's plan panel. HTML blocks are rendered unsanitized, so only use them for genuinely custom layout that markdown can't express. Each call appends a new version; it does not overwrite the last one. Call this AT MOST ONCE per turn — never call it twice in a row before the developer has replied. If you're not happy with a version before they've responded, that's still one call: think it through and send the version you actually want, don't push a draft and then immediately push a fix. The developer's answers, comments, and notes come back as a normal follow-up chat message — there is no separate response channel.",
 			inputSchema: { blocks: z.array(planBlockSchema).describe("Ordered plan blocks: markdown, diagram, or question") },
 		},
 		async ({ blocks }) => {
@@ -1360,6 +1361,35 @@ if (mcpRole === "companion" && companionSessionId) {
 				return { content: [{ type: "text", text: "Plan sent to the developer's panel." }] };
 			} catch (err) {
 				return { content: [{ type: "text", text: `Failed to send plan: ${(err as Error).message}` }] };
+			}
+		},
+	);
+
+	registerTool(
+		"companion_save_plan",
+		{
+			description:
+				"Consolidate everything proposed across this session's plan versions into ONE final, coherent plan and save it to the project's reusable plan library, so it can seed a new companion session later. If this session already has a saved plan (resumed from one, or already saved once), this UPDATES that same plan instead of creating a duplicate — call it again whenever you finish a meaningful chunk of work, describing what's done explicitly in the blocks, so a future resumption knows what's already handled and what's left.",
+			inputSchema: {
+				title: z.string().describe("Short, descriptive title for the saved plan"),
+				blocks: z
+					.array(planBlockSchema)
+					.describe(
+						"The final, consolidated plan — merge every prior version's content into one coherent plan, don't just resend the latest version verbatim",
+					),
+			},
+		},
+		async ({ title, blocks }) => {
+			try {
+				const saved = await apiMutate<{ title: string }>("companion.savePlan", {
+					sessionId: companionSessionId,
+					workspaceId,
+					title,
+					blocks,
+				});
+				return { content: [{ type: "text", text: `Plan saved as "${saved.title}".` }] };
+			} catch (err) {
+				return { content: [{ type: "text", text: `Failed to save plan: ${(err as Error).message}` }] };
 			}
 		},
 	);

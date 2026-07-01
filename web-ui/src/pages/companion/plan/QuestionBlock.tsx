@@ -6,6 +6,14 @@ function titleCase(s: string): string {
 	return s.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
 }
 
+// The developer isn't blocked from sending without answering a required
+// question (see PlanFeedbackComposer) — this just tells them the agent
+// considers it important, so a comment-only skip is a deliberate choice.
+export function RequiredMark({ required }: { required?: boolean }) {
+	if (!required) return null;
+	return <span className="text-red-400">*</span>;
+}
+
 function SingleChoiceField({
 	input,
 	value,
@@ -17,7 +25,11 @@ function SingleChoiceField({
 }) {
 	return (
 		<div className="flex flex-col gap-1.5">
-			{input.label && <span className="text-[12px] font-medium text-gray-300">{input.label}</span>}
+			{input.label && (
+				<span className="text-[12px] font-medium text-gray-300">
+					{input.label} <RequiredMark required={input.required} />
+				</span>
+			)}
 			{input.options.map((opt) => (
 				<label key={opt.value} className="flex items-start gap-2 cursor-pointer">
 					<Radio
@@ -54,7 +66,11 @@ function MultiChoiceField({
 
 	return (
 		<div className="flex flex-col gap-1.5">
-			{input.label && <span className="text-[12px] font-medium text-gray-300">{input.label}</span>}
+			{input.label && (
+				<span className="text-[12px] font-medium text-gray-300">
+					{input.label} <RequiredMark required={input.required} />
+				</span>
+			)}
 			{input.options.map((opt) => (
 				<label key={opt.value} className="flex items-start gap-2 cursor-pointer">
 					<Checkbox checked={selected.has(opt.value)} onChange={() => toggle(opt.value)} />
@@ -79,7 +95,11 @@ function TextField({
 }) {
 	return (
 		<div className="flex flex-col gap-1.5">
-			{input.label && <span className="text-[12px] font-medium text-gray-300">{input.label}</span>}
+			{input.label && (
+				<span className="text-[12px] font-medium text-gray-300">
+					{input.label} <RequiredMark required={input.required} />
+				</span>
+			)}
 			{input.multiline ? (
 				<Textarea placeholder={input.placeholder} value={value} onChange={(e) => onChange(e.target.value)} rows={3} />
 			) : (

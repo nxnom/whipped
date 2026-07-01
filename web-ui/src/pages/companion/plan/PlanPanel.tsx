@@ -160,6 +160,7 @@ export function PlanPanel({ sessionId, workspaceId }: { sessionId: string; works
 
 				{isLatest && (
 					<PlanFeedbackComposer
+						sessionId={sessionId}
 						version={activePlan.version}
 						blocks={activePlan.blocks}
 						answers={answers}

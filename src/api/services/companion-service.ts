@@ -5,6 +5,8 @@ import {
 } from "../../core/api-contract.js";
 import { resolvePromptText } from "../../core/prompt-resolver.js";
 import type { TaskScheduler } from "../../daemon/scheduler.js";
+import { createCompanionPlan } from "../../state/companion-plans-store.js";
+import { getCompanionSavedPlan } from "../../state/companion-saved-plans-store.js";
 import {
 	createCompanionSession,
 	deleteCompanionSession,
@@ -47,7 +49,8 @@ export async function createCompanionSessionEntry(
 			? { agentId: suggestedPair.binary, model: suggestedPair.model, effort: suggestedPair.effort }
 			: DEFAULT_AGENT_MODEL_CHOICE);
 
-	const name = req.name?.trim() || (useWorktree ? branchName! : "Main repo session");
+	const savedPlan = req.savedPlanId ? getCompanionSavedPlan(req.savedPlanId) : null;
+	const name = req.name?.trim() || savedPlan?.title || (useWorktree ? branchName! : "Main repo session");
 
 	const session = createCompanionSession(workspaceId, {
 		name,
@@ -59,7 +62,10 @@ export async function createCompanionSessionEntry(
 		agentId: model.agentId ?? "claude",
 		model: model.model ?? null,
 		effort: model.effort ?? null,
+		savedPlanId: savedPlan?.id ?? null,
 	});
+
+	if (savedPlan) createCompanionPlan(session.id, workspaceId, savedPlan.blocks);
 
 	await scheduler.startCompanionAgent(session);
 	return getCompanionSession(session.id) ?? session;

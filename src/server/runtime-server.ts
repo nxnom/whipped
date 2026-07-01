@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as nodePty from "node-pty";
 import { WebSocketServer } from "ws";
-import { writeClaudeTaskHookSettings } from "../agents/agent-hooks.js";
+import { writeClaudeCompanionSettings, writeClaudeTaskHookSettings } from "../agents/agent-hooks.js";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { tunnelManager } from "../tunnel/cloudflare-tunnel.js";
 import { exchangeCodeForBotToken } from "../slack/slack-setup.js";
@@ -968,6 +968,9 @@ export async function createRuntimeServer(options: ServerOptions) {
 	// Write hook settings now that the port is bound.
 	await writeClaudeTaskHookSettings(port).catch((err) => {
 		logger.warn("[server] Failed to write claude hook settings:", err);
+	});
+	await writeClaudeCompanionSettings().catch((err) => {
+		logger.warn("[server] Failed to write claude companion settings:", err);
 	});
 
 	if (_globalConfig.autoStartTunnel) tunnelManager.start();

@@ -995,6 +995,7 @@ export const companionSessionSchema = z.object({
 	model: z.string().nullable(),
 	effort: effortLevelSchema.nullable(),
 	status: companionSessionStatusSchema.default("stopped"),
+	savedPlanId: z.string().nullable(),
 	createdAt: z.number(),
 	updatedAt: z.number(),
 });
@@ -1007,6 +1008,7 @@ export const companionSessionCreateRequestSchema = z.object({
 	branchName: z.string().optional(),
 	workflowId: z.string().optional(),
 	model: agentModelChoiceSchema.optional(),
+	savedPlanId: z.string().optional(),
 });
 export type CompanionSessionCreateRequest = z.infer<typeof companionSessionCreateRequestSchema>;
 
@@ -1027,6 +1029,14 @@ export type ChoiceOption = z.infer<typeof choiceOptionSchema>;
 
 // `label` only matters when nested inside a `composite` question (labels the
 // sub-control); a top-level question uses its parent block's `prompt` instead.
+// `required` is NOT enforced by the panel — Send/Approve always work, since a
+// developer who'd rather leave a comment than pick from options that don't fit
+// must be able to submit without answering. The composed message always states
+// every question explicitly (answered, or "(not answered)") so the agent can
+// judge for itself whether to re-ask a required-but-skipped question next time.
+const REQUIRED_FIELD_DESCRIPTION =
+	'Signal only — not enforced by the panel, the developer can send/approve without answering. If this comes back "(not answered)" and you still need it, ask again in your next plan version.';
+
 const questionLeafInputSchema = z.discriminatedUnion("kind", [
 	z.object({
 		kind: z.literal("single_choice"),
@@ -1034,6 +1044,7 @@ const questionLeafInputSchema = z.discriminatedUnion("kind", [
 		label: z.string().optional(),
 		options: z.array(choiceOptionSchema),
 		allowOther: z.boolean().optional(),
+		required: z.boolean().optional().describe(REQUIRED_FIELD_DESCRIPTION),
 	}),
 	z.object({
 		kind: z.literal("multi_choice"),
@@ -1041,6 +1052,7 @@ const questionLeafInputSchema = z.discriminatedUnion("kind", [
 		label: z.string().optional(),
 		options: z.array(choiceOptionSchema),
 		allowOther: z.boolean().optional(),
+		required: z.boolean().optional().describe(REQUIRED_FIELD_DESCRIPTION),
 	}),
 	z.object({
 		kind: z.literal("text"),
@@ -1048,6 +1060,7 @@ const questionLeafInputSchema = z.discriminatedUnion("kind", [
 		label: z.string().optional(),
 		placeholder: z.string().optional(),
 		multiline: z.boolean().optional(),
+		required: z.boolean().optional().describe(REQUIRED_FIELD_DESCRIPTION),
 	}),
 ]);
 
@@ -1082,6 +1095,21 @@ export const planDocumentSchema = z.object({
 	blocks: z.array(planBlockSchema),
 });
 export type PlanDocument = z.infer<typeof planDocumentSchema>;
+
+// A plan consolidated (by the agent, via `companion_save_plan`) from a session's
+// version history and saved to the workspace's reusable plan library. A session
+// linked to one (via `CompanionSession.savedPlanId`) updates the same row on
+// subsequent saves instead of creating duplicates — see companion-saved-plans-service.ts.
+export const companionSavedPlanSchema = z.object({
+	id: z.string(),
+	workspaceId: z.string(),
+	title: z.string(),
+	blocks: z.array(planBlockSchema),
+	sourceSessionId: z.string().nullable(),
+	createdAt: z.number(),
+	updatedAt: z.number(),
+});
+export type CompanionSavedPlan = z.infer<typeof companionSavedPlanSchema>;
 
 // ─── WebSocket events ─────────────────────────────────────────────────────────
 

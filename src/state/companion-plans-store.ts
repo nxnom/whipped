@@ -57,3 +57,7 @@ export function listCompanionPlans(sessionId: string): PlanDocument[] {
 		.all(sessionId, RECENT_PLANS_LIMIT) as CompanionPlanRow[];
 	return rows.map(planFromRow);
 }
+
+export function deleteCompanionPlansForSession(sessionId: string): void {
+	getDb().prepare("DELETE FROM companion_plans WHERE session_id = ?").run(sessionId);
+}

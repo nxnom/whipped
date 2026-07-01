@@ -1,13 +1,14 @@
-import { RHFInput, RHFSelect, RHFSwitch, SelectOption, toast } from "@geckoui/geckoui";
+import { RHFInput, RHFSelect, RHFSwitch, Select, SelectOption, toast } from "@geckoui/geckoui";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DEFAULT_AGENT_MODEL_CHOICE, type AgentModelChoice, type Workflow } from "@runtime-contract";
 import { type CompanionStartForm, companionStartFormSchema } from "@runtime-validation/companion";
-import { GitBranch, Workflow as WorkflowIcon, X } from "lucide-react";
+import { FileText, GitBranch, Workflow as WorkflowIcon, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { AgentModelPicker } from "@/components/AgentModelPicker";
 import { BranchSelect } from "@/components/BranchSelect";
 import { useRead } from "@/runtime/api-client";
+import { useCompanionSavedPlans } from "./useCompanionSavedPlans";
 import { useCompanionSessions } from "./useCompanionSessions";
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
@@ -54,9 +55,18 @@ export function CompanionStartDialog({
 	const { control, setValue } = methods;
 
 	const { create } = useCompanionSessions(workspaceId);
+	const { list: savedPlansList, remove: removeSavedPlan } = useCompanionSavedPlans(workspaceId);
+	const savedPlans = savedPlansList.data?.plans ?? [];
+	const [savedPlanId, setSavedPlanId] = useState("");
 
 	const onWorkflowChange = (id: string) => {
 		setModel(modelFromWorkflow(taskWorkflows.find((w) => w.id === id)));
+	};
+
+	const onDeleteSavedPlan = async (id: string) => {
+		await removeSavedPlan.trigger({ params: { id } });
+		if (savedPlanId === id) setSavedPlanId("");
+		void savedPlansList.trigger();
 	};
 
 	const baseRef = useWatch({ control, name: "baseRef" });
@@ -71,6 +81,7 @@ export function CompanionStartDialog({
 				branchName: v.useWorktree ? v.branchName.trim() : undefined,
 				workflowId: v.workflowId || undefined,
 				model,
+				savedPlanId: savedPlanId || undefined,
 			},
 		});
 		if (res.error || !res.data) {
@@ -126,6 +137,23 @@ export function CompanionStartDialog({
 							<div className="flex flex-col gap-1.5">
 								<FieldLabel>Branch name</FieldLabel>
 								<RHFInput name="branchName" placeholder="e.g. fix/pagination-bug" prefix={<GitBranch size={13} />} />
+							</div>
+						)}
+
+						{savedPlans.length > 0 && (
+							<div className="flex flex-col gap-1.5">
+								<FieldLabel>Start from saved plan (optional)</FieldLabel>
+								<Select
+									value={savedPlanId}
+									onChange={(v) => setSavedPlanId(v as string)}
+									placeholder="None — start fresh"
+									prefix={<FileText size={13} className="text-[#8888a0]" />}
+								>
+									<SelectOption value="" label="None — start fresh" />
+									{savedPlans.map((p) => (
+										<SelectOption key={p.id} value={p.id} label={p.title} onRemove={() => onDeleteSavedPlan(p.id)} />
+									))}
+								</Select>
 							</div>
 						)}
 

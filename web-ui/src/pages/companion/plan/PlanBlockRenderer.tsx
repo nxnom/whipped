@@ -2,7 +2,7 @@ import type { PlanBlock } from "@runtime-contract";
 import { HtmlBlock } from "./HtmlBlock";
 import { MarkdownBlock } from "./MarkdownBlock";
 import { MermaidBlock } from "./MermaidBlock";
-import { QuestionBlock } from "./QuestionBlock";
+import { QuestionBlock, RequiredMark } from "./QuestionBlock";
 import type { PlanAnswers } from "./types";
 
 export function PlanBlockRenderer({
@@ -24,7 +24,9 @@ export function PlanBlockRenderer({
 		case "question":
 			return (
 				<div className="flex flex-col gap-2">
-					<span className="text-[13px] font-medium text-gray-100">{block.prompt}</span>
+					<span className="text-[13px] font-medium text-gray-100">
+						{block.prompt} {block.input.kind !== "composite" && <RequiredMark required={block.input.required} />}
+					</span>
 					<QuestionBlock input={block.input} answers={answers} onAnswer={onAnswer} />
 				</div>
 			);

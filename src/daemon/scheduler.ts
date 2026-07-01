@@ -9,6 +9,7 @@ import {
 	buildWhippedMcpServerSpec,
 	buildTaskHookEnv,
 	CLAUDE_ASSISTANT_MCP_CONFIG_PATH,
+	CLAUDE_COMPANION_SETTINGS_PATH,
 	CLAUDE_TASK_SETTINGS_PATH,
 	cleanupCursorConfigDir,
 	cleanupPluginAgentFiles,
@@ -47,6 +48,7 @@ import { generateTaskId } from "../core/task-id.js";
 import { commitIfDirty, pushBranch } from "../git/merge-operations.js";
 import { playNotificationSound } from "../notifications/sound-player.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
+import { getCompanionSavedPlan } from "../state/companion-saved-plans-store.js";
 import { setCompanionSessionStatus, setCompanionSessionWorktreePath } from "../state/companion-sessions-store.js";
 import { buildMemoryContext } from "../state/memory-store.js";
 import {
@@ -348,6 +350,8 @@ export class TaskScheduler {
 		}
 		setCompanionSessionStatus(taskId, "running");
 
+		const resumedPlan = session.savedPlanId ? getCompanionSavedPlan(session.savedPlanId) : null;
+
 		const appendSystemPrompt = buildCompanionAgentSystemPrompt(
 			workspaceId,
 			repoPath,
@@ -357,6 +361,7 @@ export class TaskScheduler {
 			projectConfig.systemPrompt,
 			projectConfig.gitInstructions,
 			session.seedPrompt,
+			resumedPlan ? { title: resumedPlan.title, blocks: resumedPlan.blocks } : undefined,
 		);
 
 		const mcpConfigPath = !isPluginConfigAgent(agentId) && agentId !== "cursor" ? getMcpConfigPath(taskId) : undefined;
@@ -421,6 +426,9 @@ export class TaskScheduler {
 					...(agentId === "cursor" ? { [CURSOR_CONFIG_DIR_ENV]: getCursorConfigDir(taskId) } : {}),
 				},
 				mcpConfigPath: agentId === "claude" ? mcpConfigPath : undefined,
+				// Denies Claude's own native plan-mode tools for this session — see
+				// writeClaudeCompanionSettings — so "plan" always means companion_show_plan.
+				hookSettingsPath: agentId === "claude" ? CLAUDE_COMPANION_SETTINGS_PATH : undefined,
 				mcpServer:
 					agentId === "codex"
 						? buildWhippedMcpServerSpec(

@@ -16,6 +16,7 @@ interface CompanionSessionRow {
 	model: string | null;
 	effort: string | null;
 	status: string;
+	saved_plan_id: string | null;
 	created_at: number;
 	updated_at: number;
 }
@@ -34,6 +35,7 @@ function sessionFromRow(row: CompanionSessionRow): CompanionSession {
 		model: row.model,
 		effort: row.effort as EffortLevel | null,
 		status: row.status as CompanionSessionStatus,
+		savedPlanId: row.saved_plan_id,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
@@ -63,6 +65,7 @@ export interface CreateCompanionSessionInput {
 	agentId: RuntimeAgentId;
 	model: string | null;
 	effort: EffortLevel | null;
+	savedPlanId: string | null;
 }
 
 export function createCompanionSession(workspaceId: string, input: CreateCompanionSessionInput): CompanionSession {
@@ -73,8 +76,8 @@ export function createCompanionSession(workspaceId: string, input: CreateCompani
 		.prepare(
 			`INSERT INTO companion_sessions
 				(id, workspace_id, name, use_worktree, base_ref, branch_name, worktree_path, workflow_id, seed_prompt,
-				 agent_id, model, effort, status, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, 'stopped', ?, ?)`,
+				 agent_id, model, effort, status, saved_plan_id, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, 'stopped', ?, ?, ?)`,
 		)
 		.run(
 			id,
@@ -88,6 +91,7 @@ export function createCompanionSession(workspaceId: string, input: CreateCompani
 			input.agentId,
 			input.model,
 			input.effort,
+			input.savedPlanId,
 			now,
 			now,
 		);
@@ -95,6 +99,12 @@ export function createCompanionSession(workspaceId: string, input: CreateCompani
 	const created = getCompanionSession(id);
 	if (!created) throw new Error("createCompanionSession: row vanished after insert");
 	return created;
+}
+
+export function setCompanionSessionSavedPlanId(id: string, savedPlanId: string | null): void {
+	getDb()
+		.prepare("UPDATE companion_sessions SET saved_plan_id = ?, updated_at = ? WHERE id = ?")
+		.run(savedPlanId, Date.now(), id);
 }
 
 export function setCompanionSessionWorktreePath(id: string, worktreePath: string | null): void {

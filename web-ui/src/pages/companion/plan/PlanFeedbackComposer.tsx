@@ -1,11 +1,13 @@
-import { Button, Textarea, toast } from "@geckoui/geckoui";
+import { Button, Dialog, Textarea, toast } from "@geckoui/geckoui";
 import type { PlanBlock } from "@runtime-contract";
 import { Check, Send, X } from "lucide-react";
 import { useState } from "react";
 import { composePlanFeedbackMessage } from "./compose";
+import { PlanApproveOutcomeDialog } from "./PlanApproveOutcomeDialog";
 import type { PlanAnswers, PlanComment } from "./types";
 
 export function PlanFeedbackComposer({
+	sessionId,
 	version,
 	blocks,
 	answers,
@@ -14,6 +16,7 @@ export function PlanFeedbackComposer({
 	sendFeedback,
 	onSent,
 }: {
+	sessionId: string;
 	version: number;
 	blocks: PlanBlock[];
 	answers: PlanAnswers;
@@ -41,14 +44,37 @@ export function PlanFeedbackComposer({
 		}
 	};
 
+	// "required" is a signal to the agent, not an enforced UI gate — Send/Approve
+	// are never blocked. A developer who only wants to leave a comment (e.g.
+	// "none of these options fit, add one for X") has to be able to submit
+	// without picking a wrong answer just to satisfy a required field. The
+	// composed message always states unanswered questions explicitly (see
+	// compose.ts), so the agent can decide whether to re-ask in its next plan
+	// version rather than assuming silence means "resolved".
 	const handleSend = () =>
-		submit(composePlanFeedbackMessage(version, blocks, answers, comments, note, false), "Feedback sent");
+		void submit(composePlanFeedbackMessage(version, blocks, answers, comments, note, false), "Feedback sent");
 
-	// Always available, independent of whatever else is staged — approving and
-	// leaving feedback aren't mutually exclusive, so this folds in any staged
-	// answers/comments/note rather than discarding them.
-	const handleApprove = () =>
-		submit(composePlanFeedbackMessage(version, blocks, answers, comments, note, true), "Plan approved");
+	// Approve doesn't send anything by itself — it only opens the Save/Delete
+	// dialog. Nothing reaches the agent until that dialog's Save or Delete is
+	// clicked, and even then it's exactly one message (the approval folded
+	// together with the save instruction, or the approval alone for delete).
+	// Dismissing the dialog leaves everything staged, unsent.
+	const handleApprove = () => {
+		Dialog.show({
+			content: ({ dismiss }) => (
+				<PlanApproveOutcomeDialog
+					dismiss={dismiss}
+					sessionId={sessionId}
+					sendFeedback={sendFeedback}
+					composedApproval={composePlanFeedbackMessage(version, blocks, answers, comments, note, true)}
+					onSent={() => {
+						setNote("");
+						onSent();
+					}}
+				/>
+			),
+		});
+	};
 
 	return (
 		<div className="flex flex-col gap-2 border-t border-[#2a2a35] p-3 shrink-0">
@@ -77,12 +103,12 @@ export function PlanFeedbackComposer({
 				rows={2}
 			/>
 			<div className="flex items-center gap-2 self-end">
-				<Button size="sm" variant="outlined" disabled={sending} onClick={() => void handleApprove()}>
+				<Button size="sm" variant="outlined" disabled={sending} onClick={handleApprove}>
 					<span className="flex items-center gap-1.5">
 						<Check size={13} /> Approve
 					</span>
 				</Button>
-				<Button size="sm" disabled={!hasContent || sending} onClick={() => void handleSend()}>
+				<Button size="sm" disabled={!hasContent || sending} onClick={handleSend}>
 					<span className="flex items-center gap-1.5">
 						<Send size={13} /> Send
 					</span>
