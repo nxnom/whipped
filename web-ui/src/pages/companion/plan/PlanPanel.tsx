@@ -8,9 +8,11 @@ import type { PlanAnswers, PlanComment } from "./types";
 import { useCompanionPlans } from "./useCompanionPlans";
 
 const MIN_WIDTH = 320;
-const MAX_WIDTH = 720;
+const MAX_WIDTH_RATIO = 0.9;
 const DEFAULT_WIDTH = 420;
 const WIDTH_STORAGE_KEY = "companion-plan-width";
+
+const getMaxWidth = () => window.innerWidth * MAX_WIDTH_RATIO;
 
 export function PlanPanel({ sessionId, workspaceId }: { sessionId: string; workspaceId: string }) {
 	const { plans, sendFeedback } = useCompanionPlans(workspaceId, sessionId);
@@ -18,7 +20,7 @@ export function PlanPanel({ sessionId, workspaceId }: { sessionId: string; works
 	const [collapsed, setCollapsed] = useState(false);
 	const [width, setWidth] = useState(() => {
 		const stored = localStorage.getItem(WIDTH_STORAGE_KEY);
-		return stored ? Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, parseInt(stored, 10))) : DEFAULT_WIDTH;
+		return stored ? Math.max(MIN_WIDTH, Math.min(getMaxWidth(), parseInt(stored, 10))) : DEFAULT_WIDTH;
 	});
 	const setPersistedWidth = (w: number) => {
 		setWidth(w);
@@ -54,7 +56,7 @@ export function PlanPanel({ sessionId, workspaceId }: { sessionId: string; works
 		const onMove = (ev: MouseEvent) => {
 			if (!dragRef.current) return;
 			const delta = dragRef.current.startX - ev.clientX;
-			setPersistedWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, dragRef.current.startWidth + delta)));
+			setPersistedWidth(Math.min(getMaxWidth(), Math.max(MIN_WIDTH, dragRef.current.startWidth + delta)));
 		};
 		const onUp = () => {
 			dragRef.current = null;

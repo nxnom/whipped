@@ -24,7 +24,6 @@ function Badge({ icon, children }: { icon: React.ReactNode; children: React.Reac
 export function CompanionSessionDetail({
 	session,
 	workspaceId,
-	projectName,
 	hasStartCommand,
 	onStop,
 	onDiscard,
@@ -32,7 +31,6 @@ export function CompanionSessionDetail({
 }: {
 	session: CompanionSession;
 	workspaceId: string;
-	projectName?: string;
 	hasStartCommand: boolean;
 	onStop: () => void;
 	onDiscard: () => void;
@@ -62,15 +60,16 @@ export function CompanionSessionDetail({
 
 	return (
 		<div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-			{/* Header */}
-			<div className="flex items-center gap-3 px-6 py-2.5 border-b border-[#2a2a35] bg-[#141418] shrink-0">
-				{projectName && (
-					<>
-						<span className="text-xs text-[#60607a]">{projectName}</span>
-						<span className="text-xs text-[#2a2a35]">/</span>
-					</>
-				)}
-				<span className="text-[13px] font-semibold text-[#f0f0f5] truncate">{session.name}</span>
+			{/* Header: status/branch/agent badges + session actions in one row */}
+			<div className="flex items-center gap-2 px-6 py-2.5 border-b border-[#2a2a35] bg-[#141418] shrink-0 flex-wrap">
+				<span className="flex items-center gap-1.5 text-[11px] text-[#8888a0]">
+					<span className={classNames("size-1.5 rounded-full", STATUS_DOT_CLASS[session.status])} />
+					{STATUS_LABEL[session.status]}
+				</span>
+				<Badge icon={<GitMerge size={11} />}>
+					{session.useWorktree ? `${session.branchName} → ${session.baseRef}` : `main repo (vs ${session.baseRef})`}
+				</Badge>
+				<Badge icon={<span />}>{[session.agentId, session.model, session.effort].filter(Boolean).join(" · ")}</Badge>
 				<div className="flex-1" />
 				{hasStartCommand && !!session.worktreePath && (
 					<>
@@ -137,18 +136,6 @@ export function CompanionSessionDetail({
 						<Trash2 size={15} />
 					</button>
 				</Tooltip>
-			</div>
-
-			{/* Sub-header badges */}
-			<div className="flex items-center gap-2 px-6 py-2 border-b border-[#2a2a35] bg-[#141418] shrink-0 flex-wrap">
-				<span className="flex items-center gap-1.5 text-[11px] text-[#8888a0]">
-					<span className={classNames("size-1.5 rounded-full", STATUS_DOT_CLASS[session.status])} />
-					{STATUS_LABEL[session.status]}
-				</span>
-				<Badge icon={<GitMerge size={11} />}>
-					{session.useWorktree ? `${session.branchName} → ${session.baseRef}` : `main repo (vs ${session.baseRef})`}
-				</Badge>
-				<Badge icon={<span />}>{[session.agentId, session.model, session.effort].filter(Boolean).join(" · ")}</Badge>
 			</div>
 
 			{/* Tab bar */}

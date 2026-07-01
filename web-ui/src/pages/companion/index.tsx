@@ -1,12 +1,13 @@
-import { Button, toast } from "@geckoui/geckoui";
-import { ArrowLeft, GitBranch, Plus } from "lucide-react";
+import { Button, Select, SelectOption, SelectTrigger, toast } from "@geckoui/geckoui";
+import { ArrowLeft, ChevronDown, GitBranch, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useRead } from "@/runtime/api-client";
 import { useWorkspaceState } from "@/stores/board-store";
+import { classNames } from "@/utils/classNames";
 import { CompanionSessionDetail } from "./CompanionSessionDetail";
-import { CompanionSessionList } from "./CompanionSessionList";
 import { CompanionStartDialog } from "./CompanionStartDialog";
+import { STATUS_DOT_CLASS } from "./constants";
 import { useCompanionSessions } from "./useCompanionSessions";
 
 const POLL_INTERVAL_MS = 5000;
@@ -70,34 +71,77 @@ export function CompanionPage() {
 
 	return (
 		<>
-			<div className="flex h-full overflow-hidden">
-				{/* List rail */}
-				<div className="w-[300px] shrink-0 flex flex-col bg-[#141418] border-r border-[#2a2a35]">
-					<div className="flex items-center gap-2 px-4 py-4 border-b border-[#2a2a35]">
-						<button
-							type="button"
-							onClick={() => navigate(`/${encodeURIComponent(wsId)}/board`)}
-							title="Back to board"
-							className="hover:opacity-70 transition-opacity"
+			<div className="flex flex-col h-full overflow-hidden">
+				{/* Top bar: back nav + project/session breadcrumb (doubles as a session switcher) + new session */}
+				<div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#2a2a35] bg-[#141418] shrink-0">
+					<button
+						type="button"
+						onClick={() => navigate(`/${encodeURIComponent(wsId)}/board`)}
+						title="Back to board"
+						className="flex items-center gap-1.5 min-w-0 hover:opacity-70 transition-opacity shrink-0"
+					>
+						<ArrowLeft size={16} className="text-[#8888a0] shrink-0" />
+						{activeProject && (
+							<span className="text-[13px] text-[#60607a] truncate max-w-[160px]">{activeProject.name}</span>
+						)}
+					</button>
+
+					{activeProject && <span className="text-[13px] text-[#3a3a48] shrink-0">/</span>}
+
+					{sessions.length > 0 ? (
+						<Select
+							value={selected?.id ?? ""}
+							onChange={(id) => select(id as string)}
+							hideDefaultEmptyUI
+							wrapperClassName="w-fit shrink-0"
+							menuClassName="w-fit"
 						>
-							<ArrowLeft size={16} className="text-[#8888a0]" />
-						</button>
-						<div className="flex-1 min-w-0 flex flex-col">
-							<span className="text-[14px] font-semibold text-[#f0f0f5] truncate">Companion</span>
-							{activeProject && <span className="text-[11px] text-[#60607a] truncate">{activeProject.name}</span>}
-						</div>
-						<button
-							type="button"
-							onClick={() => setDialogOpen(true)}
-							title="New session"
-							className="hover:opacity-70 transition-opacity"
-						>
-							<Plus size={16} className="text-[#8888a0]" />
-						</button>
-					</div>
-					<div className="flex-1 overflow-y-auto">
-						<CompanionSessionList sessions={sessions} selectedId={selected?.id ?? null} onSelect={select} />
-					</div>
+							<SelectTrigger>
+								{({ toggleMenu, open }) => (
+									<button
+										type="button"
+										onClick={toggleMenu}
+										className="flex items-center gap-1.5 min-w-0 hover:opacity-80 transition-opacity"
+									>
+										<span className="text-[13px] font-semibold text-[#f0f0f5] truncate max-w-[240px]">
+											{selected ? selected.name : "Select session"}
+										</span>
+										<ChevronDown
+											size={13}
+											className={classNames("text-[#60607a] transition-transform shrink-0", open && "rotate-180")}
+										/>
+									</button>
+								)}
+							</SelectTrigger>
+							{sessions.map((s) => (
+								<SelectOption key={s.id} value={s.id} label={s.name}>
+									{() => (
+										<div className="flex items-center gap-2 min-w-0">
+											<span className={classNames("size-1.5 rounded-full shrink-0", STATUS_DOT_CLASS[s.status])} />
+											<div className="flex flex-col min-w-0">
+												<span className="text-[13px] text-[#f0f0f5] truncate">{s.name}</span>
+												<span className="text-[11px] text-[#60607a] truncate font-mono">
+													{s.useWorktree ? s.branchName : "main repo"}
+												</span>
+											</div>
+										</div>
+									)}
+								</SelectOption>
+							))}
+						</Select>
+					) : (
+						<span className="text-[13px] font-semibold text-[#f0f0f5] truncate">No sessions</span>
+					)}
+
+					<div className="flex-1" />
+					<button
+						type="button"
+						onClick={() => setDialogOpen(true)}
+						title="New session"
+						className="hover:opacity-70 transition-opacity shrink-0"
+					>
+						<Plus size={16} className="text-[#8888a0]" />
+					</button>
 				</div>
 
 				{/* Detail */}
@@ -106,7 +150,6 @@ export function CompanionPage() {
 						<CompanionSessionDetail
 							session={selected}
 							workspaceId={wsId}
-							projectName={activeProject?.name}
 							hasStartCommand={hasStartCommand}
 							onStop={() => void handleStop()}
 							onDiscard={() => void handleDiscard()}
