@@ -1,4 +1,5 @@
 import type { PlanBlock } from "@runtime-contract";
+import { HtmlBlock } from "./HtmlBlock";
 import { MarkdownBlock } from "./MarkdownBlock";
 import { MermaidBlock } from "./MermaidBlock";
 import { QuestionBlock } from "./QuestionBlock";
@@ -16,6 +17,8 @@ export function PlanBlockRenderer({
 	switch (block.type) {
 		case "markdown":
 			return <MarkdownBlock body={block.body} />;
+		case "html":
+			return <HtmlBlock body={block.body} />;
 		case "diagram":
 			return <MermaidBlock id={block.id} source={block.source} caption={block.caption} />;
 		case "question":

@@ -3,6 +3,13 @@ import type { PlanAnswers, PlanComment } from "./types";
 
 function excerpt(block: PlanBlock): string {
 	if (block.type === "markdown") return block.body.split("\n")[0]?.slice(0, 60) ?? block.id;
+	if (block.type === "html")
+		return (
+			block.body
+				.replace(/<[^>]+>/g, " ")
+				.trim()
+				.slice(0, 60) || block.id
+		);
 	if (block.type === "diagram") return block.caption ?? "diagram";
 	return block.prompt.slice(0, 60);
 }

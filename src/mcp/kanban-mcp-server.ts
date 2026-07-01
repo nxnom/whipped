@@ -1351,7 +1351,7 @@ if (mcpRole === "companion" && companionSessionId) {
 		"companion_show_plan",
 		{
 			description:
-				"Push a structured plan — markdown, mermaid diagrams, and interactive questions — to the developer's plan panel. Each call appends a new version; it does not overwrite the last one. The developer's answers, comments, and notes come back as a normal follow-up chat message — there is no separate response channel.",
+				"Push a structured plan — markdown, raw HTML, mermaid diagrams, and interactive questions — to the developer's plan panel. HTML blocks are rendered unsanitized, so only use them for genuinely custom layout that markdown can't express. Each call appends a new version; it does not overwrite the last one. The developer's answers, comments, and notes come back as a normal follow-up chat message — there is no separate response channel.",
 			inputSchema: { blocks: z.array(planBlockSchema).describe("Ordered plan blocks: markdown, diagram, or question") },
 		},
 		async ({ blocks }) => {

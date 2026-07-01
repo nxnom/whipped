@@ -1012,8 +1012,8 @@ export type CompanionSessionCreateRequest = z.infer<typeof companionSessionCreat
 
 // ─── Companion plan panel ────────────────────────────────────────────────────
 // A structured plan the companion agent pushes via the `companion_show_plan` MCP
-// tool — markdown interleaved with mermaid diagrams and interactive question
-// blocks. Versioned (each push appends, never overwrites); the developer's
+// tool — markdown, raw HTML, mermaid diagrams, and interactive question blocks
+// interleaved. Versioned (each push appends, never overwrites); the developer's
 // answers/comments are composed into one message and typed into the agent's
 // terminal — there is no separate response channel, so nothing here is ever
 // sent back as structured data.
@@ -1061,6 +1061,10 @@ export type QuestionInput = z.infer<typeof questionInputSchema>;
 
 export const planBlockSchema = z.discriminatedUnion("type", [
 	z.object({ id: z.string(), type: z.literal("markdown"), body: z.string() }),
+	// Rendered via dangerouslySetInnerHTML, unsanitized — same trust boundary as
+	// the markdown block's rehype-raw pass-through (the agent is the user's own
+	// coding agent, not untrusted third-party input).
+	z.object({ id: z.string(), type: z.literal("html"), body: z.string() }),
 	z.object({
 		id: z.string(),
 		type: z.literal("diagram"),
