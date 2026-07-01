@@ -35,18 +35,18 @@ export function CardDetailHeader({
 	const { session: runSession, start: startRun, stop: stopRun } = useRunSession(workspaceId);
 
 	return (
-		<div className="flex items-center gap-3 px-6 py-2.5 border-b border-[#2a2a35] bg-[#141418] shrink-0">
-			<button onClick={onClose} className="text-[#60607a] hover:text-gray-300 transition-colors" title="Back to board">
+		<div className="flex items-center gap-3 px-6 py-2.5 border-b border-[#2a2a2a] bg-[#0b0b0b] shrink-0">
+			<button onClick={onClose} className="text-[#5f6672] hover:text-[#ededed] transition-colors" title="Back to board">
 				<ArrowLeft size={18} />
 			</button>
-			<div className="w-px h-[18px] bg-[#2a2a35] shrink-0" />
+			<div className="w-px h-[18px] bg-[#2a2a2a] shrink-0" />
 			{projectName && (
 				<>
-					<span className="text-xs text-[#60607a]">{projectName}</span>
-					<span className="text-xs text-[#2a2a35]">/</span>
+					<span className="text-xs text-[#5f6672]">{projectName}</span>
+					<span className="text-xs text-[#2a2a2a]">/</span>
 				</>
 			)}
-			<span className="text-[13px] font-semibold text-[#f0f0f5] truncate">
+			<span className="text-[13px] font-semibold text-[#ededed] truncate">
 				{card.description?.split("\n")[0] ?? card.id}
 			</span>
 			<div className="flex-1" />
@@ -55,13 +55,13 @@ export function CardDetailHeader({
 					href={externalUrl}
 					target="_blank"
 					rel="noreferrer"
-					className="text-[#60607a] hover:text-gray-300 transition-colors"
+					className="text-[#5f6672] hover:text-[#ededed] transition-colors"
 					title="Open external link"
 				>
 					<ExternalLink size={15} />
 				</a>
 			)}
-			<div className="w-px h-[18px] bg-[#2a2a35] shrink-0" />
+			<div className="w-px h-[18px] bg-[#2a2a2a] shrink-0" />
 			{/* Action buttons */}
 			{hasStartCommand && (
 				<>
@@ -69,7 +69,7 @@ export function CardDetailHeader({
 						<Tooltip delayDuration={0} content="Stop" side="bottom" triggerAsChild>
 							<button
 								onClick={() => void stopRun()}
-								className="cursor-pointer text-[#60607a] hover:text-red-400 transition-colors"
+								className="cursor-pointer text-[#5f6672] hover:text-[#ff3b4d] transition-colors"
 							>
 								<Square size={15} className="fill-current" />
 							</button>
@@ -84,7 +84,7 @@ export function CardDetailHeader({
 							<button
 								onClick={() => void startRun(card.id)}
 								disabled={runSession.status === "running"}
-								className="cursor-pointer text-[#60607a] hover:text-emerald-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+								className="cursor-pointer text-[#5f6672] hover:text-[#22c55e] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
 							>
 								<Play size={15} />
 							</button>
@@ -103,7 +103,7 @@ export function CardDetailHeader({
 						<button
 							onClick={onMerge}
 							disabled={merging}
-							className="cursor-pointer text-[#60607a] hover:text-emerald-400 transition-colors disabled:opacity-40"
+							className="cursor-pointer text-[#5f6672] hover:text-[#22c55e] transition-colors disabled:opacity-40"
 						>
 							<GitMerge size={15} />
 						</button>
@@ -114,7 +114,7 @@ export function CardDetailHeader({
 							target="_blank"
 							rel="noreferrer"
 							title="Open Pull Request"
-							className="cursor-pointer text-green-400 hover:text-green-300 transition-colors"
+							className="cursor-pointer text-[#22c55e] hover:text-[#22c55e] transition-colors"
 						>
 							<GitPullRequest size={15} />
 						</a>
@@ -123,7 +123,7 @@ export function CardDetailHeader({
 							<button
 								onClick={onPR}
 								disabled={merging}
-								className="cursor-pointer text-[#60607a] hover:text-green-400 transition-colors disabled:opacity-40"
+								className="cursor-pointer text-[#5f6672] hover:text-[#22c55e] transition-colors disabled:opacity-40"
 							>
 								<GitPullRequest size={15} />
 							</button>
@@ -131,11 +131,11 @@ export function CardDetailHeader({
 					)}
 				</>
 			)}
-			<div className="w-px h-[18px] bg-[#2a2a35] shrink-0" />
+			<div className="w-px h-[18px] bg-[#2a2a2a] shrink-0" />
 			<Tooltip delayDuration={0} content="Delete task" side="bottom" triggerAsChild>
 				<button
 					onClick={onDelete}
-					className="cursor-pointer text-[#60607a] hover:text-red-400 transition-colors"
+					className="cursor-pointer text-[#5f6672] hover:text-[#ff3b4d] transition-colors"
 					title="Delete task"
 				>
 					<Trash2 size={15} />

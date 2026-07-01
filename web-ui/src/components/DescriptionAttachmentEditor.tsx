@@ -36,7 +36,7 @@ export function DescriptionAttachmentEditor({
 	setAttachments,
 	className,
 	placeholder,
-	textColorClass = "text-[#c0c0d0]",
+	textColorClass = "text-[#ededed]",
 	autoFocus,
 }: Props) {
 	const taRef = useRef<HTMLTextAreaElement>(null);
@@ -118,38 +118,38 @@ export function DescriptionAttachmentEditor({
 				}}
 				placeholder={placeholder}
 				className={classNames("shrink-0", className)}
-				metricsClassName={classNames("text-[15px] leading-[1.7] placeholder-[#2a2a35] h-full p-0", textColorClass)}
+				metricsClassName={classNames("text-[15px] leading-[1.7] placeholder-[#2a2a2a] h-full p-0", textColorClass)}
 			/>
 
 			{displayed.length > 0 && (
 				<div className="flex flex-wrap gap-2 shrink-0">
 					{displayed.map((a) => (
 						<div key={a.n} className="relative group">
-							<span className="absolute -top-1 -left-1 z-10 flex items-center justify-center min-w-[15px] h-[15px] px-1 rounded-full text-[9px] font-bold text-white bg-[#3a3a48]">
+							<span className="absolute -top-1 -left-1 z-10 flex items-center justify-center min-w-[15px] h-[15px] px-1 rounded-full text-[9px] font-bold text-white bg-[#3a3a3a]">
 								{a.n}
 							</span>
 							{a.previewUrl ? (
 								<img
 									src={a.previewUrl}
 									alt={a.name}
-									className="h-12 w-12 object-cover rounded border border-[#2a2a35]"
+									className="h-12 w-12 object-cover rounded border border-[#2a2a2a]"
 									title={a.name}
 								/>
 							) : (
 								<div
-									className="h-12 w-12 flex flex-col items-center justify-center rounded border border-[#2a2a35] bg-[#1a1a1f] gap-1"
+									className="h-12 w-12 flex flex-col items-center justify-center rounded border border-[#2a2a2a] bg-[#111111] gap-1"
 									title={a.name}
 								>
-									<Paperclip size={12} className="text-[#60607a]" />
-									<span className="text-[9px] text-[#60607a] truncate w-10 text-center px-1">{a.name}</span>
+									<Paperclip size={12} className="text-[#5f6672]" />
+									<span className="text-[9px] text-[#5f6672] truncate w-10 text-center px-1">{a.name}</span>
 								</div>
 							)}
 							<button
 								type="button"
 								onClick={() => removeByN(a.n)}
-								className="absolute -top-1 -right-1 size-4 rounded-full bg-[#1a1a1f] border border-[#2a2a35] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+								className="absolute -top-1 -right-1 size-4 rounded-full bg-[#111111] border border-[#2a2a2a] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
 							>
-								<X size={9} className="text-[#f0f0f5]" />
+								<X size={9} className="text-[#ededed]" />
 							</button>
 						</div>
 					))}
@@ -160,7 +160,7 @@ export function DescriptionAttachmentEditor({
 				<button
 					type="button"
 					onClick={() => fileRef.current?.click()}
-					className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-[#2a2a35] text-[11px] text-[#60607a] hover:text-[#f0f0f5] hover:border-[#3a3a48] transition-colors"
+					className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-[#2a2a2a] text-[11px] text-[#5f6672] hover:text-[#ededed] hover:border-[#3a3a3a] transition-colors"
 				>
 					<Paperclip size={12} />
 					Attach files

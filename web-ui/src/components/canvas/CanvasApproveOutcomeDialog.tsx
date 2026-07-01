@@ -70,8 +70,8 @@ export function CanvasApproveOutcomeDialog({
 	return (
 		<div className="space-y-4">
 			<div>
-				<h3 className="text-base font-semibold text-gray-100">Approve and...</h3>
-				<p className="text-sm text-gray-400 mt-1">
+				<h3 className="text-base font-semibold text-[#ededed]">Approve and...</h3>
+				<p className="text-sm text-[#8a8f98] mt-1">
 					Your approval hasn't been sent yet. Save asks the agent to consolidate every version into one final, reusable
 					canvas; Delete clears this session's canvas history instead. Either way sends your approval to the agent.
 				</p>

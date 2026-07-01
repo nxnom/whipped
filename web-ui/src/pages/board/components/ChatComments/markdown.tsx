@@ -33,7 +33,7 @@ export function refHighlightRehype(colorOf: (n: number) => string | undefined) {
 							type: "element",
 							tagName: "mark",
 							properties: {
-								style: `background:${color};color:#0c0c0f;border-radius:3px;padding:0 3px;font-weight:600`,
+								style: `background:${color};color:#111111;border-radius:3px;padding:0 3px;font-weight:600`,
 							},
 							children: [{ type: "text", value: part }],
 						});
@@ -55,16 +55,16 @@ export function refHighlightRehype(colorOf: (n: number) => string | undefined) {
 export function makeMdComponents(): React.ComponentProps<typeof ReactMarkdown>["components"] {
 	return {
 		p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
-		strong: ({ children }) => <strong className="font-semibold text-gray-100">{children}</strong>,
+		strong: ({ children }) => <strong className="font-semibold text-[#ededed]">{children}</strong>,
 		em: ({ children }) => <em className="italic">{children}</em>,
 		code: ({ children, className }) => {
 			const isBlock = className?.includes("language-");
 			return isBlock ? (
-				<code className="block bg-[#1a1a24] border border-[#2a2a38] rounded px-3 py-2 text-xs font-mono text-gray-200 overflow-x-auto whitespace-pre my-1">
+				<code className="block bg-[#111111] border border-[#2a2a2a] rounded px-3 py-2 text-xs font-mono text-[#ededed] overflow-x-auto whitespace-pre my-1">
 					{children}
 				</code>
 			) : (
-				<code className="bg-[#1a1a24] border border-[#2a2a38] rounded px-1 py-0.5 text-xs font-mono text-gray-200">
+				<code className="bg-[#111111] border border-[#2a2a2a] rounded px-1 py-0.5 text-xs font-mono text-[#ededed]">
 					{children}
 				</code>
 			);
@@ -72,19 +72,19 @@ export function makeMdComponents(): React.ComponentProps<typeof ReactMarkdown>["
 		pre: ({ children }) => <pre className="my-1 overflow-x-auto">{children}</pre>,
 		ul: ({ children }) => <ul className="list-disc list-inside my-1 space-y-0.5">{children}</ul>,
 		ol: ({ children }) => <ol className="list-decimal list-inside my-1 space-y-0.5">{children}</ol>,
-		li: ({ children }) => <li className="text-gray-300">{children}</li>,
+		li: ({ children }) => <li className="text-[#ededed]">{children}</li>,
 		blockquote: ({ children }) => (
-			<blockquote className="border-l-2 border-[#3a3a50] pl-3 my-1 text-gray-400 italic">{children}</blockquote>
+			<blockquote className="border-l-2 border-[#3a3a3a] pl-3 my-1 text-[#8a8f98] italic">{children}</blockquote>
 		),
 		a: ({ href, children }) => (
-			<a href={href} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">
+			<a href={href} target="_blank" rel="noreferrer" className="text-[#ededed] hover:underline">
 				{children}
 			</a>
 		),
-		h1: ({ children }) => <h1 className="text-base font-semibold text-gray-100 mt-2 mb-1">{children}</h1>,
-		h2: ({ children }) => <h2 className="text-sm font-semibold text-gray-100 mt-2 mb-1">{children}</h2>,
-		h3: ({ children }) => <h3 className="text-sm font-medium text-gray-200 mt-1 mb-0.5">{children}</h3>,
-		hr: () => <hr className="border-[#2a2a38] my-2" />,
+		h1: ({ children }) => <h1 className="text-base font-semibold text-[#ededed] mt-2 mb-1">{children}</h1>,
+		h2: ({ children }) => <h2 className="text-sm font-semibold text-[#ededed] mt-2 mb-1">{children}</h2>,
+		h3: ({ children }) => <h3 className="text-sm font-medium text-[#ededed] mt-1 mb-0.5">{children}</h3>,
+		hr: () => <hr className="border-[#2a2a2a] my-2" />,
 		img: ({ src, alt }) => <img src={src} alt={alt} className="max-w-full max-h-64 rounded my-1 object-contain" />,
 	};
 }

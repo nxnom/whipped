@@ -34,21 +34,21 @@ export function SlotInstructionsEditor({
 			{/* Header */}
 			<div className="flex items-center gap-2 shrink-0 mb-3">
 				<FileText size={14} className="shrink-0" style={{ color: slotTypeColor(selectedSlot.type) }} />
-				<span className="text-[14px] font-semibold text-[#f0f0f5]">{selectedSlot.name} — Instructions</span>
+				<span className="text-[14px] font-semibold text-[#ededed]">{selectedSlot.name} — Instructions</span>
 				<div className="flex-1" />
 				{selectedSlot.prompt.source === "file" ? (
 					<SaveIndicator status={saveStatus} />
 				) : (
 					<>
-						<span className="font-mono text-[10px] text-[#60607a]">
+						<span className="font-mono text-[10px] text-[#5f6672]">
 							{promptInlineText(selectedSlot.prompt).length} chars
 						</span>
 						<button
 							onClick={onLinkToFile}
-							className="flex items-center gap-1.5 hover:opacity-80 transition-opacity bg-[#1a1a1f] border border-[#2a2a35] rounded-md px-2.5 py-1"
+							className="flex items-center gap-1.5 hover:opacity-80 transition-opacity bg-[#111111] border border-[#2a2a2a] rounded-md px-2.5 py-1"
 						>
-							<LinkIcon size={11} className="text-[#7c6aff]" />
-							<span className="text-[10px] text-[#c0c0d0]">Link to file</span>
+							<LinkIcon size={11} className="text-[#ffffff]" />
+							<span className="text-[10px] text-[#ededed]">Link to file</span>
 						</button>
 					</>
 				)}
@@ -56,8 +56,8 @@ export function SlotInstructionsEditor({
 
 			{/* File-linked path bar */}
 			{selectedSlot.prompt.source === "file" && (
-				<div className="shrink-0 mb-3 flex items-center gap-2 bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-2">
-					<LinkIcon size={12} className="text-[#7c6aff] shrink-0" />
+				<div className="shrink-0 mb-3 flex items-center gap-2 bg-[#111111] border border-[#2a2a2a] rounded-md px-3 py-2">
+					<LinkIcon size={12} className="text-[#ffffff] shrink-0" />
 					<input
 						type="text"
 						value={pathDraft}
@@ -67,19 +67,19 @@ export function SlotInstructionsEditor({
 							if (e.key === "Enter") (e.target as HTMLInputElement).blur();
 						}}
 						placeholder="/path/to/repo/.whipped/prompts/dev.md"
-						className="flex-1 bg-transparent outline-none font-mono text-[11px] text-[#c0c0d0]"
+						className="flex-1 bg-transparent outline-none font-mono text-[11px] text-[#ededed]"
 					/>
 					<button
 						onClick={onBrowse}
 						title="Browse for a file"
-						className="shrink-0 text-[#60607a] hover:text-[#7c6aff] transition-colors"
+						className="shrink-0 text-[#5f6672] hover:text-[#ffffff] transition-colors"
 					>
 						<FolderOpen size={13} />
 					</button>
 					<button
 						onClick={onDisconnect}
 						title="Disconnect file (keep content as inline)"
-						className="shrink-0 text-[#60607a] hover:text-red-400 transition-colors"
+						className="shrink-0 text-[#5f6672] hover:text-[#ff3b4d] transition-colors"
 					>
 						<X size={13} />
 					</button>
@@ -87,7 +87,7 @@ export function SlotInstructionsEditor({
 			)}
 
 			{/* Editor box (shared by both modes) */}
-			<div className="flex-1 flex flex-col overflow-hidden bg-[#0c0c0f] border border-[#2a2a35] rounded-lg p-5">
+			<div className="flex-1 flex flex-col overflow-hidden bg-[#111111] border border-[#2a2a2a] rounded-lg p-5">
 				{editorReady ? (
 					<textarea
 						value={editorText}
@@ -98,10 +98,10 @@ export function SlotInstructionsEditor({
 								: "Describe what this agent should check or do..."
 						}
 						disabled={selectedSlot.prompt.source === "file" && !selectedSlot.prompt.path}
-						className="flex-1 bg-transparent resize-none outline-none font-mono text-[13px] text-[#c0c0d0] leading-relaxed w-full min-h-0 disabled:opacity-50"
+						className="flex-1 bg-transparent resize-none outline-none font-mono text-[13px] text-[#ededed] leading-relaxed w-full min-h-0 disabled:opacity-50"
 					/>
 				) : (
-					<div className="flex-1 flex items-center justify-center gap-2 text-[12px] text-[#60607a]">
+					<div className="flex-1 flex items-center justify-center gap-2 text-[12px] text-[#5f6672]">
 						<Loader2 size={14} className="animate-spin" />
 						Loading file…
 					</div>
@@ -109,7 +109,7 @@ export function SlotInstructionsEditor({
 			</div>
 
 			{selectedSlot.prompt.source === "file" && (
-				<p className="shrink-0 mt-2 text-[11px] text-[#60607a] leading-relaxed">
+				<p className="shrink-0 mt-2 text-[11px] text-[#5f6672] leading-relaxed">
 					Edits auto-save to the file and are also picked up if you edit it in your own editor. The agent reads this
 					file at runtime.
 				</p>

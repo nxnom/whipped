@@ -1,3 +1,5 @@
+export { AGENT_DISPLAY } from "@/pages/board/constants";
+
 export const COLUMN_LABELS: Record<string, string> = {
 	todo: "Todo",
 	in_progress: "In Progress",
@@ -8,12 +10,12 @@ export const COLUMN_LABELS: Record<string, string> = {
 };
 
 export const DEP_COL_BADGE: Record<string, string> = {
-	todo: "text-gray-400 bg-gray-700",
-	in_progress: "text-blue-400 bg-blue-400/10",
-	reopened: "text-orange-400 bg-orange-400/10",
-	ready_for_review: "text-green-400 bg-green-400/10",
-	blocked: "text-red-400 bg-red-400/10",
-	done: "text-emerald-400 bg-emerald-400/10",
+	todo: "text-[#5f6672] bg-[#161616]",
+	in_progress: "text-[#ededed] bg-[#ffffff]/10",
+	reopened: "text-[#f97316] bg-[#f97316]/10",
+	ready_for_review: "text-[#eab308] bg-[#eab308]/10",
+	blocked: "text-[#ff3b4d] bg-[#ff3b4d]/10",
+	done: "text-[#22c55e] bg-[#22c55e]/10",
 };
 
 export const COLUMN_STATUS: Record<
@@ -22,100 +24,59 @@ export const COLUMN_STATUS: Record<
 > = {
 	todo: {
 		label: "Todo",
-		color: "text-gray-400",
-		bg: "bg-gray-400/10",
-		border: "border-gray-400/25",
-		dotColor: "bg-gray-400",
+		color: "text-[#5f6672]",
+		bg: "bg-[#5f6672]/10",
+		border: "border-[#5f6672]/25",
+		dotColor: "bg-[#5f6672]",
 	},
 	in_progress: {
 		label: "In Progress",
-		color: "text-[#3b82f6]",
-		bg: "bg-[#3b82f6]/10",
-		border: "border-[#3b82f6]/25",
-		dotColor: "bg-[#3b82f6]",
-		glow: "#3b82f660",
+		color: "text-[#ededed]",
+		bg: "bg-[#ffffff]/10",
+		border: "border-[#ffffff]/25",
+		dotColor: "bg-[#ffffff]",
+		glow: "#ffffff60",
 	},
 	reopened: {
 		label: "Reopened",
-		color: "text-orange-400",
-		bg: "bg-orange-400/10",
-		border: "border-orange-400/25",
-		dotColor: "bg-orange-400",
-	},
-	ready_for_review: {
-		label: "Ready for Review",
-		color: "text-yellow-400",
-		bg: "bg-yellow-400/10",
-		border: "border-yellow-400/25",
-		dotColor: "bg-yellow-400",
-	},
-	blocked: {
-		label: "Blocked",
-		color: "text-red-400",
-		bg: "bg-red-400/10",
-		border: "border-red-400/25",
-		dotColor: "bg-red-400",
-	},
-	done: {
-		label: "Done",
-		color: "text-emerald-400",
-		bg: "bg-emerald-400/10",
-		border: "border-emerald-400/25",
-		dotColor: "bg-emerald-400",
-	},
-};
-
-export const PRIORITY_BADGE: Record<string, { color: string; bg: string; border: string; dotColor: string }> = {
-	urgent: { color: "text-[#ef4444]", bg: "bg-[#ef4444]/10", border: "border-[#ef4444]/25", dotColor: "bg-[#ef4444]" },
-	high: { color: "text-orange-400", bg: "bg-orange-400/10", border: "border-orange-400/25", dotColor: "bg-orange-400" },
-	medium: {
-		color: "text-yellow-400",
-		bg: "bg-yellow-400/10",
-		border: "border-yellow-400/25",
-		dotColor: "bg-yellow-400",
-	},
-	low: { color: "text-slate-400", bg: "bg-slate-400/10", border: "border-slate-400/25", dotColor: "bg-slate-400" },
-};
-
-export const AGENT_DISPLAY: Record<
-	string,
-	{ label: string; color: string; bg: string; border: string; dotColor: string }
-> = {
-	claude: {
-		label: "Claude",
-		color: "text-[#7c6aff]",
-		bg: "bg-[#7c6aff]/10",
-		border: "border-[#7c6aff]/25",
-		dotColor: "bg-[#7c6aff]",
-	},
-	codex: {
-		label: "Codex",
-		color: "text-[#22c55e]",
-		bg: "bg-[#22c55e]/10",
-		border: "border-[#22c55e]/25",
-		dotColor: "bg-[#22c55e]",
-	},
-	cursor: {
-		label: "Cursor",
-		color: "text-[#3b82f6]",
-		bg: "bg-[#3b82f6]/10",
-		border: "border-[#3b82f6]/25",
-		dotColor: "bg-[#3b82f6]",
-	},
-	opencode: {
-		label: "Opencode",
 		color: "text-[#f97316]",
 		bg: "bg-[#f97316]/10",
 		border: "border-[#f97316]/25",
 		dotColor: "bg-[#f97316]",
 	},
-	mimo: {
-		label: "MiMo",
-		color: "text-[#fb8147]",
-		bg: "bg-[#fb8147]/10",
-		border: "border-[#fb8147]/25",
-		dotColor: "bg-[#fb8147]",
+	ready_for_review: {
+		label: "Ready for Review",
+		color: "text-[#eab308]",
+		bg: "bg-[#eab308]/10",
+		border: "border-[#eab308]/25",
+		dotColor: "bg-[#eab308]",
 	},
+	blocked: {
+		label: "Blocked",
+		color: "text-[#ff3b4d]",
+		bg: "bg-[#ff3b4d]/10",
+		border: "border-[#ff3b4d]/25",
+		dotColor: "bg-[#ff3b4d]",
+	},
+	done: {
+		label: "Done",
+		color: "text-[#22c55e]",
+		bg: "bg-[#22c55e]/10",
+		border: "border-[#22c55e]/25",
+		dotColor: "bg-[#22c55e]",
+	},
+};
+
+export const PRIORITY_BADGE: Record<string, { color: string; bg: string; border: string; dotColor: string }> = {
+	urgent: { color: "text-[#ff3b4d]", bg: "bg-[#ff3b4d]/10", border: "border-[#ff3b4d]/25", dotColor: "bg-[#ff3b4d]" },
+	high: { color: "text-[#f97316]", bg: "bg-[#f97316]/10", border: "border-[#f97316]/25", dotColor: "bg-[#f97316]" },
+	medium: {
+		color: "text-[#eab308]",
+		bg: "bg-[#eab308]/10",
+		border: "border-[#eab308]/25",
+		dotColor: "bg-[#eab308]",
+	},
+	low: { color: "text-[#5f6672]", bg: "bg-[#5f6672]/10", border: "border-[#5f6672]/25", dotColor: "bg-[#5f6672]" },
 };
 
 // Labels for terminal-session types that aren't workflow slots (e.g. worktree install).

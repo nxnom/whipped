@@ -14,24 +14,24 @@ interface StorySubtaskListProps {
 export function StorySubtaskList({ subtaskDrafts, allCards, onAdd, onEdit, onRemove }: StorySubtaskListProps) {
 	return (
 		<div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-			<div className="h-px bg-[#2a2a35] shrink-0 my-2" />
+			<div className="h-px bg-[#2a2a2a] shrink-0 my-2" />
 			{/* Subtasks header */}
 			<div className="flex items-center gap-2 shrink-0 mb-2">
-				<ListTree size={14} className="text-[#8888a0]" />
-				<span className="text-xs font-semibold text-[#8888a0]">Subtasks</span>
+				<ListTree size={14} className="text-[#8a8f98]" />
+				<span className="text-xs font-semibold text-[#8a8f98]">Subtasks</span>
 				{subtaskDrafts.length > 0 && (
-					<div className="bg-[#2a2a35] rounded-full px-1.5 py-0.5">
-						<span className="text-[10px] text-[#60607a]">{subtaskDrafts.length}</span>
+					<div className="bg-[#2a2a2a] rounded-full px-1.5 py-0.5">
+						<span className="text-[10px] text-[#5f6672]">{subtaskDrafts.length}</span>
 					</div>
 				)}
 				<div className="flex-1" />
-				<button className="flex items-center gap-1 px-2.5 py-1 rounded bg-[#7c6aff15] border border-[#7c6aff30] text-[11px] font-medium text-[#7c6aff]">
+				<button className="flex items-center gap-1 px-2.5 py-1 rounded bg-[#8b5cf615] border border-[#8b5cf630] text-[11px] font-medium text-[#8b5cf6]">
 					<Sparkles size={12} />
 					Generate
 				</button>
 				<button
 					onClick={onAdd}
-					className="flex items-center gap-1 px-2.5 py-1 rounded border border-[#2a2a35] text-[11px] text-[#60607a] hover:text-[#f0f0f5] hover:border-[#3a3a48] transition-colors"
+					className="flex items-center gap-1 px-2.5 py-1 rounded border border-[#2a2a2a] text-[11px] text-[#5f6672] hover:text-[#ededed] hover:border-[#3a3a3a] transition-colors"
 				>
 					<Plus size={12} />
 					Add
@@ -42,10 +42,10 @@ export function StorySubtaskList({ subtaskDrafts, allCards, onAdd, onEdit, onRem
 				{subtaskDrafts.length === 0 && (
 					<div
 						onClick={onAdd}
-						className="border border-dashed border-[#2a2a35] rounded-lg p-5 flex flex-col items-center gap-2 cursor-pointer hover:border-[#3a3a48] hover:bg-white/[0.02] transition-colors"
+						className="border border-dashed border-[#2a2a2a] rounded-lg p-5 flex flex-col items-center gap-2 cursor-pointer hover:border-[#3a3a3a] hover:bg-white/[0.02] transition-colors"
 					>
-						<Plus size={16} className="text-[#4a4a5a]" />
-						<p className="text-xs text-[#4a4a5a]">At least one subtask is required</p>
+						<Plus size={16} className="text-[#5f6672]" />
+						<p className="text-xs text-[#5f6672]">At least one subtask is required</p>
 					</div>
 				)}
 				{subtaskDrafts.map((subtask, i) => {
@@ -58,11 +58,11 @@ export function StorySubtaskList({ subtaskDrafts, allCards, onAdd, onEdit, onRem
 						<button
 							key={subtask.tempId}
 							onClick={() => onEdit(subtask.tempId)}
-							className="flex items-center gap-2.5 bg-[#1a1a1f] border border-[#2a2a35] rounded-md px-2.5 py-2 text-left hover:border-[#3a3a48] transition-colors group w-full"
+							className="flex items-center gap-2.5 bg-[#111111] border border-[#2a2a2a] rounded-md px-2.5 py-2 text-left hover:border-[#3a3a3a] transition-colors group w-full"
 						>
-							<GripVertical size={12} className="text-[#2a2a35] shrink-0" />
-							<span className="text-[10px] text-[#4a4a5a] font-mono shrink-0 w-4">{i + 1}</span>
-							<span className="flex-1 min-w-0 text-xs text-[#f0f0f5] truncate">
+							<GripVertical size={12} className="text-[#2a2a2a] shrink-0" />
+							<span className="text-[10px] text-[#5f6672] font-mono shrink-0 w-4">{i + 1}</span>
+							<span className="flex-1 min-w-0 text-xs text-[#ededed] truncate">
 								{subtask.description?.split("\n")[0] ?? subtask.tempId}
 							</span>
 							{priorityOpt && (
@@ -83,7 +83,7 @@ export function StorySubtaskList({ subtaskDrafts, allCards, onAdd, onEdit, onRem
 									e.stopPropagation();
 									onRemove(subtask.tempId);
 								}}
-								className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-[#4a4a5a] hover:text-[#ef4444] p-0.5"
+								className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-[#5f6672] hover:text-[#ff3b4d] p-0.5"
 							>
 								<X size={12} />
 							</span>

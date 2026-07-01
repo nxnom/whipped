@@ -90,28 +90,28 @@ export function ImportDialog({
 		<div className="fixed inset-0 z-50 flex items-center justify-center">
 			<div className="absolute inset-0 bg-black/70" onClick={handleClose} />
 
-			<div className="relative flex h-[850px] max-h-[calc(100vh-80px)] w-[1100px] max-w-[calc(100vw-80px)] flex-col overflow-hidden rounded-xl border border-[#2a2a35] bg-[#141418] shadow-[0_8px_40px_4px_#00000060]">
+			<div className="relative flex h-[850px] max-h-[calc(100vh-80px)] w-[1100px] max-w-[calc(100vw-80px)] flex-col overflow-hidden rounded-xl border border-[#2a2a2a] bg-[#0b0b0b] shadow-[0_8px_40px_4px_#00000060]">
 				{/* Header */}
-				<div className="flex shrink-0 items-center gap-3 border-b border-[#2a2a35] px-6 py-3.5">
-					<span className="text-[15px] font-semibold text-[#f0f0f5]">Import Tickets</span>
+				<div className="flex shrink-0 items-center gap-3 border-b border-[#2a2a2a] px-6 py-3.5">
+					<span className="text-[15px] font-semibold text-[#ededed]">Import Tickets</span>
 					<div className="flex-1" />
 					<button
 						onClick={handleCopyPrompt}
 						disabled={!hasTaskWorkflow}
 						title="Copy a prompt to generate tickets with an AI assistant"
-						className="flex items-center gap-1.5 rounded-md border border-[#2a2a35] bg-[#1a1a1f] px-3 py-1.5 text-xs text-[#c8c8d4] transition-colors hover:border-[#3a3a48] disabled:cursor-not-allowed disabled:opacity-40"
+						className="flex items-center gap-1.5 rounded-md border border-[#2a2a2a] bg-[#111111] px-3 py-1.5 text-xs text-[#c8c8d4] transition-colors hover:border-[#3a3a3a] disabled:cursor-not-allowed disabled:opacity-40"
 					>
 						<ClipboardCopy size={13} />
 						Copy prompt
 					</button>
-					<button onClick={handleClose} className="text-[#60607a] transition-colors hover:text-[#f0f0f5]">
+					<button onClick={handleClose} className="text-[#5f6672] transition-colors hover:text-[#ededed]">
 						<X size={18} />
 					</button>
 				</div>
 
 				{!hasTaskWorkflow ? (
 					<div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-						<p className="max-w-sm text-sm text-[#8888a0]">
+						<p className="max-w-sm text-sm text-[#8a8f98]">
 							You need at least one workflow before importing tickets. Create one in Settings → Workflows.
 						</p>
 						<button
@@ -119,7 +119,7 @@ export function ImportDialog({
 								handleClose();
 								navigate(`/${encodeURIComponent(workspaceId)}/settings/workflows`);
 							}}
-							className="rounded-md bg-[#7c6aff] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#6a5ae0]"
+							className="rounded-md bg-[#ededed] px-4 py-2 text-xs font-semibold text-[#050505] transition-colors hover:bg-white"
 						>
 							Go to Workflows
 						</button>
@@ -128,7 +128,7 @@ export function ImportDialog({
 					<div className="flex min-h-0 flex-1 flex-col gap-3 px-6 py-4">
 						{/* JSON input */}
 						<div className="flex shrink-0 items-center gap-2">
-							<span className="text-[11px] font-medium text-[#60607a]">
+							<span className="text-[11px] font-medium text-[#5f6672]">
 								Paste a JSON array of tickets, or load a file
 							</span>
 							<div className="flex-1" />
@@ -145,7 +145,7 @@ export function ImportDialog({
 							/>
 							<button
 								onClick={() => fileInputRef.current?.click()}
-								className="flex items-center gap-1.5 rounded-md border border-[#2a2a35] bg-[#1a1a1f] px-3 py-1.5 text-xs text-[#c8c8d4] transition-colors hover:border-[#3a3a48]"
+								className="flex items-center gap-1.5 rounded-md border border-[#2a2a2a] bg-[#111111] px-3 py-1.5 text-xs text-[#c8c8d4] transition-colors hover:border-[#3a3a3a]"
 							>
 								<FileUp size={13} />
 								Load file
@@ -160,19 +160,19 @@ export function ImportDialog({
 							}}
 							spellCheck={false}
 							placeholder='[ { "description": "Add dark mode toggle", "workflowId": "wf_default", "priority": "high" } ]'
-							className="h-44 shrink-0 resize-none rounded-lg border border-[#2a2a35] bg-[#0e0e12] px-3 py-2.5 font-mono text-xs text-[#e0e0ea] outline-none placeholder:text-[#3a3a48] focus:border-[#3a3a48]"
+							className="h-44 shrink-0 resize-none rounded-lg border border-[#2a2a2a] bg-[#0e0e12] px-3 py-2.5 font-mono text-xs text-[#e0e0ea] outline-none placeholder:text-[#3a3a3a] focus:border-[#3a3a3a]"
 						/>
 
 						<div className="flex shrink-0 items-center gap-3">
 							<button
 								onClick={() => validate(rawJson)}
 								disabled={!rawJson.trim()}
-								className="rounded-md border border-[#2a2a35] bg-[#1a1a1f] px-3 py-1.5 text-xs text-[#c8c8d4] transition-colors hover:border-[#3a3a48] disabled:cursor-not-allowed disabled:opacity-40"
+								className="rounded-md border border-[#2a2a2a] bg-[#111111] px-3 py-1.5 text-xs text-[#c8c8d4] transition-colors hover:border-[#3a3a3a] disabled:cursor-not-allowed disabled:opacity-40"
 							>
 								Validate
 							</button>
 							{parsed && !parsed.fatal && (
-								<span className="text-[11px] text-[#8888a0]">
+								<span className="text-[11px] text-[#8a8f98]">
 									{validCount}/{totalCount} valid
 									{validCount < totalCount && " — fix the highlighted rows to import"}
 								</span>
@@ -182,7 +182,7 @@ export function ImportDialog({
 						{/* Preview / errors */}
 						<div className="min-h-0 flex-1 overflow-hidden">
 							{parsed?.fatal && (
-								<div className="rounded-lg border border-red-500/40 bg-red-500/5 px-3 py-2.5 text-xs text-red-400">
+								<div className="rounded-lg border border-[#ff3b4d]/40 bg-[#ff3b4d]/5 px-3 py-2.5 text-xs text-[#ff3b4d]">
 									{parsed.fatal}
 								</div>
 							)}
@@ -193,18 +193,18 @@ export function ImportDialog({
 
 				{/* Footer */}
 				{hasTaskWorkflow && (
-					<div className="flex shrink-0 items-center gap-2.5 border-t border-[#2a2a35] px-6 py-3.5">
+					<div className="flex shrink-0 items-center gap-2.5 border-t border-[#2a2a2a] px-6 py-3.5">
 						<div className="flex-1" />
 						<button
 							onClick={handleClose}
-							className="px-4 py-2 text-xs font-medium text-[#8888a0] transition-colors hover:text-[#f0f0f5]"
+							className="px-4 py-2 text-xs font-medium text-[#8a8f98] transition-colors hover:text-[#ededed]"
 						>
 							Cancel
 						</button>
 						<button
 							onClick={handleImport}
 							disabled={loading || !parsed?.valid}
-							className="flex items-center gap-1.5 rounded-md bg-[#7c6aff] px-5 py-2 text-xs font-semibold text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+							className="flex items-center gap-1.5 rounded-md bg-[#ededed] px-5 py-2 text-xs font-semibold text-[#050505] transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
 						>
 							<Upload size={14} />
 							{loading

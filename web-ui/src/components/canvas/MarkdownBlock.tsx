@@ -6,7 +6,7 @@ import "./canvasContent.css";
 
 export function MarkdownBlock({ body }: { body: string }) {
 	return (
-		<div className="canvas-content text-[13px] leading-relaxed text-gray-300">
+		<div className="canvas-content text-[13px] leading-relaxed text-[#ededed]">
 			<ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={makeMdComponents()}>
 				{body}
 			</ReactMarkdown>

@@ -105,7 +105,7 @@ export function CardDetailPanel({
 	};
 
 	return (
-		<div className="fixed inset-0 z-10 bg-[#0a0a0e] flex flex-col overflow-hidden">
+		<div className="fixed inset-0 z-10 bg-[#050505] flex flex-col overflow-hidden">
 			<CardDetailHeader
 				card={card}
 				workspaceId={workspaceId}
@@ -155,8 +155,8 @@ export function CardDetailPanel({
 
 			{/* attempt count hint in bottom bar only when retries exist */}
 			{card.autoFixAttempts > 0 && (
-				<div className="flex items-center gap-2.5 px-6 py-2 border-t border-[#2a2a35] bg-[#141418] shrink-0">
-					<span className="text-[10px] text-[#4a4a5a]">Attempt {card.autoFixAttempts + 1}</span>
+				<div className="flex items-center gap-2.5 px-6 py-2 border-t border-[#2a2a2a] bg-[#0b0b0b] shrink-0">
+					<span className="text-[10px] text-[#5f6672]">Attempt {card.autoFixAttempts + 1}</span>
 				</div>
 			)}
 			<RunBar workspaceId={workspaceId} />

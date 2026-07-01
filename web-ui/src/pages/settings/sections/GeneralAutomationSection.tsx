@@ -15,8 +15,8 @@ import { SaveRow } from "../_shared";
 function SectionDivider({ title }: { title: string }) {
 	return (
 		<div className="flex items-center gap-3">
-			<span className="text-sm font-semibold text-[#f0f0f5]">{title}</span>
-			<div className="flex-1 h-px bg-[#2a2a35]" />
+			<span className="text-sm font-semibold text-[#ededed]">{title}</span>
+			<div className="flex-1 h-px bg-[#2a2a2a]" />
 		</div>
 	);
 }
@@ -25,8 +25,8 @@ function FieldRow({ label, description, children }: { label: string; description
 	return (
 		<div className="flex items-center gap-4">
 			<div className="flex-1 flex flex-col gap-0.5">
-				<span className="text-[13px] font-medium text-[#f0f0f5]">{label}</span>
-				<span className="text-[11px] text-[#4a4a5a]">{description}</span>
+				<span className="text-[13px] font-medium text-[#ededed]">{label}</span>
+				<span className="text-[11px] text-[#5f6672]">{description}</span>
 			</div>
 			{children}
 		</div>
@@ -72,10 +72,10 @@ export function GeneralAutomationSection({
 		<FormProvider {...methods}>
 			<div className="flex flex-col gap-7">
 				{config.deliveryMode === "yolo" && (
-					<div className="flex items-start gap-2.5 px-3.5 py-3 rounded-md border border-amber-500/40 bg-amber-500/10">
-						<AlertTriangle size={15} className="text-amber-400 shrink-0 mt-px" />
-						<p className="text-[12px] text-amber-200/90 leading-relaxed">
-							<span className="font-semibold text-amber-200">YOLO mode is on.</span> Tasks that pass review are merged
+					<div className="flex items-start gap-2.5 px-3.5 py-3 rounded-md border border-[#eab308]/40 bg-[#eab308]/10">
+						<AlertTriangle size={15} className="text-[#eab308] shrink-0 mt-px" />
+						<p className="text-[12px] text-[#eab308]/90 leading-relaxed">
+							<span className="font-semibold text-[#eab308]">YOLO mode is on.</span> Tasks that pass review are merged
 							straight into the local base branch and pushed — no PR and no human approval. If your local repo is on
 							that branch, its working tree will read as behind until you pull.
 						</p>
@@ -169,8 +169,8 @@ export function GeneralAutomationSection({
 				<div className="flex flex-col gap-4">
 					<SectionDivider title="Assistant" />
 					<div className="flex flex-col gap-1.5">
-						<span className="text-[13px] font-medium text-[#f0f0f5]">Agent &amp; model</span>
-						<span className="text-[11px] text-[#4a4a5a]">
+						<span className="text-[13px] font-medium text-[#ededed]">Agent &amp; model</span>
+						<span className="text-[11px] text-[#5f6672]">
 							Default agent for the in-app assistant, used unless you pick a different model when opening a session.
 						</span>
 						<div className="mt-1 max-w-xl">

@@ -45,8 +45,8 @@ export function CanvasPanel({ sessionId, workspaceId }: { sessionId: string; wor
 
 	if (collapsed) {
 		return (
-			<div className="shrink-0 flex flex-col items-center border-l border-[#2a2a35] bg-[#141418] w-8 py-3">
-				<button onClick={() => setCollapsed(false)} className="text-[#60607a] hover:text-[#f0f0f5] transition-colors">
+			<div className="shrink-0 flex flex-col items-center border-l border-[#2a2a2a] bg-[#0b0b0b] w-8 py-3">
+				<button onClick={() => setCollapsed(false)} className="text-[#5f6672] hover:text-[#ededed] transition-colors">
 					<ChevronLeft size={14} />
 				</button>
 			</div>
@@ -57,9 +57,9 @@ export function CanvasPanel({ sessionId, workspaceId }: { sessionId: string; wor
 		<div className="shrink-0 flex overflow-hidden" style={{ width }}>
 			<div
 				onMouseDown={onDragStart}
-				className="w-1 shrink-0 cursor-col-resize hover:bg-[#7c6aff]/40 active:bg-[#7c6aff]/60 transition-colors bg-[#2a2a35]"
+				className="w-1 shrink-0 cursor-col-resize hover:bg-[#ffffff]/40 active:bg-[#ffffff]/60 transition-colors bg-[#2a2a2a]"
 			/>
-			<div className="flex-1 border-l border-[#2a2a35] flex flex-col overflow-hidden bg-[#141418]">
+			<div className="flex-1 border-l border-[#2a2a2a] flex flex-col overflow-hidden bg-[#0b0b0b]">
 				<CanvasBody
 					sessionId={sessionId}
 					canvases={canvases}
@@ -67,7 +67,7 @@ export function CanvasPanel({ sessionId, workspaceId }: { sessionId: string; wor
 					headerActions={
 						<button
 							onClick={() => setCollapsed(true)}
-							className="text-[#60607a] hover:text-[#f0f0f5] transition-colors"
+							className="text-[#5f6672] hover:text-[#ededed] transition-colors"
 						>
 							<ChevronRight size={14} />
 						</button>

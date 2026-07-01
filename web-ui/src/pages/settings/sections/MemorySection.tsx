@@ -93,17 +93,17 @@ function MemoryForm({
 	return (
 		<FormProvider {...methods}>
 			<form onSubmit={submit} className="flex flex-col gap-4">
-				<h3 className="text-[15px] font-semibold text-[#f0f0f5]">{existing ? "Edit memory" : `New ${scope} memory`}</h3>
+				<h3 className="text-[15px] font-semibold text-[#ededed]">{existing ? "Edit memory" : `New ${scope} memory`}</h3>
 
 				<div className="grid grid-cols-2 gap-3">
-					<RHFInputGroup label="Type" labelClassName="text-[12px] font-medium text-[#c0c0d0]">
+					<RHFInputGroup label="Type" labelClassName="text-[12px] font-medium text-[#ededed]">
 						<RHFSelect<MemoryType> name="type">
 							{MEMORY_TYPE_OPTIONS.map((o) => (
 								<SelectOption key={o.value} value={o.value} label={o.label} />
 							))}
 						</RHFSelect>
 					</RHFInputGroup>
-					<RHFInputGroup label="Importance" labelClassName="text-[12px] font-medium text-[#c0c0d0]">
+					<RHFInputGroup label="Importance" labelClassName="text-[12px] font-medium text-[#ededed]">
 						<RHFSelect<number> name="importance">
 							<SelectOption value={1} label="1 — normal" />
 							<SelectOption value={2} label="2 — high" />
@@ -112,25 +112,25 @@ function MemoryForm({
 					</RHFInputGroup>
 				</div>
 
-				<RHFInputGroup label="Title" labelClassName="text-[12px] font-medium text-[#c0c0d0]">
+				<RHFInputGroup label="Title" labelClassName="text-[12px] font-medium text-[#ededed]">
 					<RHFInput name="title" placeholder="Short summary" />
 				</RHFInputGroup>
 
-				<RHFInputGroup label="Content" labelClassName="text-[12px] font-medium text-[#c0c0d0]">
+				<RHFInputGroup label="Content" labelClassName="text-[12px] font-medium text-[#ededed]">
 					<RHFTextarea name="content" placeholder="The durable fact / convention / lesson…" rows={6} />
 				</RHFInputGroup>
 
 				{scope === "global" && (
 					<>
 						<div className="flex flex-col gap-1.5">
-							<span className="text-[12px] font-medium text-[#c0c0d0]">Tags</span>
+							<span className="text-[12px] font-medium text-[#ededed]">Tags</span>
 							<TagInput value={tags} onChange={setTags} suggestions={suggestions} />
-							<span className="text-[11px] text-[#4a4a5a]">
+							<span className="text-[11px] text-[#5f6672]">
 								Required. Projects subscribing to one of these tags will see this memory.
 							</span>
 						</div>
 						<div className="flex flex-col gap-1.5">
-							<span className="text-[12px] font-medium text-[#c0c0d0]">Also bind to specific projects (optional)</span>
+							<span className="text-[12px] font-medium text-[#ededed]">Also bind to specific projects (optional)</span>
 							<ProjectMultiSelect
 								value={bindings}
 								onChange={setBindings}
@@ -173,18 +173,18 @@ function MemoryRow({
 }) {
 	const otherBoundCount = memory.boundWorkspaceIds.length - (boundToCurrent ? 1 : 0);
 	return (
-		<div className="flex flex-col gap-1.5 bg-[#0c0c0f] border border-[#2a2a35] rounded-lg px-4 py-3">
+		<div className="flex flex-col gap-1.5 bg-[#111111] border border-[#2a2a2a] rounded-lg px-4 py-3">
 			<div className="flex items-center gap-2">
-				<span className="text-[10px] font-mono uppercase tracking-wide text-[#7c6aff] bg-[#7c6aff15] px-1.5 py-0.5 rounded">
+				<span className="text-[10px] font-mono uppercase tracking-wide text-[#ffffff] bg-[#ffffff15] px-1.5 py-0.5 rounded">
 					{TYPE_LABEL[memory.type]}
 				</span>
 				{memory.importance > 1 && (
-					<span className="text-[10px] text-[#60607a]">{memory.importance === 3 ? "critical" : "high"}</span>
+					<span className="text-[10px] text-[#5f6672]">{memory.importance === 3 ? "critical" : "high"}</span>
 				)}
-				<span className="text-[13px] font-semibold text-[#f0f0f5] truncate">{memory.title}</span>
+				<span className="text-[13px] font-semibold text-[#ededed] truncate">{memory.title}</span>
 				<div className="flex-1" />
 				{onToggleBind && (
-					<label className="flex items-center gap-1.5 text-[11px] text-[#8888a0] hover:text-[#c0c0d0] cursor-pointer">
+					<label className="flex items-center gap-1.5 text-[11px] text-[#8a8f98] hover:text-[#ededed] cursor-pointer">
 						<Checkbox checked={boundToCurrent ?? false} onChange={(e) => onToggleBind(e.target.checked)} />
 						This project
 					</label>
@@ -193,38 +193,38 @@ function MemoryRow({
 					<button
 						onClick={onApprove}
 						title="Approve"
-						className="flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 transition-colors"
+						className="flex items-center gap-1 text-[11px] text-[#22c55e] hover:text-[#22c55e]/80 transition-colors"
 					>
 						<Check size={13} /> Approve
 					</button>
 				)}
-				<button onClick={onEdit} className="text-[11px] text-[#8888a0] hover:text-[#c0c0d0] transition-colors">
+				<button onClick={onEdit} className="text-[11px] text-[#8a8f98] hover:text-[#ededed] transition-colors">
 					Edit
 				</button>
-				<button onClick={onDelete} className="text-[#60607a] hover:text-red-400 transition-colors">
+				<button onClick={onDelete} className="text-[#5f6672] hover:text-[#ff3b4d] transition-colors">
 					<Trash2 size={13} />
 				</button>
 			</div>
-			<p className="text-[12px] text-[#8888a0] whitespace-pre-wrap break-words line-clamp-3">{memory.content}</p>
+			<p className="text-[12px] text-[#8a8f98] whitespace-pre-wrap break-words line-clamp-3">{memory.content}</p>
 			{memory.tags.length > 0 && (
 				<div className="flex flex-wrap items-center gap-1">
 					{memory.tags.map((tag) => (
-						<span key={tag} className="text-[10px] text-[#c0c0d0] bg-[#2a2a35] rounded px-1.5 py-0.5">
+						<span key={tag} className="text-[10px] text-[#ededed] bg-[#2a2a2a] rounded px-1.5 py-0.5">
 							{tag}
 						</span>
 					))}
 					{boundToCurrent && (
-						<span className="text-[10px] text-[#7c6aff] bg-[#7c6aff15] rounded px-1.5 py-0.5">this project</span>
+						<span className="text-[10px] text-[#ffffff] bg-[#ffffff15] rounded px-1.5 py-0.5">this project</span>
 					)}
 					{otherBoundCount > 0 && (
-						<span className="text-[10px] text-[#60607a]">
+						<span className="text-[10px] text-[#5f6672]">
 							+ {otherBoundCount} other project{otherBoundCount > 1 ? "s" : ""}
 						</span>
 					)}
 				</div>
 			)}
 			{memory.originAgent && (
-				<span className="text-[10px] text-[#4a4a5a] font-mono">
+				<span className="text-[10px] text-[#5f6672] font-mono">
 					from {memory.originAgent.agent}
 					{memory.originAgent.model ? ` · ${memory.originAgent.model}` : ""}
 				</span>
@@ -357,14 +357,14 @@ export function MemorySection({ workspaceId }: { workspaceId: string }) {
 		<div className="flex-1 overflow-y-auto px-10 py-6 flex flex-col gap-5">
 			{/* Scope tabs + add */}
 			<div className="flex items-center gap-2">
-				<div className="flex items-center gap-0 bg-[#0c0c0f] border border-[#2a2a35] rounded-md p-[2px]">
+				<div className="flex items-center gap-0 bg-[#111111] border border-[#2a2a2a] rounded-md p-[2px]">
 					{(["project", "global"] as MemoryScope[]).map((s) => (
 						<button
 							key={s}
 							onClick={() => setScope(s)}
 							className={classNames(
 								"px-3 py-1 text-[12px] rounded transition-colors capitalize",
-								scope === s ? "bg-[#2a2a35] text-[#f0f0f5]" : "text-[#60607a] hover:text-[#8888a0]",
+								scope === s ? "bg-[#2a2a2a] text-[#ededed]" : "text-[#5f6672] hover:text-[#8a8f98]",
 							)}
 						>
 							{s}
@@ -392,7 +392,7 @@ export function MemorySection({ workspaceId }: { workspaceId: string }) {
 			{/* Pending inbox */}
 			{pending.length > 0 && (
 				<div className="flex flex-col gap-2">
-					<span className="text-[12px] font-semibold text-amber-400">Pending review ({pending.length})</span>
+					<span className="text-[12px] font-semibold text-[#eab308]">Pending review ({pending.length})</span>
 					{pending.map((m) => (
 						<MemoryRow
 							key={m.id}
@@ -407,15 +407,15 @@ export function MemorySection({ workspaceId }: { workspaceId: string }) {
 
 			{/* Approved */}
 			<div className="flex flex-col gap-2">
-				<span className="text-[12px] font-semibold text-[#8888a0]">
+				<span className="text-[12px] font-semibold text-[#8a8f98]">
 					{scope === "project" ? "Project memory" : "Global memory"} ({approved.length})
 				</span>
 				{loading ? (
-					<span className="text-[12px] text-[#4a4a5a]">Loading…</span>
+					<span className="text-[12px] text-[#5f6672]">Loading…</span>
 				) : approved.length === 0 ? (
 					<div className="flex flex-col items-center gap-1 py-10 text-center">
-						<span className="text-[13px] text-[#60607a]">No {scope} memory yet.</span>
-						<span className="text-[11px] text-[#4a4a5a]">
+						<span className="text-[13px] text-[#5f6672]">No {scope} memory yet.</span>
+						<span className="text-[11px] text-[#5f6672]">
 							Agents add these as they work, or add one manually above.
 						</span>
 					</div>

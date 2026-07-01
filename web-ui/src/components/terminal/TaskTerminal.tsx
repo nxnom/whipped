@@ -19,7 +19,7 @@ export function TaskTerminal({ taskId, workspaceId, className }: TaskTerminalPro
 
 		const term = new Terminal({
 			theme: {
-				background: "#0a0a0e",
+				background: "#050505",
 				foreground: "#d1d5db",
 				cursor: "#60a5fa",
 				selectionBackground: "#374151",

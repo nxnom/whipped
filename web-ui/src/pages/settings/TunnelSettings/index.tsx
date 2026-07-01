@@ -25,19 +25,19 @@ export function TunnelSettings() {
 	if (!config) {
 		return (
 			<div className="flex-1 flex flex-col">
-				<div className="shrink-0 flex flex-col gap-1 px-10 py-6 border-b border-[#2a2a35]">
-					<h1 className="text-xl font-semibold text-[#f0f0f5]">Tunnel</h1>
+				<div className="shrink-0 flex flex-col gap-1 px-10 py-6 border-b border-[#2a2a2a]">
+					<h1 className="text-xl font-semibold text-[#ededed]">Tunnel</h1>
 				</div>
-				<div className="flex items-center justify-center py-20 text-sm text-[#60607a]">Loading...</div>
+				<div className="flex items-center justify-center py-20 text-sm text-[#5f6672]">Loading...</div>
 			</div>
 		);
 	}
 
 	return (
 		<div className="flex-1 flex flex-col overflow-hidden">
-			<div className="shrink-0 flex flex-col gap-1 px-10 py-6 border-b border-[#2a2a35]">
-				<h1 className="text-xl font-semibold text-[#f0f0f5]">Tunnel</h1>
-				<p className="text-[13px] text-[#60607a]">
+			<div className="shrink-0 flex flex-col gap-1 px-10 py-6 border-b border-[#2a2a2a]">
+				<h1 className="text-xl font-semibold text-[#ededed]">Tunnel</h1>
+				<p className="text-[13px] text-[#5f6672]">
 					Expose your local server publicly via Cloudflare Tunnel for incoming webhooks
 				</p>
 			</div>
@@ -57,13 +57,13 @@ export function TunnelSettings() {
 					{/* Tunnel control */}
 					<div className="flex flex-col gap-4">
 						<div className="flex items-center gap-3">
-							<span className="text-[15px] font-semibold text-[#f0f0f5]">Cloudflare Tunnel</span>
-							<div className="flex-1 h-px bg-[#1a1a1f]" />
+							<span className="text-[15px] font-semibold text-[#ededed]">Cloudflare Tunnel</span>
+							<div className="flex-1 h-px bg-[#111111]" />
 						</div>
 						<div className="flex items-center justify-between">
 							<div className="flex flex-col gap-0.5">
-								<span className="text-[13px] font-medium text-[#c0c0d0]">Auto-start tunnel</span>
-								<span className="text-[11px] text-[#60607a]">Start automatically when the server starts</span>
+								<span className="text-[13px] font-medium text-[#ededed]">Auto-start tunnel</span>
+								<span className="text-[11px] text-[#5f6672]">Start automatically when the server starts</span>
 							</div>
 							<button
 								role="switch"
@@ -72,7 +72,7 @@ export function TunnelSettings() {
 								disabled={saveConfig.loading}
 								className={classNames(
 									"relative shrink-0 transition-colors disabled:opacity-50 w-9 h-5 rounded-[10px]",
-									config.autoStartTunnel ? "bg-[#7c6aff]" : "bg-[#2a2a35]",
+									config.autoStartTunnel ? "bg-[#ffffff]" : "bg-[#2a2a2a]",
 								)}
 							>
 								<span

@@ -174,36 +174,36 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 						e.target.value = "";
 					}}
 				/>
-				<div className="rounded-lg border border-[#2a2a38] bg-[#0d0d12] focus-within:border-[#3a3a50] transition-colors">
+				<div className="rounded-lg border border-[#2a2a2a] bg-[#111111] focus-within:border-[#3a3a3a] transition-colors">
 					{/* Pending attachment previews — derived from tokens in the text */}
 					{displayed.length > 0 && (
 						<div className="flex flex-wrap gap-2 px-3 pt-2">
 							{displayed.map((att) => (
 								<div key={att.n} className="relative group">
-									<span className="absolute -top-1 -left-1 z-10 flex items-center justify-center min-w-[15px] h-[15px] px-1 rounded-full text-[9px] font-bold text-white bg-[#3a3a50]">
+									<span className="absolute -top-1 -left-1 z-10 flex items-center justify-center min-w-[15px] h-[15px] px-1 rounded-full text-[9px] font-bold text-white bg-[#3a3a3a]">
 										{att.n}
 									</span>
 									{att.dataUrl ? (
 										<img
 											src={att.dataUrl}
 											alt={att.name}
-											className="h-16 w-16 object-cover rounded border border-[#2a2a38]"
+											className="h-16 w-16 object-cover rounded border border-[#2a2a2a]"
 											title={att.name}
 										/>
 									) : (
 										<div
-											className="h-16 w-16 flex flex-col items-center justify-center gap-1 rounded border border-[#2a2a38] bg-[#1a1a24] px-1"
+											className="h-16 w-16 flex flex-col items-center justify-center gap-1 rounded border border-[#2a2a2a] bg-[#161616] px-1"
 											title={att.name}
 										>
-											<Paperclip size={16} className="shrink-0 text-gray-500" />
-											<span className="text-[10px] text-gray-400 w-full text-center truncate">{att.name}</span>
+											<Paperclip size={16} className="shrink-0 text-[#8a8f98]" />
+											<span className="text-[10px] text-[#8a8f98] w-full text-center truncate">{att.name}</span>
 										</div>
 									)}
 									<button
 										onClick={() => removeAttachment(att.n)}
-										className="absolute -top-1 -right-1 size-4 rounded-full bg-[#1a1a24] border border-[#3a3a50] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+										className="absolute -top-1 -right-1 size-4 rounded-full bg-[#161616] border border-[#3a3a3a] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
 									>
-										<X size={10} className="text-gray-300" />
+										<X size={10} className="text-[#ededed]" />
 									</button>
 								</div>
 							))}
@@ -211,10 +211,10 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 					)}
 					{/* Visual context captured from a Whipped extension paste */}
 					{visualComment && visualComment.elements.length > 0 && (
-						<div className="mx-3 mt-2 flex flex-col gap-1.5 rounded-lg border border-[#2a2a38] bg-[#0d0d12] p-2">
+						<div className="mx-3 mt-2 flex flex-col gap-1.5 rounded-lg border border-[#2a2a2a] bg-[#111111] p-2">
 							<div className="flex items-center gap-2">
-								<Crosshair size={12} className="text-[#7c6aff]" />
-								<span className="text-[11px] font-medium text-gray-400">
+								<Crosshair size={12} className="text-[#8b5cf6]" />
+								<span className="text-[11px] font-medium text-[#8a8f98]">
 									Visual context · {visualComment.elements.length}{" "}
 									{visualComment.elements.length === 1 ? "element" : "elements"}
 								</span>
@@ -222,7 +222,7 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 								<button
 									type="button"
 									onClick={() => setVisualComment(null)}
-									className="text-[11px] text-[#60607a] hover:text-[#ef4444] transition-colors"
+									className="text-[11px] text-[#5f6672] hover:text-[#ff3b4d] transition-colors"
 								>
 									Clear
 								</button>
@@ -239,12 +239,12 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 									return (
 										<span
 											key={i}
-											className="inline-flex items-center gap-1 rounded border border-[#2a2a38] bg-[#1a1a24] px-1.5 py-0.5 text-[10px] text-gray-400"
+											className="inline-flex items-center gap-1 rounded border border-[#2a2a2a] bg-[#161616] px-1.5 py-0.5 text-[10px] text-[#8a8f98]"
 											title={el.elementSelector}
 										>
 											<span className="text-[#c4baff]">#{i + 1}</span>
 											<span className="truncate max-w-[180px]">🧩 {label}</span>
-											{src && <span className="text-[#4a4a5a] font-mono">📄 {src}</span>}
+											{src && <span className="text-[#5f6672] font-mono">📄 {src}</span>}
 										</span>
 									);
 								})}
@@ -300,13 +300,13 @@ export function CommentComposer({ card, workspaceId, onRefresh }: CommentCompose
 						onDragOver={(e) => e.preventDefault()}
 						placeholder="Add a comment… (paste or drop images)"
 						rows={5}
-						metricsClassName="text-sm text-gray-200 px-3 pt-3 pb-1 leading-normal placeholder-gray-600"
+						metricsClassName="text-sm text-[#ededed] px-3 pt-3 pb-1 leading-normal placeholder-[#5f6672]"
 					/>
 					<div className="flex items-center justify-between px-3 pb-2">
 						<div className="flex items-center gap-2">
 							<button
 								onClick={() => fileInputRef.current?.click()}
-								className="text-[#4a4a5a] hover:text-gray-400 transition-colors"
+								className="text-[#5f6672] hover:text-[#8a8f98] transition-colors"
 								title="Attach file"
 								type="button"
 							>

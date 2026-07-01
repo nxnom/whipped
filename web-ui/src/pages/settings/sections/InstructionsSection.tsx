@@ -11,15 +11,15 @@ import { classNames } from "@/utils/classNames";
 function SectionDivider({ title, action }: { title: string; action?: React.ReactNode }) {
 	return (
 		<div className="flex items-center gap-2">
-			<span className="text-[15px] font-semibold shrink-0 text-[#f0f0f5]">{title}</span>
-			<div className="flex-1 h-px bg-[#1a1a1f]" />
+			<span className="text-[15px] font-semibold shrink-0 text-[#ededed]">{title}</span>
+			<div className="flex-1 h-px bg-[#111111]" />
 			{action}
 		</div>
 	);
 }
 
 const textareaClassName =
-	"bg-[#0c0c0f] border border-[#2a2a35] rounded-lg px-4 py-3.5 text-[#c0c0d0] font-mono text-[12px] leading-relaxed resize-none outline-none w-full";
+	"bg-[#111111] border border-[#2a2a2a] rounded-lg px-4 py-3.5 text-[#ededed] font-mono text-[12px] leading-relaxed resize-none outline-none w-full";
 
 export function InstructionsSection({ config, workspaceId }: { config: RuntimeProjectConfig; workspaceId: string }) {
 	const methods = useForm<InstructionsForm, unknown, InstructionsForm>({
@@ -58,7 +58,7 @@ export function InstructionsSection({ config, workspaceId }: { config: RuntimePr
 					{/* Shared System Prompt */}
 					<div className="flex flex-col gap-3 shrink-0">
 						<SectionDivider title="Shared System Prompt" />
-						<p className="text-[12px] text-[#60607a]">
+						<p className="text-[12px] text-[#5f6672]">
 							Appended to all agents (dev, code review, QA, assistant). Use for tech stack, project goals, or any
 							context all agents should know.
 						</p>
@@ -78,14 +78,14 @@ export function InstructionsSection({ config, workspaceId }: { config: RuntimePr
 							action={
 								<button
 									onClick={loadDefaultGitInstructions}
-									className="flex items-center gap-1.5 hover:opacity-80 transition-opacity shrink-0 border border-[#2a2a35] rounded-[5px] px-2.5 py-[5px] bg-transparent text-[#8888a0]"
+									className="flex items-center gap-1.5 hover:opacity-80 transition-opacity shrink-0 border border-[#2a2a2a] rounded-[5px] px-2.5 py-[5px] bg-transparent text-[#8a8f98]"
 								>
 									<RotateCcw size={12} />
 									<span className="text-[11px]">Load Default</span>
 								</button>
 							}
 						/>
-						<p className="text-[12px] shrink-0 text-[#60607a]">
+						<p className="text-[12px] shrink-0 text-[#5f6672]">
 							Custom rules for commit messages, PR titles, and PR descriptions. The dev agent reads these when writing
 							git messages.
 						</p>
@@ -98,11 +98,11 @@ export function InstructionsSection({ config, workspaceId }: { config: RuntimePr
 				</div>
 
 				{/* Save */}
-				<div className="shrink-0 flex justify-end px-10 py-4 border-t border-[#2a2a35]">
+				<div className="shrink-0 flex justify-end px-10 py-4 border-t border-[#2a2a2a]">
 					<button
 						onClick={methods.handleSubmit(onSubmit)}
 						disabled={methods.formState.isSubmitting}
-						className="text-sm font-medium px-4 py-2 rounded-lg transition-opacity disabled:opacity-50 bg-[#7c6aff] text-white"
+						className="text-sm font-medium px-4 py-2 rounded-lg transition-opacity disabled:opacity-50 bg-[#ffffff] text-white"
 					>
 						{methods.formState.isSubmitting ? "Saving..." : "Save"}
 					</button>

@@ -41,8 +41,8 @@ export function SetupPage() {
 					<LoadingButton type="submit" className="w-full" loading={loading} loadingText="Saving...">
 						Set password
 					</LoadingButton>
-					<p className="text-[11px] text-[#60607a] text-center">
-						Prefer the terminal? Run <span className="font-mono text-[#8888a0]">whipped auth set-password</span>
+					<p className="text-[11px] text-[#5f6672] text-center">
+						Prefer the terminal? Run <span className="font-mono text-[#8a8f98]">whipped auth set-password</span>
 					</p>
 				</form>
 			</FormProvider>

@@ -47,11 +47,11 @@ export function FilesBox({
 	};
 
 	return (
-		<div className="flex flex-col gap-0.5 bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-2 flex-1">
-			{rootFiles === null && <span className="text-[11px] py-1 text-[#4a4a5a]">Scanning...</span>}
+		<div className="flex flex-col gap-0.5 bg-[#111111] border border-[#2a2a2a] rounded-md px-3 py-2 flex-1">
+			{rootFiles === null && <span className="text-[11px] py-1 text-[#5f6672]">Scanning...</span>}
 
 			{rootFiles !== null && allFiles.length === 0 && (
-				<span className="text-[11px] py-1 text-[#4a4a5a]">No gitignored files found in repo root</span>
+				<span className="text-[11px] py-1 text-[#5f6672]">No gitignored files found in repo root</span>
 			)}
 
 			{allFiles.map((file) => {
@@ -86,7 +86,7 @@ export function FilesBox({
 							)}
 						</span>
 						<CustomCheckbox checked={checked} onChange={(v) => toggle(file, v)} />
-						<span className="flex-1 text-[12px] font-mono text-[#c0c0d0]">{file}</span>
+						<span className="flex-1 text-[12px] font-mono text-[#ededed]">{file}</span>
 						{isManual && (
 							<button
 								type="button"
@@ -94,7 +94,7 @@ export function FilesBox({
 									e.preventDefault();
 									onChange(filesToCopy.filter((f) => f.path !== file));
 								}}
-								className="opacity-0 group-hover:opacity-100 transition-opacity text-[#60607a]"
+								className="opacity-0 group-hover:opacity-100 transition-opacity text-[#5f6672]"
 							>
 								<X size={11} />
 							</button>
@@ -106,13 +106,13 @@ export function FilesBox({
 			{/* Add file row */}
 			<div className="flex items-center gap-2 pt-1.5">
 				<span className="shrink-0 w-4" />
-				<div className="shrink-0 w-4 h-4 border border-[#2a2a35] rounded-[3px]" />
+				<div className="shrink-0 w-4 h-4 border border-[#2a2a2a] rounded-[3px]" />
 				<input
 					value={addInput}
 					onChange={(e) => setAddInput(e.target.value)}
 					onKeyDown={(e) => e.key === "Enter" && addManual()}
 					placeholder="Add file path..."
-					className="flex-1 bg-transparent text-[12px] font-mono focus:outline-none placeholder-[#60607a] text-[#c0c0d0]"
+					className="flex-1 bg-transparent text-[12px] font-mono focus:outline-none placeholder-[#5f6672] text-[#ededed]"
 				/>
 			</div>
 		</div>

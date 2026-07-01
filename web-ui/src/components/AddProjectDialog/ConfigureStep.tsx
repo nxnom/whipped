@@ -29,18 +29,16 @@ export function ConfigureStep({
 			{/* Scrollable body */}
 			<div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
 				<div>
-					<span className="text-[15px] font-semibold text-[#f0f0f5]">
-						Configure <span className="text-[#7c6aff]">{folderName}</span>
-					</span>
-					<p className="text-[12px] mt-1 text-[#60607a] font-mono">{repoPath}</p>
+					<span className="text-[15px] font-semibold text-[#ededed]">Configure {folderName}</span>
+					<p className="text-[12px] mt-1 text-[#5f6672] font-mono">{repoPath}</p>
 				</div>
 
 				<div className="flex flex-col gap-3.5">
-					<span className="text-[10px] font-medium uppercase text-[#4a4a5a] tracking-[1px]">Automation</span>
+					<span className="text-[10px] font-medium uppercase text-[#5f6672] tracking-[1px]">Automation</span>
 					<div className="flex items-center justify-between gap-3">
 						<div>
-							<p className="text-[13px] text-[#c0c0d0]">Delivery mode</p>
-							<p className="text-[11px] mt-0.5 text-[#4a4a5a]">What happens when a task passes review</p>
+							<p className="text-[13px] text-[#ededed]">Delivery mode</p>
+							<p className="text-[11px] mt-0.5 text-[#5f6672]">What happens when a task passes review</p>
 						</div>
 						<div className="w-40">
 							<RHFSelect name="deliveryMode">
@@ -51,10 +49,10 @@ export function ConfigureStep({
 						</div>
 					</div>
 					{deliveryMode === "yolo" && (
-						<div className="flex items-start gap-2.5 px-3.5 py-3 rounded-md border border-amber-500/40 bg-amber-500/10">
-							<AlertTriangle size={15} className="text-amber-400 shrink-0 mt-px" />
-							<p className="text-[12px] text-amber-200/90 leading-relaxed">
-								<span className="font-semibold text-amber-200">YOLO merges with no PR or approval</span> — passing tasks
+						<div className="flex items-start gap-2.5 px-3.5 py-3 rounded-md border border-[#eab308]/40 bg-[#eab308]/10">
+							<AlertTriangle size={15} className="text-[#eab308] shrink-0 mt-px" />
+							<p className="text-[12px] text-[#eab308]/90 leading-relaxed">
+								<span className="font-semibold text-[#eab308]">YOLO merges with no PR or approval</span> — passing tasks
 								land straight on the local base branch and push.
 							</p>
 						</div>
@@ -62,11 +60,11 @@ export function ConfigureStep({
 				</div>
 
 				<div className="flex flex-col gap-3.5">
-					<span className="text-[10px] font-medium uppercase text-[#4a4a5a] tracking-[1px]">Git defaults</span>
+					<span className="text-[10px] font-medium uppercase text-[#5f6672] tracking-[1px]">Git defaults</span>
 					<div className="flex items-center justify-between gap-3">
 						<div>
-							<p className="text-[13px] text-[#c0c0d0]">Default base branch</p>
-							<p className="text-[11px] mt-0.5 text-[#4a4a5a]">Used when creating new tasks and stories.</p>
+							<p className="text-[13px] text-[#ededed]">Default base branch</p>
+							<p className="text-[11px] mt-0.5 text-[#5f6672]">Used when creating new tasks and stories.</p>
 						</div>
 						<div className="w-40">
 							<BranchSelect
@@ -80,10 +78,10 @@ export function ConfigureStep({
 				</div>
 
 				<div className="flex flex-col gap-2.5">
-					<span className="text-[10px] font-medium uppercase text-[#4a4a5a] tracking-[1px]">Assistant</span>
+					<span className="text-[10px] font-medium uppercase text-[#5f6672] tracking-[1px]">Assistant</span>
 					<div className="flex flex-col gap-1.5">
-						<p className="text-[13px] text-[#c0c0d0]">Agent &amp; model</p>
-						<p className="text-[11px] text-[#4a4a5a]">Which agent runs the in-app assistant.</p>
+						<p className="text-[13px] text-[#ededed]">Agent &amp; model</p>
+						<p className="text-[11px] text-[#5f6672]">Which agent runs the in-app assistant.</p>
 						<div className="mt-1">
 							<AgentModelPicker
 								value={assistantModel}
@@ -95,29 +93,29 @@ export function ConfigureStep({
 			</div>
 
 			{/* Pinned footer */}
-			<div className="flex items-center shrink-0 gap-2 px-6 py-3 border-t border-[#2a2a35]">
+			<div className="flex items-center shrink-0 gap-2 px-6 py-3 border-t border-[#2a2a2a]">
 				<button
 					onClick={onBack}
-					className="flex items-center hover:opacity-80 transition-opacity gap-[5px] px-[18px] py-[9px] border border-[#2a2a35] rounded-md"
+					className="flex items-center hover:opacity-80 transition-opacity gap-[5px] px-[18px] py-[9px] border border-[#2a2a2a] rounded-md"
 				>
-					<ArrowLeft size={14} className="text-[#8888a0]" />
-					<span className="text-[13px] text-[#8888a0]">Back</span>
+					<ArrowLeft size={14} className="text-[#8a8f98]" />
+					<span className="text-[13px] text-[#8a8f98]">Back</span>
 				</button>
 				<div className="flex-1" />
 				<button
 					onClick={onAdd}
 					disabled={adding}
-					className="hover:opacity-80 transition-opacity disabled:opacity-40 px-[18px] py-[9px] border border-[#2a2a35] rounded-md"
+					className="hover:opacity-80 transition-opacity disabled:opacity-40 px-[18px] py-[9px] border border-[#2a2a2a] rounded-md"
 				>
-					<span className="text-[13px] text-[#8888a0]">Skip Setup</span>
+					<span className="text-[13px] text-[#8a8f98]">Skip Setup</span>
 				</button>
 				<button
 					onClick={onAdd}
 					disabled={adding}
-					className="flex items-center hover:opacity-80 transition-opacity disabled:opacity-40 gap-1.5 px-[18px] py-[9px] bg-[#7c6aff] rounded-md"
+					className="flex items-center hover:opacity-80 transition-opacity disabled:opacity-40 gap-1.5 px-[18px] py-[9px] bg-[#ededed] rounded-md"
 				>
-					<Plus size={14} className="text-white" />
-					<span className="text-[13px] font-medium text-white">{adding ? "Creating..." : "Create Project"}</span>
+					<Plus size={14} className="text-[#050505]" />
+					<span className="text-[13px] font-medium text-[#050505]">{adding ? "Creating..." : "Create Project"}</span>
 				</button>
 			</div>
 		</div>

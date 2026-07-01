@@ -20,7 +20,7 @@ export function PriorityField({ name }: { name: string }) {
 								style={
 									active
 										? { background: opt.bg, color: opt.text, borderColor: opt.border, fontWeight: 500 }
-										: { background: "#1a1a1f", color: "#60607a", borderColor: "#2a2a35" }
+										: { background: "#111111", color: "#5f6672", borderColor: "#2a2a2a" }
 								}
 							>
 								<span className="size-1.5 rounded-full shrink-0" style={{ background: opt.dot }} />

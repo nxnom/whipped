@@ -38,13 +38,13 @@ export function TunnelSetup({ config, tunnelConfig, isConfigured }: TunnelSetupP
 		<FormProvider {...methods}>
 			<form onSubmit={handleCreateTunnel} className="flex flex-col gap-0">
 				<div className="flex items-center gap-3">
-					<span className="text-[15px] font-semibold text-[#f0f0f5]">Setup</span>
-					<div className="flex-1 h-px bg-[#1a1a1f]" />
+					<span className="text-[15px] font-semibold text-[#ededed]">Setup</span>
+					<div className="flex-1 h-px bg-[#111111]" />
 					{isConfigured && (
 						<button
 							type="button"
 							onClick={() => setShowSetup((v) => !v)}
-							className="text-[11px] transition-opacity hover:opacity-80 shrink-0 text-[#4a4a5a]"
+							className="text-[11px] transition-opacity hover:opacity-80 shrink-0 text-[#5f6672]"
 						>
 							{showSetup ? "Collapse" : "Reconfigure"}
 						</button>
@@ -54,11 +54,11 @@ export function TunnelSetup({ config, tunnelConfig, isConfigured }: TunnelSetupP
 				{(!isConfigured || showSetup) && (
 					<div className="mt-5">
 						{isConfigured && showSetup && (
-							<div className="flex items-center gap-3 mb-5 pb-5 border-b border-[#1a1a1f]">
+							<div className="flex items-center gap-3 mb-5 pb-5 border-b border-[#111111]">
 								<button
 									type="submit"
 									disabled={createTunnel.loading}
-									className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-40 bg-[#1a1a2e] border border-[#3a3aff60] text-[#7c6aff]"
+									className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-40 bg-[#1a1a2e] border border-[#3a3aff60] text-[#ffffff]"
 								>
 									{createTunnel.loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
 									Recreate Tunnel
@@ -81,7 +81,7 @@ export function TunnelSetup({ config, tunnelConfig, isConfigured }: TunnelSetupP
 								href="https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/"
 								target="_blank"
 								rel="noreferrer"
-								className="self-start flex items-center gap-1.5 text-[12px] hover:opacity-80 transition-opacity text-[#7c6aff]"
+								className="self-start flex items-center gap-1.5 text-[12px] hover:opacity-80 transition-opacity text-[#ffffff]"
 							>
 								<ExternalLink size={12} />
 								Download cloudflared from Cloudflare
@@ -91,7 +91,7 @@ export function TunnelSetup({ config, tunnelConfig, isConfigured }: TunnelSetupP
 									type="button"
 									onClick={() => checkCloudflared()}
 									disabled={checkingInstall}
-									className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[12px] font-medium transition-opacity hover:opacity-80 disabled:opacity-50 bg-[#1a1a2e] border border-[#3a3aff40] text-[#7c6aff]"
+									className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[12px] font-medium transition-opacity hover:opacity-80 disabled:opacity-50 bg-[#1a1a2e] border border-[#3a3aff40] text-[#ffffff]"
 								>
 									{checkingInstall ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
 									Check installation
@@ -100,7 +100,7 @@ export function TunnelSetup({ config, tunnelConfig, isConfigured }: TunnelSetupP
 									<span
 										className={classNames(
 											"flex items-center gap-1 text-[12px]",
-											cloudflaredStatus.installed ? "text-[#4ade80]" : "text-[#ef4444]",
+											cloudflaredStatus.installed ? "text-[#4ade80]" : "text-[#ff3b4d]",
 										)}
 									>
 										{cloudflaredStatus.installed ? <Check size={12} /> : <X size={12} />}
@@ -122,21 +122,21 @@ export function TunnelSetup({ config, tunnelConfig, isConfigured }: TunnelSetupP
 										type="button"
 										onClick={() => handleLogin(true)}
 										disabled={cloudflaredLogin.loading}
-										className="ml-2 text-[11px] opacity-40 hover:opacity-70 transition-opacity disabled:opacity-20 text-[#7c6aff]"
+										className="ml-2 text-[11px] opacity-40 hover:opacity-70 transition-opacity disabled:opacity-20 text-[#ffffff]"
 									>
 										{cloudflaredLogin.loading ? "Opening…" : "Re-authenticate"}
 									</button>
 								</div>
 							) : (
 								<>
-									<p className="text-[12px] text-[#60607a]">
+									<p className="text-[12px] text-[#5f6672]">
 										Opens a browser window to log in to your Cloudflare account. Only needed once.
 									</p>
 									<button
 										type="button"
 										onClick={() => handleLogin(false)}
 										disabled={cloudflaredLogin.loading || !step1Done}
-										className="self-start flex items-center gap-2 px-3 py-1.5 rounded text-[12px] font-medium transition-opacity hover:opacity-80 disabled:opacity-40 bg-[#1a1a2e] border border-[#3a3aff40] text-[#7c6aff]"
+										className="self-start flex items-center gap-2 px-3 py-1.5 rounded text-[12px] font-medium transition-opacity hover:opacity-80 disabled:opacity-40 bg-[#1a1a2e] border border-[#3a3aff40] text-[#ffffff]"
 									>
 										{cloudflaredLogin.loading ? (
 											<Loader2 size={12} className="animate-spin" />
@@ -153,12 +153,12 @@ export function TunnelSetup({ config, tunnelConfig, isConfigured }: TunnelSetupP
 													Waiting for authentication in browser…
 												</div>
 											)}
-											<p className="text-[11px] text-[#60607a]">If the browser didn't open, click below:</p>
+											<p className="text-[11px] text-[#5f6672]">If the browser didn't open, click below:</p>
 											<a
 												href={loginUrl}
 												target="_blank"
 												rel="noreferrer"
-												className="flex items-center gap-1.5 text-[11px] font-mono hover:opacity-80 transition-opacity truncate text-[#7c6aff]"
+												className="flex items-center gap-1.5 text-[11px] font-mono hover:opacity-80 transition-opacity truncate text-[#ffffff]"
 											>
 												<ExternalLink size={10} />
 												{loginUrl}
@@ -177,29 +177,29 @@ export function TunnelSetup({ config, tunnelConfig, isConfigured }: TunnelSetupP
 										<Check size={13} />
 										Tunnel ID: <Mono>{tunnelConfig?.tunnelId}</Mono>
 									</div>
-									<div className="text-[12px] text-[#60607a]">
+									<div className="text-[12px] text-[#5f6672]">
 										Config written to <Mono>~/.cloudflared/config.yml</Mono>
 									</div>
 								</div>
 							) : (
 								<>
-									<p className="text-[12px] text-[#60607a]">
+									<p className="text-[12px] text-[#5f6672]">
 										Enter your public domain, then click Create — we'll run{" "}
 										<Mono>cloudflared tunnel create whipped</Mono> and write <Mono>~/.cloudflared/config.yml</Mono>{" "}
 										automatically.
 									</p>
 									<RHFInputGroup
 										label="Your public domain"
-										labelClassName="text-[11px] font-medium text-[#8888a0]"
+										labelClassName="text-[11px] font-medium text-[#8a8f98]"
 										className="flex flex-col gap-1.5"
 									>
 										<RHFInput name="domain" placeholder="e.g. whipped.yourdomain.com" />
 									</RHFInputGroup>
-									<RHFError name="domain" className="text-[11px] text-[#ef4444]" />
+									<RHFError name="domain" className="text-[11px] text-[#ff3b4d]" />
 									<button
 										type="submit"
 										disabled={createTunnel.loading || !step2Done}
-										className="self-start flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-40 bg-[#7c6aff] text-white"
+										className="self-start flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 disabled:opacity-40 bg-[#ffffff] text-white"
 									>
 										{createTunnel.loading ? <Loader2 size={14} className="animate-spin" /> : <ChevronRight size={14} />}
 										{createTunnel.loading ? "Creating…" : "Create Tunnel"}
@@ -216,7 +216,7 @@ export function TunnelSetup({ config, tunnelConfig, isConfigured }: TunnelSetupP
 										<Check size={13} />
 										Auto-created via <Mono>cloudflared tunnel route dns</Mono>
 									</div>
-									<p className="text-[11px] text-[#4a4a5a]">
+									<p className="text-[11px] text-[#5f6672]">
 										CNAME <Mono>{tunnelConfig?.domain}</Mono> → <Mono>{tunnelConfig?.tunnelId}.cfargotunnel.com</Mono>
 									</p>
 								</div>
@@ -225,8 +225,8 @@ export function TunnelSetup({ config, tunnelConfig, isConfigured }: TunnelSetupP
 
 						{/* Step 5: Auto-start */}
 						<StepRow n={5} title="Enable auto-start" done={config.autoStartTunnel} active={step3Done}>
-							<p className="text-[12px] text-[#60607a]">
-								Toggle <span className="text-[#c0c0d0] font-medium">Auto-start tunnel</span> above — the tunnel starts
+							<p className="text-[12px] text-[#5f6672]">
+								Toggle <span className="text-[#ededed] font-medium">Auto-start tunnel</span> above — the tunnel starts
 								automatically on every server start. No separate terminal needed.
 							</p>
 						</StepRow>

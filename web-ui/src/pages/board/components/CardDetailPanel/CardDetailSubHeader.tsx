@@ -18,7 +18,7 @@ export function CardDetailSubHeader({ card, agentId, isRunning, elapsedSec }: Ca
 	const agentBadge = agentId ? (AGENT_DISPLAY[agentId] ?? null) : null;
 
 	return (
-		<div className="flex items-center gap-2 px-6 py-2 border-b border-[#2a2a35] bg-[#141418] shrink-0 flex-wrap">
+		<div className="flex items-center gap-2 px-6 py-2 border-b border-[#2a2a2a] bg-[#0b0b0b] shrink-0 flex-wrap">
 			{columnStatus && (
 				<span
 					className={classNames(
@@ -62,7 +62,7 @@ export function CardDetailSubHeader({ card, agentId, isRunning, elapsedSec }: Ca
 				</span>
 			)}
 			{card.branchName && (
-				<span className="flex items-center gap-1.5 px-2.5 py-[3px] rounded-md text-[11px] text-[#8888a0] bg-[#1a1a1f] border border-[#2a2a35]">
+				<span className="flex items-center gap-1.5 px-2.5 py-[3px] rounded-md text-[11px] text-[#8a8f98] bg-[#111111] border border-[#2a2a2a]">
 					<GitBranch size={11} />
 					{card.branchName}
 				</span>
@@ -70,7 +70,7 @@ export function CardDetailSubHeader({ card, agentId, isRunning, elapsedSec }: Ca
 			{card.worktreePath && (
 				<button
 					onClick={() => void openTerminalTrigger({ body: { path: card.worktreePath! } })}
-					className="flex items-center gap-1.5 px-2.5 py-[3px] rounded-md text-[11px] text-[#8888a0] bg-[#1a1a1f] border border-[#2a2a35] hover:border-[#3a3a48] transition-colors"
+					className="flex items-center gap-1.5 px-2.5 py-[3px] rounded-md text-[11px] text-[#8a8f98] bg-[#111111] border border-[#2a2a2a] hover:border-[#3a3a3a] transition-colors"
 				>
 					<FolderOpen size={11} />
 					{card.worktreePath.split("/").slice(-2).join("/")}
@@ -78,8 +78,8 @@ export function CardDetailSubHeader({ card, agentId, isRunning, elapsedSec }: Ca
 			)}
 			<div className="flex-1" />
 			{isRunning && (
-				<span className="flex items-center gap-1.5 text-[11px] font-medium text-[#f0f0f5]">
-					<Clock size={13} className="text-[#60607a]" />
+				<span className="flex items-center gap-1.5 text-[11px] font-medium text-[#ededed]">
+					<Clock size={13} className="text-[#5f6672]" />
 					<span className="font-mono">{formatElapsed(elapsedSec)}</span>
 				</span>
 			)}

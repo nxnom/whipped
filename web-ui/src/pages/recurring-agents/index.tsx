@@ -89,24 +89,24 @@ export function RecurringAgentsPage() {
 		<>
 			<div className="flex h-full overflow-hidden">
 				{/* List rail */}
-				<div className="w-[300px] shrink-0 flex flex-col bg-[#141418] border-r border-[#2a2a35]">
-					<div className="flex items-center gap-2 px-4 py-4 border-b border-[#2a2a35]">
+				<div className="w-[300px] shrink-0 flex flex-col bg-[#0b0b0b] border-r border-[#2a2a2a]">
+					<div className="flex items-center gap-2 px-4 py-4 border-b border-[#2a2a2a]">
 						<button
 							type="button"
 							onClick={() => navigate(`/${encodeURIComponent(wsId)}/board`)}
 							title="Back to board"
 							className="hover:opacity-70 transition-opacity"
 						>
-							<ArrowLeft size={16} className="text-[#8888a0]" />
+							<ArrowLeft size={16} className="text-[#8a8f98]" />
 						</button>
-						<span className="flex-1 text-[14px] font-semibold text-[#f0f0f5]">Recurring Agents</span>
+						<span className="flex-1 text-[14px] font-semibold text-[#ededed]">Recurring Agents</span>
 						<button
 							type="button"
 							onClick={() => openDialog()}
 							title="New agent"
 							className="hover:opacity-70 transition-opacity"
 						>
-							<Plus size={16} className="text-[#8888a0]" />
+							<Plus size={16} className="text-[#8a8f98]" />
 						</button>
 					</div>
 					<div className="flex-1 overflow-y-auto">
@@ -130,14 +130,14 @@ export function RecurringAgentsPage() {
 						/>
 					) : (
 						<div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-6">
-							<div className="flex items-center justify-center size-16 rounded-full bg-[#7c6aff10]">
-								<Clock size={28} className="text-[#7c6aff]" />
+							<div className="flex items-center justify-center size-16 rounded-full bg-[#ffffff10]">
+								<Clock size={28} className="text-[#ffffff]" />
 							</div>
 							<div className="flex flex-col gap-1">
-								<span className="text-[16px] font-semibold text-[#f0f0f5]">
+								<span className="text-[16px] font-semibold text-[#ededed]">
 									{agents.length ? "Select an agent" : "No recurring agents yet"}
 								</span>
-								<span className="text-[13px] text-[#60607a]">
+								<span className="text-[13px] text-[#5f6672]">
 									Scheduled agents observe your project and report — they don't write code.
 								</span>
 							</div>

@@ -1,17 +1,16 @@
-import { ConfirmDialog, toast } from "@geckoui/geckoui";
+import { ConfirmDialog, Menu, MenuTrigger, toast } from "@geckoui/geckoui";
 import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
 import type { RuntimeBoardCard, RuntimeBoardColumnId, RuntimeWorkspaceStateResponse } from "@runtime-contract";
 import {
+	Bot,
 	ChevronDown,
 	GitBranch,
 	GitPullRequest,
 	Layers,
 	ListChecks,
-	MessageSquare,
 	OctagonX,
 	Play,
 	Plus,
-	Settings,
 	Square,
 	Upload,
 	Zap,
@@ -20,6 +19,7 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useRead, useWrite } from "@/runtime/api-client";
 import { useRunSession } from "@/stores/run-session-store";
+import { isCardRunning } from "../helpers";
 import { CardDetailPanel } from "./CardDetailPanel";
 import { ImportDialog } from "./ImportDialog";
 import { CreateTaskDialog, EditTaskDialog } from "./TaskDialog";
@@ -29,19 +29,10 @@ interface KanbanBoardProps {
 	state: RuntimeWorkspaceStateResponse;
 	onRefresh: () => void;
 	onDeleteCard: (cardId: string) => void;
-	onOpenSettings: () => void;
-	onOpenAgent: () => void;
 	projectName?: string;
 }
 
-export function KanbanBoard({
-	state,
-	onRefresh,
-	onDeleteCard,
-	onOpenSettings,
-	onOpenAgent,
-	projectName,
-}: KanbanBoardProps) {
+export function KanbanBoard({ state, onRefresh, onDeleteCard, projectName }: KanbanBoardProps) {
 	const navigate = useNavigate();
 	const { workspaceId: urlWorkspaceId, cardId: detailCardId } = useParams<{ workspaceId: string; cardId?: string }>();
 	const workspaceId = urlWorkspaceId!;
@@ -87,6 +78,11 @@ export function KanbanBoard({
 	const { trigger: resumeAll } = useWrite((api) => api("cards/resume-all").POST());
 
 	const currentBranch = branchesData?.defaultBranch ?? "";
+
+	const columnCount = (columnId: RuntimeBoardColumnId) =>
+		state.board.columns.find((c) => c.id === columnId)?.taskIds.length ?? 0;
+	const runningCount = Object.values(state.board.cards).filter(isCardRunning).length;
+	const automationActive = runningCount > 0;
 
 	const openCard = (id: string) => navigate(`/${encodeURIComponent(workspaceId)}/board/${encodeURIComponent(id)}`);
 	const closeCard = () => navigate(`/${encodeURIComponent(workspaceId)}/board`);
@@ -193,85 +189,154 @@ export function KanbanBoard({
 	};
 
 	return (
-		<div className="flex-1 overflow-hidden flex flex-col relative">
-			<div className="flex items-center gap-3 px-5 py-3 border-b border-[#2a2a35] shrink-0">
-				<h2 className="text-sm font-semibold text-gray-100">{projectName ?? "Board"}</h2>
-				{currentBranch && (
-					<button className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#1a1a1f] border border-[#2a2a35] text-xs text-gray-500 hover:border-[#3a3a48] transition-colors">
-						<GitBranch size={11} className="text-gray-600" />
-						<span>{currentBranch}</span>
-						<ChevronDown size={10} className="text-gray-600" />
-					</button>
-				)}
-				{state.projectConfig.deliveryMode === "pr" && (
-					<span
-						title="Tasks that pass review open a pull request"
-						className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#7c6aff]/15 border border-[#7c6aff]/40 text-xs text-[#b3a8ff]"
-					>
-						<GitPullRequest size={11} />
-						Auto PR
+		<div className="flex-1 overflow-hidden flex flex-col relative bg-[#050505]">
+			<div className="flex items-center gap-4 px-6 py-0 h-[82px] border-b border-[#1f1f1f] shrink-0">
+				{/* Title block */}
+				<div className="flex flex-col gap-[7px] w-[300px] shrink-0">
+					<h2 className="text-[20px] font-semibold text-[#ededed] truncate">{projectName ?? "Board"}</h2>
+					<div className="flex items-center gap-2">
+						{currentBranch && (
+							<span className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#111111] border border-[#2a2a2a] text-xs text-[#8a8f98]">
+								<GitBranch size={11} className="text-[#5f6672]" />
+								<span>{currentBranch}</span>
+							</span>
+						)}
+						{state.projectConfig.deliveryMode === "pr" && (
+							<span
+								title="Tasks that pass review open a pull request"
+								className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#8b5cf6]/10 border border-[#8b5cf6]/40 text-xs text-[#8b5cf6]"
+							>
+								<GitPullRequest size={11} />
+								Auto PR
+							</span>
+						)}
+						{state.projectConfig.deliveryMode === "yolo" && (
+							<span
+								title="Tasks that pass review merge into the base branch and push — no PR, no approval"
+								className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#eab308]/10 border border-[#eab308]/40 text-xs text-[#eab308]"
+							>
+								<Zap size={11} className="fill-current" />
+								YOLO
+							</span>
+						)}
+					</div>
+				</div>
+
+				{/* Board summary */}
+				<div className="flex items-center gap-2.5">
+					<span className="flex items-center gap-1.5 px-2.5 py-[7px] rounded-md bg-[#111111] border border-[#2a2a2a]">
+						<span className="size-[7px] rounded-full bg-[#eab308]" />
+						<span className="text-xs text-[#8a8f98]">Ready</span>
+						<span className="text-xs font-mono font-bold text-[#ededed]">{columnCount("ready_for_review")}</span>
 					</span>
-				)}
-				{state.projectConfig.deliveryMode === "yolo" && (
-					<span
-						title="Tasks that pass review merge into the base branch and push — no PR, no approval"
-						className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/15 border border-amber-500/40 text-xs text-amber-300"
-					>
-						<Zap size={11} className="fill-current" />
-						YOLO
+					<span className="flex items-center gap-1.5 px-2.5 py-[7px] rounded-md bg-[#111111] border border-[#2a2a2a]">
+						<span className="size-[7px] rounded-full bg-[#ffffff]" />
+						<span className="text-xs text-[#8a8f98]">Running</span>
+						<span className="text-xs font-mono font-bold text-[#ededed]">{runningCount}</span>
 					</span>
-				)}
+					<span className="flex items-center gap-1.5 px-2.5 py-[7px] rounded-md bg-[#111111] border border-[#2a2a2a]">
+						<span className="size-[7px] rounded-full bg-[#ff3b4d]" />
+						<span className="text-xs text-[#8a8f98]">Blocked</span>
+						<span className="text-xs font-mono font-bold text-[#ededed]">{columnCount("blocked")}</span>
+					</span>
+				</div>
+
 				<div className="flex-1" />
-				<button
-					onClick={handleResumeAll}
-					title="Mark every Todo task Ready for Dev"
-					className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#1a1a1f] border border-[#2a2a35] text-xs text-gray-500 hover:border-[#3a3a48] transition-colors"
+
+				{/* Header actions */}
+				<Menu
+					placement="bottom-end"
+					menuClassName="w-[250px] p-2 flex flex-col gap-1 bg-[#111111] border border-[#2a2a2a] rounded-lg"
 				>
-					<ListChecks size={12} />
-					Resume
-				</button>
-				<button
-					onClick={handleStopAll}
-					title="Stop all agents and park tasks in Todo"
-					className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#1a1a1f] border border-[#2a2a35] text-xs text-gray-500 hover:border-red-500/60 hover:text-red-400 transition-colors"
+					<MenuTrigger>
+						{({ toggleMenu }) => (
+							<button
+								onClick={toggleMenu}
+								className="flex items-center gap-2 px-2.5 py-2 rounded-md bg-[#111111] border border-[#2a2a2a] hover:border-[#3a3a3a] transition-colors"
+							>
+								<Bot size={13} className="text-[#8a8f98]" />
+								<span className="text-xs font-medium text-[#8a8f98]">Automation</span>
+								<span className={`size-1.5 rounded-full ${automationActive ? "bg-[#ffffff]" : "bg-[#22c55e]"}`} />
+								<span className="text-xs font-semibold text-[#ededed]">{automationActive ? "Running" : "Idle"}</span>
+								<ChevronDown size={12} className="text-[#5f6672]" />
+							</button>
+						)}
+					</MenuTrigger>
+					<div className="flex items-center gap-2 px-2.5 py-2 rounded-md bg-[#050505]">
+						<span className={`size-[7px] rounded-full ${automationActive ? "bg-[#ffffff]" : "bg-[#22c55e]"}`} />
+						<span className="text-xs font-semibold text-[#ededed]">
+							{runningCount > 0 ? `${runningCount} agent${runningCount === 1 ? "" : "s"} running` : "No agents running"}
+						</span>
+					</div>
+					<button
+						onClick={handleResumeAll}
+						title="Mark every Todo task Ready for Dev"
+						className="flex items-center gap-2 px-2.5 py-2 rounded-md text-xs text-[#8a8f98] hover:bg-[#161616] transition-colors text-left"
+					>
+						<ListChecks size={14} />
+						Resume all Todo tasks
+					</button>
+					<button
+						onClick={handleStopAll}
+						title="Stop all agents and park tasks in Todo"
+						className="flex items-center gap-2 px-2.5 py-2 rounded-md text-xs text-[#ff9aa4] bg-[#ff3b4d]/10 hover:bg-[#ff3b4d]/20 transition-colors text-left"
+					>
+						<OctagonX size={14} />
+						Stop all agents
+					</button>
+				</Menu>
+
+				<Menu
+					placement="bottom-end"
+					menuClassName="w-[150px] p-2 flex flex-col gap-1 bg-[#111111] border border-[#2a2a2a] rounded-lg"
 				>
-					<OctagonX size={12} />
-					Stop All
-				</button>
-				<button
-					onClick={() => setImportDialogOpen(true)}
-					title="Bulk import tickets from JSON"
-					className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#1a1a1f] border border-[#2a2a35] text-xs text-gray-500 hover:border-[#3a3a48] transition-colors"
-				>
-					<Upload size={12} />
-					Import
-				</button>
-				<button
-					onClick={() => {
-						setCreateDialogMode("story");
-						setCreateDialogOpen(true);
-					}}
-					className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#1a1a1f] border border-[#2a2a35] text-xs text-gray-500 hover:border-[#3a3a48] transition-colors"
-				>
-					<Layers size={12} />
-					New Story
-				</button>
-				<button
-					onClick={() => {
-						setCreateDialogMode("task");
-						setCreateDialogOpen(true);
-					}}
-					className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#1a1a1f] border border-[#2a2a35] text-xs text-gray-500 hover:border-[#3a3a48] transition-colors"
-				>
-					<Plus size={12} />
-					New Task
-				</button>
+					<MenuTrigger>
+						{({ toggleMenu }) => (
+							<button
+								onClick={toggleMenu}
+								className="flex items-center gap-2 px-3 py-2 rounded-md bg-[#111111] border border-[#2a2a2a] hover:border-[#3a3a3a] transition-colors"
+							>
+								<Plus size={13} className="text-[#ededed]" />
+								<span className="text-xs font-bold text-[#ededed]">Create</span>
+								<ChevronDown size={12} className="text-[#8a8f98]" />
+							</button>
+						)}
+					</MenuTrigger>
+					<button
+						onClick={() => {
+							setCreateDialogMode("task");
+							setCreateDialogOpen(true);
+						}}
+						className="flex items-center gap-2 px-2.5 py-2 rounded-md bg-[#ffffff]/12 text-xs font-semibold text-[#ededed] text-left"
+					>
+						<Plus size={14} />
+						New Task
+					</button>
+					<button
+						onClick={() => {
+							setCreateDialogMode("story");
+							setCreateDialogOpen(true);
+						}}
+						className="flex items-center gap-2 px-2.5 py-2 rounded-md text-xs text-[#8a8f98] hover:bg-[#161616] transition-colors text-left"
+					>
+						<Layers size={14} />
+						New Story
+					</button>
+					<button
+						onClick={() => setImportDialogOpen(true)}
+						className="flex items-center gap-2 px-2.5 py-2 rounded-md text-xs text-[#8a8f98] hover:bg-[#161616] transition-colors text-left"
+					>
+						<Upload size={14} />
+						Import JSON
+					</button>
+				</Menu>
+
 				{hasStartCommand && (
 					<>
 						{runSession.status === "running" && runSession.cardId === null ? (
 							<button
 								onClick={handleStop}
-								className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-red-500 text-xs text-white hover:bg-red-600 transition-colors"
+								className="flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-[#ff3b4d] text-xs font-bold text-white hover:bg-[#e0293a] transition-colors"
 							>
 								<Square size={11} className="fill-current" />
 								Stop
@@ -280,7 +345,7 @@ export function KanbanBoard({
 							<button
 								onClick={handleRunBase}
 								disabled={runSession.status === "running"}
-								className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#7c6aff] text-xs text-white hover:bg-[#6a5ae0] disabled:opacity-50 transition-colors"
+								className="flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-[#ededed] text-xs font-bold text-[#050505] hover:bg-white disabled:opacity-50 transition-colors"
 							>
 								<Play size={11} className="fill-current" />
 								Run
@@ -288,24 +353,18 @@ export function KanbanBoard({
 						)}
 					</>
 				)}
-				<button onClick={onOpenAgent} className="p-1.5 text-gray-600 hover:text-gray-400 transition-colors">
-					<MessageSquare size={15} />
-				</button>
-				<button onClick={onOpenSettings} className="p-1.5 text-gray-600 hover:text-gray-400 transition-colors">
-					<Settings size={15} />
-				</button>
 			</div>
 
 			<div className="flex-1 overflow-x-auto flex flex-col">
 				<DragDropContext onDragEnd={handleDragEnd}>
-					<div className="flex p-4 flex-1 w-max">
+					<div className="flex px-[18px] pt-[18px] pb-5 flex-1 w-max">
 						{state.board.columns.map((column, idx) => {
 							const cards = column.taskIds
 								.map((id) => state.board.cards[id])
 								.filter((c): c is RuntimeBoardCard => Boolean(c));
 							return (
 								<div key={column.id} className="flex">
-									{idx > 0 && <div className="w-px bg-[#2a2a35] self-stretch mx-2 shrink-0" />}
+									{idx > 0 && <div className="w-px bg-[#1f1f1f] self-stretch mx-2 shrink-0" />}
 									<KanbanColumn
 										column={column}
 										cards={cards}

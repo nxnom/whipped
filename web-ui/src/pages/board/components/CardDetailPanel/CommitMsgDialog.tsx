@@ -19,8 +19,8 @@ export function CommitMsgDialog({
 	return (
 		<div className="space-y-4">
 			<div>
-				<h3 className="text-base font-semibold text-gray-100">Commit pending changes</h3>
-				<p className="text-sm text-gray-400 mt-1">There are uncommitted changes. Enter a commit message to proceed.</p>
+				<h3 className="text-base font-semibold text-[#ededed]">Commit pending changes</h3>
+				<p className="text-sm text-[#8a8f98] mt-1">There are uncommitted changes. Enter a commit message to proceed.</p>
 			</div>
 			<Input
 				placeholder="Commit message"

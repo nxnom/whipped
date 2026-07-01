@@ -1,7 +1,13 @@
 @import "tailwindcss";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
 
 @layer components {
   @import "@geckoui/geckoui/styles.css";
+}
+
+@theme {
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
 }
 
 @layer base {
@@ -11,9 +17,9 @@
 
   body {
     margin: 0;
-    background: #0a0a0e;
-    color: #f0f0f5;
-    font-family: ui-sans-serif, system-ui, sans-serif;
+    background: #050505;
+    color: #ededed;
+    font-family: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
   }
 
   ::-webkit-scrollbar {
@@ -26,11 +32,11 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #2a2a35;
+    background: #2a2a2a;
     border-radius: 3px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #3a3a48;
+    background: #3a3a3a;
   }
 }

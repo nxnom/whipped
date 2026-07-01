@@ -41,12 +41,12 @@ export function ChatComments({ card, workspaceId, allCards, workflowSlots, onRef
 	}, [commentEntries.length]);
 
 	return (
-		<div className="flex-1 min-h-0 flex flex-col bg-[#0a0a0e]">
+		<div className="flex-1 min-h-0 flex flex-col bg-[#050505]">
 			{/* Messages */}
 			<div className="flex-1 overflow-y-auto py-4">
 				{commentEntries.length === 0 ? (
 					<div className="flex items-center justify-center h-full">
-						<p className="text-sm text-[#4a4a5a]">No comments yet</p>
+						<p className="text-sm text-[#5f6672]">No comments yet</p>
 					</div>
 				) : (
 					<>

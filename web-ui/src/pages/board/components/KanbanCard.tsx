@@ -19,6 +19,8 @@ import {
 	Zap,
 } from "lucide-react";
 import { useWrite } from "@/runtime/api-client";
+import { AGENT_DISPLAY } from "../constants";
+import { isCardRunning } from "../helpers";
 
 interface KanbanCardProps {
 	card: RuntimeBoardCard;
@@ -34,30 +36,17 @@ interface KanbanCardProps {
 	onStop?: () => void;
 }
 
-const AGENT_LABELS: Record<string, string> = {
-	claude: "Claude",
-	codex: "Codex",
-};
-
-const AGENT_COLORS: Record<string, { dot: string; text: string; bg: string }> = {
-	claude: { dot: "bg-[#7c6aff]", text: "text-[#7c6aff]", bg: "bg-[#7c6aff]/10" },
-	codex: { dot: "bg-[#22c55e]", text: "text-[#22c55e]", bg: "bg-[#22c55e]/10" },
-	cursor: { dot: "bg-[#3b82f6]", text: "text-[#3b82f6]", bg: "bg-[#3b82f6]/10" },
-	opencode: { dot: "bg-[#f97316]", text: "text-[#f97316]", bg: "bg-[#f97316]/10" },
-	mimo: { dot: "bg-[#fb8147]", text: "text-[#fb8147]", bg: "bg-[#fb8147]/10" },
-};
-
 const PRIORITY_STYLES: Record<string, string> = {
-	urgent: "text-red-400 bg-red-400/10",
-	high: "text-orange-400 bg-orange-400/10",
-	medium: "text-yellow-400 bg-yellow-400/10",
-	low: "text-slate-400 bg-slate-400/10",
+	urgent: "text-[#ff3b4d] bg-[#ff3b4d]/10",
+	high: "text-[#f97316] bg-[#f97316]/10",
+	medium: "text-[#eab308] bg-[#eab308]/10",
+	low: "text-[#5f6672] bg-[#5f6672]/10",
 };
 
 const SESSION_STATE_COLORS: Record<string, string> = {
-	running: "text-blue-400",
-	completed: "text-green-400",
-	failed: "text-red-400",
+	running: "text-[#ededed]",
+	completed: "text-[#22c55e]",
+	failed: "text-[#ff3b4d]",
 };
 
 export function KanbanCard({
@@ -74,11 +63,10 @@ export function KanbanCard({
 	onStop,
 }: KanbanCardProps) {
 	const { trigger: openPath } = useWrite((api) => api("fs/open").POST());
-	const isRunning = card.terminalSessions?.some((ts) => !ts.endedAt) ?? false;
-	const _agentLabel = card.agentId ? AGENT_LABELS[card.agentId] : null;
+	const isRunning = isCardRunning(card);
 	const lastTs = card.terminalSessions?.at(-1);
 	const sessionState = isRunning ? "running" : lastTs?.state;
-	const sessionColor = sessionState ? (SESSION_STATE_COLORS[sessionState] ?? "text-gray-400") : null;
+	const sessionColor = sessionState ? (SESSION_STATE_COLORS[sessionState] ?? "text-[#8a8f98]") : null;
 	const isStory = card.type === "story";
 	const isSubtask = card.type === "subtask";
 	const lastActivity = card.activityLog?.at(-1)?.message;
@@ -102,16 +90,16 @@ export function KanbanCard({
 		: undefined;
 
 	const borderClass = (snapshot_isDragging: boolean) => {
-		if (snapshot_isDragging) return "border-blue-500 shadow-lg shadow-blue-500/20 rotate-1";
-		if (isStory) return "border-purple-800";
+		if (snapshot_isDragging) return "border-[#ededed] shadow-lg shadow-black/40 rotate-1";
+		if (isStory) return "border-[#8b5cf6]/60";
 		if (
 			(card.columnId === "in_progress" || card.columnId === "reopened" || card.columnId === "ready_for_review") &&
 			isRunning
 		) {
-			return "border-[#3b82f6] shadow-[0_0_10px_rgba(59,130,246,0.15)]";
+			return "border-[#ffffff] shadow-[0_0_10px_rgba(255,255,255,0.15)]";
 		}
-		if (card.columnId === "todo" && card.readyForDev) return "border-emerald-500/50";
-		return "border-[#2a2a35]";
+		if (card.columnId === "todo" && card.readyForDev) return "border-[#22c55e]/50";
+		return "border-[#2a2a2a]";
 	};
 
 	return (
@@ -123,7 +111,7 @@ export function KanbanCard({
 					{...provided.dragHandleProps}
 					className={classNames(
 						"border rounded-lg overflow-hidden select-none transition-all duration-150 group",
-						isStory ? "bg-purple-950/30 hover:border-purple-700" : "bg-[#1a1a1f] hover:border-gray-600",
+						isStory ? "bg-[#8b5cf6]/10 hover:border-[#8b5cf6]/60" : "bg-[#111111] hover:border-[#3a3a3a]",
 						borderClass(snapshot.isDragging),
 					)}
 				>
@@ -131,8 +119,8 @@ export function KanbanCard({
 						{/* Story header */}
 						{isStory && (
 							<div className="flex items-center gap-1.5 mb-2">
-								<Layers size={11} className="text-purple-400 shrink-0" />
-								<span className="text-[10px] font-semibold text-purple-400 uppercase tracking-wide">Story</span>
+								<Layers size={11} className="text-[#8b5cf6] shrink-0" />
+								<span className="text-[10px] font-semibold text-[#8b5cf6] uppercase tracking-wide">Story</span>
 							</div>
 						)}
 
@@ -140,33 +128,33 @@ export function KanbanCard({
 							<p
 								className={classNames(
 									"text-sm font-medium leading-snug flex-1",
-									isStory ? "text-purple-100" : "text-gray-100",
+									isStory ? "text-[#ededed]" : "text-[#ededed]",
 								)}
 							>
 								{card.description?.split("\n")[0] ?? card.id}
 							</p>
 							<div className="flex items-center gap-1 shrink-0">
-								{isRunning && <span className="mt-0.5 size-2 rounded-full bg-blue-400 animate-pulse" />}
+								{isRunning && <span className="mt-0.5 size-2 rounded-full bg-[#ededed] animate-pulse" />}
 							</div>
 						</div>
 
 						{card.description?.includes("\n") && (
-							<p className="mt-1.5 text-xs text-gray-400 line-clamp-2">
+							<p className="mt-1.5 text-xs text-[#8a8f98] line-clamp-2">
 								{card.description.split("\n").slice(1).join("\n").trim()}
 							</p>
 						)}
 
 						{/* Why a card is stuck — surfaced from the latest activity entry */}
 						{card.columnId === "blocked" && lastActivity && (
-							<div className="mt-2 flex items-start gap-1.5 px-2 py-1.5 rounded bg-red-500/10 border border-red-500/30">
-								<AlertTriangle size={11} className="text-red-400 shrink-0 mt-px" />
-								<span className="text-[11px] text-red-300/90 leading-snug line-clamp-2">{lastActivity}</span>
+							<div className="mt-2 flex items-start gap-1.5 px-2 py-1.5 rounded bg-[#ff3b4d]/10 border border-[#ff3b4d]/30">
+								<AlertTriangle size={11} className="text-[#ff3b4d] shrink-0 mt-px" />
+								<span className="text-[11px] text-[#ff9aa4] leading-snug line-clamp-2">{lastActivity}</span>
 							</div>
 						)}
 						{card.columnId === "ready_for_review" && lastActivity?.startsWith("Delivery pending") && (
-							<div className="mt-2 flex items-start gap-1.5 px-2 py-1.5 rounded bg-amber-500/10 border border-amber-500/30">
-								<Clock size={11} className="text-amber-400 shrink-0 mt-px" />
-								<span className="text-[11px] text-amber-300/90 leading-snug line-clamp-2">{lastActivity}</span>
+							<div className="mt-2 flex items-start gap-1.5 px-2 py-1.5 rounded bg-[#eab308]/10 border border-[#eab308]/30">
+								<Clock size={11} className="text-[#eab308] shrink-0 mt-px" />
+								<span className="text-[11px] text-[#eab308]/90 leading-snug line-clamp-2">{lastActivity}</span>
 							</div>
 						)}
 
@@ -174,16 +162,16 @@ export function KanbanCard({
 						{isStory && subtaskIds.length > 0 && (
 							<div className="mt-2.5">
 								<div className="flex items-center justify-between mb-1">
-									<span className="text-[10px] text-gray-500">
+									<span className="text-[10px] text-[#5f6672]">
 										{subtaskIds.length} subtask{subtaskIds.length === 1 ? "" : "s"}
 									</span>
-									<span className="text-[10px] text-gray-400">
+									<span className="text-[10px] text-[#8a8f98]">
 										{metSubtasks.length}/{subtaskIds.length}
 									</span>
 								</div>
-								<div className="h-1 bg-[#2a2a35] rounded-full overflow-hidden">
+								<div className="h-1 bg-[#2a2a2a] rounded-full overflow-hidden">
 									<div
-										className="h-full bg-purple-500 rounded-full transition-all"
+										className="h-full bg-[#8b5cf6] rounded-full transition-all"
 										style={{ width: `${(metSubtasks.length / subtaskIds.length) * 100}%` }}
 									/>
 								</div>
@@ -194,14 +182,14 @@ export function KanbanCard({
 							{isSubtask && (
 								<span
 									title={parentStory ? `Subtask of: ${parentStory.description?.split("\n")[0]}` : "Subtask"}
-									className="flex items-center gap-1 text-[10px] text-gray-500 bg-[#2a2a35] rounded px-1.5 py-0.5 font-medium max-w-[180px]"
+									className="flex items-center gap-1 text-[10px] text-[#5f6672] bg-[#2a2a2a] rounded px-1.5 py-0.5 font-medium max-w-[180px]"
 								>
-									<Layers size={10} className="shrink-0 text-purple-400/70" />
+									<Layers size={10} className="shrink-0 text-[#8b5cf6]/70" />
 									<span className="truncate">{parentStory?.description?.split("\n")[0] ?? "subtask"}</span>
 								</span>
 							)}
 							{!isStory && card.columnId === "todo" && card.readyForDev && (
-								<span className="flex items-center gap-1 text-xs text-emerald-400 bg-emerald-400/10 rounded px-1.5 py-0.5 font-medium">
+								<span className="flex items-center gap-1 text-xs text-[#22c55e] bg-[#22c55e]/10 rounded px-1.5 py-0.5 font-medium">
 									<Zap size={10} />
 									Ready
 								</span>
@@ -217,7 +205,7 @@ export function KanbanCard({
 								<span
 									className={classNames(
 										"flex items-center gap-1 text-xs rounded px-1.5 py-0.5 font-medium",
-										allDepsMet ? "text-[#8888a0] bg-[#2a2a35]" : "text-orange-400 bg-orange-400/10",
+										allDepsMet ? "text-[#8a8f98] bg-[#2a2a2a]" : "text-[#f97316] bg-[#f97316]/10",
 									)}
 								>
 									<Link2 size={10} />
@@ -226,32 +214,32 @@ export function KanbanCard({
 							)}
 							{card.agentId &&
 								(() => {
-									const ac = AGENT_COLORS[card.agentId!] ?? {
-										dot: "bg-gray-500",
-										text: "text-gray-400",
-										bg: "bg-gray-500/10",
+									const ac = AGENT_DISPLAY[card.agentId!] ?? {
+										dotColor: "bg-[#5f6672]",
+										color: "text-[#8a8f98]",
+										bg: "bg-[#5f6672]/10",
 									};
 									return (
 										<span
 											className={classNames(
 												"flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full",
 												ac.bg,
-												ac.text,
+												ac.color,
 											)}
 										>
-											<span className={classNames("size-[5px] rounded-full", ac.dot)} />
+											<span className={classNames("size-[5px] rounded-full", ac.dotColor)} />
 											{card.agentId}
 										</span>
 									);
 								})()}
 							{workflowName && (
-								<span className="flex items-center gap-1 text-xs rounded px-1.5 py-0.5 text-purple-400 bg-purple-400/10">
+								<span className="flex items-center gap-1 text-xs rounded px-1.5 py-0.5 text-[#8b5cf6] bg-[#8b5cf6]/10">
 									<Workflow size={10} />
 									{workflowName}
 								</span>
 							)}
 							{card.autoFixAttempts > 0 && (
-								<span className="flex items-center gap-1 text-xs text-orange-400 bg-orange-400/10 rounded px-1.5 py-0.5">
+								<span className="flex items-center gap-1 text-xs text-[#f97316] bg-[#f97316]/10 rounded px-1.5 py-0.5">
 									<RotateCcw size={10} />
 									{card.autoFixAttempts}x
 								</span>
@@ -262,7 +250,7 @@ export function KanbanCard({
 									target="_blank"
 									rel="noreferrer"
 									onClick={(e) => e.stopPropagation()}
-									className="flex items-center gap-1 text-xs text-green-400 bg-green-400/10 rounded px-1.5 py-0.5 hover:bg-green-400/20"
+									className="flex items-center gap-1 text-xs text-[#22c55e] bg-[#22c55e]/10 rounded px-1.5 py-0.5 hover:bg-[#22c55e]/20"
 								>
 									<GitPullRequest size={10} />
 									PR
@@ -271,7 +259,7 @@ export function KanbanCard({
 							)}
 							{card.baseRef && (
 								<span
-									className="flex items-center gap-1 text-[10px] text-gray-600 bg-gray-700/30 rounded px-1.5 py-0.5 font-mono"
+									className="flex items-center gap-1 text-[10px] text-[#5f6672] bg-[#2a2a2a]/30 rounded px-1.5 py-0.5 font-mono"
 									title={`Base branch: ${card.baseRef}`}
 								>
 									<GitBranch size={9} />
@@ -284,14 +272,14 @@ export function KanbanCard({
 						</div>
 						{card.branchName && (
 							<div className="mt-1.5 flex items-center gap-1">
-								<GitBranch size={9} className="text-gray-600 shrink-0" />
-								<span className="text-[10px] text-gray-600 font-mono truncate">{card.branchName}</span>
+								<GitBranch size={9} className="text-[#5f6672] shrink-0" />
+								<span className="text-[10px] text-[#5f6672] font-mono truncate">{card.branchName}</span>
 							</div>
 						)}
 					</div>
 					{/* Action bar — hidden by default, visible on group-hover */}
 					<div
-						className="px-3 pb-2 border-t border-[#2a2a35] flex items-center gap-0.5 pt-1.5"
+						className="px-3 pb-2 border-t border-[#2a2a2a] flex items-center gap-0.5 pt-1.5"
 						onClick={(e) => e.stopPropagation()}
 					>
 						{isRunningNow ? (
@@ -300,7 +288,7 @@ export function KanbanCard({
 									e.stopPropagation();
 									onStop?.();
 								}}
-								className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-red-400 hover:bg-[#252530] transition-colors cursor-pointer"
+								className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-[#ff3b4d] hover:bg-[#1f1f1f] transition-colors cursor-pointer"
 								title="Stop running"
 							>
 								<Square size={13} className="fill-current" />
@@ -312,7 +300,7 @@ export function KanbanCard({
 									e.stopPropagation();
 									onRun();
 								}}
-								className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-gray-500 hover:text-emerald-400 hover:bg-[#252530] transition-colors cursor-pointer"
+								className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-[#8a8f98] hover:text-[#22c55e] hover:bg-[#1f1f1f] transition-colors cursor-pointer"
 								title="Run ticket"
 							>
 								<Play size={13} />
@@ -328,8 +316,8 @@ export function KanbanCard({
 								className={classNames(
 									"flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs transition-colors cursor-pointer",
 									card.readyForDev
-										? "text-emerald-400 hover:text-gray-400 hover:bg-[#252530]"
-										: "text-gray-500 hover:text-emerald-400 hover:bg-[#252530]",
+										? "text-[#22c55e] hover:text-[#8a8f98] hover:bg-[#1f1f1f]"
+										: "text-[#8a8f98] hover:text-[#22c55e] hover:bg-[#1f1f1f]",
 								)}
 								title={card.readyForDev ? "Unmark as ready" : "Mark as ready for agent"}
 							>
@@ -342,7 +330,7 @@ export function KanbanCard({
 									e.stopPropagation();
 									void openPath({ body: { path: card.worktreePath! } });
 								}}
-								className="px-2.5 py-1.5 rounded text-xs text-gray-500 hover:text-blue-400 hover:bg-[#252530] transition-colors cursor-pointer"
+								className="px-2.5 py-1.5 rounded text-xs text-[#8a8f98] hover:text-[#ededed] hover:bg-[#1f1f1f] transition-colors cursor-pointer"
 								title="Open worktree folder"
 							>
 								<FolderOpen size={13} />
@@ -355,7 +343,7 @@ export function KanbanCard({
 									e.stopPropagation();
 									onEdit();
 								}}
-								className="px-2.5 py-1.5 rounded text-xs text-gray-500 hover:text-gray-200 hover:bg-[#252530] transition-colors cursor-pointer"
+								className="px-2.5 py-1.5 rounded text-xs text-[#8a8f98] hover:text-[#ededed] hover:bg-[#1f1f1f] transition-colors cursor-pointer"
 								title={isStory ? "Edit story" : "Edit task"}
 							>
 								<Pencil size={13} />
@@ -367,7 +355,7 @@ export function KanbanCard({
 									e.stopPropagation();
 									onDelete();
 								}}
-								className="px-2.5 py-1.5 rounded text-xs text-gray-500 hover:text-red-400 hover:bg-[#252530] transition-colors cursor-pointer"
+								className="px-2.5 py-1.5 rounded text-xs text-[#8a8f98] hover:text-[#ff3b4d] hover:bg-[#1f1f1f] transition-colors cursor-pointer"
 								title="Delete"
 							>
 								<Trash2 size={13} />

@@ -117,7 +117,7 @@ export function CreateTaskDialog({
 	}, [open, initialMode]);
 
 	const isTask = mode === "task";
-	const accentColor = isTask ? "#7c6aff" : "#a78bfa";
+	const accentColor = isTask ? "#ededed" : "#8b5cf6";
 	const activeWorkflows = isTask ? taskWorkflows : storyWorkflows;
 
 	const subtaskDrafts: SubtaskDraft[] = useMemo(
@@ -226,14 +226,14 @@ export function CreateTaskDialog({
 					<div className="absolute inset-0 bg-black/70" onClick={handleClose} />
 
 					{/* Dialog */}
-					<div className="relative flex h-[850px] max-h-[calc(100vh-80px)] w-[1400px] max-w-[calc(100vw-80px)] rounded-xl bg-[#141418] border border-[#2a2a35] shadow-[0_8px_40px_4px_#00000060] overflow-hidden">
+					<div className="relative flex h-[850px] max-h-[calc(100vh-80px)] w-[1400px] max-w-[calc(100vw-80px)] rounded-xl bg-[#0b0b0b] border border-[#2a2a2a] shadow-[0_8px_40px_4px_#00000060] overflow-hidden">
 						{/* ── Left panel ── */}
 						<div className="flex flex-col flex-1 overflow-hidden">
 							{/* Header */}
-							<div className="flex items-center gap-3 px-6 py-3.5 border-b border-[#2a2a35] shrink-0">
-								<span className="text-[15px] font-semibold text-[#f0f0f5]">{isTask ? "New Task" : "New Story"}</span>
+							<div className="flex items-center gap-3 px-6 py-3.5 border-b border-[#2a2a2a] shrink-0">
+								<span className="text-[15px] font-semibold text-[#ededed]">{isTask ? "New Task" : "New Story"}</span>
 								<div className="flex-1" />
-								<button onClick={handleClose} className="text-[#60607a] hover:text-[#f0f0f5] transition-colors">
+								<button onClick={handleClose} className="text-[#5f6672] hover:text-[#ededed] transition-colors">
 									<X size={18} />
 								</button>
 							</div>
@@ -243,9 +243,9 @@ export function CreateTaskDialog({
 								{/* Story: objective label */}
 								{!isTask && (
 									<div className="flex items-center gap-1.5 shrink-0">
-										<span className="text-[11px] font-medium text-[#60607a]">Story Objective</span>
+										<span className="text-[11px] font-medium text-[#5f6672]">Story Objective</span>
 										<div className="flex-1" />
-										<span className="text-[10px] text-[#4a4a5a]">The orchestrator will break this into subtasks</span>
+										<span className="text-[10px] text-[#5f6672]">The orchestrator will break this into subtasks</span>
 									</div>
 								)}
 
@@ -471,13 +471,13 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 		<FormProvider {...methods}>
 			<div className="fixed inset-0 z-50 flex items-center justify-center">
 				<div className="absolute inset-0 bg-black/70" onClick={onClose} />
-				<div className="relative flex h-[850px] max-h-[calc(100vh-80px)] w-[1400px] max-w-[calc(100vw-80px)] rounded-xl bg-[#141418] border border-[#2a2a35] shadow-[0_8px_40px_4px_#00000060] overflow-hidden">
+				<div className="relative flex h-[850px] max-h-[calc(100vh-80px)] w-[1400px] max-w-[calc(100vw-80px)] rounded-xl bg-[#0b0b0b] border border-[#2a2a2a] shadow-[0_8px_40px_4px_#00000060] overflow-hidden">
 					{/* ── Left panel ── */}
 					<div className="flex flex-col flex-1 overflow-hidden">
-						<div className="flex items-center gap-3 px-6 py-3.5 border-b border-[#2a2a35] shrink-0">
-							<span className="text-[15px] font-semibold text-[#f0f0f5]">{dialogTitle}</span>
+						<div className="flex items-center gap-3 px-6 py-3.5 border-b border-[#2a2a2a] shrink-0">
+							<span className="text-[15px] font-semibold text-[#ededed]">{dialogTitle}</span>
 							<div className="flex-1" />
-							<button onClick={onClose} className="text-[#60607a] hover:text-[#f0f0f5] transition-colors">
+							<button onClick={onClose} className="text-[#5f6672] hover:text-[#ededed] transition-colors">
 								<X size={18} />
 							</button>
 						</div>
@@ -506,19 +506,19 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 					</div>
 
 					{/* ── Right sidebar ── */}
-					<div className="w-80 shrink-0 bg-[#111115] border-l border-[#2a2a35] flex flex-col overflow-hidden">
-						<div className="px-[18px] py-3.5 border-b border-[#2a2a35] shrink-0">
-							<span className="text-xs font-semibold text-[#8888a0]">Configuration</span>
+					<div className="w-80 shrink-0 bg-[#111111] border-l border-[#2a2a2a] flex flex-col overflow-hidden">
+						<div className="px-[18px] py-3.5 border-b border-[#2a2a2a] shrink-0">
+							<span className="text-xs font-semibold text-[#8a8f98]">Configuration</span>
 						</div>
 						<div className="flex-1 min-h-0 overflow-y-auto px-[18px] py-4 flex flex-col gap-5">
 							<div className="flex flex-col gap-2">
-								<span className="text-[11px] font-medium text-[#60607a]">
+								<span className="text-[11px] font-medium text-[#5f6672]">
 									{isStory ? "Orchestrator Workflow" : "Workflow"}
 								</span>
 								<RHFSelect
 									name="workflowId"
 									onChange={onWorkflowChange}
-									prefix={<WorkflowIcon size={14} className="text-[#8888a0]" />}
+									prefix={<WorkflowIcon size={14} className="text-[#8a8f98]" />}
 								>
 									{availableWorkflows.map((w) => (
 										<SelectOption key={w.id} value={w.id} label={w.name + (w.isDefault ? " (default)" : "")} />
@@ -527,32 +527,32 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 							</div>
 							<TicketTiersSection workflow={selectedWorkflow} />
 							<div className="flex flex-col gap-2">
-								<span className="text-[11px] font-medium text-[#60607a]">Priority</span>
+								<span className="text-[11px] font-medium text-[#5f6672]">Priority</span>
 								<PriorityField name="priority" />
 							</div>
 							{canEditBranch && (
 								<div className="flex flex-col gap-2">
-									<span className="text-[11px] font-medium text-[#60607a]">Branch Name (optional)</span>
+									<span className="text-[11px] font-medium text-[#5f6672]">Branch Name (optional)</span>
 									<RHFInput
 										name="branchName"
 										onChange={() => setBranchNameEdited(true)}
 										placeholder="auto-generated from description"
-										prefix={<GitBranch size={13} className="text-[#4a4a5a]" />}
+										prefix={<GitBranch size={13} className="text-[#5f6672]" />}
 									/>
 								</div>
 							)}
 							{!isStory && (
 								<div className="flex flex-col gap-2">
-									<span className="text-[11px] font-medium text-[#60607a]">Relation</span>
-									<div className="flex gap-1 rounded-md bg-[#1a1a1f] border border-[#2a2a35] p-0.5">
+									<span className="text-[11px] font-medium text-[#5f6672]">Relation</span>
+									<div className="flex gap-1 rounded-md bg-[#111111] border border-[#2a2a2a] p-0.5">
 										<button
 											type="button"
 											onClick={() => switchRelationMode("waitsFor")}
 											className={classNames(
 												"flex-1 rounded py-1 text-[11px] transition-colors",
 												relationMode === "waitsFor"
-													? "bg-[#2a2a35] text-[#f0f0f5]"
-													: "text-[#60607a] hover:text-[#f0f0f5]",
+													? "bg-[#2a2a2a] text-[#ededed]"
+													: "text-[#5f6672] hover:text-[#ededed]",
 											)}
 										>
 											Waits for
@@ -563,8 +563,8 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 											className={classNames(
 												"flex-1 rounded py-1 text-[11px] transition-colors",
 												relationMode === "dependsOn"
-													? "bg-[#2a2a35] text-[#f0f0f5]"
-													: "text-[#60607a] hover:text-[#f0f0f5]",
+													? "bg-[#2a2a2a] text-[#ededed]"
+													: "text-[#5f6672] hover:text-[#ededed]",
 											)}
 										>
 											Depends on
@@ -572,7 +572,7 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 									</div>
 									{relationMode === "waitsFor" ? (
 										<>
-											<span className="text-[10px] text-[#4a4a5a] -mt-1">
+											<span className="text-[10px] text-[#5f6672] -mt-1">
 												Starts in a fresh branch once all of these are merged
 											</span>
 											<RHFSelect name="waitsFor" multiple placeholder="None" filterable clearable>
@@ -585,7 +585,7 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 																<span
 																	className={classNames(
 																		"text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium",
-																		COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700",
+																		COLUMN_BADGE[c.columnId] ?? "text-[#8a8f98] bg-[#2a2a2a]",
 																	)}
 																>
 																	{COLUMN_LABEL[c.columnId] ?? c.columnId}
@@ -598,7 +598,7 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 										</>
 									) : (
 										<>
-											<span className="text-[10px] text-[#4a4a5a] -mt-1">
+											<span className="text-[10px] text-[#5f6672] -mt-1">
 												Continues in one ticket's branch once it reaches review
 											</span>
 											<RHFSelect name="dependsOn" placeholder="None" filterable clearable disabled={false}>
@@ -611,7 +611,7 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 																<span
 																	className={classNames(
 																		"text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium",
-																		COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700",
+																		COLUMN_BADGE[c.columnId] ?? "text-[#8a8f98] bg-[#2a2a2a]",
 																	)}
 																>
 																	{COLUMN_LABEL[c.columnId] ?? c.columnId}
@@ -626,18 +626,18 @@ export function EditTaskDialog({ card, workspaceId, allCards, workflows, onClose
 								</div>
 							)}
 						</div>
-						<div className="flex items-center gap-2.5 px-[18px] py-3.5 border-t border-[#2a2a35] shrink-0">
+						<div className="flex items-center gap-2.5 px-[18px] py-3.5 border-t border-[#2a2a2a] shrink-0">
 							<div className="flex-1" />
 							<button
 								onClick={onClose}
-								className="px-4 py-2 rounded-md text-xs font-medium text-[#8888a0] hover:text-[#f0f0f5] transition-colors"
+								className="px-4 py-2 rounded-md text-xs font-medium text-[#8a8f98] hover:text-[#ededed] transition-colors"
 							>
 								Cancel
 							</button>
 							<button
 								onClick={submit}
 								disabled={!description?.trim() || loading}
-								className="flex items-center gap-1.5 px-5 py-2 rounded-md text-xs font-semibold text-white bg-[#7c6aff] disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+								className="flex items-center gap-1.5 px-5 py-2 rounded-md text-xs font-semibold text-[#050505] bg-[#ededed] disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
 							>
 								{loading ? "Saving..." : "Save Changes"}
 							</button>
@@ -748,15 +748,15 @@ function CreateSubtaskDialog({
 		<FormProvider {...methods}>
 			<div className="fixed inset-0 z-[60] flex items-center justify-center">
 				<div className="absolute inset-0 bg-black/50" onClick={onClose} />
-				<div className="relative flex h-[850px] max-h-[calc(100vh-80px)] w-[1400px] max-w-[calc(100vw-80px)] rounded-xl bg-[#141418] border border-[#2a2a35] shadow-[0_8px_40px_4px_#00000060] overflow-hidden">
+				<div className="relative flex h-[850px] max-h-[calc(100vh-80px)] w-[1400px] max-w-[calc(100vw-80px)] rounded-xl bg-[#0b0b0b] border border-[#2a2a2a] shadow-[0_8px_40px_4px_#00000060] overflow-hidden">
 					{/* ── Left panel ── */}
 					<div className="flex flex-col flex-1 overflow-hidden">
-						<div className="flex items-center gap-3 px-6 py-3.5 border-b border-[#2a2a35] shrink-0">
-							<span className="text-[15px] font-semibold text-[#f0f0f5]">
+						<div className="flex items-center gap-3 px-6 py-3.5 border-b border-[#2a2a2a] shrink-0">
+							<span className="text-[15px] font-semibold text-[#ededed]">
 								{isEditing ? "Edit Subtask" : "New Subtask"}
 							</span>
 							<div className="flex-1" />
-							<button onClick={onClose} className="text-[#60607a] hover:text-[#f0f0f5] transition-colors">
+							<button onClick={onClose} className="text-[#5f6672] hover:text-[#ededed] transition-colors">
 								<X size={18} />
 							</button>
 						</div>
@@ -783,18 +783,18 @@ function CreateSubtaskDialog({
 					</div>
 
 					{/* ── Right sidebar ── */}
-					<div className="w-80 shrink-0 bg-[#111115] border-l border-[#2a2a35] flex flex-col overflow-hidden">
-						<div className="px-[18px] py-3.5 border-b border-[#2a2a35] shrink-0">
-							<span className="text-xs font-semibold text-[#8888a0]">Configuration</span>
+					<div className="w-80 shrink-0 bg-[#111111] border-l border-[#2a2a2a] flex flex-col overflow-hidden">
+						<div className="px-[18px] py-3.5 border-b border-[#2a2a2a] shrink-0">
+							<span className="text-xs font-semibold text-[#8a8f98]">Configuration</span>
 						</div>
 
 						<div className="flex-1 min-h-0 overflow-y-auto px-[18px] py-4 flex flex-col gap-5">
 							<div className="flex flex-col gap-2">
-								<span className="text-[11px] font-medium text-[#60607a]">Workflow</span>
+								<span className="text-[11px] font-medium text-[#5f6672]">Workflow</span>
 								<RHFSelect
 									name="workflowId"
 									onChange={onWorkflowChange}
-									prefix={<WorkflowIcon size={14} className="text-[#8888a0]" />}
+									prefix={<WorkflowIcon size={14} className="text-[#8a8f98]" />}
 								>
 									{taskWorkflows.map((w) => (
 										<SelectOption key={w.id} value={w.id} label={w.name + (w.isDefault ? " (default)" : "")} />
@@ -805,37 +805,37 @@ function CreateSubtaskDialog({
 							<TicketTiersSection workflow={selectedWorkflow} />
 
 							<div className="flex flex-col gap-2">
-								<span className="text-[11px] font-medium text-[#60607a]">Priority</span>
+								<span className="text-[11px] font-medium text-[#5f6672]">Priority</span>
 								<PriorityField name="priority" />
 							</div>
 
 							<div className="flex flex-col gap-2">
-								<span className="text-[11px] font-medium text-[#60607a]">Branch Name (optional)</span>
+								<span className="text-[11px] font-medium text-[#5f6672]">Branch Name (optional)</span>
 								<RHFInput
 									name="branchName"
 									onChange={() => setBranchNameEdited(true)}
 									placeholder="auto-generated from description"
-									prefix={<GitBranch size={13} className="text-[#4a4a5a]" />}
+									prefix={<GitBranch size={13} className="text-[#5f6672]" />}
 								/>
 							</div>
 
 							<div className="flex flex-col gap-2">
-								<span className="text-[11px] font-medium text-[#60607a]">Base Branch</span>
+								<span className="text-[11px] font-medium text-[#5f6672]">Base Branch</span>
 								<RHFSelect
 									name="baseRef"
 									placeholder="main"
 									filterable
-									prefix={<GitBranch size={13} className="text-[#8888a0]" />}
+									prefix={<GitBranch size={13} className="text-[#8a8f98]" />}
 								>
 									{branches.map((b) => (
 										<SelectOption key={b} value={b} label={b} />
 									))}
 								</RHFSelect>
-								<RHFError name="baseRef" className="text-[11px] text-[#ef4444]" />
+								<RHFError name="baseRef" className="text-[11px] text-[#ff3b4d]" />
 							</div>
 
 							<div className="flex flex-col gap-2">
-								<span className="text-[11px] font-medium text-[#60607a]">Dependencies</span>
+								<span className="text-[11px] font-medium text-[#5f6672]">Dependencies</span>
 								<RHFSelect name="dependsOn" placeholder="None" filterable clearable>
 									{otherDrafts.map((draft) => {
 										const draftDisplay = draft.description?.split("\n")[0] || draft.tempId;
@@ -843,7 +843,7 @@ function CreateSubtaskDialog({
 											<SelectOption key={draft.tempId} value={draft.tempId} label={draftDisplay} hideCheckIcon>
 												<div className="flex items-center justify-between w-full gap-2 min-w-0">
 													<span className="truncate text-sm">{draftDisplay}</span>
-													<span className="text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium text-[#a78bfa] bg-[#a78bfa10]">
+													<span className="text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium text-[#f5f5f5] bg-[#f5f5f510]">
 														this story
 													</span>
 												</div>
@@ -859,7 +859,7 @@ function CreateSubtaskDialog({
 													<span
 														className={classNames(
 															"text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium",
-															COLUMN_BADGE[c.columnId] ?? "text-gray-400 bg-gray-700",
+															COLUMN_BADGE[c.columnId] ?? "text-[#8a8f98] bg-[#2a2a2a]",
 														)}
 													>
 														{COLUMN_LABEL[c.columnId] ?? c.columnId}
@@ -872,12 +872,12 @@ function CreateSubtaskDialog({
 							</div>
 						</div>
 
-						<div className="flex items-center gap-2.5 px-[18px] py-3.5 border-t border-[#2a2a35] shrink-0">
+						<div className="flex items-center gap-2.5 px-[18px] py-3.5 border-t border-[#2a2a2a] shrink-0">
 							<div className="flex-1" />
 							<button
 								onClick={submit}
 								disabled={!watchedDescription?.trim()}
-								className="flex items-center gap-1.5 px-5 py-2 rounded-md text-xs font-semibold text-white bg-[#7c6aff] disabled:opacity-40 disabled:cursor-not-allowed"
+								className="flex items-center gap-1.5 px-5 py-2 rounded-md text-xs font-semibold text-[#050505] bg-[#ededed] disabled:opacity-40 disabled:cursor-not-allowed"
 							>
 								<Plus size={14} />
 								{isEditing ? "Save Changes" : "Add Subtask"}

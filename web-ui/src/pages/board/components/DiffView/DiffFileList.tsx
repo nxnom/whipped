@@ -53,30 +53,30 @@ export function DiffFileList({
 						<div className="flex items-center gap-2 px-3 py-2 bg-[#111118] border-b border-[#1e1e28] sticky top-0 z-10">
 							<button
 								onClick={() => onToggleCollapse(path)}
-								className="text-gray-600 hover:text-gray-400 shrink-0 transition-colors"
+								className="text-[#5f6672] hover:text-[#8a8f98] shrink-0 transition-colors"
 							>
 								{isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
 							</button>
-							<span className="flex-1 text-gray-300 text-[11px] truncate font-sans">
+							<span className="flex-1 text-[#ededed] text-[11px] truncate font-sans">
 								{path}
 								{file.isNew && (
-									<span className="ml-2 text-[10px] text-green-400 bg-green-400/10 px-1.5 py-0.5 rounded">
+									<span className="ml-2 text-[10px] text-[#22c55e] bg-[#22c55e]/10 px-1.5 py-0.5 rounded">
 										new file
 									</span>
 								)}
 								{file.isDeleted && (
-									<span className="ml-2 text-[10px] text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded">deleted</span>
+									<span className="ml-2 text-[10px] text-[#ff3b4d] bg-[#ff3b4d]/10 px-1.5 py-0.5 rounded">deleted</span>
 								)}
 							</span>
 							{!file.isBinary && (
 								<span className="shrink-0 text-[11px] font-sans">
-									<span className="text-green-500">+{file.additions}</span>{" "}
-									<span className="text-red-500">-{file.deletions}</span>
+									<span className="text-[#22c55e]">+{file.additions}</span>{" "}
+									<span className="text-[#ff3b4d]">-{file.deletions}</span>
 								</span>
 							)}
 							<button
 								onClick={() => (openCommentKey === fileCommentKey ? onCloseComment() : onOpenComment(fileCommentKey))}
-								className="shrink-0 text-gray-700 hover:text-blue-400 transition-colors p-0.5 rounded"
+								className="shrink-0 text-[#5f6672] hover:text-[#ededed] transition-colors p-0.5 rounded"
 								title="Comment on file"
 							>
 								<MessageSquare size={12} />
@@ -127,16 +127,16 @@ export function DiffFileList({
 													: "bg-transparent";
 										const numColor =
 											line.type === "added"
-												? "text-green-700"
+												? "text-[#22c55e]"
 												: line.type === "removed"
-													? "text-red-700"
+													? "text-[#ff3b4d]"
 													: "text-[#3a3a4a]";
 										const sign = line.type === "added" ? "+" : line.type === "removed" ? "-" : " ";
 										const signColor =
 											line.type === "added"
-												? "text-emerald-400"
+												? "text-[#22c55e]"
 												: line.type === "removed"
-													? "text-red-400"
+													? "text-[#ff3b4d]"
 													: "text-transparent";
 										const textColor =
 											line.type === "added"
@@ -173,7 +173,7 @@ export function DiffFileList({
 													{/* Hover comment button */}
 													<button
 														onClick={() => (openCommentKey === lineKey ? onCloseComment() : onOpenComment(lineKey))}
-														className="absolute right-1 top-0.5 opacity-0 group-hover:opacity-100 transition-opacity text-blue-500 hover:text-blue-300 p-0.5 rounded bg-[#1a1a28]"
+														className="absolute right-1 top-0.5 opacity-0 group-hover:opacity-100 transition-opacity text-[#ededed] hover:text-white p-0.5 rounded bg-[#1a1a28]"
 													>
 														<Plus size={11} />
 													</button>
@@ -206,7 +206,7 @@ export function DiffFileList({
 							))}
 
 						{!isCollapsed && file.isBinary && (
-							<div className="px-4 py-3 text-gray-500 italic font-sans text-xs">Binary file changed</div>
+							<div className="px-4 py-3 text-[#8a8f98] italic font-sans text-xs">Binary file changed</div>
 						)}
 					</div>
 				);

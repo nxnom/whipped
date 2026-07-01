@@ -105,19 +105,19 @@ function PromptLinkContent({
 				onClick={() => setConflict(null)}
 			>
 				<div
-					className="flex flex-col w-[92vw] max-w-[1200px] h-[85vh] bg-[#141418] border border-[#2a2a35] rounded-xl shadow-[0_8px_40px_4px_#00000060] overflow-hidden"
+					className="flex flex-col w-[92vw] max-w-[1200px] h-[85vh] bg-[#0b0b0b] border border-[#2a2a2a] rounded-xl shadow-[0_8px_40px_4px_#00000060] overflow-hidden"
 					onClick={(e) => e.stopPropagation()}
 				>
 					{/* Header */}
-					<div className="flex items-center shrink-0 gap-3 px-6 py-4 border-b border-[#2a2a35]">
-						<FileText size={18} className="text-[#7c6aff] shrink-0" />
+					<div className="flex items-center shrink-0 gap-3 px-6 py-4 border-b border-[#2a2a2a]">
+						<FileText size={18} className="text-[#ffffff] shrink-0" />
 						<div className="flex flex-col min-w-0">
-							<span className="text-[15px] font-semibold text-[#f0f0f5]">File already has content</span>
-							<span className="text-[12px] text-[#60607a] font-mono truncate">{path}</span>
+							<span className="text-[15px] font-semibold text-[#ededed]">File already has content</span>
+							<span className="text-[12px] text-[#5f6672] font-mono truncate">{path}</span>
 						</div>
 						<div className="flex-1" />
 						<button onClick={() => setConflict(null)} className="hover:opacity-70 transition-opacity shrink-0">
-							<X size={18} className="text-[#60607a]" />
+							<X size={18} className="text-[#5f6672]" />
 						</button>
 					</div>
 
@@ -127,8 +127,8 @@ function PromptLinkContent({
 						<div className="flex flex-col min-h-0 gap-2">
 							<div className="flex items-center gap-2 shrink-0">
 								<span className="w-2 h-2 rounded-full bg-[#f59e0b] shrink-0" />
-								<span className="text-[13px] font-semibold text-[#f0f0f5]">File content</span>
-								<span className="font-mono text-[10px] text-[#60607a]">{conflict.fileContent.length} chars</span>
+								<span className="text-[13px] font-semibold text-[#ededed]">File content</span>
+								<span className="font-mono text-[10px] text-[#5f6672]">{conflict.fileContent.length} chars</span>
 								<div className="flex-1" />
 								<Button size="sm" variant="outlined" onClick={() => link(conflict.fileContent, false)}>
 									Keep this
@@ -137,7 +137,7 @@ function PromptLinkContent({
 							<textarea
 								readOnly
 								value={conflict.fileContent}
-								className="flex-1 bg-[#0c0c0f] border border-[#2a2a35] rounded-lg p-4 resize-none outline-none font-mono text-[12px] text-[#c0c0d0] leading-relaxed w-full min-h-0"
+								className="flex-1 bg-[#111111] border border-[#2a2a2a] rounded-lg p-4 resize-none outline-none font-mono text-[12px] text-[#ededed] leading-relaxed w-full min-h-0"
 							/>
 						</div>
 
@@ -145,8 +145,8 @@ function PromptLinkContent({
 						<div className="flex flex-col min-h-0 gap-2">
 							<div className="flex items-center gap-2 shrink-0">
 								<span className="w-2 h-2 rounded-full bg-[#22c55e] shrink-0" />
-								<span className="text-[13px] font-semibold text-[#f0f0f5]">Your current prompt</span>
-								<span className="font-mono text-[10px] text-[#60607a]">{currentInline.length} chars</span>
+								<span className="text-[13px] font-semibold text-[#ededed]">Your current prompt</span>
+								<span className="font-mono text-[10px] text-[#5f6672]">{currentInline.length} chars</span>
 								<div className="flex-1" />
 								<Button size="sm" onClick={() => link(currentInline, true)}>
 									Use this
@@ -155,7 +155,7 @@ function PromptLinkContent({
 							<textarea
 								readOnly
 								value={currentInline}
-								className="flex-1 bg-[#0c0c0f] border border-[#2a2a35] rounded-lg p-4 resize-none outline-none font-mono text-[12px] text-[#c0c0d0] leading-relaxed w-full min-h-0"
+								className="flex-1 bg-[#111111] border border-[#2a2a2a] rounded-lg p-4 resize-none outline-none font-mono text-[12px] text-[#ededed] leading-relaxed w-full min-h-0"
 							/>
 						</div>
 					</div>
@@ -169,15 +169,15 @@ function PromptLinkContent({
 		<FormProvider {...methods}>
 			<form onSubmit={handleSubmit(handleLink)} className="flex flex-col gap-4">
 				<div className="flex items-center gap-2">
-					<FileText size={16} className="text-[#7c6aff]" />
-					<h3 className="text-[15px] font-semibold text-[#f0f0f5]">Link prompt to a file</h3>
+					<FileText size={16} className="text-[#ffffff]" />
+					<h3 className="text-[15px] font-semibold text-[#ededed]">Link prompt to a file</h3>
 				</div>
-				<p className="text-[13px] text-[#8888a0] leading-relaxed">
+				<p className="text-[13px] text-[#8a8f98] leading-relaxed">
 					The agent reads this file at runtime. Edits auto-save back to it, and changes you make in your own editor are
 					picked up too.
 				</p>
 				<div className="flex flex-col gap-1.5">
-					<span className="text-[12px] font-medium text-[#c0c0d0]">File path</span>
+					<span className="text-[12px] font-medium text-[#ededed]">File path</span>
 					<div className="flex gap-2">
 						<RHFInput
 							name="path"
@@ -192,7 +192,7 @@ function PromptLinkContent({
 							</span>
 						</Button>
 					</div>
-					<RHFError name="path" className="text-xs text-red-400" />
+					<RHFError name="path" className="text-xs text-[#ff3b4d]" />
 				</div>
 				<div className="flex justify-end gap-2">
 					<Button type="button" variant="ghost" onClick={dismiss}>

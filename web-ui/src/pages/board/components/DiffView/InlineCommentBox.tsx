@@ -16,7 +16,7 @@ export function InlineCommentBox({
 }) {
 	return (
 		<div className="mx-4 my-2 font-sans">
-			<div className="rounded-lg border border-[#2a2a38] bg-[#0d0d12] focus-within:border-[#3a3a50] transition-colors">
+			<div className="rounded-lg border border-[#2a2a2a] bg-[#111111] focus-within:border-[#3a3a3a] transition-colors">
 				<textarea
 					ref={draftRef}
 					value={value}
@@ -30,10 +30,10 @@ export function InlineCommentBox({
 					}}
 					placeholder="Add a comment…"
 					rows={2}
-					className="w-full bg-transparent text-sm text-gray-200 px-3 pt-3 pb-1 resize-none outline-none placeholder-gray-600"
+					className="w-full bg-transparent text-sm text-[#ededed] px-3 pt-3 pb-1 resize-none outline-none placeholder-[#5f6672]"
 				/>
 				<div className="flex items-center justify-between px-3 pb-2">
-					<span className="text-[10px] text-gray-700">↵ Add · ⇧↵ Newline · Esc Cancel</span>
+					<span className="text-[10px] text-[#5f6672]">↵ Add · ⇧↵ Newline · Esc Cancel</span>
 					<Button size="sm" onClick={onAdd} disabled={!value.trim()}>
 						Add
 					</Button>

@@ -7,7 +7,7 @@ export function CustomCheckbox({ checked, onChange }: { checked: boolean; onChan
 			onClick={() => onChange(!checked)}
 			className={classNames(
 				"shrink-0 flex items-center justify-center transition-colors w-4 h-4 rounded-[3px]",
-				checked ? "bg-[#7c6aff] border-0" : "bg-transparent border border-[#2a2a35]",
+				checked ? "bg-[#ffffff] border-0" : "bg-transparent border border-[#2a2a2a]",
 			)}
 		>
 			{checked && (

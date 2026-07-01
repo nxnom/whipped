@@ -21,8 +21,8 @@ function slotTypeColor(type: string): string {
 	if (type === "dev") return "#3b82f6";
 	if (type === "plan") return "#eab308";
 	if (type === "review") return "#22c55e";
-	if (type === "orch") return "#7c6aff";
-	return "#8888a0";
+	if (type === "orch") return "#ffffff";
+	return "#8a8f98";
 }
 
 function WorkflowCard({
@@ -44,9 +44,9 @@ function WorkflowCard({
 	const [hovered, setHovered] = useState(false);
 	return (
 		<div
-			className="cursor-pointer transition-all bg-[#141418] border border-[#2a2a35] rounded-[10px]"
+			className="cursor-pointer transition-all bg-[#0b0b0b] border border-[#2a2a2a] rounded-[10px]"
 			style={{
-				borderLeft: workflow.isDefault ? "3px solid #7c6aff" : "1px solid #2a2a35",
+				borderLeft: workflow.isDefault ? "3px solid #ffffff" : "1px solid #2a2a2a",
 				opacity: hovered ? 0.9 : 1,
 			}}
 			onClick={onClick}
@@ -56,23 +56,23 @@ function WorkflowCard({
 			<div className="flex flex-col px-5 py-4 gap-3">
 				{/* Header row */}
 				<div className="flex items-center gap-[10px]">
-					<WorkflowIcon size={15} className="text-[#7c6aff] shrink-0" />
-					<span className="text-[13px] font-semibold text-[#f0f0f5]">{workflow.name}</span>
+					<WorkflowIcon size={15} className="text-[#ffffff] shrink-0" />
+					<span className="text-[13px] font-semibold text-[#ededed]">{workflow.name}</span>
 					{workflow.isDefault && (
-						<div className="flex items-center gap-1 shrink-0 bg-[#7c6aff18] rounded-[4px] px-[7px] py-[2px]">
-							<Star size={9} className="text-[#7c6aff]" />
-							<span className="text-[10px] font-medium text-[#7c6aff]">Default</span>
+						<div className="flex items-center gap-1 shrink-0 bg-[#ffffff18] rounded-[4px] px-[7px] py-[2px]">
+							<Star size={9} className="text-[#ffffff]" />
+							<span className="text-[10px] font-medium text-[#ffffff]">Default</span>
 						</div>
 					)}
 					<div className="flex-1" />
-					<span className="text-[11px] text-[#4a4a5a]">{workflow.slots.length} slots</span>
+					<span className="text-[11px] text-[#5f6672]">{workflow.slots.length} slots</span>
 					{hovered && !workflow.isDefault && (
 						<button
 							onClick={onSetDefault}
 							className="hover:opacity-80 transition-opacity shrink-0 px-1 py-[2px]"
 							title="Set as default"
 						>
-							<Star size={13} className="text-[#7c6aff]" />
+							<Star size={13} className="text-[#ffffff]" />
 						</button>
 					)}
 					{hovered && (
@@ -81,10 +81,10 @@ function WorkflowCard({
 							className="hover:opacity-80 transition-opacity shrink-0 px-1 py-[2px]"
 							title="Delete workflow"
 						>
-							<Trash2 size={13} className="text-[#ef4444]" />
+							<Trash2 size={13} className="text-[#ff3b4d]" />
 						</button>
 					)}
-					<ChevronRight size={15} className="text-[#3a3a45]" />
+					<ChevronRight size={15} className="text-[#3a3a3a]" />
 				</div>
 				{/* Slot pipeline */}
 				<div className="flex items-center flex-wrap gap-1.5">
@@ -93,22 +93,22 @@ function WorkflowCard({
 						const showArrow = idx > 0 && !(prev?.type === "plan" && !prev.rerun);
 						return (
 							<div key={slot.id} className="flex items-center gap-1.5">
-								{idx > 0 && <ArrowRight size={11} className={showArrow ? "text-[#2a2a35]" : "text-transparent"} />}
+								{idx > 0 && <ArrowRight size={11} className={showArrow ? "text-[#2a2a2a]" : "text-transparent"} />}
 								<div
-									className="flex items-center gap-[6px] bg-[#0c0c0f] border border-[#222228] rounded-md px-[9px] py-[5px]"
+									className="flex items-center gap-[6px] bg-[#111111] border border-[#161616] rounded-md px-[9px] py-[5px]"
 									style={{ opacity: slot.enabled ? 1 : 0.35 }}
 								>
 									<div
 										className="w-[7px] h-[7px] rounded-full shrink-0"
-										style={{ background: slot.enabled ? slotTypeColor(slot.type) : "#3a3a45" }}
+										style={{ background: slot.enabled ? slotTypeColor(slot.type) : "#3a3a3a" }}
 									/>
-									<span className="text-[11px] font-medium text-[#c0c0d0]">{slot.name}</span>
+									<span className="text-[11px] font-medium text-[#ededed]">{slot.name}</span>
 									{(() => {
 										const top = slot.pairs[0];
 										return (
 											<>
 												<span className="font-mono text-[10px] text-[#f59e0b80]">{top?.binary}</span>
-												{top?.model && <span className="font-mono text-[10px] text-[#3a3a45]">{top.model}</span>}
+												{top?.model && <span className="font-mono text-[10px] text-[#3a3a3a]">{top.model}</span>}
 											</>
 										);
 									})()}
@@ -116,7 +116,7 @@ function WorkflowCard({
 							</div>
 						);
 					})}
-					{sortedSlots.length === 0 && <span className="text-[11px] text-[#3a3a45]">No slots</span>}
+					{sortedSlots.length === 0 && <span className="text-[11px] text-[#3a3a3a]">No slots</span>}
 				</div>
 			</div>
 		</div>
@@ -264,34 +264,34 @@ export function WorkflowsSection({
 			{/* Page header */}
 			<div className="px-10 pt-6">
 				<div className="flex items-center mb-1">
-					<span className="text-[20px] font-semibold text-[#f0f0f5]">Workflows</span>
+					<span className="text-[20px] font-semibold text-[#ededed]">Workflows</span>
 					<div className="flex-1" />
 					<input ref={importFileRef} type="file" accept=".json" className="hidden" onChange={handleImportFile} />
 					<button
 						onClick={handleAddWorkflow}
-						className="flex items-center gap-1.5 hover:opacity-80 transition-opacity bg-[#7c6aff] rounded-md px-3.5 py-2"
+						className="flex items-center gap-1.5 hover:opacity-80 transition-opacity bg-[#ffffff] rounded-md px-3.5 py-2"
 					>
 						<Plus size={14} className="text-white" />
 						<span className="text-[12px] font-medium text-white">New Workflow</span>
 					</button>
 				</div>
-				<p className="text-[13px] text-[#60607a]">Define agent pipelines for tasks and stories</p>
+				<p className="text-[13px] text-[#5f6672]">Define agent pipelines for tasks and stories</p>
 			</div>
 
 			{/* Tab bar */}
-			<div className="flex shrink-0 px-10 border-b border-[#2a2a35]">
+			<div className="flex shrink-0 px-10 border-b border-[#2a2a2a]">
 				<button
 					onClick={() => setActiveTab("task")}
 					className={classNames(
 						"flex items-center gap-1.5 px-5 py-3 border-b-2",
-						activeTab === "task" ? "bg-[#7c6aff08] border-[#7c6aff]" : "bg-transparent border-transparent",
+						activeTab === "task" ? "bg-[#ffffff08] border-[#ffffff]" : "bg-transparent border-transparent",
 					)}
 				>
-					<SquareCheckBig size={14} className={activeTab === "task" ? "text-[#7c6aff]" : "text-[#60607a]"} />
+					<SquareCheckBig size={14} className={activeTab === "task" ? "text-[#ffffff]" : "text-[#5f6672]"} />
 					<span
 						className={classNames(
 							"text-[13px]",
-							activeTab === "task" ? "text-[#f0f0f5] font-semibold" : "text-[#8888a0]",
+							activeTab === "task" ? "text-[#ededed] font-semibold" : "text-[#8a8f98]",
 						)}
 					>
 						Task Workflows
@@ -299,13 +299,13 @@ export function WorkflowsSection({
 					<div
 						className={classNames(
 							"flex items-center rounded-full px-[7px] py-[1px]",
-							activeTab === "task" ? "bg-[#7c6aff20]" : "bg-[#1a1a1f]",
+							activeTab === "task" ? "bg-[#ffffff20]" : "bg-[#111111]",
 						)}
 					>
 						<span
 							className={classNames(
 								"text-[10px] font-semibold",
-								activeTab === "task" ? "text-[#7c6aff]" : "text-[#60607a]",
+								activeTab === "task" ? "text-[#ffffff]" : "text-[#5f6672]",
 							)}
 						>
 							{taskWorkflows.length}
@@ -316,14 +316,14 @@ export function WorkflowsSection({
 					onClick={() => setActiveTab("story")}
 					className={classNames(
 						"flex items-center gap-1.5 px-5 py-3 border-b-2",
-						activeTab === "story" ? "bg-[#7c6aff08] border-[#7c6aff]" : "bg-transparent border-transparent",
+						activeTab === "story" ? "bg-[#ffffff08] border-[#ffffff]" : "bg-transparent border-transparent",
 					)}
 				>
-					<Layers size={14} className={activeTab === "story" ? "text-[#7c6aff]" : "text-[#60607a]"} />
+					<Layers size={14} className={activeTab === "story" ? "text-[#ffffff]" : "text-[#5f6672]"} />
 					<span
 						className={classNames(
 							"text-[13px]",
-							activeTab === "story" ? "text-[#f0f0f5] font-semibold" : "text-[#8888a0]",
+							activeTab === "story" ? "text-[#ededed] font-semibold" : "text-[#8a8f98]",
 						)}
 					>
 						Story Workflows
@@ -331,13 +331,13 @@ export function WorkflowsSection({
 					<div
 						className={classNames(
 							"flex items-center rounded-full px-[7px] py-[1px]",
-							activeTab === "story" ? "bg-[#7c6aff20]" : "bg-[#1a1a1f]",
+							activeTab === "story" ? "bg-[#ffffff20]" : "bg-[#111111]",
 						)}
 					>
 						<span
 							className={classNames(
 								"text-[10px] font-semibold",
-								activeTab === "story" ? "text-[#7c6aff]" : "text-[#60607a]",
+								activeTab === "story" ? "text-[#ffffff]" : "text-[#5f6672]",
 							)}
 						>
 							{storyWorkflows.length}
@@ -365,12 +365,12 @@ export function WorkflowsSection({
 						/>
 					))}
 					{visibleWorkflows.length === 0 && (
-						<div className="flex flex-col items-center justify-center py-16 gap-3 text-[#4a4a5a]">
-							<WorkflowIcon size={28} className="text-[#2a2a35]" />
+						<div className="flex flex-col items-center justify-center py-16 gap-3 text-[#5f6672]">
+							<WorkflowIcon size={28} className="text-[#2a2a2a]" />
 							<p className="text-[13px]">No workflows yet</p>
 							<button
 								onClick={handleAddWorkflow}
-								className="flex items-center gap-1.5 hover:opacity-80 transition-opacity bg-[#7c6aff] rounded-md px-3.5 py-2"
+								className="flex items-center gap-1.5 hover:opacity-80 transition-opacity bg-[#ffffff] rounded-md px-3.5 py-2"
 							>
 								<Plus size={13} className="text-white" />
 								<span className="text-[12px] font-medium text-white">New Workflow</span>

@@ -35,14 +35,14 @@ export function AgentBinarySelect({
 				{AGENT_BINARY_OPTIONS.map((o) => (
 					<SelectOption key={o.value} value={o.value} label={o.label}>
 						<span className="flex items-center gap-1.5 w-full">
-							<span className={isMissing(o.value) ? "text-[#8888a0]" : ""}>{o.label}</span>
-							{isMissing(o.value) && <AlertTriangle size={11} className="text-amber-500 ml-auto shrink-0" />}
+							<span className={isMissing(o.value) ? "text-[#8a8f98]" : ""}>{o.label}</span>
+							{isMissing(o.value) && <AlertTriangle size={11} className="text-[#eab308] ml-auto shrink-0" />}
 						</span>
 					</SelectOption>
 				))}
 			</Select>
 			{isMissing(value) && (
-				<span className="flex items-center gap-1 text-[10px] text-amber-400">
+				<span className="flex items-center gap-1 text-[10px] text-[#eab308]">
 					<AlertTriangle size={11} className="shrink-0" />
 					Not installed — this agent won't run.
 				</span>

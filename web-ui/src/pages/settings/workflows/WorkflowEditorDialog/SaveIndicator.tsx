@@ -4,7 +4,7 @@ import type { SaveStatus } from "./types";
 export function SaveIndicator({ status }: { status: SaveStatus }) {
 	if (status === "saving" || status === "loading") {
 		return (
-			<span className="flex items-center gap-1 text-[10px] text-[#60607a]">
+			<span className="flex items-center gap-1 text-[10px] text-[#5f6672]">
 				<Loader2 size={10} className="animate-spin" />
 				{status === "loading" ? "Loading…" : "Saving…"}
 			</span>
@@ -12,17 +12,17 @@ export function SaveIndicator({ status }: { status: SaveStatus }) {
 	}
 	if (status === "saved") {
 		return (
-			<span className="flex items-center gap-1 text-[10px] text-emerald-500">
+			<span className="flex items-center gap-1 text-[10px] text-[#22c55e]">
 				<Check size={10} />
 				Saved
 			</span>
 		);
 	}
 	if (status === "unsaved") {
-		return <span className="text-[10px] text-amber-500">Unsaved…</span>;
+		return <span className="text-[10px] text-[#eab308]">Unsaved…</span>;
 	}
 	if (status === "error") {
-		return <span className="text-[10px] text-red-400">Save failed</span>;
+		return <span className="text-[10px] text-[#ff3b4d]">Save failed</span>;
 	}
 	return null;
 }

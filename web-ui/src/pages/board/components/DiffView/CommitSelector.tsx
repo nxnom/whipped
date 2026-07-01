@@ -32,32 +32,32 @@ export function CommitSelector({ commits, selectedCommit, onSelectCommit }: Comm
 		<div className="relative" ref={ref}>
 			<button
 				onClick={() => setOpen((v) => !v)}
-				className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#1a1a24] border border-[#2a2a38] hover:border-[#3a3a50] text-gray-400 hover:text-gray-200 text-[11px] transition-colors"
+				className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#161616] border border-[#2a2a2a] hover:border-[#3a3a3a] text-[#8a8f98] hover:text-[#ededed] text-[11px] transition-colors"
 			>
-				<GitCommit size={11} className="text-gray-500" />
+				<GitCommit size={11} className="text-[#8a8f98]" />
 				{selectedCommitData ? (
 					<>
-						<span className="font-mono text-purple-400">{selectedCommitData.shortHash}</span>
-						<span className="text-gray-500 max-w-[120px] truncate">{selectedCommitData.message}</span>
+						<span className="font-mono text-[#8b5cf6]">{selectedCommitData.shortHash}</span>
+						<span className="text-[#8a8f98] max-w-[120px] truncate">{selectedCommitData.message}</span>
 					</>
 				) : (
 					<span>
 						{commits.length} commit{commits.length !== 1 ? "s" : ""}
 					</span>
 				)}
-				<ChevronDown size={10} className="text-gray-600" />
+				<ChevronDown size={10} className="text-[#5f6672]" />
 			</button>
 
 			{open && (
-				<div className="absolute top-full left-0 mt-1 z-50 bg-[#13131a] border border-[#2a2a38] rounded-lg shadow-2xl min-w-[320px] overflow-hidden py-1">
+				<div className="absolute top-full left-0 mt-1 z-50 bg-[#13131a] border border-[#2a2a2a] rounded-lg shadow-2xl min-w-[320px] overflow-hidden py-1">
 					<button
 						onClick={() => select(null)}
 						className={classNames(
-							"flex items-center gap-2.5 w-full px-3 py-2 text-[11px] hover:bg-[#1a1a24] transition-colors",
-							!selectedCommit ? "text-gray-100" : "text-gray-500",
+							"flex items-center gap-2.5 w-full px-3 py-2 text-[11px] hover:bg-[#161616] transition-colors",
+							!selectedCommit ? "text-[#ededed]" : "text-[#8a8f98]",
 						)}
 					>
-						<span className="font-mono text-gray-600 w-14 shrink-0 text-left">All</span>
+						<span className="font-mono text-[#5f6672] w-14 shrink-0 text-left">All</span>
 						<span>Show all changes</span>
 					</button>
 					<div className="h-px bg-[#1e1e28] mx-2 my-1" />
@@ -66,11 +66,11 @@ export function CommitSelector({ commits, selectedCommit, onSelectCommit }: Comm
 							key={c.hash}
 							onClick={() => select(c.hash)}
 							className={classNames(
-								"flex items-center gap-2.5 w-full px-3 py-2 text-[11px] hover:bg-[#1a1a24] transition-colors",
-								selectedCommit === c.hash ? "text-gray-100" : "text-gray-400",
+								"flex items-center gap-2.5 w-full px-3 py-2 text-[11px] hover:bg-[#161616] transition-colors",
+								selectedCommit === c.hash ? "text-[#ededed]" : "text-[#8a8f98]",
 							)}
 						>
-							<span className="font-mono text-purple-400 w-14 shrink-0 text-left">{c.shortHash}</span>
+							<span className="font-mono text-[#8b5cf6] w-14 shrink-0 text-left">{c.shortHash}</span>
 							<span className="flex-1 text-left truncate">{c.message}</span>
 						</button>
 					))}

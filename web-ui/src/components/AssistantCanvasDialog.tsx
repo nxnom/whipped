@@ -26,14 +26,14 @@ export function AssistantCanvasDialog({
 	return (
 		<div className="fixed inset-0 z-50 flex items-center justify-center">
 			<div className="absolute inset-0 bg-black/70" onClick={onClose} />
-			<div className="relative flex flex-col h-[850px] max-h-[calc(100vh-80px)] w-[1000px] max-w-[calc(100vw-80px)] rounded-xl bg-[#141418] border border-[#2a2a35] shadow-[0_8px_40px_4px_#00000060] overflow-hidden">
+			<div className="relative flex flex-col h-[850px] max-h-[calc(100vh-80px)] w-[1000px] max-w-[calc(100vw-80px)] rounded-xl bg-[#0b0b0b] border border-[#2a2a2a] shadow-[0_8px_40px_4px_#00000060] overflow-hidden">
 				<CanvasBody
 					sessionId={sessionId}
 					canvases={canvases}
 					sendFeedback={sendFeedback}
 					onClose={onClose}
 					headerActions={
-						<button onClick={onClose} className="text-[#60607a] hover:text-[#f0f0f5] transition-colors">
+						<button onClick={onClose} className="text-[#5f6672] hover:text-[#ededed] transition-colors">
 							<X size={16} />
 						</button>
 					}

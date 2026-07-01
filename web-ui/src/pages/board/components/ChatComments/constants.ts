@@ -6,12 +6,12 @@ export const TYPE_LABELS: Record<string, string> = {
 };
 
 export const MODEL_STYLE: Record<string, string> = {
-	claude: "text-orange-400 bg-orange-400/10",
-	codex: "text-emerald-400 bg-emerald-400/10",
+	claude: "text-[#f97316] bg-[#f97316]/10",
+	codex: "text-[#22c55e] bg-[#22c55e]/10",
 };
 
 export const SEVERITY_COLOR: Record<string, string> = {
-	blocking: "text-red-400",
-	warning: "text-yellow-400",
-	info: "text-blue-400",
+	blocking: "text-[#ff3b4d]",
+	warning: "text-[#eab308]",
+	info: "text-[#ededed]",
 };

@@ -34,23 +34,23 @@ export function ProjectItem({
 			className={classNames(
 				"group flex items-center gap-2 h-8 pr-2 my-px mx-1 rounded-md cursor-pointer select-none transition-colors",
 				indent ? "pl-10" : "pl-3",
-				snap.isDragging ? "opacity-70" : isActive ? "" : "hover:bg-[#1a1a1f]",
+				snap.isDragging ? "opacity-70" : isActive ? "" : "hover:bg-[#111111]",
 			)}
 			style={{
 				...dp.draggableProps.style,
-				background: isActive && !snap.isDragging ? "#7c6aff18" : "transparent",
-				borderLeft: isActive && !snap.isDragging ? "2px solid #7c6aff" : "2px solid transparent",
+				background: isActive && !snap.isDragging ? "#ffffff12" : "transparent",
+				borderLeft: isActive && !snap.isDragging ? "2px solid #ffffff" : "2px solid transparent",
 			}}
 		>
 			{/* Active dot */}
 			<div
-				className={classNames("w-1.5 h-1.5 rounded-full shrink-0", isActive ? "bg-[#7c6aff]" : "bg-[#2a2a35]")}
-				style={isActive ? { boxShadow: "0 0 6px #7c6aff80" } : undefined}
+				className={classNames("w-1.5 h-1.5 rounded-full shrink-0", isActive ? "bg-[#ffffff]" : "bg-[#2a2a2a]")}
+				style={isActive ? { boxShadow: "0 0 6px #ffffff80" } : undefined}
 			/>
 			<span
 				className={classNames(
 					"flex-1 min-w-0 truncate text-[12px]",
-					isActive ? "text-[#f0f0f5] font-medium" : "text-[#8888a0] font-normal",
+					isActive ? "text-[#ededed] font-medium" : "text-[#8a8f98] font-normal",
 				)}
 			>
 				{project.name}
@@ -70,7 +70,7 @@ export function ProjectItem({
 							},
 						});
 					}}
-					className="flex items-center justify-center w-5 h-5 rounded hover:bg-[#ef444420] transition-colors text-[#60607a] hover:text-[#ef4444]"
+					className="flex items-center justify-center w-5 h-5 rounded hover:bg-[#ff3b4d20] transition-colors text-[#5f6672] hover:text-[#ff3b4d]"
 					title="Remove project"
 				>
 					<Trash2 size={10} />

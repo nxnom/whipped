@@ -24,29 +24,29 @@ export function CompanionDiffFileList({
 				const isCollapsed = collapsed.has(path);
 
 				return (
-					<div key={path} id={fileElemId(path)} className="border-b border-[#1e1e28]">
-						<div className="flex items-center gap-2 px-3 py-2 bg-[#111118] border-b border-[#1e1e28] sticky top-0 z-10">
+					<div key={path} id={fileElemId(path)} className="border-b border-[#1f1f1f]">
+						<div className="flex items-center gap-2 px-3 py-2 bg-[#111111] border-b border-[#1f1f1f] sticky top-0 z-10">
 							<button
 								onClick={() => onToggleCollapse(path)}
-								className="text-gray-600 hover:text-gray-400 shrink-0 transition-colors"
+								className="text-[#5f6672] hover:text-[#8a8f98] shrink-0 transition-colors"
 							>
 								{isCollapsed ? "▸" : "▾"}
 							</button>
-							<span className="flex-1 text-gray-300 text-[11px] truncate font-sans">
+							<span className="flex-1 text-[#8a8f98] text-[11px] truncate font-sans">
 								{path}
 								{file.isNew && (
-									<span className="ml-2 text-[10px] text-green-400 bg-green-400/10 px-1.5 py-0.5 rounded">
+									<span className="ml-2 text-[10px] text-[#22c55e] bg-[#22c55e]/10 px-1.5 py-0.5 rounded">
 										new file
 									</span>
 								)}
 								{file.isDeleted && (
-									<span className="ml-2 text-[10px] text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded">deleted</span>
+									<span className="ml-2 text-[10px] text-[#ff3b4d] bg-[#ff3b4d]/10 px-1.5 py-0.5 rounded">deleted</span>
 								)}
 							</span>
 							{!file.isBinary && (
 								<span className="shrink-0 text-[11px] font-sans">
-									<span className="text-green-500">+{file.additions}</span>{" "}
-									<span className="text-red-500">-{file.deletions}</span>
+									<span className="text-[#22c55e]">+{file.additions}</span>{" "}
+									<span className="text-[#ff3b4d]">-{file.deletions}</span>
 								</span>
 							)}
 						</div>
@@ -55,7 +55,7 @@ export function CompanionDiffFileList({
 							!file.isBinary &&
 							file.hunks.map((hunk, hi) => (
 								<div key={hi}>
-									<div className="px-2 py-0.5 bg-[#0d1a2d] text-[#4a7aad]/90 border-y border-[#1a2d3d]/60 whitespace-pre font-mono text-[11px]">
+									<div className="px-2 py-0.5 bg-[#161616] text-[#8a8f98]/90 border-y border-[#2a2a2a]/60 whitespace-pre font-mono text-[11px]">
 										{hunk.header}
 									</div>
 									{hunk.lines.map((line, li) => {
@@ -69,16 +69,16 @@ export function CompanionDiffFileList({
 													: "bg-transparent";
 										const numColor =
 											line.type === "added"
-												? "text-green-700"
+												? "text-[#22c55e]/70"
 												: line.type === "removed"
-													? "text-red-700"
+													? "text-[#ff3b4d]/70"
 													: "text-[#3a3a4a]";
 										const sign = line.type === "added" ? "+" : line.type === "removed" ? "-" : " ";
 										const signColor =
 											line.type === "added"
-												? "text-emerald-400"
+												? "text-[#22c55e]"
 												: line.type === "removed"
-													? "text-red-400"
+													? "text-[#ff3b4d]"
 													: "text-transparent";
 										const textColor =
 											line.type === "added"
@@ -91,7 +91,7 @@ export function CompanionDiffFileList({
 											<div key={li} className={classNames("flex hover:brightness-110 transition-[filter]", rowBg)}>
 												<div
 													className={classNames(
-														"w-10 shrink-0 text-right pr-2 py-0.5 select-none border-r border-[#1e1e28] font-mono text-[11px]",
+														"w-10 shrink-0 text-right pr-2 py-0.5 select-none border-r border-[#1f1f1f] font-mono text-[11px]",
 														numBg,
 														numColor,
 													)}
@@ -113,7 +113,7 @@ export function CompanionDiffFileList({
 							))}
 
 						{!isCollapsed && file.isBinary && (
-							<div className="px-4 py-3 text-gray-500 italic font-sans text-xs">Binary file changed</div>
+							<div className="px-4 py-3 text-[#8a8f98] italic font-sans text-xs">Binary file changed</div>
 						)}
 					</div>
 				);

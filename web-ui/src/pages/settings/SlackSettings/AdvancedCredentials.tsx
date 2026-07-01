@@ -38,9 +38,9 @@ export function AdvancedCredentials({
 	});
 
 	return (
-		<div className="flex flex-col gap-4 pl-4 border-l border-[#2a2a35]">
+		<div className="flex flex-col gap-4 pl-4 border-l border-[#2a2a2a]">
 			<div className="flex flex-col gap-2">
-				<p className="text-[12px] text-[#60607a]">Replace the bot token manually if needed.</p>
+				<p className="text-[12px] text-[#5f6672]">Replace the bot token manually if needed.</p>
 				<div className="flex gap-3 items-center">
 					<div className="flex-1 relative">
 						<input
@@ -55,7 +55,7 @@ export function AdvancedCredentials({
 					<button
 						onClick={() => onSaveToken(botToken)}
 						disabled={savingToken}
-						className="px-4 py-2 rounded-lg text-[13px] font-medium shrink-0 disabled:opacity-40 bg-[#7c6aff] text-white"
+						className="px-4 py-2 rounded-lg text-[13px] font-medium shrink-0 disabled:opacity-40 bg-[#ffffff] text-white"
 					>
 						Save
 					</button>
@@ -63,13 +63,13 @@ export function AdvancedCredentials({
 			</div>
 			<FormProvider {...methods}>
 				<form onSubmit={onSubmitSigningSecret} className="flex flex-col gap-2">
-					<p className="text-[12px] text-[#60607a]">
+					<p className="text-[12px] text-[#5f6672]">
 						Update signing secret if webhooks return signature mismatch. Find it at{" "}
 						<a
 							href={`https://api.slack.com/apps/${config.slackAppId ?? ""}/general`}
 							target="_blank"
 							rel="noreferrer"
-							className="underline text-[#7c6aff]"
+							className="underline text-[#ffffff]"
 						>
 							api.slack.com/apps → App Credentials → Signing Secret
 						</a>
@@ -78,12 +78,12 @@ export function AdvancedCredentials({
 					<div className="flex gap-3 items-start">
 						<div className="flex-1">
 							<RHFSecretInput name="signingSecret" placeholder="Paste new signing secret..." />
-							<RHFError name="signingSecret" className="text-[11px] text-[#ef4444] mt-1" />
+							<RHFError name="signingSecret" className="text-[11px] text-[#ff3b4d] mt-1" />
 						</div>
 						<button
 							type="submit"
 							disabled={updateSigningSecret.loading}
-							className="px-4 py-2 rounded-lg text-[13px] font-medium shrink-0 disabled:opacity-40 bg-[#7c6aff] text-white"
+							className="px-4 py-2 rounded-lg text-[13px] font-medium shrink-0 disabled:opacity-40 bg-[#ffffff] text-white"
 						>
 							{updateSigningSecret.loading ? "Saving…" : "Save"}
 						</button>

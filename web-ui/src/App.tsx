@@ -6,6 +6,7 @@ import { AddProjectDialog } from "@/components/AddProjectDialog";
 import { AssistantPanel } from "@/components/AssistantPanel";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { RunBar } from "@/components/RunBar";
+import { Topbar } from "@/components/Topbar";
 import { BoardPage } from "@/pages/board";
 import { CompanionPage } from "@/pages/companion";
 import { RecurringAgentsPage } from "@/pages/recurring-agents";
@@ -34,24 +35,24 @@ function HomeRoute({ onAddProject }: { onAddProject: () => void }) {
 
 	return (
 		<div className="flex-1 flex flex-col items-center justify-center gap-6">
-			<div className="flex items-center justify-center w-20 h-20 rounded-full bg-[#7c6aff10]">
-				<Cpu size={36} className="text-[#7c6aff]" />
+			<div className="flex items-center justify-center w-20 h-20 rounded-full bg-[#ffffff10]">
+				<Cpu size={36} className="text-[#ededed]" />
 			</div>
 			<div className="flex flex-col items-center gap-2">
-				<span className="text-[24px] font-semibold text-[#f0f0f5]">No project open</span>
-				<span className="text-[14px] text-[#60607a]">Add a repository to start running autonomous AI agents</span>
+				<span className="text-[24px] font-semibold text-[#ededed]">No project open</span>
+				<span className="text-[14px] text-[#5f6672]">Add a repository to start running autonomous AI agents</span>
 			</div>
 			<button
 				onClick={onAddProject}
-				className="flex items-center gap-2 bg-[#7c6aff] rounded-lg py-3 px-6 hover:opacity-80 transition-opacity"
+				className="flex items-center gap-2 bg-[#ededed] rounded-lg py-3 px-6 hover:bg-white transition-colors"
 			>
-				<Plus size={16} className="text-white" />
-				<span className="text-[14px] font-semibold text-white">Add Project</span>
+				<Plus size={16} className="text-[#050505]" />
+				<span className="text-[14px] font-semibold text-[#050505]">Add Project</span>
 			</button>
 			<div className="flex items-center gap-1.5">
-				<span className="text-[12px] text-[#60607a]">or press</span>
-				<div className="bg-[#1a1a1f] border border-[#2a2a35] rounded px-1.5 py-0.5">
-					<span className="text-[#8888a0] font-mono text-[11px]">⌘ N</span>
+				<span className="text-[12px] text-[#5f6672]">or press</span>
+				<div className="bg-[#111111] border border-[#2a2a2a] rounded px-1.5 py-0.5">
+					<span className="text-[#8a8f98] font-mono text-[11px]">⌘ N</span>
 				</div>
 			</div>
 		</div>
@@ -62,12 +63,12 @@ function NotFoundPage() {
 	const navigate = useNavigate();
 	return (
 		<div className="flex-1 flex flex-col items-center justify-center gap-4">
-			<span className="text-[72px] font-bold text-[#2a2a35]">404</span>
-			<span className="text-[20px] font-semibold text-[#f0f0f5]">Page not found</span>
-			<span className="text-[14px] text-[#60607a]">The page you're looking for doesn't exist.</span>
+			<span className="text-[72px] font-bold text-[#2a2a2a]">404</span>
+			<span className="text-[20px] font-semibold text-[#ededed]">Page not found</span>
+			<span className="text-[14px] text-[#5f6672]">The page you're looking for doesn't exist.</span>
 			<button
 				onClick={() => navigate("/", { replace: true })}
-				className="mt-2 text-[14px] text-[#7c6aff] hover:underline"
+				className="mt-2 text-[14px] text-[#ededed] hover:underline"
 			>
 				Go home
 			</button>
@@ -96,20 +97,15 @@ export default function App() {
 
 	return (
 		<>
-			<div className="dark flex h-screen bg-[#0f0f10] text-gray-100 overflow-hidden">
+			<div className="dark flex flex-col h-screen bg-[#050505] text-[#ededed] overflow-hidden">
+				{activeWorkspaceId && <Topbar workspaceId={activeWorkspaceId} onOpenAgent={() => setAgentOpen((v) => !v)} />}
 				<div className="flex-1 overflow-hidden flex">
 					<main className="flex-1 overflow-hidden flex flex-col">
 						<div className="flex-1 overflow-hidden flex flex-col min-h-0">
 							<ErrorBoundary>
 								<Routes>
-									<Route
-										path="/:workspaceId/board"
-										element={<BoardPage onOpenAgent={() => setAgentOpen((v) => !v)} />}
-									/>
-									<Route
-										path="/:workspaceId/board/:cardId"
-										element={<BoardPage onOpenAgent={() => setAgentOpen((v) => !v)} />}
-									/>
+									<Route path="/:workspaceId/board" element={<BoardPage />} />
+									<Route path="/:workspaceId/board/:cardId" element={<BoardPage />} />
 									<Route path="/:workspaceId/recurring-agents" element={<RecurringAgentsPage />} />
 									<Route path="/:workspaceId/recurring-agents/:agentId" element={<RecurringAgentsPage />} />
 									<Route path="/:workspaceId/companion" element={<CompanionPage />} />

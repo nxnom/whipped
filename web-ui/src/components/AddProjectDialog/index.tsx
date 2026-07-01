@@ -109,31 +109,34 @@ export function AddProjectDialog({ onClose, onAdded }: Props) {
 			<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={onClose}>
 				{/* Dialog */}
 				<div
-					className="flex flex-col overflow-hidden w-[560px] h-[580px] bg-[#141418] border border-[#2a2a35] rounded-xl shadow-[0_8px_40px_4px_#00000060]"
+					className="flex flex-col overflow-hidden w-[560px] h-[580px] bg-[#0b0b0b] border border-[#2a2a2a] rounded-xl shadow-[0_8px_40px_4px_#00000060]"
 					onClick={(e) => e.stopPropagation()}
 				>
 					{/* Header */}
-					<div className="flex items-center shrink-0 gap-3 px-6 py-[18px] border-b border-[#2a2a35]">
-						<FolderPlus size={18} className="text-[#7c6aff] shrink-0" />
-						<span className="text-[16px] font-semibold text-[#f0f0f5]">Add Project</span>
+					<div className="flex items-center shrink-0 gap-3 px-6 py-[18px] border-b border-[#2a2a2a]">
+						<FolderPlus size={18} className="text-[#ffffff] shrink-0" />
+						<span className="text-[16px] font-semibold text-[#ededed]">Add Project</span>
 						<div className="flex-1" />
 						<button onClick={onClose} className="hover:opacity-70 transition-opacity">
-							<X size={16} className="text-[#60607a]" />
+							<X size={16} className="text-[#5f6672]" />
 						</button>
 					</div>
 
 					{/* Step indicator */}
-					<div className="flex items-center shrink-0 gap-2 px-6 py-4 border-b border-[#2a2a35]">
+					<div className="flex items-center shrink-0 gap-2 px-6 py-4 border-b border-[#2a2a2a]">
 						{/* Step 1 */}
 						<div className="flex items-center gap-2">
 							<div
 								className={classNames(
 									"flex items-center justify-center shrink-0 w-[22px] h-[22px] rounded-full",
-									step === "select" ? "bg-[#7c6aff]" : "bg-[#1a1a1f] border border-[#2a2a35]",
+									step === "select" ? "bg-[#ffffff]" : "bg-[#111111] border border-[#2a2a2a]",
 								)}
 							>
 								<span
-									className={classNames("text-[11px] font-bold", step === "select" ? "text-white" : "text-[#60607a]")}
+									className={classNames(
+										"text-[11px] font-bold",
+										step === "select" ? "text-[#050505]" : "text-[#5f6672]",
+									)}
 								>
 									1
 								</span>
@@ -141,7 +144,7 @@ export function AddProjectDialog({ onClose, onAdded }: Props) {
 							<span
 								className={classNames(
 									"text-[12px]",
-									step === "select" ? "text-[#f0f0f5] font-semibold" : "text-[#60607a]",
+									step === "select" ? "text-[#ededed] font-semibold" : "text-[#5f6672]",
 								)}
 							>
 								Select Repository
@@ -149,20 +152,20 @@ export function AddProjectDialog({ onClose, onAdded }: Props) {
 						</div>
 
 						{/* Connector */}
-						<div className="w-6 h-px bg-[#2a2a35] shrink-0" />
+						<div className="w-6 h-px bg-[#2a2a2a] shrink-0" />
 
 						{/* Step 2 */}
 						<div className="flex items-center gap-2">
 							<div
 								className={classNames(
 									"flex items-center justify-center shrink-0 w-[22px] h-[22px] rounded-full",
-									step === "configure" ? "bg-[#7c6aff]" : "bg-[#1a1a1f] border border-[#2a2a35]",
+									step === "configure" ? "bg-[#ffffff]" : "bg-[#111111] border border-[#2a2a2a]",
 								)}
 							>
 								<span
 									className={classNames(
 										"text-[11px] font-semibold",
-										step === "configure" ? "text-white" : "text-[#60607a]",
+										step === "configure" ? "text-[#050505]" : "text-[#5f6672]",
 									)}
 								>
 									2
@@ -171,7 +174,7 @@ export function AddProjectDialog({ onClose, onAdded }: Props) {
 							<span
 								className={classNames(
 									"text-[12px]",
-									step === "configure" ? "text-[#f0f0f5] font-semibold" : "text-[#60607a]",
+									step === "configure" ? "text-[#ededed] font-semibold" : "text-[#5f6672]",
 								)}
 							>
 								Configure

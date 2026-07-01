@@ -14,7 +14,7 @@ type DetailTab = "terminal" | "diff";
 
 function Badge({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
 	return (
-		<span className="flex items-center gap-1.5 px-2.5 py-[3px] rounded-md text-[11px] text-[#8888a0] bg-[#1a1a1f] border border-[#2a2a35]">
+		<span className="flex items-center gap-1.5 px-2.5 py-[3px] rounded-md text-[11px] text-[#8a8f98] bg-[#111111] border border-[#2a2a2a]">
 			{icon}
 			{children}
 		</span>
@@ -61,8 +61,8 @@ export function CompanionSessionDetail({
 	return (
 		<div className="flex-1 flex flex-col min-h-0 overflow-hidden">
 			{/* Header: status/branch/agent badges + session actions in one row */}
-			<div className="flex items-center gap-2 px-6 py-2.5 border-b border-[#2a2a35] bg-[#141418] shrink-0 flex-wrap">
-				<span className="flex items-center gap-1.5 text-[11px] text-[#8888a0]">
+			<div className="flex items-center gap-2 px-6 py-2.5 border-b border-[#2a2a2a] bg-[#0b0b0b] shrink-0 flex-wrap">
+				<span className="flex items-center gap-1.5 text-[11px] text-[#8a8f98]">
 					<span className={classNames("size-1.5 rounded-full", STATUS_DOT_CLASS[session.status])} />
 					{STATUS_LABEL[session.status]}
 				</span>
@@ -77,7 +77,7 @@ export function CompanionSessionDetail({
 							<Tooltip delayDuration={0} content="Stop" side="bottom" triggerAsChild>
 								<button
 									onClick={() => void stopRun()}
-									className="cursor-pointer text-[#60607a] hover:text-red-400 transition-colors"
+									className="cursor-pointer text-[#5f6672] hover:text-[#ff3b4d] transition-colors"
 								>
 									<Square size={15} className="fill-current" />
 								</button>
@@ -92,7 +92,7 @@ export function CompanionSessionDetail({
 								<button
 									onClick={() => void startRun(session.id)}
 									disabled={runSession.status === "running"}
-									className="cursor-pointer text-[#60607a] hover:text-emerald-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+									className="cursor-pointer text-[#5f6672] hover:text-[#22c55e] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
 								>
 									<Play size={15} />
 								</button>
@@ -102,7 +102,7 @@ export function CompanionSessionDetail({
 				)}
 				{running && (
 					<Tooltip delayDuration={0} content="Stop session" side="bottom" triggerAsChild>
-						<button onClick={onStop} className="cursor-pointer text-[#60607a] hover:text-[#f0f0f5] transition-colors">
+						<button onClick={onStop} className="cursor-pointer text-[#5f6672] hover:text-[#ededed] transition-colors">
 							<Square size={15} />
 						</button>
 					</Tooltip>
@@ -112,7 +112,7 @@ export function CompanionSessionDetail({
 						<Tooltip delayDuration={0} content="Merge into base branch" side="bottom" triggerAsChild>
 							<button
 								onClick={handleMerge}
-								className="cursor-pointer text-[#60607a] hover:text-emerald-400 transition-colors"
+								className="cursor-pointer text-[#5f6672] hover:text-[#22c55e] transition-colors"
 							>
 								<GitMerge size={15} />
 							</button>
@@ -120,18 +120,18 @@ export function CompanionSessionDetail({
 						<Tooltip delayDuration={0} content="Create PR" side="bottom" triggerAsChild>
 							<button
 								onClick={handleCreatePR}
-								className="cursor-pointer text-[#60607a] hover:text-[#f0f0f5] transition-colors"
+								className="cursor-pointer text-[#5f6672] hover:text-[#ededed] transition-colors"
 							>
 								<GitPullRequest size={15} />
 							</button>
 						</Tooltip>
 					</>
 				)}
-				<div className="w-px h-[18px] bg-[#2a2a35] shrink-0" />
+				<div className="w-px h-[18px] bg-[#2a2a2a] shrink-0" />
 				<Tooltip delayDuration={0} content="Delete session" side="bottom" triggerAsChild>
 					<button
 						onClick={confirmDiscard}
-						className="cursor-pointer text-[#60607a] hover:text-red-400 transition-colors"
+						className="cursor-pointer text-[#5f6672] hover:text-[#ff3b4d] transition-colors"
 					>
 						<Trash2 size={15} />
 					</button>
@@ -139,7 +139,7 @@ export function CompanionSessionDetail({
 			</div>
 
 			{/* Tab bar */}
-			<div className="flex shrink-0 bg-[#0d0d12] border-b border-[#2a2a35] px-5">
+			<div className="flex shrink-0 bg-[#111111] border-b border-[#2a2a2a] px-5">
 				{(
 					[
 						{ id: "terminal" as const, label: "Terminal", Icon: TerminalSquare },
@@ -151,12 +151,12 @@ export function CompanionSessionDetail({
 						onClick={() => setTab(id)}
 						className={classNames(
 							"relative flex items-center gap-1.5 px-4 py-[11px] text-xs font-medium transition-colors",
-							tab === id ? "text-[#f0f0f5]" : "text-[#4a4a5a] hover:text-[#8888a0]",
+							tab === id ? "text-[#ededed]" : "text-[#5f6672] hover:text-[#8a8f98]",
 						)}
 					>
 						<Icon size={11} />
 						{label}
-						{tab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#7c6aff]" />}
+						{tab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#ffffff]" />}
 					</button>
 				))}
 			</div>

@@ -12,7 +12,7 @@ function titleCase(s: string): string {
 // considers it important, so a comment-only skip is a deliberate choice.
 export function RequiredMark({ required }: { required?: boolean }) {
 	if (!required) return null;
-	return <span className="text-red-400">*</span>;
+	return <span className="text-[#ff3b4d]">*</span>;
 }
 
 function SingleChoiceField({
@@ -29,7 +29,7 @@ function SingleChoiceField({
 	return (
 		<div className="flex flex-col gap-1.5">
 			{input.label && (
-				<span className="text-[12px] font-medium text-gray-300">
+				<span className="text-[12px] font-medium text-[#ededed]">
 					{input.label} <RequiredMark required={input.required} />
 				</span>
 			)}
@@ -47,8 +47,8 @@ function SingleChoiceField({
 						className={classNames("flex flex-col", disabled ? "cursor-default" : "cursor-pointer")}
 						onClick={() => !disabled && onChange(opt.value)}
 					>
-						<span className="text-[13px] text-gray-200">{opt.label}</span>
-						{opt.description && <span className="text-[11px] text-gray-500">{opt.description}</span>}
+						<span className="text-[13px] text-[#ededed]">{opt.label}</span>
+						{opt.description && <span className="text-[11px] text-[#8a8f98]">{opt.description}</span>}
 					</span>
 				</div>
 			))}
@@ -77,7 +77,7 @@ function MultiChoiceField({
 	return (
 		<div className="flex flex-col gap-1.5">
 			{input.label && (
-				<span className="text-[12px] font-medium text-gray-300">
+				<span className="text-[12px] font-medium text-[#ededed]">
 					{input.label} <RequiredMark required={input.required} />
 				</span>
 			)}
@@ -90,8 +90,8 @@ function MultiChoiceField({
 						className={classNames("flex flex-col", disabled ? "cursor-default" : "cursor-pointer")}
 						onClick={() => !disabled && toggle(opt.value)}
 					>
-						<span className="text-[13px] text-gray-200">{opt.label}</span>
-						{opt.description && <span className="text-[11px] text-gray-500">{opt.description}</span>}
+						<span className="text-[13px] text-[#ededed]">{opt.label}</span>
+						{opt.description && <span className="text-[11px] text-[#8a8f98]">{opt.description}</span>}
 					</span>
 				</div>
 			))}
@@ -113,7 +113,7 @@ function TextField({
 	return (
 		<div className="flex flex-col gap-1.5">
 			{input.label && (
-				<span className="text-[12px] font-medium text-gray-300">
+				<span className="text-[12px] font-medium text-[#ededed]">
 					{input.label} <RequiredMark required={input.required} />
 				</span>
 			)}

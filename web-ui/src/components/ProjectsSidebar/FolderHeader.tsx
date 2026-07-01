@@ -48,16 +48,16 @@ export function FolderHeader({
 			className="group flex items-center gap-1.5 h-8 pl-2.5 pr-2 rounded-md my-px mx-1 cursor-pointer select-none transition-colors"
 			style={{
 				...dp.draggableProps.style,
-				background: snap.isDragging ? "#1f1f28" : hovered ? "#7c6aff15" : "transparent",
+				background: snap.isDragging ? "#161616" : hovered ? "#ffffff12" : "transparent",
 			}}
 		>
 			{/* Chevron */}
-			<div className="shrink-0 flex items-center justify-center w-3.5 text-[#4a4a5a]">
+			<div className="shrink-0 flex items-center justify-center w-3.5 text-[#5f6672]">
 				{expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
 			</div>
 
 			{/* Folder icon */}
-			<Folder size={13} className={classNames("shrink-0", hovered ? "text-[#7c6aff]" : "text-[#60607a]")} />
+			<Folder size={13} className={classNames("shrink-0", hovered ? "text-[#ededed]" : "text-[#5f6672]")} />
 
 			{/* Name */}
 			{editing ? (
@@ -71,13 +71,13 @@ export function FolderHeader({
 						if (e.key === "Enter") onCommitRename();
 						if (e.key === "Escape") onCancelRename();
 					}}
-					className="flex-1 min-w-0 outline-none text-[11px] rounded px-1 bg-[#0c0c0f] border border-[#3a3a55] text-[#f0f0f5]"
+					className="flex-1 min-w-0 outline-none text-[11px] rounded px-1 bg-[#111111] border border-[#2a2a2a] text-[#ededed]"
 				/>
 			) : (
 				<span
 					className={classNames(
 						"flex-1 min-w-0 truncate text-[11px] font-medium tracking-[0.2px]",
-						hovered ? "text-[#c0c0d0]" : "text-[#8888a0]",
+						hovered ? "text-[#ededed]" : "text-[#8a8f98]",
 					)}
 					onDoubleClick={(e) => {
 						e.stopPropagation();
@@ -95,7 +95,7 @@ export function FolderHeader({
 						e.stopPropagation();
 						onStartRename(folderId);
 					}}
-					className="flex items-center justify-center w-5 h-5 rounded hover:bg-[#2a2a35] transition-colors text-[#60607a]"
+					className="flex items-center justify-center w-5 h-5 rounded hover:bg-[#2a2a2a] transition-colors text-[#5f6672]"
 					title="Rename"
 				>
 					<Pencil size={10} />
@@ -105,7 +105,7 @@ export function FolderHeader({
 						e.stopPropagation();
 						onDeleteFolder(folderId);
 					}}
-					className="flex items-center justify-center w-5 h-5 rounded hover:bg-[#ef444420] transition-colors text-[#60607a]"
+					className="flex items-center justify-center w-5 h-5 rounded hover:bg-[#ff3b4d20] transition-colors text-[#5f6672]"
 					title="Delete"
 				>
 					<Trash2 size={10} />

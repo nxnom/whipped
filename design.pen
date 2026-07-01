@@ -19190,6 +19190,1001 @@
           ]
         }
       ]
+    },
+    {
+      "type": "frame",
+      "id": "D8OxZL",
+      "x": 5224,
+      "y": 0,
+      "name": "Detail View — Terminal First",
+      "clip": true,
+      "width": 1600,
+      "height": 950,
+      "fill": "$whip-bg",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "WGGeI",
+          "name": "Command Row",
+          "width": "fill_container",
+          "height": 56,
+          "fill": "$whip-bg",
+          "stroke": "$whip-border-soft",
+          "strokeWidth": {
+            "bottom": 1
+          },
+          "gap": 12,
+          "padding": [
+            0,
+            24
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "eVpAV",
+              "name": "Back",
+              "width": 18,
+              "height": 18,
+              "icon": "arrow-left",
+              "library": "lucide",
+              "fill": "$whip-muted"
+            },
+            {
+              "type": "frame",
+              "id": "LYTGN",
+              "name": "Command Divider",
+              "width": 1,
+              "height": 20,
+              "fill": "$whip-border"
+            },
+            {
+              "type": "frame",
+              "id": "N24SW",
+              "name": "Task Identity",
+              "width": 720,
+              "layout": "vertical",
+              "gap": 3,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "PqRaU",
+                  "name": "Breadcrumb",
+                  "gap": 7,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Z0E10",
+                      "name": "Breadcrumb Project",
+                      "fill": "$whip-muted",
+                      "content": "unicorn-frontend-ui",
+                      "fontFamily": "$whip-font",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "da5jF",
+                      "name": "Breadcrumb Slash",
+                      "fill": "$whip-faint",
+                      "content": "/",
+                      "fontFamily": "$whip-font",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "IltgG",
+                      "name": "Breadcrumb Status",
+                      "fill": "$whip-yellow",
+                      "content": "Ready for Review",
+                      "fontFamily": "$whip-font",
+                      "fontSize": 11,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "SZPJ0",
+                  "name": "Task Title",
+                  "fill": "$whip-text",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Fix director-groups modal member count & active-member rendering",
+                  "fontFamily": "$whip-font",
+                  "fontSize": 14,
+                  "fontWeight": "650"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "z32vt",
+              "name": "Command Spacer",
+              "width": "fill_container",
+              "height": 1
+            },
+            {
+              "type": "frame",
+              "id": "tWD7n",
+              "name": "Run Action",
+              "width": 34,
+              "height": 34,
+              "fill": "$whip-panel",
+              "cornerRadius": 6,
+              "stroke": "$whip-border",
+              "strokeWidth": 1,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "ZaEkm",
+                  "name": "Run Icon",
+                  "width": 15,
+                  "height": 15,
+                  "icon": "play",
+                  "library": "lucide",
+                  "fill": "$whip-text"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "sGiwb",
+              "name": "Merge Action",
+              "width": 34,
+              "height": 34,
+              "fill": "$whip-panel",
+              "cornerRadius": 6,
+              "stroke": "$whip-border",
+              "strokeWidth": 1,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "p6F742",
+                  "name": "Merge Icon",
+                  "width": 15,
+                  "height": 15,
+                  "icon": "git-merge",
+                  "library": "lucide",
+                  "fill": "$whip-muted"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "SNAWc",
+              "name": "PR Action",
+              "width": 34,
+              "height": 34,
+              "fill": "$whip-panel",
+              "cornerRadius": 6,
+              "stroke": "$whip-border",
+              "strokeWidth": 1,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "iHC7P",
+                  "name": "PR Icon",
+                  "width": 15,
+                  "height": 15,
+                  "icon": "git-pull-request",
+                  "library": "lucide",
+                  "fill": "$whip-muted"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "tdYho",
+              "name": "Delete Action",
+              "width": 34,
+              "height": 34,
+              "fill": "#05050500",
+              "cornerRadius": 6,
+              "stroke": "#05050500",
+              "strokeWidth": 1,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "bTBpV",
+                  "name": "Delete Icon",
+                  "width": 15,
+                  "height": 15,
+                  "icon": "trash-2",
+                  "library": "lucide",
+                  "fill": "$whip-red"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "slknB",
+          "name": "Tabs and Context Row",
+          "width": "fill_container",
+          "height": 44,
+          "fill": "$whip-bg",
+          "stroke": "$whip-border-soft",
+          "strokeWidth": {
+            "bottom": 1
+          },
+          "gap": 14,
+          "padding": [
+            0,
+            24
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "rGVQy",
+              "name": "Tabs",
+              "height": "fill_container",
+              "gap": 2,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "C5OtcK",
+                  "name": "Terminal Tab",
+                  "height": "fill_container",
+                  "stroke": "$whip-text",
+                  "strokeWidth": {
+                    "bottom": 2
+                  },
+                  "gap": 7,
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "EYmZR",
+                      "name": "Terminal Tab Icon",
+                      "width": 12,
+                      "height": 12,
+                      "icon": "terminal",
+                      "library": "lucide",
+                      "fill": "$whip-text"
+                    },
+                    {
+                      "type": "text",
+                      "id": "N6vEnL",
+                      "name": "Terminal Tab Text",
+                      "fill": "$whip-text",
+                      "content": "Terminal",
+                      "fontFamily": "$whip-font",
+                      "fontSize": 12,
+                      "fontWeight": "650"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "uM8gt",
+                  "name": "Diff Tab",
+                  "height": "fill_container",
+                  "stroke": "#05050500",
+                  "gap": 7,
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "Re19x",
+                      "name": "Diff Tab Icon",
+                      "width": 12,
+                      "height": 12,
+                      "icon": "git-branch",
+                      "library": "lucide",
+                      "fill": "$whip-faint"
+                    },
+                    {
+                      "type": "text",
+                      "id": "I72VEU",
+                      "name": "Diff Tab Text",
+                      "fill": "$whip-muted",
+                      "content": "Diff",
+                      "fontFamily": "$whip-font",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Uvbjz",
+                  "name": "Plan Tab",
+                  "height": "fill_container",
+                  "stroke": "#05050500",
+                  "gap": 7,
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "r1b3A6",
+                      "name": "Plan Tab Icon",
+                      "width": 12,
+                      "height": 12,
+                      "icon": "scroll-text",
+                      "library": "lucide",
+                      "fill": "$whip-faint"
+                    },
+                    {
+                      "type": "text",
+                      "id": "kf0U4",
+                      "name": "Plan Tab Text",
+                      "fill": "$whip-muted",
+                      "content": "Plan",
+                      "fontFamily": "$whip-font",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "b7Hxp2",
+                  "name": "Comments 2 Tab",
+                  "height": "fill_container",
+                  "stroke": "#05050500",
+                  "gap": 7,
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "CL4NW",
+                      "name": "Comments 2 Tab Icon",
+                      "width": 12,
+                      "height": 12,
+                      "icon": "message-square",
+                      "library": "lucide",
+                      "fill": "$whip-faint"
+                    },
+                    {
+                      "type": "text",
+                      "id": "o5ImLk",
+                      "name": "Comments 2 Tab Text",
+                      "fill": "$whip-muted",
+                      "content": "Comments 2",
+                      "fontFamily": "$whip-font",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "c927Pc",
+                  "name": "Memory 3 Tab",
+                  "height": "fill_container",
+                  "stroke": "#05050500",
+                  "gap": 7,
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "SnV2M",
+                      "name": "Memory 3 Tab Icon",
+                      "width": 12,
+                      "height": 12,
+                      "icon": "brain",
+                      "library": "lucide",
+                      "fill": "$whip-faint"
+                    },
+                    {
+                      "type": "text",
+                      "id": "g7x40J",
+                      "name": "Memory 3 Tab Text",
+                      "fill": "$whip-muted",
+                      "content": "Memory 3",
+                      "fontFamily": "$whip-font",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "A8wXeU",
+              "name": "Context Spacer",
+              "width": "fill_container",
+              "height": 1
+            },
+            {
+              "type": "frame",
+              "id": "XHxI8",
+              "name": "Context fix/director-groups-member-count",
+              "fill": "$whip-panel",
+              "cornerRadius": 6,
+              "stroke": "$whip-border",
+              "strokeWidth": 1,
+              "gap": 7,
+              "padding": [
+                5,
+                9
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "Y6wriv",
+                  "name": "fix/director-groups-member-count Icon",
+                  "width": 11,
+                  "height": 11,
+                  "icon": "git-branch",
+                  "library": "lucide",
+                  "fill": "$whip-faint"
+                },
+                {
+                  "type": "text",
+                  "id": "D6IzXJ",
+                  "name": "fix/director-groups-member-count Text",
+                  "fill": "$whip-muted",
+                  "content": "fix/director-groups-member-count",
+                  "fontFamily": "$whip-mono",
+                  "fontSize": 11,
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "s45s14",
+              "name": "Context unicorn/fix-director-groups",
+              "fill": "$whip-panel",
+              "cornerRadius": 6,
+              "stroke": "$whip-border",
+              "strokeWidth": 1,
+              "gap": 7,
+              "padding": [
+                5,
+                9
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "qitiL",
+                  "name": "unicorn/fix-director-groups Icon",
+                  "width": 11,
+                  "height": 11,
+                  "icon": "folder-open",
+                  "library": "lucide",
+                  "fill": "$whip-faint"
+                },
+                {
+                  "type": "text",
+                  "id": "P0JeL",
+                  "name": "unicorn/fix-director-groups Text",
+                  "fill": "$whip-muted",
+                  "content": "unicorn/fix-director-groups",
+                  "fontFamily": "$whip-mono",
+                  "fontSize": 11,
+                  "fontWeight": "600"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "BeBbC",
+          "name": "Terminal First Main",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "$whip-bg",
+          "children": [
+            {
+              "type": "frame",
+              "id": "AIqri",
+              "name": "Terminal Workspace",
+              "width": "fill_container",
+              "height": "fill_container",
+              "fill": "#070707",
+              "layout": "vertical",
+              "gap": 10,
+              "padding": 20,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "g29XC",
+                  "name": "Session Bar",
+                  "width": "fill_container",
+                  "height": 34,
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "xve45",
+                      "name": "Active Session",
+                      "fill": "$whip-panel",
+                      "cornerRadius": 6,
+                      "stroke": "$whip-border",
+                      "strokeWidth": 1,
+                      "gap": 7,
+                      "padding": [
+                        7,
+                        10
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "BZsY2",
+                          "name": "Active Session Dot",
+                          "fill": "$whip-green",
+                          "width": 7,
+                          "height": 7
+                        },
+                        {
+                          "type": "text",
+                          "id": "mJBg3",
+                          "name": "Active Session Text",
+                          "fill": "$whip-text",
+                          "content": "review · running",
+                          "fontFamily": "$whip-font",
+                          "fontSize": 12,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "exWOx",
+                      "name": "Install Session",
+                      "fill": "#05050500",
+                      "cornerRadius": 6,
+                      "stroke": "$whip-border-soft",
+                      "strokeWidth": 1,
+                      "gap": 7,
+                      "padding": [
+                        7,
+                        10
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "fi6fh",
+                          "name": "Install Check",
+                          "width": 13,
+                          "height": 13,
+                          "icon": "check",
+                          "library": "lucide",
+                          "fill": "$whip-green"
+                        },
+                        {
+                          "type": "text",
+                          "id": "zyB3J",
+                          "name": "Install Text",
+                          "fill": "$whip-muted",
+                          "content": "install · completed",
+                          "fontFamily": "$whip-font",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "it4HC",
+                      "name": "Session Spacer",
+                      "width": "fill_container",
+                      "height": 1
+                    },
+                    {
+                      "type": "text",
+                      "id": "Svido",
+                      "name": "Stream Label",
+                      "fill": "$whip-faint",
+                      "content": "stream: card_042-review",
+                      "fontFamily": "$whip-mono",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "hJd8T",
+                  "name": "Terminal Output",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "#0B0B0B",
+                  "cornerRadius": 6,
+                  "stroke": "$whip-border-soft",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 7,
+                  "padding": 18,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "ZRxGJ",
+                      "name": "Terminal Line 1",
+                      "fill": "$whip-muted",
+                      "content": "$ pnpm test --filter director-groups",
+                      "fontFamily": "$whip-mono",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "cwHGH",
+                      "name": "Terminal Line 2",
+                      "fill": "$whip-green",
+                      "content": "✓ active member count reads group_uuid",
+                      "fontFamily": "$whip-mono",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "zI8qJ",
+                      "name": "Terminal Line 3",
+                      "fill": "$whip-green",
+                      "content": "✓ modal active state checks group_type",
+                      "fontFamily": "$whip-mono",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "eIMgd",
+                      "name": "Terminal Line 4",
+                      "fill": "$whip-text",
+                      "content": "› reviewing diff for stale member-count query usage...",
+                      "fontFamily": "$whip-mono",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "VJz7t",
+                      "name": "Terminal Line 5",
+                      "fill": "$whip-text",
+                      "content": "▌",
+                      "fontFamily": "$whip-mono",
+                      "fontSize": 12,
+                      "fontWeight": "700"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "kSLDy",
+              "name": "Collapsed Workflow Rail",
+              "width": 56,
+              "height": "fill_container",
+              "fill": "$whip-bg",
+              "stroke": "$whip-border-soft",
+              "strokeWidth": {
+                "left": 1
+              },
+              "layout": "vertical",
+              "padding": [
+                14,
+                0
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "J8qt99",
+                  "name": "Expand Rail",
+                  "width": 14,
+                  "height": 14,
+                  "icon": "chevron-left",
+                  "library": "lucide",
+                  "fill": "$whip-faint"
+                },
+                {
+                  "type": "frame",
+                  "id": "zMM0Y",
+                  "name": "Rail Gap",
+                  "width": 1,
+                  "height": 16
+                },
+                {
+                  "type": "frame",
+                  "id": "Jfeiy",
+                  "name": "Workflow Rail Step 1",
+                  "width": 30,
+                  "height": 30,
+                  "fill": "#05050500",
+                  "cornerRadius": 15,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "shU6H",
+                      "name": "Workflow Rail Step 1 Icon",
+                      "width": 14,
+                      "height": 14,
+                      "icon": "check",
+                      "library": "lucide",
+                      "fill": "$whip-green"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "qVmVm",
+                  "name": "Workflow Rail Connector 1",
+                  "width": 1,
+                  "height": 18,
+                  "fill": "#22C55E66"
+                },
+                {
+                  "type": "frame",
+                  "id": "r8Elu",
+                  "name": "Workflow Rail Step 2",
+                  "width": 30,
+                  "height": 30,
+                  "fill": "#FFFFFF12",
+                  "cornerRadius": 15,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "nJf9I",
+                      "name": "Workflow Rail Step 2 Icon",
+                      "width": 14,
+                      "height": 14,
+                      "icon": "circle",
+                      "library": "lucide",
+                      "fill": "$whip-text"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "JF3AT",
+                  "name": "Workflow Rail Connector 2",
+                  "width": 1,
+                  "height": 18,
+                  "fill": "$whip-border"
+                },
+                {
+                  "type": "frame",
+                  "id": "xHvwm",
+                  "name": "Workflow Rail Step 3",
+                  "width": 30,
+                  "height": 30,
+                  "fill": "#05050500",
+                  "cornerRadius": 15,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "uenfX",
+                      "name": "Workflow Rail Step 3 Icon",
+                      "width": 14,
+                      "height": 14,
+                      "icon": "circle",
+                      "library": "lucide",
+                      "fill": "$whip-faint"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "r7U9ZV",
+          "name": "Run Bar",
+          "width": "fill_container",
+          "height": 42,
+          "fill": "$whip-bg",
+          "stroke": "$whip-border-soft",
+          "strokeWidth": {
+            "top": 1
+          },
+          "gap": 10,
+          "padding": [
+            0,
+            24
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "Y8bjnd",
+              "name": "Run Status",
+              "gap": 7,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "hCeST",
+                  "name": "Run Dot",
+                  "fill": "$whip-green",
+                  "width": 7,
+                  "height": 7
+                },
+                {
+                  "type": "text",
+                  "id": "f7XAN",
+                  "name": "Run Status Text",
+                  "fill": "$whip-text",
+                  "content": "Running",
+                  "fontFamily": "$whip-font",
+                  "fontSize": 11,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "v7qK0",
+              "name": "Run Divider",
+              "width": 1,
+              "height": 18,
+              "fill": "$whip-border"
+            },
+            {
+              "type": "text",
+              "id": "saACO",
+              "name": "Run Title",
+              "fill": "$whip-text",
+              "textGrowth": "fixed-width",
+              "width": 430,
+              "content": "Fix director-groups modal member count & active-member rendering",
+              "fontFamily": "$whip-font",
+              "fontSize": 11,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "I2GO4",
+              "name": "Agent Badge",
+              "fill": "#22C55E14",
+              "cornerRadius": 999,
+              "gap": 5,
+              "padding": [
+                4,
+                8
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "uyYaW",
+                  "name": "Agent Dot",
+                  "fill": "$whip-green",
+                  "width": 5,
+                  "height": 5
+                },
+                {
+                  "type": "text",
+                  "id": "hMPvK",
+                  "name": "Agent Text",
+                  "fill": "$whip-green",
+                  "content": "codex",
+                  "fontFamily": "$whip-font",
+                  "fontSize": 9,
+                  "fontWeight": "650"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "AB5WJ",
+              "name": "Run Spacer",
+              "width": "fill_container",
+              "height": 1
+            },
+            {
+              "type": "frame",
+              "id": "rvjZp",
+              "name": "Hide Terminal",
+              "gap": 6,
+              "padding": [
+                6,
+                9
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "MNmXW",
+                  "name": "Hide Terminal Icon",
+                  "width": 13,
+                  "height": 13,
+                  "icon": "terminal",
+                  "library": "lucide",
+                  "fill": "$whip-muted"
+                },
+                {
+                  "type": "text",
+                  "id": "MNTdF",
+                  "name": "Hide Terminal Text",
+                  "fill": "$whip-muted",
+                  "content": "Hide Terminal",
+                  "fontFamily": "$whip-font",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "C0ptiK",
+              "name": "Stop Button",
+              "fill": "$whip-red",
+              "cornerRadius": 6,
+              "gap": 7,
+              "padding": [
+                6,
+                11
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "k6QvQu",
+                  "name": "Stop Icon",
+                  "width": 10,
+                  "height": 10,
+                  "icon": "square",
+                  "library": "lucide",
+                  "fill": "#FFFFFF"
+                },
+                {
+                  "type": "text",
+                  "id": "j1ufy",
+                  "name": "Stop Text",
+                  "fill": "#FFFFFF",
+                  "content": "Stop",
+                  "fontFamily": "$whip-font",
+                  "fontSize": 11,
+                  "fontWeight": "700"
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   ],
   "variables": {

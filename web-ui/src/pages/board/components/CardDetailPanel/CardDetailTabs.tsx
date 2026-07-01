@@ -53,21 +53,21 @@ export function CardDetailTabs({
 	] as { id: RightTab; label: string; Icon: React.FC<{ size: number }> | null }[];
 
 	return (
-		<div className="flex-1 min-w-0 flex flex-col bg-[#141418]">
+		<div className="flex-1 min-w-0 flex flex-col bg-[#0b0b0b]">
 			{/* Tab bar */}
-			<div className="flex shrink-0 bg-[#0d0d12] border-b border-[#2a2a35] px-5">
+			<div className="flex shrink-0 bg-[#111111] border-b border-[#2a2a2a] px-5">
 				{tabs.map(({ id, label, Icon }) => (
 					<button
 						key={id}
 						onClick={() => setRightTab(id)}
 						className={classNames(
 							"relative flex items-center gap-1.5 px-4 py-[11px] text-xs font-medium transition-colors",
-							rightTab === id ? "text-[#f0f0f5]" : "text-[#4a4a5a] hover:text-[#8888a0]",
+							rightTab === id ? "text-[#ededed]" : "text-[#5f6672] hover:text-[#8a8f98]",
 						)}
 					>
 						{Icon && <Icon size={11} />}
 						{label}
-						{rightTab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#7c6aff]" />}
+						{rightTab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#ffffff]" />}
 					</button>
 				))}
 			</div>
@@ -76,7 +76,7 @@ export function CardDetailTabs({
 				(hasTerminalOutput ? (
 					<TaskTerminal key={activeStreamId} taskId={activeStreamId} workspaceId={workspaceId} className="flex-1" />
 				) : (
-					<div className="flex-1 flex items-center justify-center flex-col gap-3 text-gray-600">
+					<div className="flex-1 flex items-center justify-center flex-col gap-3 text-[#5f6672]">
 						<span className="text-4xl">⌨</span>
 						<p className="text-sm">No agent output yet</p>
 						<p className="text-xs">Start the agent to see terminal output here</p>
@@ -94,9 +94,9 @@ export function CardDetailTabs({
 			{rightTab === "plan" && (
 				<div className="flex-1 overflow-y-auto p-5">
 					{hasPlan ? (
-						<p className="text-[13px] text-[#c0c0d0] whitespace-pre-wrap leading-relaxed">{card.plan}</p>
+						<p className="text-[13px] text-[#ededed] whitespace-pre-wrap leading-relaxed">{card.plan}</p>
 					) : (
-						<div className="flex-1 flex items-center justify-center text-xs text-[#4a4a5a]">No plan for this card</div>
+						<div className="flex-1 flex items-center justify-center text-xs text-[#5f6672]">No plan for this card</div>
 					)}
 				</div>
 			)}

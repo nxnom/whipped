@@ -176,14 +176,14 @@ export function DiffView({ workspaceId, cardId, activeLevel, isReadyForReview, o
 
 	// ── Loading / error states ────────────────────────────────────────────────
 	if (loading) {
-		return <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">Loading diff…</div>;
+		return <div className="flex-1 flex items-center justify-center text-[#8a8f98] text-sm">Loading diff…</div>;
 	}
 
 	if (loadError) {
 		return (
-			<div className="flex-1 flex flex-col items-center justify-center gap-3 text-gray-500">
+			<div className="flex-1 flex flex-col items-center justify-center gap-3 text-[#8a8f98]">
 				<p className="text-sm">{loadError}</p>
-				<button onClick={refreshDiff} className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300">
+				<button onClick={refreshDiff} className="flex items-center gap-1.5 text-xs text-[#ededed] hover:text-white">
 					<RefreshCw size={12} /> Retry
 				</button>
 			</div>
@@ -192,9 +192,9 @@ export function DiffView({ workspaceId, cardId, activeLevel, isReadyForReview, o
 
 	if (files.length === 0) {
 		return (
-			<div className="flex-1 flex flex-col items-center justify-center gap-3 text-gray-500">
+			<div className="flex-1 flex flex-col items-center justify-center gap-3 text-[#8a8f98]">
 				<p className="text-sm">No changes yet</p>
-				<button onClick={refreshDiff} className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300">
+				<button onClick={refreshDiff} className="flex items-center gap-1.5 text-xs text-[#ededed] hover:text-white">
 					<RefreshCw size={12} /> Refresh
 				</button>
 			</div>
@@ -206,14 +206,14 @@ export function DiffView({ workspaceId, cardId, activeLevel, isReadyForReview, o
 	const fileTree = buildFileTree(files);
 
 	return (
-		<div className="flex-1 min-h-0 flex flex-col font-mono text-xs bg-[#0a0a0e] relative">
+		<div className="flex-1 min-h-0 flex flex-col font-mono text-xs bg-[#050505] relative">
 			{/* Top bar */}
-			<div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-gray-800 bg-[#0d0d12] font-sans">
-				<span className="text-gray-500 text-xs">
+			<div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-[#1f1f1f] bg-[#111111] font-sans">
+				<span className="text-[#8a8f98] text-xs">
 					{files.length} file{files.length !== 1 ? "s" : ""}
 					{" · "}
-					<span className="text-green-500">+{totalAdditions}</span>{" "}
-					<span className="text-red-500">-{totalDeletions}</span>
+					<span className="text-[#22c55e]">+{totalAdditions}</span>{" "}
+					<span className="text-[#ff3b4d]">-{totalDeletions}</span>
 				</span>
 
 				{commits.length > 0 && (
@@ -224,7 +224,7 @@ export function DiffView({ workspaceId, cardId, activeLevel, isReadyForReview, o
 
 				<button
 					onClick={refreshDiff}
-					className="text-gray-600 hover:text-gray-300 transition-colors p-1 rounded hover:bg-gray-800"
+					className="text-[#5f6672] hover:text-[#ededed] transition-colors p-1 rounded hover:bg-[#161616]"
 					title="Refresh diff"
 				>
 					<RefreshCw size={13} />
@@ -235,9 +235,9 @@ export function DiffView({ workspaceId, cardId, activeLevel, isReadyForReview, o
 
 			{/* Base branch drift notice */}
 			{baseBehindCount > 0 && !selectedCommit && (
-				<div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-amber-950/40 border-b border-amber-800/40 font-sans">
-					<AlertTriangle size={12} className="text-amber-400 shrink-0" />
-					<span className="text-amber-300/90 text-xs">
+				<div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-[#eab308]/10 border-b border-[#eab308]/30 font-sans">
+					<AlertTriangle size={12} className="text-[#eab308] shrink-0" />
+					<span className="text-[#eab308]/90 text-xs">
 						Base branch has {baseBehindCount} new commit{baseBehindCount !== 1 ? "s" : ""} not yet in this branch — they
 						will be included when merged and are not shown here.
 					</span>
@@ -248,7 +248,7 @@ export function DiffView({ workspaceId, cardId, activeLevel, isReadyForReview, o
 			<div className="flex flex-1 min-h-0">
 				{/* File tree sidebar */}
 				<div
-					className="relative shrink-0 border-r border-[#1e1e28] overflow-y-auto bg-[#0d0d12] py-2"
+					className="relative shrink-0 border-r border-[#1e1e28] overflow-y-auto bg-[#111111] py-2"
 					style={{ width: sidebarWidth }}
 				>
 					<FileTreeNode
@@ -268,10 +268,10 @@ export function DiffView({ workspaceId, cardId, activeLevel, isReadyForReview, o
 							document.body.style.userSelect = "none";
 							e.preventDefault();
 						}}
-						className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500/40 transition-colors z-10 group"
+						className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-white/20 transition-colors z-10 group"
 						title="Drag to resize"
 					>
-						<div className="absolute inset-y-0 right-0 w-px bg-[#1e1e28] group-hover:bg-blue-500/60 transition-colors" />
+						<div className="absolute inset-y-0 right-0 w-px bg-[#1e1e28] group-hover:bg-white/60 transition-colors" />
 					</div>
 				</div>
 

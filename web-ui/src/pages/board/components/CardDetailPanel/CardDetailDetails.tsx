@@ -85,11 +85,11 @@ export function CardDetailDetails({ card, workspaceId, allCards, workflowSlots, 
 
 	return (
 		<>
-			<div className="h-px bg-[#2a2a35] shrink-0" />
+			<div className="h-px bg-[#2a2a2a] shrink-0" />
 
 			{/* Details */}
 			<div className="px-[18px] pt-3.5 pb-2 shrink-0">
-				<span className="text-[11px] font-semibold text-[#8888a0] tracking-[0.3px]">Details</span>
+				<span className="text-[11px] font-semibold text-[#8a8f98] tracking-[0.3px]">Details</span>
 			</div>
 			<div className="flex-1 min-h-0 overflow-y-auto px-[18px] pb-4 flex flex-col gap-3">
 				{/* Description */}
@@ -97,7 +97,7 @@ export function CardDetailDetails({ card, workspaceId, allCards, workflowSlots, 
 					<div>
 						<p
 							className={classNames(
-								"text-xs text-[#8888a0] whitespace-pre-wrap leading-relaxed",
+								"text-xs text-[#8a8f98] whitespace-pre-wrap leading-relaxed",
 								descExpanded ? "" : "line-clamp-4",
 							)}
 						>
@@ -106,7 +106,7 @@ export function CardDetailDetails({ card, workspaceId, allCards, workflowSlots, 
 						{(card.description.split("\n").length > 4 || card.description.length > 240) && (
 							<button
 								onClick={() => setDescExpanded((v) => !v)}
-								className="mt-1 text-[11px] text-[#4a4a5a] hover:text-[#8888a0] transition-colors"
+								className="mt-1 text-[11px] text-[#5f6672] hover:text-[#8a8f98] transition-colors"
 							>
 								{descExpanded ? "Show less" : "Show more"}
 							</button>
@@ -136,7 +136,7 @@ export function CardDetailDetails({ card, workspaceId, allCards, workflowSlots, 
 
 				{/* Branch */}
 				{card.baseRef && (
-					<div className="flex items-start gap-2 text-xs text-[#8888a0]">
+					<div className="flex items-start gap-2 text-xs text-[#8a8f98]">
 						<GitBranch size={11} className="shrink-0 mt-0.5" />
 						{editingBranch ? (
 							<div className="flex items-center gap-1 flex-1 min-w-0">
@@ -154,33 +154,33 @@ export function CardDetailDetails({ card, workspaceId, allCards, workflowSlots, 
 								<button
 									onClick={() => void saveBranchName()}
 									disabled={savingBranch}
-									className="p-1 rounded text-[#4a4a5a] hover:text-[#22c55e] hover:bg-[#1a1a1f] transition-colors disabled:opacity-50"
+									className="p-1 rounded text-[#5f6672] hover:text-[#22c55e] hover:bg-[#111111] transition-colors disabled:opacity-50"
 								>
 									<Check size={12} />
 								</button>
 								<button
 									onClick={cancelEditBranch}
 									disabled={savingBranch}
-									className="p-1 rounded text-[#4a4a5a] hover:text-[#8888a0] hover:bg-[#1a1a1f] transition-colors disabled:opacity-50"
+									className="p-1 rounded text-[#5f6672] hover:text-[#8a8f98] hover:bg-[#111111] transition-colors disabled:opacity-50"
 								>
 									<X size={12} />
 								</button>
 							</div>
 						) : (
 							<div className="flex items-center gap-1 flex-wrap">
-								<span className="font-mono text-[#8888a0] truncate max-w-[110px]" title={currentBranch}>
+								<span className="font-mono text-[#8a8f98] truncate max-w-[110px]" title={currentBranch}>
 									{currentBranch}
 								</span>
 								{canEditBranch && (
 									<button
 										onClick={startEditBranch}
-										className="p-0.5 rounded text-[#4a4a5a] hover:text-[#8888a0] hover:bg-[#1a1a1f] transition-colors"
+										className="p-0.5 rounded text-[#5f6672] hover:text-[#8a8f98] hover:bg-[#111111] transition-colors"
 									>
 										<Pencil size={10} />
 									</button>
 								)}
-								<span className="text-[#4a4a5a]">→</span>
-								<span className="font-mono text-[#8888a0] truncate max-w-[110px]">{card.baseRef}</span>
+								<span className="text-[#5f6672]">→</span>
+								<span className="font-mono text-[#8a8f98] truncate max-w-[110px]">{card.baseRef}</span>
 							</div>
 						)}
 					</div>
@@ -188,14 +188,14 @@ export function CardDetailDetails({ card, workspaceId, allCards, workflowSlots, 
 
 				{/* Model tier — read-only; change it via the Reopen picker */}
 				<div className="flex flex-col gap-1">
-					<div className="flex items-center gap-2 text-xs text-[#8888a0]">
+					<div className="flex items-center gap-2 text-xs text-[#8a8f98]">
 						<Gauge size={11} className="shrink-0" />
 						<span>Tier: {tierLabel}</span>
 					</div>
 					{resolvedSlots.map((s) => (
 						<div key={s.id} className="flex items-center gap-2 pl-[18px] text-[11px]">
-							<span className="text-[#8888a0] shrink-0">{s.name}</span>
-							<span className="font-mono text-[#60607a] truncate">
+							<span className="text-[#8a8f98] shrink-0">{s.name}</span>
+							<span className="font-mono text-[#5f6672] truncate">
 								{s.pair.binary}
 								{s.pair.model ? `/${s.pair.model}` : ""}
 							</span>
@@ -211,7 +211,7 @@ export function CardDetailDetails({ card, workspaceId, allCards, workflowSlots, 
 				{/* Dependencies */}
 				{(card.dependsOn ? [card.dependsOn] : (card.waitsFor ?? [])).length > 0 && (
 					<div>
-						<p className="text-[10px] font-medium text-[#4a4a5a] mb-1.5">
+						<p className="text-[10px] font-medium text-[#5f6672] mb-1.5">
 							{card.dependsOn ? "Depends on" : "Waits for"}
 						</p>
 						<div className="space-y-1">
@@ -221,13 +221,13 @@ export function CardDetailDetails({ card, workspaceId, allCards, workflowSlots, 
 								return (
 									<div
 										key={depId}
-										className="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-[#1a1a1f] border border-[#2a2a35]"
+										className="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-[#111111] border border-[#2a2a2a]"
 									>
-										<span className="text-xs text-gray-300 truncate">{dep.description?.split("\n")[0] ?? dep.id}</span>
+										<span className="text-xs text-[#ededed] truncate">{dep.description?.split("\n")[0] ?? dep.id}</span>
 										<span
 											className={classNames(
 												"text-[10px] px-1.5 py-0.5 rounded shrink-0 font-medium",
-												DEP_COL_BADGE[dep.columnId] ?? "text-gray-400 bg-gray-700",
+												DEP_COL_BADGE[dep.columnId] ?? "text-[#8a8f98] bg-[#2a2a2a]",
 											)}
 										>
 											{COLUMN_LABELS[dep.columnId] ?? dep.columnId}
@@ -247,7 +247,7 @@ export function CardDetailDetails({ card, workspaceId, allCards, workflowSlots, 
 								href={card.githubIssueUrl}
 								target="_blank"
 								rel="noreferrer"
-								className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300"
+								className="flex items-center gap-1.5 text-xs text-[#ededed] hover:text-white"
 							>
 								<ExternalLink size={11} /> GitHub Issue
 							</a>
@@ -257,7 +257,7 @@ export function CardDetailDetails({ card, workspaceId, allCards, workflowSlots, 
 								href={card.pr?.url}
 								target="_blank"
 								rel="noreferrer"
-								className="flex items-center gap-1.5 text-xs text-green-400 hover:text-green-300"
+								className="flex items-center gap-1.5 text-xs text-[#22c55e] hover:text-[#22c55e]"
 							>
 								<ExternalLink size={11} /> Pull Request
 							</a>
@@ -266,7 +266,7 @@ export function CardDetailDetails({ card, workspaceId, allCards, workflowSlots, 
 				)}
 			</div>
 
-			<div className="h-px bg-[#2a2a35] shrink-0" />
+			<div className="h-px bg-[#2a2a2a] shrink-0" />
 
 			{/* Activity */}
 			<div className="shrink-0">
@@ -274,11 +274,11 @@ export function CardDetailDetails({ card, workspaceId, allCards, workflowSlots, 
 					onClick={() => setActivityExpanded((v) => !v)}
 					className="flex items-center w-full gap-1.5 px-[18px] py-3.5"
 				>
-					<span className="text-[11px] font-semibold text-[#8888a0] tracking-[0.3px] flex-1 text-left">Activity</span>
+					<span className="text-[11px] font-semibold text-[#8a8f98] tracking-[0.3px] flex-1 text-left">Activity</span>
 					<ChevronRight
 						size={14}
 						className={classNames(
-							"text-[#4a4a5a] transition-transform duration-150",
+							"text-[#5f6672] transition-transform duration-150",
 							activityExpanded ? "rotate-90" : "",
 						)}
 					/>
@@ -286,15 +286,15 @@ export function CardDetailDetails({ card, workspaceId, allCards, workflowSlots, 
 				{activityExpanded && (
 					<div className="px-[18px] pb-3 max-h-48 overflow-y-auto">
 						{!card.activityLog?.length ? (
-							<p className="text-xs text-[#4a4a5a] py-2">No activity yet</p>
+							<p className="text-xs text-[#5f6672] py-2">No activity yet</p>
 						) : (
 							<div className="space-y-1.5">
 								{card.activityLog.map((entry, i) => (
 									<div key={i} className="flex items-baseline gap-2 text-xs">
-										<span className="text-[#4a4a5a] shrink-0 tabular-nums">
+										<span className="text-[#5f6672] shrink-0 tabular-nums">
 											{new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
 										</span>
-										<span className="text-[#8888a0]">{entry.message}</span>
+										<span className="text-[#8a8f98]">{entry.message}</span>
 									</div>
 								))}
 							</div>

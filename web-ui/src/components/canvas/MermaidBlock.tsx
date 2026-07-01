@@ -35,20 +35,20 @@ export function MermaidBlock({ id, source, caption }: { id: string; source: stri
 
 	if (error) {
 		return (
-			<div className="flex flex-col gap-2 rounded-lg border border-red-900/40 bg-red-950/20 p-3">
-				<div className="flex items-center gap-1.5 text-[11px] text-red-400">
+			<div className="flex flex-col gap-2 rounded-lg border border-[#ff3b4d]/40 bg-[#ff3b4d]/20 p-3">
+				<div className="flex items-center gap-1.5 text-[11px] text-[#ff3b4d]">
 					<AlertTriangle size={12} />
 					Failed to render diagram: {error}
 				</div>
-				<pre className="overflow-x-auto whitespace-pre text-[11px] font-mono text-gray-400">{source}</pre>
+				<pre className="overflow-x-auto whitespace-pre text-[11px] font-mono text-[#8a8f98]">{source}</pre>
 			</div>
 		);
 	}
 
 	return (
 		<div className="flex flex-col gap-1.5">
-			<div ref={containerRef} className="overflow-x-auto rounded-lg bg-[#0d0d12] p-3" />
-			{caption && <span className="text-[11px] text-gray-500 text-center">{caption}</span>}
+			<div ref={containerRef} className="overflow-x-auto rounded-lg bg-[#111111] p-3" />
+			{caption && <span className="text-[11px] text-[#8a8f98] text-center">{caption}</span>}
 		</div>
 	);
 }

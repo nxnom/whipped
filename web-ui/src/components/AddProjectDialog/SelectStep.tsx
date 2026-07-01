@@ -23,26 +23,26 @@ export function SelectStep({
 			{/* Scrollable body */}
 			<div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
 				{/* Repository Path label */}
-				<span className="text-[13px] font-medium shrink-0 text-[#c0c0d0]">Repository Path</span>
+				<span className="text-[13px] font-medium shrink-0 text-[#ededed]">Repository Path</span>
 
 				{/* Path input row */}
 				<div className="flex shrink-0 gap-2">
 					<RHFInput
 						name="repoPath"
 						placeholder="/Users/dev/projects/my-app"
-						className="flex items-center flex-1 min-w-0 bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3.5 py-2.5 gap-2"
-						inputClassName="flex-1 bg-transparent outline-none min-w-0 text-[#c0c0d0] font-mono text-[12px]"
+						className="flex items-center flex-1 min-w-0 bg-[#111111] border border-[#2a2a2a] rounded-md px-3.5 py-2.5 gap-2"
+						inputClassName="flex-1 bg-transparent outline-none min-w-0 text-[#ededed] font-mono text-[12px]"
 						onKeyDown={(e) => e.key === "Enter" && pathStatus === "valid" && onNext()}
-						prefix={<Folder size={14} className="text-[#60607a] shrink-0" />}
+						prefix={<Folder size={14} className="text-[#5f6672] shrink-0" />}
 						suffix={
-							pathStatus === "checking" ? <Loader2 size={12} className="animate-spin shrink-0 text-[#60607a]" /> : null
+							pathStatus === "checking" ? <Loader2 size={12} className="animate-spin shrink-0 text-[#5f6672]" /> : null
 						}
 					/>
 					<button
 						onClick={onBrowse}
-						className="shrink-0 hover:opacity-80 transition-opacity px-3.5 py-2.5 border border-[#2a2a35] rounded-md"
+						className="shrink-0 hover:opacity-80 transition-opacity px-3.5 py-2.5 border border-[#2a2a2a] rounded-md"
 					>
-						<span className="text-[12px] text-[#8888a0]">Browse</span>
+						<span className="text-[12px] text-[#8a8f98]">Browse</span>
 					</button>
 				</div>
 
@@ -56,24 +56,24 @@ export function SelectStep({
 					)}
 					{pathStatus === "invalid" && (
 						<>
-							<AlertCircle size={14} className="text-[#ef4444] shrink-0" />
-							<span className="text-[12px] text-[#ef4444]">{pathError ?? "Invalid path"}</span>
+							<AlertCircle size={14} className="text-[#ff3b4d] shrink-0" />
+							<span className="text-[12px] text-[#ff3b4d]">{pathError ?? "Invalid path"}</span>
 						</>
 					)}
 				</div>
 
 				{/* Divider */}
-				<div className="h-px bg-[#1a1a1f] shrink-0" />
+				<div className="h-px bg-[#111111] shrink-0" />
 
 				{/* Repo info card */}
 				{pathStatus === "valid" ? (
-					<div className="shrink-0 flex flex-col bg-[#0c0c0f] border border-[#2a2a35] rounded-lg px-4 py-3.5 gap-2.5">
+					<div className="shrink-0 flex flex-col bg-[#111111] border border-[#2a2a2a] rounded-lg px-4 py-3.5 gap-2.5">
 						<InfoRow label="Name" value={repoInfo.name ?? "—"} mono={false} />
 						<InfoRow label="Branch" value={repoInfo.branch ?? "—"} mono />
 						<InfoRow label="Remote" value={repoInfo.remote ?? "—"} mono />
 					</div>
 				) : (
-					<div className="shrink-0 flex flex-col bg-[#0c0c0f] border border-[#2a2a35] rounded-lg px-4 py-3.5 gap-2.5 opacity-40">
+					<div className="shrink-0 flex flex-col bg-[#111111] border border-[#2a2a2a] rounded-lg px-4 py-3.5 gap-2.5 opacity-40">
 						<InfoRow label="Name" value="—" mono={false} />
 						<InfoRow label="Branch" value="—" mono />
 						<InfoRow label="Remote" value="—" mono />
@@ -85,20 +85,20 @@ export function SelectStep({
 			</div>
 
 			{/* Pinned footer */}
-			<div className="flex items-center justify-end shrink-0 gap-2 px-6 py-3 border-t border-[#2a2a35]">
+			<div className="flex items-center justify-end shrink-0 gap-2 px-6 py-3 border-t border-[#2a2a2a]">
 				<button
 					onClick={onClose}
-					className="hover:opacity-80 transition-opacity px-[18px] py-[9px] border border-[#2a2a35] rounded-md"
+					className="hover:opacity-80 transition-opacity px-[18px] py-[9px] border border-[#2a2a2a] rounded-md"
 				>
-					<span className="text-[13px] text-[#8888a0]">Cancel</span>
+					<span className="text-[13px] text-[#8a8f98]">Cancel</span>
 				</button>
 				<button
 					onClick={onNext}
 					disabled={pathStatus !== "valid"}
-					className="flex items-center hover:opacity-80 transition-opacity disabled:opacity-40 px-[18px] py-[9px] bg-[#7c6aff] rounded-md gap-1.5"
+					className="flex items-center hover:opacity-80 transition-opacity disabled:opacity-40 px-[18px] py-[9px] bg-[#ededed] rounded-md gap-1.5"
 				>
-					<span className="text-[13px] font-medium text-white">Next</span>
-					<ArrowRight size={14} className="text-white" />
+					<span className="text-[13px] font-medium text-[#050505]">Next</span>
+					<ArrowRight size={14} className="text-[#050505]" />
 				</button>
 			</div>
 		</div>
@@ -108,11 +108,11 @@ export function SelectStep({
 function InfoRow({ label, value, mono }: { label: string; value: string; mono: boolean }) {
 	return (
 		<div className="flex items-center">
-			<span className="text-[11px] shrink-0 text-[#60607a] w-20">{label}</span>
+			<span className="text-[11px] shrink-0 text-[#5f6672] w-20">{label}</span>
 			<span
 				className={classNames(
 					"text-[12px] truncate",
-					label === "Name" ? "text-[#f0f0f5]" : "text-[#c0c0d0]",
+					label === "Name" ? "text-[#ededed]" : "text-[#ededed]",
 					mono ? "font-mono font-normal" : "font-medium",
 				)}
 			>

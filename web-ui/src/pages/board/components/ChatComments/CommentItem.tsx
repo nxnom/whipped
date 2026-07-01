@@ -70,7 +70,7 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 			{showDate && (
 				<div className="flex items-center gap-3 px-4 my-3">
 					<div className="flex-1 h-px bg-[#1e1e28]" />
-					<span className="text-[11px] text-[#4a4a5a] font-medium shrink-0">{formatDateLabel(comment.createdAt)}</span>
+					<span className="text-[11px] text-[#5f6672] font-medium shrink-0">{formatDateLabel(comment.createdAt)}</span>
 					<div className="flex-1 h-px bg-[#1e1e28]" />
 				</div>
 			)}
@@ -95,14 +95,14 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 				<div className="flex-1 min-w-0">
 					{showHeader && (
 						<div className="flex items-baseline gap-2 mb-0.5 flex-wrap">
-							<span className="font-semibold text-sm text-gray-100">{name}</span>
+							<span className="font-semibold text-sm text-[#ededed]">{name}</span>
 							<AgentBadge comment={comment} />
-							<span className="text-xs text-[#4a4a5a] tabular-nums">
+							<span className="text-xs text-[#5f6672] tabular-nums">
 								{new Date(comment.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
 							</span>
 							{sourceCardTitle && (
 								<span
-									className="text-[10px] px-1.5 py-0.5 rounded font-medium text-[#6a6a80] bg-[#1a1a24] border border-[#2a2a38] truncate max-w-[160px]"
+									className="text-[10px] px-1.5 py-0.5 rounded font-medium text-[#6a6a80] bg-[#161616] border border-[#2a2a2a] truncate max-w-[160px]"
 									title={sourceCardTitle}
 								>
 									{sourceCardTitle}
@@ -110,7 +110,7 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 							)}
 						</div>
 					)}
-					<div className="prose-chat text-sm text-gray-300 leading-relaxed [overflow-wrap:anywhere]">
+					<div className="prose-chat text-sm text-[#ededed] leading-relaxed [overflow-wrap:anywhere]">
 						<ReactMarkdown
 							remarkPlugins={[remarkGfm]}
 							rehypePlugins={
@@ -133,13 +133,13 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 					{/* Issues */}
 					{comment.issues && comment.issues.length > 0 && (
 						<details className="mt-1">
-							<summary className="text-[11px] text-gray-500 cursor-pointer">
+							<summary className="text-[11px] text-[#8a8f98] cursor-pointer">
 								{comment.issues.length} issue{comment.issues.length !== 1 ? "s" : ""}
 							</summary>
 							<ul className="mt-1 space-y-0.5">
 								{comment.issues.map((issue, idx) => (
-									<li key={idx} className="text-[11px] font-mono text-gray-400">
-										<span className={SEVERITY_COLOR[issue.severity] ?? "text-gray-400"}>[{issue.severity}]</span>{" "}
+									<li key={idx} className="text-[11px] font-mono text-[#8a8f98]">
+										<span className={SEVERITY_COLOR[issue.severity] ?? "text-[#8a8f98]"}>[{issue.severity}]</span>{" "}
 										{issue.file}
 										{issue.line != null ? `:${issue.line}` : ""}
 										{issue.file ? " — " : ""}
@@ -152,9 +152,9 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 
 					{/* Visual comment metadata */}
 					{vc && (
-						<div className="mt-1.5 flex flex-col gap-1.5 px-2 py-1.5 rounded bg-[#7c6aff]/8 border border-[#7c6aff]/20 text-[11px] text-[#8888a0]">
+						<div className="mt-1.5 flex flex-col gap-1.5 px-2 py-1.5 rounded bg-[#8b5cf6]/8 border border-[#8b5cf6]/20 text-[11px] text-[#8a8f98]">
 							<div className="flex items-center gap-1.5">
-								<span className="px-1.5 py-0.5 rounded text-[10px] font-medium text-[#a78bfa] bg-[#7c6aff]/15">
+								<span className="px-1.5 py-0.5 rounded text-[10px] font-medium text-[#f5f5f5] bg-[#8b5cf6]/15">
 									Visual
 								</span>
 								{vcElements.length > 1 && <span className="text-[#6a6a80]">{vcElements.length} elements</span>}
@@ -172,7 +172,7 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 										<div className="flex items-center gap-1.5 flex-wrap">
 											{multi && (
 												<span
-													className="flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold text-[#0c0c0f]"
+													className="flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold text-[#111111]"
 													style={{ backgroundColor: refColor(idx) }}
 												>
 													{idx + 1}
@@ -183,7 +183,7 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 										</div>
 										{el.elementText && <div className="text-[#a0a0b8] italic line-clamp-2">"{el.elementText}"</div>}
 										{shortFile && (
-											<span className="font-mono text-[#4a4a5a]">
+											<span className="font-mono text-[#5f6672]">
 												{shortFile}
 												{el.sourceLine != null ? `:${el.sourceLine}` : ""}
 											</span>
@@ -193,7 +193,7 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 												href={el.pageUrl}
 												target="_blank"
 												rel="noreferrer"
-												className="truncate text-[#4a4a5a] hover:text-[#8888a0] transition-colors"
+												className="truncate text-[#5f6672] hover:text-[#8a8f98] transition-colors"
 											>
 												🔗 {el.pageUrl}
 											</a>
@@ -206,7 +206,7 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 									href={vc.pageUrl}
 									target="_blank"
 									rel="noreferrer"
-									className="truncate text-[#4a4a5a] hover:text-[#8888a0] transition-colors"
+									className="truncate text-[#5f6672] hover:text-[#8a8f98] transition-colors"
 								>
 									{vc.pageUrl}
 								</a>
@@ -240,7 +240,7 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 					onClick={handleDelete}
 					title="Delete comment"
 					aria-label="Delete comment"
-					className="shrink-0 mt-2 p-1 rounded text-[#4a4a5a] opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-400 hover:bg-[#1e1e28]"
+					className="shrink-0 mt-2 p-1 rounded text-[#5f6672] opacity-0 group-hover:opacity-100 transition-opacity hover:text-[#ff3b4d] hover:bg-[#1e1e28]"
 				>
 					<Trash2 className="w-3.5 h-3.5" />
 				</button>

@@ -67,12 +67,12 @@ export function TicketTiersSection({ workflow }: { workflow: Workflow | undefine
 
 	return (
 		<div className="flex flex-col gap-2">
-			<span className="text-[11px] font-medium text-[#60607a]">Model tiers</span>
+			<span className="text-[11px] font-medium text-[#5f6672]">Model tiers</span>
 			<RHFInputGroup
 				label="Level"
-				labelClassName="text-[10px] font-medium text-[#60607a] tracking-[0.3px] uppercase"
+				labelClassName="text-[10px] font-medium text-[#5f6672] tracking-[0.3px] uppercase"
 				className="flex flex-col gap-1"
-				errorClassName="text-[11px] text-[#ef4444] mt-1"
+				errorClassName="text-[11px] text-[#ff3b4d] mt-1"
 			>
 				<RHFSelect name="activeLevel" placeholder="Select a level…">
 					{LEVELS_DESC.map((o) => (
@@ -91,17 +91,17 @@ export function TicketTiersSection({ workflow }: { workflow: Workflow | undefine
 					if (!sc) return null;
 					const value = sc.pinnedPairId ? `p:${sc.pinnedPairId}` : `m:${sc.mode}`;
 					return (
-						<div key={slot.id} className="flex flex-col gap-1 bg-[#0c0c0f] border border-[#2a2a35] rounded-md p-2">
+						<div key={slot.id} className="flex flex-col gap-1 bg-[#111111] border border-[#2a2a2a] rounded-md p-2">
 							<div className="flex items-center gap-2">
-								<span className="text-[12px] text-[#c0c0d0]">{slot.name}</span>
+								<span className="text-[12px] text-[#ededed]">{slot.name}</span>
 								<div className="flex-1" />
 								<button
 									type="button"
 									onClick={() => setEditingSlotId(slot.id)}
-									className="flex items-center gap-1 hover:opacity-80 transition-opacity bg-transparent border border-[#2a2a35] rounded-[4px] px-2 py-[3px]"
+									className="flex items-center gap-1 hover:opacity-80 transition-opacity bg-transparent border border-[#2a2a2a] rounded-[4px] px-2 py-[3px]"
 								>
-									<Pencil size={11} className="text-[#60607a]" />
-									<span className="text-[10px] text-[#60607a]">Edit tiers</span>
+									<Pencil size={11} className="text-[#5f6672]" />
+									<span className="text-[10px] text-[#5f6672]">Edit tiers</span>
 								</button>
 							</div>
 							<Select value={value} onChange={(v) => onSelectChange(slot.id, v)}>

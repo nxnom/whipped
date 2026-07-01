@@ -1,1 +1,1 @@
-export const monoInputClassName = "text-[#c0c0d0] font-mono text-[12px]";
+export const monoInputClassName = "text-[#ededed] font-mono text-[12px]";

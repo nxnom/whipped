@@ -75,7 +75,7 @@ export function CanvasFeedbackComposer({
 	};
 
 	return (
-		<div className="flex flex-col gap-2 border-t border-[#2a2a35] p-3 shrink-0">
+		<div className="flex flex-col gap-2 border-t border-[#2a2a2a] p-3 shrink-0">
 			<Textarea
 				placeholder="Anything else to add? (optional)"
 				value={note}

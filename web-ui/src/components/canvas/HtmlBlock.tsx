@@ -15,7 +15,7 @@ import "./canvasContent.css";
 export function HtmlBlock({ body }: { body: string }) {
 	return (
 		<div
-			className="canvas-content overflow-x-auto text-[13px] leading-relaxed text-gray-300 break-words"
+			className="canvas-content overflow-x-auto text-[13px] leading-relaxed text-[#ededed] break-words"
 			// biome-ignore lint/security/noDangerouslySetInnerHtml: intentional — agent-authored HTML block, see comment above
 			dangerouslySetInnerHTML={{ __html: body }}
 		/>

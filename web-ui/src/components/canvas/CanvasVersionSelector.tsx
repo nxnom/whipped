@@ -20,11 +20,14 @@ export function CanvasVersionSelector({
 				{({ toggleMenu, open }) => (
 					<button
 						onClick={toggleMenu}
-						className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#1a1a24] border border-[#2a2a38] hover:border-[#3a3a50] text-gray-400 hover:text-gray-200 text-[11px] transition-colors"
+						className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#161616] border border-[#2a2a2a] hover:border-[#3a3a3a] text-[#8a8f98] hover:text-[#ededed] text-[11px] transition-colors"
 					>
-						<FileText size={11} className="text-gray-500" />
+						<FileText size={11} className="text-[#8a8f98]" />
 						<span>v{selectedVersion}</span>
-						<ChevronDown size={10} className={classNames("text-gray-600 transition-transform", open && "rotate-180")} />
+						<ChevronDown
+							size={10}
+							className={classNames("text-[#5f6672] transition-transform", open && "rotate-180")}
+						/>
 					</button>
 				)}
 			</MenuTrigger>
@@ -33,10 +36,10 @@ export function CanvasVersionSelector({
 					<div
 						className={classNames(
 							"flex items-center gap-2.5 text-[11px]",
-							selectedVersion === p.version ? "text-gray-100" : "text-gray-400",
+							selectedVersion === p.version ? "text-[#ededed]" : "text-[#8a8f98]",
 						)}
 					>
-						<span className="font-mono text-purple-400 w-8 shrink-0 text-left">v{p.version}</span>
+						<span className="font-mono text-[#8b5cf6] w-8 shrink-0 text-left">v{p.version}</span>
 						<span className="flex-1 text-left truncate">{new Date(p.createdAt).toLocaleTimeString()}</span>
 					</div>
 				</MenuItem>

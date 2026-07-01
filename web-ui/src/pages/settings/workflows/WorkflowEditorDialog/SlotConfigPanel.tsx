@@ -25,8 +25,8 @@ function ToggleRow({
 	return (
 		<div className="flex items-center gap-3">
 			<div className="flex flex-col">
-				<span className="text-[13px] text-[#c0c0d0]">{title}</span>
-				<span className="text-[11px] text-[#60607a]">{description}</span>
+				<span className="text-[13px] text-[#ededed]">{title}</span>
+				<span className="text-[11px] text-[#5f6672]">{description}</span>
 			</div>
 			<div className="flex-1" />
 			<Switch checked={checked} onChange={onChange} />
@@ -63,10 +63,10 @@ export function SlotConfigPanel({
 	};
 
 	return (
-		<div className="flex flex-col shrink-0 overflow-hidden w-[340px] bg-[#111115] border-l border-[#2a2a35]">
+		<div className="flex flex-col shrink-0 overflow-hidden w-[340px] bg-[#111111] border-l border-[#2a2a2a]">
 			{/* Header */}
-			<div className="shrink-0 px-5 py-4 border-b border-[#2a2a35]">
-				<span className="text-[13px] font-semibold text-[#f0f0f5]">Slot Configuration</span>
+			<div className="shrink-0 px-5 py-4 border-b border-[#2a2a2a]">
+				<span className="text-[13px] font-semibold text-[#ededed]">Slot Configuration</span>
 			</div>
 			{selectedSlot ? (
 				<>
@@ -74,9 +74,9 @@ export function SlotConfigPanel({
 					<div className="flex flex-col flex-1 min-h-0 overflow-y-auto p-5 gap-4">
 						{/* Name */}
 						<div className="flex flex-col gap-[5px]">
-							<span className="text-[11px] font-medium text-[#60607a] tracking-[0.3px]">Name</span>
+							<span className="text-[11px] font-medium text-[#5f6672] tracking-[0.3px]">Name</span>
 							<Input
-								prefix={<Type size={13} className="text-[#60607a]" />}
+								prefix={<Type size={13} className="text-[#5f6672]" />}
 								value={selectedSlot.name}
 								onChange={(e) => updateSlot({ name: e.target.value })}
 								readOnly={!nameEditable}
@@ -86,25 +86,25 @@ export function SlotConfigPanel({
 						{/* Model tiers — read-only summary; Edit opens the table dialog */}
 						<div className="flex flex-col gap-[5px]">
 							<div className="flex items-center">
-								<span className="text-[11px] font-medium text-[#60607a] tracking-[0.3px]">Model tiers</span>
+								<span className="text-[11px] font-medium text-[#5f6672] tracking-[0.3px]">Model tiers</span>
 								<div className="flex-1" />
 								<button
 									type="button"
 									onClick={() => setTiersOpen(true)}
-									className="flex items-center gap-1 hover:opacity-80 transition-opacity bg-transparent border border-[#2a2a35] rounded-[4px] px-2 py-[3px]"
+									className="flex items-center gap-1 hover:opacity-80 transition-opacity bg-transparent border border-[#2a2a2a] rounded-[4px] px-2 py-[3px]"
 								>
-									<Pencil size={11} className="text-[#60607a]" />
-									<span className="text-[10px] text-[#60607a]">Edit</span>
+									<Pencil size={11} className="text-[#5f6672]" />
+									<span className="text-[10px] text-[#5f6672]">Edit</span>
 								</button>
 							</div>
 							<div className="flex flex-col gap-1.5">
 								{selectedSlot.pairs.map((p) => (
 									<div
 										key={p.id}
-										className="flex items-center gap-2 bg-[#0c0c0f] border border-[#2a2a35] rounded-md px-3 py-2"
+										className="flex items-center gap-2 bg-[#111111] border border-[#2a2a2a] rounded-md px-3 py-2"
 									>
-										<span className="text-[12px] text-[#c0c0d0] shrink-0">{levelLabel(p.level)}</span>
-										<span className="text-[11px] text-[#60607a] truncate">
+										<span className="text-[12px] text-[#ededed] shrink-0">{levelLabel(p.level)}</span>
+										<span className="text-[11px] text-[#5f6672] truncate">
 											{p.binary}
 											{p.model ? `/${p.model}` : ""}
 											{p.effort ? ` · ${p.effort}` : ""}
@@ -122,7 +122,7 @@ export function SlotConfigPanel({
 
 						{/* Selection mode */}
 						<div className="flex flex-col gap-[5px]">
-							<span className="text-[11px] font-medium text-[#60607a] tracking-[0.3px]">Selection mode</span>
+							<span className="text-[11px] font-medium text-[#5f6672] tracking-[0.3px]">Selection mode</span>
 							<Select value={selectedSlot.mode} onChange={(v) => updateSlot({ mode: v as PairSelectionMode })}>
 								{PAIR_SELECTION_MODE_OPTIONS.map((o) => (
 									<SelectOption key={o.value} value={o.value} label={o.label} />
@@ -159,9 +159,9 @@ export function SlotConfigPanel({
 
 						{selectedSlot.type !== "dev" && (
 							<>
-								<div className="h-px bg-[#2a2a35] shrink-0" />
+								<div className="h-px bg-[#2a2a2a] shrink-0" />
 								<div className="flex items-center">
-									<span className="text-[13px] text-[#c0c0d0]">Enabled</span>
+									<span className="text-[13px] text-[#ededed]">Enabled</span>
 									<div className="flex-1" />
 									{selectedIndex >= 0 && <RHFSwitch name={`slots.${selectedIndex}.enabled`} />}
 								</div>
@@ -170,9 +170,9 @@ export function SlotConfigPanel({
 					</div>
 
 					{/* Fixed footer */}
-					<div className="shrink-0 flex items-center justify-end gap-2 px-5 py-4 border-t border-[#2a2a35]">
+					<div className="shrink-0 flex items-center justify-end gap-2 px-5 py-4 border-t border-[#2a2a2a]">
 						{selectedSlot.type !== "dev" && (
-							<Button variant="outlined" onClick={onDeleteSlot} className="!border-[#ef444440] !text-[#ef4444]">
+							<Button variant="outlined" onClick={onDeleteSlot} className="!border-[#ff3b4d40] !text-[#ff3b4d]">
 								<Trash2 size={13} />
 								<span className="text-[12px]">Delete</span>
 							</Button>
@@ -193,7 +193,7 @@ export function SlotConfigPanel({
 					)}
 				</>
 			) : (
-				<div className="flex-1 flex items-center justify-center text-[12px] text-[#4a4a5a]">
+				<div className="flex-1 flex items-center justify-center text-[12px] text-[#5f6672]">
 					Select a slot to configure
 				</div>
 			)}

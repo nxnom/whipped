@@ -11,9 +11,9 @@ import { useRead, useWrite } from "@/runtime/api-client";
 
 function PageHeader({ title, description }: { title: string; description: string }) {
 	return (
-		<div className="shrink-0 flex flex-col gap-1 px-10 py-6 border-b border-[#2a2a35]">
-			<h1 className="text-xl font-semibold text-[#f0f0f5]">{title}</h1>
-			<p className="text-[13px] text-[#60607a]">{description}</p>
+		<div className="shrink-0 flex flex-col gap-1 px-10 py-6 border-b border-[#2a2a2a]">
+			<h1 className="text-xl font-semibold text-[#ededed]">{title}</h1>
+			<p className="text-[13px] text-[#5f6672]">{description}</p>
 		</div>
 	);
 }
@@ -21,8 +21,8 @@ function PageHeader({ title, description }: { title: string; description: string
 function SectionDivider({ title }: { title: string }) {
 	return (
 		<div className="flex items-center gap-3">
-			<span className="text-[15px] font-semibold text-[#f0f0f5]">{title}</span>
-			<div className="flex-1 h-px bg-[#1a1a1f]" />
+			<span className="text-[15px] font-semibold text-[#ededed]">{title}</span>
+			<div className="flex-1 h-px bg-[#111111]" />
 		</div>
 	);
 }
@@ -31,8 +31,8 @@ function FieldRow({ label, description, children }: { label: string; description
 	return (
 		<div className="flex items-center gap-4">
 			<div className="flex-1 flex flex-col gap-0.5">
-				<span className="text-[13px] font-medium text-[#c0c0d0]">{label}</span>
-				<span className="text-[11px] text-[#60607a]">{description}</span>
+				<span className="text-[13px] font-medium text-[#ededed]">{label}</span>
+				<span className="text-[11px] text-[#5f6672]">{description}</span>
 			</div>
 			{children}
 		</div>
@@ -71,7 +71,7 @@ export function NotificationsSettings() {
 		return (
 			<div className="flex-1 flex flex-col">
 				<PageHeader title="Notifications" description="Sounds played on the daemon host when tasks need you" />
-				<div className="flex items-center justify-center py-20 text-sm text-[#60607a]">Loading...</div>
+				<div className="flex items-center justify-center py-20 text-sm text-[#5f6672]">Loading...</div>
 			</div>
 		);
 	}

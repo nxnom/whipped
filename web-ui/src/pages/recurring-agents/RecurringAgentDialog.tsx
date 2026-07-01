@@ -14,7 +14,7 @@ import { DEFAULT_INTERVAL_SECONDS } from "./constants";
 import { fieldsToSchedule, type ScheduleFields, scheduleToFields } from "./helpers";
 import { ScheduleEditor } from "./ScheduleEditor";
 
-const ACCENT = "#7c6aff";
+const ACCENT = "#ffffff";
 
 interface FormValues extends ScheduleFields {
 	name: string;
@@ -26,7 +26,7 @@ interface FormValues extends ScheduleFields {
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
-	return <span className="text-[11px] font-medium text-[#60607a]">{children}</span>;
+	return <span className="text-[11px] font-medium text-[#5f6672]">{children}</span>;
 }
 
 export function RecurringAgentDialog({
@@ -81,16 +81,16 @@ export function RecurringAgentDialog({
 			<FormProvider {...methods}>
 				<form
 					onSubmit={onSubmit}
-					className="relative flex h-[850px] max-h-[calc(100vh-80px)] w-[1400px] max-w-[calc(100vw-80px)] rounded-xl bg-[#141418] border border-[#2a2a35] shadow-[0_8px_40px_4px_#00000060] overflow-hidden"
+					className="relative flex h-[850px] max-h-[calc(100vh-80px)] w-[1400px] max-w-[calc(100vw-80px)] rounded-xl bg-[#0b0b0b] border border-[#2a2a2a] shadow-[0_8px_40px_4px_#00000060] overflow-hidden"
 				>
 					{/* ── Left panel ── */}
 					<div className="flex flex-col flex-1 overflow-hidden">
-						<div className="flex items-center gap-3 px-6 py-3.5 border-b border-[#2a2a35] shrink-0">
-							<span className="text-[15px] font-semibold text-[#f0f0f5]">
+						<div className="flex items-center gap-3 px-6 py-3.5 border-b border-[#2a2a2a] shrink-0">
+							<span className="text-[15px] font-semibold text-[#ededed]">
 								{isEdit ? "Edit Recurring Agent" : "New Recurring Agent"}
 							</span>
 							<div className="flex-1" />
-							<button type="button" onClick={onClose} className="text-[#60607a] hover:text-[#f0f0f5] transition-colors">
+							<button type="button" onClick={onClose} className="text-[#5f6672] hover:text-[#ededed] transition-colors">
 								<X size={18} />
 							</button>
 						</div>
@@ -104,7 +104,7 @@ export function RecurringAgentDialog({
 							<div className="flex items-center gap-1.5 shrink-0">
 								<FieldLabel>Instructions</FieldLabel>
 								<div className="flex-1" />
-								<span className="text-[10px] text-[#4a4a5a]">What to do each run, and how to use the journal</span>
+								<span className="text-[10px] text-[#5f6672]">What to do each run, and how to use the journal</span>
 							</div>
 							<RHFTextarea
 								name="instructions"
@@ -115,9 +115,9 @@ export function RecurringAgentDialog({
 					</div>
 
 					{/* ── Right config sidebar ── */}
-					<div className="w-80 shrink-0 bg-[#111115] border-l border-[#2a2a35] flex flex-col overflow-hidden">
-						<div className="px-[18px] py-3.5 border-b border-[#2a2a35] shrink-0">
-							<span className="text-xs font-semibold text-[#8888a0]">Configuration</span>
+					<div className="w-80 shrink-0 bg-[#111111] border-l border-[#2a2a2a] flex flex-col overflow-hidden">
+						<div className="px-[18px] py-3.5 border-b border-[#2a2a2a] shrink-0">
+							<span className="text-xs font-semibold text-[#8a8f98]">Configuration</span>
 						</div>
 
 						<div className="flex-1 min-h-0 overflow-y-auto px-[18px] py-4 flex flex-col gap-5">
@@ -151,10 +151,10 @@ export function RecurringAgentDialog({
 							</div>
 						</div>
 
-						<div className="flex items-center gap-2.5 px-[18px] py-3.5 border-t border-[#2a2a35] shrink-0">
+						<div className="flex items-center gap-2.5 px-[18px] py-3.5 border-t border-[#2a2a2a] shrink-0">
 							<label className="flex items-center gap-1.5">
 								<RHFSwitch name="enabled" />
-								<span className="text-[11px] text-[#8888a0]">Enabled</span>
+								<span className="text-[11px] text-[#8a8f98]">Enabled</span>
 							</label>
 							<div className="flex-1" />
 							<button
