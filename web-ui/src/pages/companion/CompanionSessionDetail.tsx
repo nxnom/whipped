@@ -45,11 +45,11 @@ export function CompanionSessionDetail({
 
 	const confirmDiscard = () => {
 		ConfirmDialog.show({
-			title: "Discard companion session",
+			title: "Delete companion session",
 			content: session.useWorktree
-				? `Discard "${session.name}"? This removes its worktree and branch — any uncommitted work is lost.`
-				: `Discard "${session.name}"? This just removes it from the list — nothing was created on disk.`,
-			confirmButtonLabel: "Discard",
+				? `Permanently delete "${session.name}"? This removes its worktree and branch — any uncommitted work is lost, and this cannot be undone.`
+				: `Permanently delete "${session.name}"? Nothing was created on disk, but this cannot be undone.`,
+			confirmButtonLabel: "Delete",
 			cancelButtonLabel: "Cancel",
 			onConfirm: ({ dismiss }) => {
 				onDiscard();
@@ -128,7 +128,7 @@ export function CompanionSessionDetail({
 					</>
 				)}
 				<div className="w-px h-[18px] bg-[#2a2a35] shrink-0" />
-				<Tooltip delayDuration={0} content="Discard session" side="bottom" triggerAsChild>
+				<Tooltip delayDuration={0} content="Delete session" side="bottom" triggerAsChild>
 					<button
 						onClick={confirmDiscard}
 						className="cursor-pointer text-[#60607a] hover:text-red-400 transition-colors"

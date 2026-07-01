@@ -110,3 +110,17 @@ export function setCompanionSessionStatus(id: string, status: CompanionSessionSt
 export function deleteCompanionSession(id: string): void {
 	getDb().prepare("DELETE FROM companion_sessions WHERE id = ?").run(id);
 }
+
+// Resets sessions left "running"/"installing" from an unclean shutdown (crash,
+// kill -9 — anything that skipped stopAll()) so they don't show live forever
+// with nothing actually behind them. Worktree/branch are left untouched: the
+// daemon restarting doesn't remove anything on disk, only the in-memory process
+// tracking is gone. Mirrors failStaleRecurringRuns. Returns how many were reset.
+export function resetStaleCompanionSessions(workspaceId: string): number {
+	const res = getDb()
+		.prepare(
+			"UPDATE companion_sessions SET status = 'stopped', updated_at = ? WHERE workspace_id = ? AND status IN ('running', 'installing')",
+		)
+		.run(Date.now(), workspaceId);
+	return res.changes;
+}

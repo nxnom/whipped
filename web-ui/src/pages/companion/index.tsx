@@ -63,7 +63,8 @@ export function CompanionPage() {
 			toast.error("Failed to discard session");
 			return;
 		}
-		toast.success("Session discarded");
+		toast.success("Session deleted");
+		navigate(`/${encodeURIComponent(wsId)}/companion`, { replace: true });
 		void list.trigger();
 	};
 

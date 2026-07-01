@@ -325,10 +325,26 @@ export class TaskScheduler {
 		// New worktree + a configured install step — run it before the agent spawns,
 		// streaming into this session's own terminal stream (there's no separate
 		// install stream table row, unlike cards — see companion_sessions migration).
+		// Only ever true when session.useWorktree (isNewWorktree is hardcoded false
+		// for the main-repo call site), so cwd here is always the worktree path.
 		if (isNewWorktree && projectConfig.worktreeSetup) {
 			await this.runCompanionInstall(taskId, workspaceId, repoPath, cwd, projectConfig.worktreeSetup);
-			// Manually stopped mid-install: stopCompanionAgent already marked "stopped" — don't spawn the agent.
-			if (this.manuallyStoppedInstalls.delete(taskId)) return;
+
+			// Daemon shutting down mid-install: the install PTY was already killed by
+			// stopAll(), but don't spawn a fresh agent process on the way down.
+			if (this.isShuttingDown) return;
+
+			// Manually stopped mid-install: remove the half-set-up worktree (some files
+			// copied, install command killed partway through) rather than leaving it
+			// around — there's no retry path that would ever redo the copy/install step,
+			// and createWorktree would otherwise treat it as pre-existing (isNew: false)
+			// and silently skip setup entirely if this session were ever relaunched.
+			if (this.manuallyStoppedInstalls.delete(taskId)) {
+				await removeWorktreeAsync(taskId, repoPath, session.branchName ?? undefined);
+				setCompanionSessionWorktreePath(taskId, null);
+				setCompanionSessionStatus(taskId, "stopped");
+				return;
+			}
 		}
 		setCompanionSessionStatus(taskId, "running");
 
@@ -497,6 +513,10 @@ export class TaskScheduler {
 			proc.onExit(({ exitCode }) => resolveExit(exitCode ?? 0));
 		});
 		this.runningInstalls.delete(taskId);
+
+		// Shutting down — stopAll() already killed this PTY as part of teardown.
+		// Don't touch the terminal/board further; launchCompanionAgent bails too.
+		if (this.isShuttingDown) return;
 
 		if (this.manuallyStoppedInstalls.has(taskId)) {
 			emit("\r\n\x1b[1;33mInstall stopped\x1b[0m\r\n");
@@ -1535,11 +1555,19 @@ export class TaskScheduler {
 		}
 		// Install PTYs aren't tracked in `running`; kill them directly. isShuttingDown is
 		// already set, so the install runner saves its buffer and bails without touching the board.
+		// Shared with companion sessions' install step, so this also covers those.
 		for (const proc of this.runningInstalls.values()) {
 			killInstallProcess(proc);
 		}
 		this.runningInstalls.clear();
 		this.stopAssistantAgent();
+		// Companion sessions aren't tracked in `running` either — kill their processes
+		// directly. onExit still fires (best-effort) and persists status "stopped";
+		// no need to await it here, same as stopAssistantAgent above.
+		for (const [, task] of this.companionSessions) {
+			task.process.kill();
+		}
+		this.companionSessions.clear();
 	}
 
 	// Call before stopAll() during graceful shutdown so onExit handlers bail out

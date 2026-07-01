@@ -7,10 +7,9 @@ import { resolvePromptText } from "../../core/prompt-resolver.js";
 import type { TaskScheduler } from "../../daemon/scheduler.js";
 import {
 	createCompanionSession,
+	deleteCompanionSession,
 	getCompanionSession,
 	listCompanionSessions,
-	setCompanionSessionStatus,
-	setCompanionSessionWorktreePath,
 } from "../../state/companion-sessions-store.js";
 import { loadProjectConfig } from "../../state/workspace-state.js";
 import { removeWorktreeAsync } from "../../worktree/worktree-manager.js";
@@ -71,8 +70,9 @@ export async function stopCompanionSessionEntry(id: string, scheduler: TaskSched
 	await scheduler?.stopCompanionAgent(id);
 }
 
-// Stops the session (if live) and removes its worktree/branch entirely — unlike
-// stop, which leaves the worktree in place so it can be resumed or merged later.
+// Stops the session (if live), removes its worktree/branch entirely, and
+// deletes the session record itself — unlike stop, which leaves both the
+// worktree and the row in place so the session can be resumed or merged later.
 export async function discardCompanionSessionEntry(
 	id: string,
 	repoPath: string,
@@ -85,6 +85,5 @@ export async function discardCompanionSessionEntry(
 	if (session.useWorktree && session.worktreePath) {
 		await removeWorktreeAsync(id, repoPath, session.branchName ?? undefined);
 	}
-	setCompanionSessionWorktreePath(id, null);
-	setCompanionSessionStatus(id, "discarded");
+	deleteCompanionSession(id);
 }

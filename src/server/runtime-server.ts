@@ -24,6 +24,7 @@ import { QaSemaphore } from "../daemon/qa-semaphore.js";
 import { getMcpServerPath, TaskScheduler } from "../daemon/scheduler.js";
 import { createGithubClient } from "../github/github-client.js";
 import { openDb } from "../state/db.js";
+import { resetStaleCompanionSessions } from "../state/companion-sessions-store.js";
 import { failStaleRecurringRuns } from "../state/recurring-agents-store.js";
 import {
 	appendActivityLog,
@@ -54,6 +55,13 @@ async function cleanupStaleTasks(workspaceId: string, hub: RuntimeStateHub): Pro
 	const staleRecurring = failStaleRecurringRuns(workspaceId);
 	if (staleRecurring > 0) {
 		logger.info(`[server] Cleared ${staleRecurring} stale recurring-agent run(s) for ${workspaceId}`);
+	}
+
+	// Same for companion sessions orphaned by a restart/crash — stopAll() handles a
+	// graceful shutdown, this is the backstop for one that skipped it entirely.
+	const staleCompanions = resetStaleCompanionSessions(workspaceId);
+	if (staleCompanions > 0) {
+		logger.info(`[server] Reset ${staleCompanions} stale companion session(s) for ${workspaceId}`);
 	}
 
 	// Close open terminal sessions on every card regardless of column (a crashed agent run
