@@ -27,7 +27,9 @@ import { getAvailableAgents } from "../agents/agent-registry.js";
 import type { AgentProcess } from "../agents/agent-runner.js";
 import { spawnAgent } from "../agents/agent-runner.js";
 import {
+	type AgentModelChoice,
 	ASSISTANT_AGENT_PREFIX,
+	type CompanionSession,
 	DEFAULT_GIT_INSTRUCTIONS,
 	DEFAULT_MODEL_PAIR,
 	EMPTY_INLINE_PROMPT,
@@ -45,6 +47,7 @@ import { generateTaskId } from "../core/task-id.js";
 import { commitIfDirty, pushBranch } from "../git/merge-operations.js";
 import { playNotificationSound } from "../notifications/sound-player.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
+import { setCompanionSessionStatus, setCompanionSessionWorktreePath } from "../state/companion-sessions-store.js";
 import { buildMemoryContext } from "../state/memory-store.js";
 import {
 	appendActivityLog,
@@ -66,6 +69,7 @@ import {
 	getWorktreePath,
 	titleToBranch,
 } from "../worktree/worktree-manager.js";
+import { buildCompanionAgentSystemPrompt } from "./companion-agent.js";
 import {
 	buildDevAgentSystemPrompt,
 	buildSecretsEnv,
@@ -93,6 +97,7 @@ interface RunningTask {
 	startedAt: number;
 	outputBuffer: string;
 	worktreeOwnerId?: string; // set when card shares another card's worktree; used to release sibling lock
+	exitPromise?: Promise<void>; // companion sessions: resolves once the process has actually exited
 }
 
 const FAST_EXIT_THRESHOLD_MS = 8_000;
@@ -101,6 +106,7 @@ const MAX_RECENT_BUFFERS = 100;
 export class TaskScheduler {
 	private running = new Map<string, RunningTask>();
 	private assistantSessions = new Map<string, RunningTask>();
+	private companionSessions = new Map<string, RunningTask>();
 	// Keep the last output buffer around after a task exits so the terminal
 	// can still restore when the user opens it for a completed/awaiting-review task.
 	private recentBuffers = new Map<string, string>();
@@ -163,7 +169,7 @@ export class TaskScheduler {
 		return `${ASSISTANT_AGENT_PREFIX}${this.options.workspaceId}`;
 	}
 
-	async startAssistantAgent(): Promise<string> {
+	async startAssistantAgent(override?: AgentModelChoice): Promise<string> {
 		const { workspaceId, repoPath, serverUrl, stateHub, defaultAgent } = this.options;
 		const taskId = this.assistantAgentTaskId;
 
@@ -182,8 +188,9 @@ export class TaskScheduler {
 
 		const projectConfig = await loadProjectConfig(workspaceId);
 		// The assistant's binary/model/effort are configurable (default: project/global
-		// default agent). Falls back to defaultAgent when no assistantModel is set.
-		const assistantModel = projectConfig.assistantModel;
+		// default agent). Falls back to defaultAgent when no assistantModel is set. A caller-
+		// supplied override (picked at chat-open time) takes priority over the persisted default.
+		const assistantModel = override ?? projectConfig.assistantModel;
 		const agentId = assistantModel?.agentId ?? defaultAgent;
 		const secrets = projectConfig.secrets ?? [];
 		const secretsEnv = buildSecretsEnv(secrets);
@@ -278,6 +285,257 @@ export class TaskScheduler {
 
 	isAssistantAgentRunning(): boolean {
 		return this.assistantSessions.has(this.assistantAgentTaskId);
+	}
+
+	// Creates the worktree (or resolves the main-repo checkout) synchronously and
+	// returns quickly — install + agent spawn happen in the background via
+	// launchCompanionAgent so callers (the create-session API request) aren't
+	// blocked on a potentially long install command.
+	async startCompanionAgent(session: CompanionSession): Promise<void> {
+		const { workspaceId, repoPath, stateHub } = this.options;
+		const taskId = session.id;
+
+		const existing = this.companionSessions.get(taskId);
+		if (existing) existing.process.kill();
+
+		this.recentBuffers.delete(taskId);
+		stateHub.clearTerminalBuffer(workspaceId, taskId);
+
+		if (session.useWorktree) {
+			const worktree = createWorktree(taskId, repoPath, session.baseRef, session.branchName ?? undefined);
+			setCompanionSessionWorktreePath(taskId, worktree.path);
+			setCompanionSessionStatus(taskId, worktree.isNew ? "installing" : "running");
+			void this.launchCompanionAgent(session, worktree.path, worktree.isNew);
+		} else {
+			setCompanionSessionWorktreePath(taskId, repoPath);
+			setCompanionSessionStatus(taskId, "running");
+			void this.launchCompanionAgent(session, repoPath, false);
+		}
+	}
+
+	private async launchCompanionAgent(session: CompanionSession, cwd: string, isNewWorktree: boolean): Promise<void> {
+		const { workspaceId, repoPath, serverUrl, stateHub } = this.options;
+		const taskId = session.id;
+		const agentId = session.agentId;
+
+		const projectConfig = await loadProjectConfig(workspaceId);
+		const secrets = projectConfig.secrets ?? [];
+		const secretsEnv = buildSecretsEnv(secrets);
+
+		// New worktree + a configured install step — run it before the agent spawns,
+		// streaming into this session's own terminal stream (there's no separate
+		// install stream table row, unlike cards — see companion_sessions migration).
+		if (isNewWorktree && projectConfig.worktreeSetup) {
+			await this.runCompanionInstall(taskId, workspaceId, repoPath, cwd, projectConfig.worktreeSetup);
+			// Manually stopped mid-install: stopCompanionAgent already marked "stopped" — don't spawn the agent.
+			if (this.manuallyStoppedInstalls.delete(taskId)) return;
+		}
+		setCompanionSessionStatus(taskId, "running");
+
+		const appendSystemPrompt = buildCompanionAgentSystemPrompt(
+			workspaceId,
+			repoPath,
+			cwd,
+			session.baseRef,
+			secrets,
+			projectConfig.systemPrompt,
+			projectConfig.gitInstructions,
+			session.seedPrompt,
+		);
+
+		const mcpConfigPath = !isPluginConfigAgent(agentId) && agentId !== "cursor" ? getMcpConfigPath(taskId) : undefined;
+
+		if (agentId === "claude") {
+			await writeClaudeMcpConfig(
+				getMcpServerPath(),
+				serverUrl,
+				workspaceId,
+				agentId,
+				mcpConfigPath!,
+				undefined,
+				buildMcpRoleArgs("companion"),
+			).catch((err) => {
+				logger.warn({ err }, "[scheduler] Failed to write companion agent MCP config");
+			});
+		} else if (isPluginConfigAgent(agentId)) {
+			const mcpSpec = buildWhippedMcpServerSpec(
+				getMcpServerPath(),
+				serverUrl,
+				workspaceId,
+				agentId,
+				buildMcpRoleArgs("companion"),
+			);
+			await writePluginAgentFiles(agentId, taskId, getServerPort(serverUrl), mcpSpec, { appendSystemPrompt }).catch(
+				(err) => {
+					logger.warn({ err }, `[scheduler] Failed to write ${agentId} companion agent files`);
+				},
+			);
+		} else if (agentId === "cursor") {
+			const mcpSpec = buildWhippedMcpServerSpec(
+				getMcpServerPath(),
+				serverUrl,
+				workspaceId,
+				agentId,
+				buildMcpRoleArgs("companion"),
+			);
+			await writeCursorConfigFiles(taskId, getServerPort(serverUrl), mcpSpec).catch((err) => {
+				logger.warn({ err }, "[scheduler] Failed to write cursor companion agent config");
+			});
+		}
+
+		let resolveExit!: () => void;
+		const exitPromise = new Promise<void>((resolve) => {
+			resolveExit = resolve;
+		});
+
+		const companionTask: RunningTask = {
+			taskId,
+			streamId: taskId, // companion session uses taskId as its stream (single persistent session)
+			agentId,
+			exitPromise,
+			process: spawnAgent({
+				agentId,
+				prompt: "",
+				cwd,
+				env: {
+					...secretsEnv,
+					...buildTaskHookEnv(taskId, workspaceId),
+					WHIPPED_SLOT: "companion",
+					...pluginAgentConfigDirEnv(agentId, taskId),
+					...(agentId === "cursor" ? { [CURSOR_CONFIG_DIR_ENV]: getCursorConfigDir(taskId) } : {}),
+				},
+				mcpConfigPath: agentId === "claude" ? mcpConfigPath : undefined,
+				mcpServer:
+					agentId === "codex"
+						? buildWhippedMcpServerSpec(
+								getMcpServerPath(),
+								serverUrl,
+								workspaceId,
+								agentId,
+								buildMcpRoleArgs("companion"),
+							)
+						: undefined,
+				model: session.model ?? null,
+				effort: session.effort ?? null,
+				appendSystemPrompt: isPluginConfigAgent(agentId) ? undefined : appendSystemPrompt,
+				onOutput: (data) => {
+					companionTask.outputBuffer += data;
+					stateHub.broadcastTerminalOutput(workspaceId, taskId, data);
+				},
+				onExit: () => {
+					this.setRecentBuffer(taskId, companionTask.outputBuffer);
+					this.companionSessions.delete(taskId);
+					setCompanionSessionStatus(taskId, "stopped");
+					resolveExit();
+				},
+			}),
+			startedAt: Date.now(),
+			outputBuffer: "",
+		};
+
+		this.companionSessions.set(taskId, companionTask);
+	}
+
+	// Copies/links worktreeSetup's configured files then runs its install command,
+	// mirroring the card dev-agent's worktree setup step (launchDevAgent above) but
+	// streamed straight into the companion session's own terminal (taskId) instead
+	// of a separate install stream row, since companion sessions have no such table.
+	private async runCompanionInstall(
+		taskId: string,
+		workspaceId: string,
+		repoPath: string,
+		worktreePath: string,
+		worktreeSetup: { filesToCopy: { path: string; symlink?: boolean }[]; installCommand: string },
+	): Promise<void> {
+		const { stateHub } = this.options;
+		const { filesToCopy, installCommand } = worktreeSetup;
+
+		for (const entry of filesToCopy) {
+			const src = join(repoPath, entry.path);
+			if (!existsSync(src)) continue;
+			const dst = join(worktreePath, entry.path);
+			await mkdir(dirname(dst), { recursive: true });
+			try {
+				if (entry.symlink) {
+					await shareIntoWorktree(src, dst);
+				} else {
+					await cp(src, dst, { recursive: true, dereference: true });
+				}
+			} catch (err) {
+				logger.warn(
+					{ err },
+					`[scheduler] companion worktree setup: failed to ${entry.symlink ? "link" : "copy"} ${entry.path}`,
+				);
+			}
+		}
+
+		const installCmd = installCommand.trim();
+		if (!installCmd) return;
+
+		let buffer = "";
+		const emit = (data: string) => {
+			buffer += data;
+			// Fallback for a page load/reconnect while install is still running —
+			// getOutputBuffer only checks companionSessions (not populated yet) then
+			// recentBuffers, so keep this updated as the install streams.
+			this.recentBuffers.set(taskId, buffer);
+			stateHub.broadcastTerminalOutput(workspaceId, taskId, data);
+		};
+		emit(`\x1b[1;36m$ ${installCmd}\x1b[0m\r\n`);
+
+		const exitCode = await new Promise<number>((resolveExit) => {
+			const [shell, shellArgs] = getShellInvocation(installCmd);
+			const proc = nodePty.spawn(shell, shellArgs, {
+				name: "xterm-256color",
+				cols: 220,
+				rows: 50,
+				cwd: worktreePath,
+				env: { ...(process.env as Record<string, string>), REPO_PATH: repoPath, TERM: "xterm-256color" },
+			});
+			this.runningInstalls.set(taskId, proc);
+			proc.onData(emit);
+			proc.onExit(({ exitCode }) => resolveExit(exitCode ?? 0));
+		});
+		this.runningInstalls.delete(taskId);
+
+		if (this.manuallyStoppedInstalls.has(taskId)) {
+			emit("\r\n\x1b[1;33mInstall stopped\x1b[0m\r\n");
+			return;
+		}
+
+		if (exitCode !== 0) {
+			logger.error(`[scheduler] Install command failed (code ${exitCode}) for companion session ${taskId}`);
+			emit(`\r\n\x1b[1;31mInstall command failed (code ${exitCode}) — proceeding anyway\x1b[0m\r\n`);
+		} else {
+			emit("\r\n\x1b[1;32mInstall complete\x1b[0m\r\n");
+		}
+	}
+
+	// Kills the session's process (or its still-running install command) and waits
+	// for it to actually exit (bounded by a timeout) before returning — callers
+	// that are about to delete or merge the worktree on disk must await this
+	// first, since attemptMerge/removeWorktreeAsync can otherwise race a still-live
+	// process whose cwd is inside that worktree.
+	async stopCompanionAgent(sessionId: string): Promise<void> {
+		const installProc = this.runningInstalls.get(sessionId);
+		if (installProc) {
+			this.manuallyStoppedInstalls.add(sessionId);
+			this.runningInstalls.delete(sessionId);
+			killInstallProcess(installProc);
+		}
+
+		const session = this.companionSessions.get(sessionId);
+		if (session) {
+			const exitPromise = session.exitPromise ?? Promise.resolve();
+			session.process.kill();
+			await Promise.race([exitPromise, new Promise((resolve) => setTimeout(resolve, 5000))]);
+		}
+		this.companionSessions.delete(sessionId);
+		setCompanionSessionStatus(sessionId, "stopped");
+	}
+
+	isCompanionAgentRunning(sessionId: string): boolean {
+		return this.companionSessions.has(sessionId);
 	}
 
 	get activeCount(): number {
@@ -1027,6 +1285,9 @@ export class TaskScheduler {
 		// Assistant agent sessions use taskId as their streamId
 		const assistantSession = this.assistantSessions.get(streamId);
 		if (assistantSession) return assistantSession.outputBuffer;
+		// Companion sessions also use their (session) id as their streamId
+		const companionSession = this.companionSessions.get(streamId);
+		if (companionSession) return companionSession.outputBuffer;
 		// Completed tasks / recent buffers
 		return this.recentBuffers.get(streamId) ?? null;
 	}
@@ -1048,7 +1309,11 @@ export class TaskScheduler {
 		for (const task of this.running.values()) {
 			if (task.streamId === streamId) return task.process;
 		}
-		return this.assistantSessions.get(streamId)?.process ?? this.liveProcesses.get(streamId);
+		return (
+			this.assistantSessions.get(streamId)?.process ??
+			this.companionSessions.get(streamId)?.process ??
+			this.liveProcesses.get(streamId)
+		);
 	}
 
 	async handleHookEvent(event: "stop" | "user_prompt", taskId: string): Promise<void> {

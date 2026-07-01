@@ -964,6 +964,51 @@ export const recurringAgentUpdateRequestSchema = z.object({
 });
 export type RecurringAgentUpdateRequest = z.infer<typeof recurringAgentUpdateRequestSchema>;
 
+// ─── Companion agent ───────────────────────────────────────────────────────────
+// A synchronous, chat-driven coding session — unlike the ticket pipeline, no card
+// is involved and nothing here is async. The user drives it directly, then
+// merges/PRs when done. `seedPrompt` is a snapshot of the chosen workflow's
+// dev-slot prompt at creation time (not re-resolved live, so editing/deleting
+// that workflow later never changes a running session).
+//
+// `useWorktree` picks the isolation mode: true creates a dedicated git worktree
+// on `branchName` (branched from `baseRef`); false works directly in the
+// project's main repo checkout — no worktree, no new branch, `branchName` is
+// null, and worktree-only actions (merge, discard-worktree) don't apply.
+// `baseRef` is always set (defaults to the project's configured base branch) —
+// it's also the diff comparison ref in both modes.
+
+export const companionSessionStatusSchema = z.enum(["installing", "running", "stopped", "merged", "discarded"]);
+export type CompanionSessionStatus = z.infer<typeof companionSessionStatusSchema>;
+
+export const companionSessionSchema = z.object({
+	id: z.string(),
+	name: z.string(),
+	useWorktree: z.boolean(),
+	baseRef: z.string(),
+	branchName: z.string().nullable(),
+	worktreePath: z.string().nullable(),
+	workflowId: z.string().nullable(),
+	seedPrompt: z.string().default(""),
+	agentId: runtimeAgentIdSchema,
+	model: z.string().nullable(),
+	effort: effortLevelSchema.nullable(),
+	status: companionSessionStatusSchema.default("stopped"),
+	createdAt: z.number(),
+	updatedAt: z.number(),
+});
+export type CompanionSession = z.infer<typeof companionSessionSchema>;
+
+export const companionSessionCreateRequestSchema = z.object({
+	name: z.string().optional(),
+	useWorktree: z.boolean().default(true),
+	baseRef: z.string().min(1),
+	branchName: z.string().optional(),
+	workflowId: z.string().optional(),
+	model: agentModelChoiceSchema.optional(),
+});
+export type CompanionSessionCreateRequest = z.infer<typeof companionSessionCreateRequestSchema>;
+
 // ─── WebSocket events ─────────────────────────────────────────────────────────
 
 export type RunSessionStatus = "running" | "stopped" | "error";

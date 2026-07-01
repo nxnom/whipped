@@ -70,6 +70,7 @@ export function useRunSession(workspaceId: string) {
 	}, [connect]);
 
 	const { trigger: startTrigger } = useWrite((api) => api("run/start").POST());
+	const { trigger: startCompanionTrigger } = useWrite((api) => api("run/start-companion").POST());
 	const { trigger: startBaseTrigger } = useWrite((api) => api("run/start-base").POST());
 	const { trigger: stopTrigger } = useWrite((api) => api("run/stop").POST());
 
@@ -78,6 +79,13 @@ export function useRunSession(workspaceId: string) {
 			await startTrigger({ body: { workspaceId, cardId } });
 		},
 		[startTrigger, workspaceId],
+	);
+
+	const startCompanion = useCallback(
+		async (sessionId: string) => {
+			await startCompanionTrigger({ body: { workspaceId, sessionId } });
+		},
+		[startCompanionTrigger, workspaceId],
 	);
 
 	const startBase = useCallback(async () => {
@@ -92,5 +100,5 @@ export function useRunSession(workspaceId: string) {
 		? { cardId: data.cardId, status: data.status, errorMessage: "errorMessage" in data ? data.errorMessage : undefined }
 		: { cardId: null, status: "stopped" };
 
-	return { session, start, startBase, stop };
+	return { session, start, startCompanion, startBase, stop };
 }

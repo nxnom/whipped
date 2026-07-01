@@ -171,7 +171,7 @@ export function GeneralAutomationSection({
 					<div className="flex flex-col gap-1.5">
 						<span className="text-[13px] font-medium text-[#f0f0f5]">Agent &amp; model</span>
 						<span className="text-[11px] text-[#4a4a5a]">
-							Which agent runs the in-app assistant. Restart the assistant to apply.
+							Default agent for the in-app assistant, used unless you pick a different model when opening a session.
 						</span>
 						<div className="mt-1 max-w-xl">
 							<AgentModelPicker

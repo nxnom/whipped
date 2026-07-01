@@ -1,7 +1,8 @@
+import type { AgentModelChoice } from "../../core/api-contract.js";
 import type { TaskScheduler } from "../../daemon/scheduler.js";
 
-export const startAgentSession = async (scheduler: TaskScheduler) => ({
-	taskId: await scheduler.startAssistantAgent(),
+export const startAgentSession = async (scheduler: TaskScheduler, override?: AgentModelChoice) => ({
+	taskId: await scheduler.startAssistantAgent(override),
 });
 
 export const stopAgentSession = async (scheduler: TaskScheduler | undefined) => {

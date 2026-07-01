@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { NotFoundError, PreconditionFailedError } from "../errors/http-errors.js";
 import { zv } from "../middleware/zv.js";
-import { resolveCardCwd, resolveStartCommand } from "../services/run-service.js";
+import { resolveCardCwd, resolveCompanionSessionCwd, resolveStartCommand } from "../services/run-service.js";
 import type { AppEnv } from "../types/context.js";
 
 export const runController = new Hono<AppEnv>()
@@ -24,6 +24,18 @@ export const runController = new Hono<AppEnv>()
 		const cwd = await resolveCardCwd(workspaceId, cardId, ws.repoPath);
 		if (cwd === null) throw NotFoundError("Card");
 		ctx.startRun(workspaceId, cardId, command, cwd);
+		return c.json({ ok: true });
+	})
+	.post("/start-companion", zv("json", z.object({ workspaceId: z.string(), sessionId: z.string() })), async (c) => {
+		const ctx = c.var.ctx;
+		const { workspaceId, sessionId } = c.req.valid("json");
+		const command = await resolveStartCommand(workspaceId);
+		if (!command) {
+			throw PreconditionFailedError("No start command configured. Add one in Settings → Environment.");
+		}
+		const cwd = resolveCompanionSessionCwd(sessionId);
+		if (cwd === null) throw NotFoundError("Companion session");
+		ctx.startRun(workspaceId, sessionId, command, cwd);
 		return c.json({ ok: true });
 	})
 	.post("/start-base", zv("json", z.object({ workspaceId: z.string() })), async (c) => {

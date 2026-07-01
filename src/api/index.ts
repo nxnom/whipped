@@ -4,6 +4,7 @@ import { agentController } from "./routes/agent.js";
 import { agentsController } from "./routes/agents.js";
 import { authController } from "./routes/auth.js";
 import { cardsController } from "./routes/cards.js";
+import { companionSessionsController } from "./routes/companion-sessions.js";
 import { configController } from "./routes/config.js";
 import { fsController } from "./routes/fs.js";
 import { memoryController } from "./routes/memory.js";
@@ -33,6 +34,7 @@ export function createApiApp(ctx: AppContext) {
 		.route("/agent", agentController)
 		.route("/agents", agentsController)
 		.route("/cards", cardsController)
+		.route("/companion-sessions", companionSessionsController)
 		.route("/config", configController)
 		.route("/fs", fsController)
 		.route("/memory", memoryController)

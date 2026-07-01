@@ -1,5 +1,5 @@
 import { Menu, MenuItem, MenuTrigger } from "@geckoui/geckoui";
-import { Clock, FolderOpen, FolderPlus, Plus, Settings, Star, WifiOff } from "lucide-react";
+import { Clock, FolderOpen, FolderPlus, GitBranch, Plus, Settings, Star, WifiOff } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
@@ -31,9 +31,14 @@ export function BoardPage({ onOpenAgent }: Props) {
 		(api) => api("recurring-agents").GET({ query: { workspaceId: workspaceId! } }),
 		{ enabled: !!workspaceId },
 	);
+	const { data: companionSessions } = useRead(
+		(api) => api("companion-sessions").GET({ query: { workspaceId: workspaceId! } }),
+		{ enabled: !!workspaceId },
+	);
 	const { trigger: removeProject } = useWrite((api) => api("projects/:workspaceId").DELETE());
 
 	const recurringCount = recurringAgents?.length ?? 0;
+	const companionRunningCount = companionSessions?.filter((s) => s.status === "running").length ?? 0;
 	const projects = projectList ?? [];
 	const activeProject = projects.find((p) => p.workspaceId === workspaceId) ?? null;
 
@@ -125,6 +130,20 @@ export function BoardPage({ onOpenAgent }: Props) {
 						{recurringCount > 0 && (
 							<span className="ml-auto min-w-[18px] text-center text-[11px] font-medium text-[#8888a0] bg-[#1a1a1f] border border-[#2a2a35] rounded px-1.5 py-px">
 								{recurringCount}
+							</span>
+						)}
+					</button>
+					<button
+						onClick={() => {
+							if (workspaceId) navigate(`/${encodeURIComponent(workspaceId)}/companion`);
+						}}
+						className="flex items-center gap-2.5 py-1.5 px-0.5 hover:opacity-80 transition-opacity cursor-pointer"
+					>
+						<GitBranch size={15} className="text-[#60607a]" />
+						<span className="text-[12px] text-[#8888a0]">Companion</span>
+						{companionRunningCount > 0 && (
+							<span className="ml-auto min-w-[18px] text-center text-[11px] font-medium text-[#8888a0] bg-[#1a1a1f] border border-[#2a2a35] rounded px-1.5 py-px">
+								{companionRunningCount}
 							</span>
 						)}
 					</button>

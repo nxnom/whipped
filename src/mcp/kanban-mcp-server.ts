@@ -20,6 +20,8 @@ const agentId = process.argv[4] && !process.argv[4].startsWith("--") ? process.a
 //   assistant — may create/list/update/delete recurring agents.
 //   recurring — a recurring agent; may write its own journal (id below) but cannot
 //               manage recurring agents (no self-creation).
+//   companion — a standalone coding session outside the ticket lifecycle; may look
+//               up a card for context but has no other kanban tool access.
 // Anything else (task/review/unset) gets only the base board tools.
 function namedArg(flag: string): string | undefined {
 	const hit = process.argv.find((a) => a.startsWith(`${flag}=`));
@@ -113,10 +115,18 @@ const RECURRING_OBSERVER_TOOLS = new Set([
 	"disable_self",
 ]);
 
+// The companion agent works directly in its own worktree (full write access to
+// code) but is not part of the ticket lifecycle — it may look up a card for
+// context but must never create/edit/comment on one. Git instructions and the
+// project system prompt are already baked into its spawned prompt (like the dev
+// agent), so it doesn't need those lookup tools either.
+const COMPANION_OBSERVER_TOOLS = new Set(["kanban_get_board"]);
+
 const baseRegisterTool = server.registerTool;
 // Drop-in for server.registerTool that withholds mutating tools from observers.
 const registerTool: typeof server.registerTool = ((name: string, ...rest: unknown[]) => {
 	if (mcpRole === "recurring" && !RECURRING_OBSERVER_TOOLS.has(name)) return undefined;
+	if (mcpRole === "companion" && !COMPANION_OBSERVER_TOOLS.has(name)) return undefined;
 	return (baseRegisterTool as (...a: unknown[]) => unknown).call(server, name, ...rest);
 }) as typeof server.registerTool;
 

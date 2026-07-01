@@ -1,8 +1,11 @@
 import { Button } from "@geckoui/geckoui";
+import { type AgentModelChoice, DEFAULT_AGENT_MODEL_CHOICE } from "@runtime-contract";
 import { Bot, Square, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { AgentModelPicker } from "@/components/AgentModelPicker";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { useRead, useWrite } from "@/runtime/api-client";
+import { useWorkspaceState } from "@/stores/board-store";
 import { classNames } from "@/utils/classNames";
 
 const MIN_WIDTH = 320;
@@ -17,10 +20,16 @@ interface Props {
 
 export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 	const [taskId, setTaskId] = useState<string | null>(null);
+	const [checking, setChecking] = useState(false);
 	const [starting, setStarting] = useState(false);
 	const startingRef = useRef(false);
+	const [pickedModel, setPickedModel] = useState<AgentModelChoice | null>(null);
 	const [width, setWidth] = useState(DEFAULT_WIDTH);
 	const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+	const { state: wsState } = useWorkspaceState(workspaceId);
+	const defaultModel = wsState?.projectConfig?.assistantModel ?? DEFAULT_AGENT_MODEL_CHOICE;
+	const modelValue = pickedModel ?? defaultModel;
 
 	const { trigger: fetchSessionStatus } = useRead((api) => api("agent/session").GET({ query: { workspaceId } }), {
 		enabled: false,
@@ -46,42 +55,27 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 		window.addEventListener("mouseup", onUp);
 	};
 
+	// On open, only check whether a session is already running — never auto-start.
+	// If one is running we reattach straight to its terminal (no picker, no restart).
+	// If not, the empty state below asks the user to pick a model before starting.
 	useEffect(() => {
 		if (!open) return;
 		let cancelled = false;
+		setChecking(true);
 
-		const doStart = async () => {
-			if (startingRef.current) return;
-			startingRef.current = true;
-			setStarting(true);
-			try {
-				const { data: result } = await startSessionRequest({ body: { workspaceId } });
-				if (cancelled) {
-					await stopSessionRequest({ query: { workspaceId } }).catch(() => {});
-					return;
-				}
-				setTaskId(result?.taskId ?? null);
-			} finally {
-				startingRef.current = false;
-				if (!cancelled) setStarting(false);
-			}
-		};
-
-		const init = async () => {
+		const check = async () => {
 			try {
 				const { data: status } = await fetchSessionStatus();
 				if (cancelled) return;
-				if (status?.running && status.taskId) {
-					setTaskId(status.taskId);
-				} else {
-					await doStart();
-				}
+				setTaskId(status?.running && status.taskId ? status.taskId : null);
 			} catch {
-				if (!cancelled) await doStart();
+				if (!cancelled) setTaskId(null);
+			} finally {
+				if (!cancelled) setChecking(false);
 			}
 		};
 
-		void init();
+		void check();
 		return () => {
 			cancelled = true;
 		};
@@ -92,7 +86,7 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 		startingRef.current = true;
 		setStarting(true);
 		try {
-			const { data: result } = await startSessionRequest({ body: { workspaceId } });
+			const { data: result } = await startSessionRequest({ body: { workspaceId, override: modelValue } });
 			setTaskId(result?.taskId ?? null);
 		} finally {
 			startingRef.current = false;
@@ -134,12 +128,17 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 				</div>
 
 				<div className="flex-1 min-h-0 flex flex-col">
-					{taskId ? (
+					{checking ? null : taskId ? (
 						<TaskTerminal taskId={taskId} workspaceId={workspaceId} className="flex-1 min-h-0" />
 					) : (
-						<div className="flex-1 flex flex-col items-center justify-center gap-4 text-[#60607a]">
+						<div className="flex-1 flex flex-col items-center justify-center gap-4 text-[#60607a] px-6">
 							<Bot size={40} />
-							<p className="text-sm">Interactive Claude session for managing your board</p>
+							<p className="text-sm text-center">
+								Pick a model to start an interactive session for managing your board
+							</p>
+							<div className="w-full max-w-sm">
+								<AgentModelPicker value={modelValue} onChange={setPickedModel} />
+							</div>
 							<Button size="sm" onClick={() => void startSession()} disabled={starting}>
 								{starting ? "Starting..." : "Start Session"}
 							</Button>
