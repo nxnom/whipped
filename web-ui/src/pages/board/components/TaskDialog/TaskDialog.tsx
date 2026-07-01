@@ -1,4 +1,4 @@
-import { RHFError, RHFInput, RHFSelect, SelectOption, toast } from "@geckoui/geckoui";
+import { Button, RHFError, RHFInput, RHFSelect, SelectOption, toast } from "@geckoui/geckoui";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { highestWorkflowLevel, type RuntimeBoardCard, type Workflow } from "@runtime-contract";
 import type { CreateStoryForm, CreateTaskForm, SubtaskDraftForm } from "@runtime-validation/card";
@@ -117,7 +117,6 @@ export function CreateTaskDialog({
 	}, [open, initialMode]);
 
 	const isTask = mode === "task";
-	const accentColor = isTask ? "#ededed" : "#8b5cf6";
 	const activeWorkflows = isTask ? taskWorkflows : storyWorkflows;
 
 	const subtaskDrafts: SubtaskDraft[] = useMemo(
@@ -233,9 +232,9 @@ export function CreateTaskDialog({
 							<div className="flex items-center gap-3 px-6 py-3.5 border-b border-[#2a2a2a] shrink-0">
 								<span className="text-[15px] font-semibold text-[#ededed]">{isTask ? "New Task" : "New Story"}</span>
 								<div className="flex-1" />
-								<button onClick={handleClose} className="text-[#5f6672] hover:text-[#ededed] transition-colors">
+								<Button variant="icon" onClick={handleClose}>
 									<X size={18} />
-								</button>
+								</Button>
 							</div>
 
 							{/* Editor area */}
@@ -286,7 +285,6 @@ export function CreateTaskDialog({
 						{/* ── Right sidebar ── */}
 						<CreateTaskConfigSidebar
 							isTask={isTask}
-							accentColor={accentColor}
 							activeWorkflows={activeWorkflows}
 							branches={branches}
 							allCards={allCards}
@@ -756,9 +754,9 @@ function CreateSubtaskDialog({
 								{isEditing ? "Edit Subtask" : "New Subtask"}
 							</span>
 							<div className="flex-1" />
-							<button onClick={onClose} className="text-[#5f6672] hover:text-[#ededed] transition-colors">
+							<Button variant="icon" onClick={onClose}>
 								<X size={18} />
-							</button>
+							</Button>
 						</div>
 
 						<div className="flex flex-col flex-1 min-h-0 px-6 py-4 gap-2">
@@ -874,14 +872,10 @@ function CreateSubtaskDialog({
 
 						<div className="flex items-center gap-2.5 px-[18px] py-3.5 border-t border-[#2a2a2a] shrink-0">
 							<div className="flex-1" />
-							<button
-								onClick={submit}
-								disabled={!watchedDescription?.trim()}
-								className="flex items-center gap-1.5 px-5 py-2 rounded-md text-xs font-semibold text-[#050505] bg-[#ededed] disabled:opacity-40 disabled:cursor-not-allowed"
-							>
+							<Button variant="filled" color="primary" onClick={submit} disabled={!watchedDescription?.trim()}>
 								<Plus size={14} />
 								{isEditing ? "Save Changes" : "Add Subtask"}
-							</button>
+							</Button>
 						</div>
 					</div>
 				</div>

@@ -1,25 +1,24 @@
 import type { RuntimeBoardCard, WorkflowSlot } from "@runtime-contract";
-import { Brain, GitBranch, ScrollText, TerminalSquare } from "lucide-react";
-import type React from "react";
+import { Check, Loader2 } from "lucide-react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
-import { useRead } from "@/runtime/api-client";
 import { classNames } from "@/utils/classNames";
 import { CardMemoryTab } from "../CardMemoryTab";
 import { ChatComments } from "../ChatComments";
 import { DiffView } from "../DiffView";
+import { SESSION_TYPE_LABELS, sessionStatus } from "./constants";
 import type { RightTab } from "./types";
+
+type TerminalSession = NonNullable<RuntimeBoardCard["terminalSessions"]>[number];
 
 interface CardDetailTabsProps {
 	card: RuntimeBoardCard;
 	workspaceId: string;
 	allCards?: Record<string, RuntimeBoardCard>;
 	workflowSlots?: WorkflowSlot[];
-	isStory: boolean;
 	isReadyForReview: boolean;
-	commentCount: number;
 	rightTab: RightTab;
-	setRightTab: (tab: RightTab) => void;
 	hasTerminalOutput: boolean;
+	visibleSessions: TerminalSession[];
 	activeStreamId: string;
 	onRefresh: () => void;
 }
@@ -29,52 +28,60 @@ export function CardDetailTabs({
 	workspaceId,
 	allCards,
 	workflowSlots,
-	isStory,
 	isReadyForReview,
-	commentCount,
 	rightTab,
-	setRightTab,
 	hasTerminalOutput,
+	visibleSessions,
 	activeStreamId,
 	onRefresh,
 }: CardDetailTabsProps) {
-	// Memories saved by agents while working this card. Shared cache key with the
-	// Memory tab's own read, so the count and the tab stay in sync.
-	const { data: memData } = useRead((api) => api("memory/for-card").GET({ query: { cardId: card.id } }));
-	const memoryCount = memData?.length ?? 0;
 	const hasPlan = !!card.plan?.trim();
+	const activeSession = visibleSessions.find((s) => s.streamId === activeStreamId);
+	const installSession = visibleSessions.find((s) => s.type === "install");
 
-	const tabs = [
-		{ id: "terminal" as RightTab, label: "Terminal", Icon: TerminalSquare },
-		...(!isStory ? [{ id: "diff" as RightTab, label: "Diff", Icon: GitBranch }] : []),
-		...(hasPlan ? [{ id: "plan" as RightTab, label: "Plan", Icon: ScrollText }] : []),
-		{ id: "comments" as RightTab, label: `Comments${commentCount > 0 ? ` (${commentCount})` : ""}`, Icon: null },
-		{ id: "memory" as RightTab, label: `Memory${memoryCount > 0 ? ` (${memoryCount})` : ""}`, Icon: Brain },
-	] as { id: RightTab; label: string; Icon: React.FC<{ size: number }> | null }[];
+	const sessionPill = (session: TerminalSession) => {
+		const slotName =
+			workflowSlots?.find((s) => s.id === session.type)?.name ?? SESSION_TYPE_LABELS[session.type] ?? session.type;
+		const status = sessionStatus(session);
+		return (
+			<span
+				key={session.streamId}
+				className="flex items-center gap-1.5 px-2.5 py-[7px] rounded-md bg-[#111111] border border-[#2a2a2a]"
+			>
+				{status === "running" ? (
+					<Loader2 size={13} className="text-[#22c55e] animate-spin" />
+				) : status === "completed" ? (
+					<Check size={13} className="text-[#22c55e]" />
+				) : (
+					<span
+						className={classNames(
+							"size-[7px] rounded-full",
+							status === "failed" ? "bg-[#ff3b4d]" : status === "stopped" ? "bg-[#eab308]" : "bg-[#5f6672]",
+						)}
+					/>
+				)}
+				<span className="text-xs font-semibold text-[#ededed]">
+					{slotName} · {status}
+				</span>
+			</span>
+		);
+	};
 
 	return (
-		<div className="flex-1 min-w-0 flex flex-col bg-[#0b0b0b]">
-			{/* Tab bar */}
-			<div className="flex shrink-0 bg-[#111111] border-b border-[#2a2a2a] px-5">
-				{tabs.map(({ id, label, Icon }) => (
-					<button
-						key={id}
-						onClick={() => setRightTab(id)}
-						className={classNames(
-							"relative flex items-center gap-1.5 px-4 py-[11px] text-xs font-medium transition-colors",
-							rightTab === id ? "text-[#ededed]" : "text-[#5f6672] hover:text-[#8a8f98]",
-						)}
-					>
-						{Icon && <Icon size={11} />}
-						{label}
-						{rightTab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#ffffff]" />}
-					</button>
-				))}
-			</div>
-
+		<div className="flex-1 min-w-0 flex flex-col bg-[#050505]">
 			{rightTab === "terminal" &&
 				(hasTerminalOutput ? (
-					<TaskTerminal key={activeStreamId} taskId={activeStreamId} workspaceId={workspaceId} className="flex-1" />
+					<div className="flex-1 min-h-0 flex flex-col gap-2.5 p-5 bg-[#070707]">
+						<div className="flex items-center gap-2 shrink-0">
+							{activeSession && sessionPill(activeSession)}
+							{installSession && installSession.streamId !== activeSession?.streamId && sessionPill(installSession)}
+							<div className="flex-1" />
+							<span className="text-[11px] font-mono text-[#5f6672]">stream: {activeStreamId}</span>
+						</div>
+						<div className="flex-1 min-h-0 rounded-md border border-[#1f1f1f] bg-[#0b0b0b] p-3 overflow-hidden">
+							<TaskTerminal key={activeStreamId} taskId={activeStreamId} workspaceId={workspaceId} className="h-full" />
+						</div>
+					</div>
 				) : (
 					<div className="flex-1 flex items-center justify-center flex-col gap-3 text-[#5f6672]">
 						<span className="text-4xl">⌨</span>

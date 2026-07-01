@@ -1,4 +1,14 @@
+import type { RuntimeBoardCard } from "@runtime-contract";
+
 export { AGENT_DISPLAY } from "@/pages/board/constants";
+
+type TerminalSession = NonNullable<RuntimeBoardCard["terminalSessions"]>[number];
+
+export function sessionStatus(session: TerminalSession): "running" | "failed" | "stopped" | "completed" {
+	if (!session.endedAt) return "running";
+	if (session.state === "failed" || session.state === "stopped") return session.state;
+	return "completed";
+}
 
 export const COLUMN_LABELS: Record<string, string> = {
 	todo: "Todo",

@@ -3,8 +3,6 @@ import {
 	Bell,
 	BookOpen,
 	Brain,
-	ChevronDown,
-	FolderGit2,
 	Globe,
 	Server,
 	SlidersHorizontal,
@@ -13,9 +11,7 @@ import {
 	Workflow,
 } from "lucide-react";
 import { classNames } from "@/utils/classNames";
-import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useRead } from "@/runtime/api-client";
 import { useWorkspaceState } from "@/stores/board-store";
 import { GlobalSettings } from "./GlobalSettings";
 import { NotificationsSettings } from "./NotificationsSettings";
@@ -39,89 +35,6 @@ const GLOBAL_NAV: Array<{ id: GlobalSection; label: string; icon: React.ReactNod
 	{ id: "slack", label: "Slack", icon: <Slack size={15} /> },
 ];
 
-function ProjectDropdown({ workspaceId, onSwitch }: { workspaceId: string; onSwitch: (id: string) => void }) {
-	const [open, setOpen] = useState(false);
-	const ref = useRef<HTMLDivElement>(null);
-
-	const { data } = useRead((api) => api("projects").GET());
-	const workspaces = data ?? [];
-
-	useEffect(() => {
-		if (!open) return;
-		const handler = (e: MouseEvent) => {
-			if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-		};
-		document.addEventListener("mousedown", handler);
-		return () => document.removeEventListener("mousedown", handler);
-	}, [open]);
-
-	const currentWs = workspaces.find((ws) => ws.workspaceId === workspaceId);
-	const displayName = currentWs
-		? currentWs.name || currentWs.repoPath.split("/").filter(Boolean).at(-1) || workspaceId
-		: workspaceId;
-	const displayPath = currentWs ? currentWs.repoPath.replace(/^\/Users\/[^/]+/, "~") : "";
-
-	return (
-		<div ref={ref} className="relative">
-			<button
-				onClick={() => setOpen((v) => !v)}
-				className="w-full flex items-center gap-2.5 px-[18px] py-3 hover:bg-[#111111] transition-colors text-left"
-			>
-				<FolderGit2 size={14} className="mt-px shrink-0 text-[#5f6672]" />
-				<div className="flex-1 min-w-0">
-					<p className="text-[12px] font-medium truncate text-[#ededed]">{displayName}</p>
-					{displayPath && <p className="text-[10px] truncate mt-0.5 font-mono text-[#5f6672]">{displayPath}</p>}
-				</div>
-				<ChevronDown
-					size={13}
-					className={classNames("shrink-0 transition-transform text-[#5f6672]", open ? "rotate-180" : "rotate-0")}
-				/>
-			</button>
-
-			{open && (
-				<div className="absolute left-0 right-0 z-50 flex flex-col overflow-hidden top-full bg-[#111111] border border-[#2a2a2a] rounded-lg shadow-[0_4px_20px_rgba(0,0,0,0.4)] mt-1 mx-2">
-					{workspaces.map((ws) => {
-						const isCurrent = ws.workspaceId === workspaceId;
-						const name = ws.name || ws.repoPath.split("/").filter(Boolean).at(-1) || ws.workspaceId;
-						const path = ws.repoPath.replace(/^\/Users\/[^/]+/, "~");
-						return (
-							<button
-								key={ws.workspaceId}
-								onClick={() => {
-									setOpen(false);
-									if (!isCurrent) onSwitch(ws.workspaceId);
-								}}
-								className={classNames(
-									"flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-[#2a2a2a]",
-									isCurrent ? "bg-[#ffffff12]" : "bg-transparent",
-								)}
-							>
-								<FolderGit2
-									size={13}
-									className={classNames("shrink-0 mt-px", isCurrent ? "text-[#ffffff]" : "text-[#5f6672]")}
-								/>
-								<div className="flex-1 min-w-0">
-									<p
-										className={classNames(
-											"text-[12px] font-medium truncate",
-											isCurrent ? "text-[#ededed]" : "text-[#8a8f98]",
-										)}
-									>
-										{name}
-									</p>
-									{path && <p className="text-[10px] truncate font-mono text-[#5f6672]">{path}</p>}
-								</div>
-								{isCurrent && <div className="shrink-0 w-1.5 h-1.5 rounded-full bg-[#ffffff]" />}
-							</button>
-						);
-					})}
-					{workspaces.length === 0 && <p className="px-3 py-2.5 text-[11px] text-[#5f6672]">Loading…</p>}
-				</div>
-			)}
-		</div>
-	);
-}
-
 const PROJECT_SECTIONS = new Set<SettingsSection>([
 	"general-automation",
 	"workflows",
@@ -142,10 +55,6 @@ export function SettingsPage() {
 		navigate(`/${encodeURIComponent(workspaceId)}/settings/${s}`);
 	};
 
-	const handleSwitchProject = (toId: string) => {
-		navigate(`/${encodeURIComponent(toId)}/settings/${section}`);
-	};
-
 	return (
 		<div className="flex-1 overflow-hidden flex bg-[#0f0f10]">
 			{/* Sidebar */}
@@ -158,10 +67,6 @@ export function SettingsPage() {
 					<ArrowLeft size={16} className="text-[#5f6672]" />
 					<span className="text-sm font-semibold text-[#ededed]">Settings</span>
 				</button>
-				<div className="h-px bg-[#2a2a2a]" />
-
-				{/* Project dropdown */}
-				<ProjectDropdown workspaceId={workspaceId} onSwitch={handleSwitchProject} />
 				<div className="h-px bg-[#2a2a2a]" />
 
 				{/* PROJECT section */}

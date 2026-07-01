@@ -1,9 +1,71 @@
-import { Menu, MenuTrigger } from "@geckoui/geckoui";
+import { Menu, MenuTrigger, useMenu } from "@geckoui/geckoui";
 import type { RuntimeProject } from "@runtime-contract";
-import { ChevronDown, FolderOpen, FolderPlus, Plus, Search, Settings2 } from "lucide-react";
-import { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { ChevronDown, FolderOpen, FolderPlus, Plus, Search } from "lucide-react";
+import { type RefObject, useRef, useState } from "react";
 import { type ProjectsSidebarHandle, ProjectsSidebar } from "@/components/ProjectsSidebar";
+
+interface ProjectListProps {
+	sidebarRef: RefObject<ProjectsSidebarHandle>;
+	projects: RuntimeProject[];
+	activeWorkspaceId: string;
+	onSwitch: (workspaceId: string) => void;
+	onRemove: (workspaceId: string) => Promise<void>;
+}
+
+// Closes the dropdown as soon as a project is picked — must live inside <Menu> to reach its context.
+function ProjectList({ sidebarRef, projects, activeWorkspaceId, onSwitch, onRemove }: ProjectListProps) {
+	const { closeMenu } = useMenu();
+
+	const handleSwitch = (workspaceId: string) => {
+		onSwitch(workspaceId);
+		closeMenu();
+	};
+
+	return (
+		<div className="max-h-[320px] overflow-y-auto -mx-1">
+			<ProjectsSidebar
+				ref={sidebarRef}
+				projects={projects}
+				activeWorkspaceId={activeWorkspaceId}
+				onSwitch={handleSwitch}
+				onRemove={onRemove}
+			/>
+		</div>
+	);
+}
+
+// Also lives inside <Menu> so "New Project" can close the dropdown before opening the dialog.
+function Footer({
+	sidebarRef,
+	onAddProject,
+}: {
+	sidebarRef: RefObject<ProjectsSidebarHandle>;
+	onAddProject: () => void;
+}) {
+	const { closeMenu } = useMenu();
+
+	return (
+		<div className="flex items-center gap-2 pt-2 border-t border-[#1f1f1f]">
+			<button
+				onClick={() => sidebarRef.current?.addFolder()}
+				className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-md bg-[#050505] border border-[#1f1f1f] text-[#8a8f98] hover:text-[#ededed] transition-colors text-xs"
+			>
+				<FolderPlus size={13} />
+				New Folder
+			</button>
+			<button
+				onClick={() => {
+					closeMenu();
+					onAddProject();
+				}}
+				className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-md bg-[#ededed] hover:bg-white transition-colors text-xs font-bold text-[#050505]"
+			>
+				<Plus size={13} />
+				New Project
+			</button>
+		</div>
+	);
+}
 
 interface ProjectSwitcherProps {
 	projects: RuntimeProject[];
@@ -22,7 +84,6 @@ export function ProjectSwitcher({
 	onRemove,
 	onAddProject,
 }: ProjectSwitcherProps) {
-	const navigate = useNavigate();
 	const [search, setSearch] = useState("");
 	const sidebarRef = useRef<ProjectsSidebarHandle>(null);
 
@@ -62,40 +123,15 @@ export function ProjectSwitcher({
 				/>
 			</div>
 
-			<button
-				onClick={onAddProject}
-				className="flex items-center gap-2 h-9 px-2.5 rounded-md bg-[#ededed] hover:bg-white transition-colors"
-			>
-				<Plus size={14} className="text-[#050505]" />
-				<span className="text-xs font-bold text-[#050505]">New Project</span>
-			</button>
+			<ProjectList
+				sidebarRef={sidebarRef}
+				projects={filtered}
+				activeWorkspaceId={activeWorkspaceId}
+				onSwitch={onSwitch}
+				onRemove={onRemove}
+			/>
 
-			<div className="max-h-[320px] overflow-y-auto -mx-1">
-				<ProjectsSidebar
-					ref={sidebarRef}
-					projects={filtered}
-					activeWorkspaceId={activeWorkspaceId}
-					onSwitch={onSwitch}
-					onRemove={onRemove}
-				/>
-			</div>
-
-			<div className="flex items-center gap-2 pt-2 border-t border-[#1f1f1f]">
-				<button
-					onClick={() => sidebarRef.current?.addFolder()}
-					className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-md bg-[#050505] border border-[#1f1f1f] text-[#8a8f98] hover:text-[#ededed] transition-colors text-xs"
-				>
-					<FolderPlus size={13} />
-					New Folder
-				</button>
-				<button
-					onClick={() => navigate(`/${encodeURIComponent(activeWorkspaceId)}/settings`)}
-					className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-md bg-[#050505] border border-[#1f1f1f] text-[#8a8f98] hover:text-[#ededed] transition-colors text-xs"
-				>
-					<Settings2 size={13} />
-					Manage
-				</button>
-			</div>
+			<Footer sidebarRef={sidebarRef} onAddProject={onAddProject} />
 		</Menu>
 	);
 }

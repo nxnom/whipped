@@ -1,3 +1,4 @@
+import { Button } from "@geckoui/geckoui";
 import type { RuntimeBoardCard } from "@runtime-contract";
 import { GripVertical, ListTree, Plus, Sparkles, X } from "lucide-react";
 import { PRIORITY_OPTIONS } from "./constants";
@@ -25,17 +26,18 @@ export function StorySubtaskList({ subtaskDrafts, allCards, onAdd, onEdit, onRem
 					</div>
 				)}
 				<div className="flex-1" />
-				<button className="flex items-center gap-1 px-2.5 py-1 rounded bg-[#8b5cf615] border border-[#8b5cf630] text-[11px] font-medium text-[#8b5cf6]">
+				<Button
+					variant="outlined"
+					size="xs"
+					style={{ background: "#8b5cf615", borderColor: "#8b5cf630", color: "#8b5cf6" }}
+				>
 					<Sparkles size={12} />
 					Generate
-				</button>
-				<button
-					onClick={onAdd}
-					className="flex items-center gap-1 px-2.5 py-1 rounded border border-[#2a2a2a] text-[11px] text-[#5f6672] hover:text-[#ededed] hover:border-[#3a3a3a] transition-colors"
-				>
+				</Button>
+				<Button variant="outlined" size="xs" onClick={onAdd}>
 					<Plus size={12} />
 					Add
-				</button>
+				</Button>
 			</div>
 			{/* Subtask list */}
 			<div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-2">

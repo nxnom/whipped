@@ -45,7 +45,7 @@ export function CardDetailSidebar({
 		<div
 			className={classNames(
 				"shrink-0 bg-[#0b0b0b] border-l border-[#2a2a2a] flex flex-col overflow-hidden transition-all duration-200",
-				sidebarCollapsed ? "w-12" : "w-80",
+				sidebarCollapsed ? "w-14" : "w-80",
 			)}
 		>
 			<WorkflowPipeline

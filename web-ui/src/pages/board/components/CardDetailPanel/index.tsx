@@ -1,10 +1,13 @@
 import type { RuntimeBoardCard, WorkflowSlot } from "@runtime-contract";
+import { Brain, GitBranch, ScrollText, TerminalSquare } from "lucide-react";
+import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { RunBar } from "@/components/RunBar";
+import { useRead } from "@/runtime/api-client";
 import { CardDetailHeader } from "./CardDetailHeader";
 import { CardDetailSidebar } from "./CardDetailSidebar";
-import { CardDetailSubHeader } from "./CardDetailSubHeader";
 import { CardDetailTabs } from "./CardDetailTabs";
+import { CardDetailTabsRow } from "./CardDetailTabsRow";
 import type { RightTab } from "./types";
 import { useCardActions } from "./useCardActions";
 
@@ -62,6 +65,19 @@ export function CardDetailPanel({
 	const hasTerminalOutput = visibleSessions.length > 0;
 	const agentId = activeTerminalSession?.agentId ?? card.agentId ?? null;
 	const externalUrl = card.githubIssueUrl ?? card.pr?.url ?? null;
+
+	// Shared cache key with the Memory tab's own read, so the count and the tab stay in sync.
+	const { data: memData } = useRead((api) => api("memory/for-card").GET({ query: { cardId: card.id } }));
+	const memoryCount = memData?.length ?? 0;
+	const hasPlan = !!card.plan?.trim();
+
+	const tabs = [
+		{ id: "terminal" as RightTab, label: "Terminal", Icon: TerminalSquare },
+		...(!isStory ? [{ id: "diff" as RightTab, label: "Diff", Icon: GitBranch }] : []),
+		...(hasPlan ? [{ id: "plan" as RightTab, label: "Plan", Icon: ScrollText }] : []),
+		{ id: "comments" as RightTab, label: `Comments${commentCount > 0 ? ` (${commentCount})` : ""}`, Icon: null },
+		{ id: "memory" as RightTab, label: `Memory${memoryCount > 0 ? ` (${memoryCount})` : ""}`, Icon: Brain },
+	] as { id: RightTab; label: string; Icon: React.FC<{ size: number }> | null }[];
 
 	// ── Elapsed timer ──────────────────────────────────────────────────────
 	useEffect(() => {
@@ -121,7 +137,15 @@ export function CardDetailPanel({
 				onClose={onClose}
 			/>
 
-			<CardDetailSubHeader card={card} agentId={agentId} isRunning={isRunning} elapsedSec={elapsedSec} />
+			<CardDetailTabsRow
+				card={card}
+				agentId={agentId}
+				isRunning={isRunning}
+				elapsedSec={elapsedSec}
+				tabs={tabs}
+				rightTab={rightTab}
+				setRightTab={setRightTab}
+			/>
 
 			{/* ── Main content ── */}
 			<div className="flex flex-1 min-h-0 overflow-hidden">
@@ -130,12 +154,10 @@ export function CardDetailPanel({
 					workspaceId={workspaceId}
 					allCards={allCards}
 					workflowSlots={workflowSlots}
-					isStory={isStory}
 					isReadyForReview={isReadyForReview}
-					commentCount={commentCount}
 					rightTab={rightTab}
-					setRightTab={setRightTab}
 					hasTerminalOutput={hasTerminalOutput}
+					visibleSessions={visibleSessions}
 					activeStreamId={activeStreamId}
 					onRefresh={onRefresh}
 				/>

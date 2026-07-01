@@ -1,4 +1,4 @@
-import { RHFInput, RHFSelect, SelectOption, Switch } from "@geckoui/geckoui";
+import { Button, RHFInput, RHFSelect, SelectOption, Switch } from "@geckoui/geckoui";
 import { useState } from "react";
 import { useFormContext, useWatch } from "react-hook-form";
 import { highestWorkflowLevel, type RuntimeBoardCard, type Workflow } from "@runtime-contract";
@@ -11,7 +11,6 @@ import { TicketTiersSection } from "./TicketTiersSection";
 
 interface CreateTaskConfigSidebarProps {
 	isTask: boolean;
-	accentColor: string;
 	activeWorkflows: Workflow[];
 	branches: string[];
 	allCards: Record<string, RuntimeBoardCard>;
@@ -26,7 +25,6 @@ interface CreateTaskConfigSidebarProps {
 
 export function CreateTaskConfigSidebar({
 	isTask,
-	accentColor,
 	activeWorkflows,
 	branches,
 	allCards,
@@ -233,15 +231,16 @@ export function CreateTaskConfigSidebar({
 					<span className="text-[11px] text-[#8a8f98]">Auto-start</span>
 				</label>
 				<div className="flex-1" />
-				<button
+				<Button
+					variant="filled"
+					color="primary"
 					onClick={onSubmit}
 					disabled={submitDisabled}
-					className="flex items-center gap-1.5 px-5 py-2 rounded-md text-xs font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
-					style={{ background: accentColor }}
+					style={isTask ? undefined : { background: "#8b5cf6", borderColor: "#8b5cf6", color: "#ffffff" }}
 				>
 					<Plus size={14} />
 					{submitLabel}
-				</button>
+				</Button>
 			</div>
 		</div>
 	);

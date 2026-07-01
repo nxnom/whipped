@@ -1,6 +1,6 @@
 import { MessageSquare, Settings } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
 import { useRead, useWrite } from "@/runtime/api-client";
 import { useWorkspaceState } from "@/stores/board-store";
@@ -17,6 +17,7 @@ interface TopbarProps {
 
 export function Topbar({ workspaceId, onOpenAgent }: TopbarProps) {
 	const navigate = useNavigate();
+	const location = useLocation();
 	const { connected } = useWorkspaceState(workspaceId);
 	const { data: projectList } = useRead((api) => api("projects").GET());
 	const { data: layout } = useRead((api) => api("projects/layout").GET());
@@ -29,7 +30,20 @@ export function Topbar({ workspaceId, onOpenAgent }: TopbarProps) {
 	const projects = projectList ?? [];
 	const activeProject = projects.find((p) => p.workspaceId === workspaceId) ?? null;
 
-	const switchProject = (wsId: string) => navigate(`/${encodeURIComponent(wsId)}/board`);
+	// Switching projects keeps the current section in view (e.g. stay on Settings/Recurring
+	// Agents) instead of always jumping to the board — but drops entity-specific sub-routes
+	// (a card/agent/session id) since those belong to the previous project.
+	const switchProject = (wsId: string) => {
+		const encoded = encodeURIComponent(wsId);
+		const [, section, sub] = location.pathname.split("/").filter(Boolean);
+		if (section === "settings") {
+			navigate(`/${encoded}/settings${sub ? `/${sub}` : ""}`);
+		} else if (section === "recurring-agents" || section === "companion" || section === "board") {
+			navigate(`/${encoded}/${section}`);
+		} else {
+			navigate(`/${encoded}/board`);
+		}
+	};
 
 	const handleRemoveProject = async (wsId: string) => {
 		await removeProject({ params: { workspaceId: wsId } });

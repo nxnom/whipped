@@ -1,8 +1,8 @@
 import { Tooltip } from "@geckoui/geckoui";
 import type { RuntimeBoardCard, WorkflowSlot } from "@runtime-contract";
-import { CheckCircle2, ChevronLeft, ChevronRight, Circle, Loader2, Square } from "lucide-react";
+import { Check, CheckCircle2, ChevronLeft, ChevronRight, Circle, Loader2, Square } from "lucide-react";
 import { classNames } from "@/utils/classNames";
-import { SESSION_TYPE_LABELS, slotDuration } from "./constants";
+import { SESSION_TYPE_LABELS, sessionStatus, slotDuration } from "./constants";
 
 type TerminalSession = NonNullable<RuntimeBoardCard["terminalSessions"]>[number];
 
@@ -16,12 +16,6 @@ interface WorkflowPipelineProps {
 	onStop: () => void;
 }
 
-function sessionStatus(session: TerminalSession): "running" | "failed" | "stopped" | "completed" {
-	if (!session.endedAt) return "running";
-	if (session.state === "failed" || session.state === "stopped") return session.state;
-	return "completed";
-}
-
 export function WorkflowPipeline({
 	sessions,
 	workflowSlots,
@@ -33,23 +27,16 @@ export function WorkflowPipeline({
 }: WorkflowPipelineProps) {
 	return (
 		<div className="shrink-0">
-			<div
-				className={classNames("pt-3.5 pb-2 flex items-center", sidebarCollapsed ? "justify-center px-0" : "px-[18px]")}
-			>
-				{!sidebarCollapsed && (
-					<span className="text-[11px] font-semibold text-[#8a8f98] tracking-[0.3px] flex-1">Workflow Pipeline</span>
-				)}
-				<button
-					onClick={onToggleCollapsed}
-					className="text-[#5f6672] hover:text-[#8a8f98] transition-colors"
-					title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-				>
-					{sidebarCollapsed ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
-				</button>
-			</div>
 			{sidebarCollapsed ? (
-				/* Collapsed: icon-only timeline centered */
-				<div className="flex flex-col items-center pb-4 gap-0">
+				/* Collapsed: circular step rail, chevron leads the column */
+				<div className="flex flex-col items-center pt-3.5 pb-4 gap-3">
+					<button
+						onClick={onToggleCollapsed}
+						className="text-[#5f6672] hover:text-[#8a8f98] transition-colors"
+						title="Expand sidebar"
+					>
+						<ChevronLeft size={14} />
+					</button>
 					{sessions.length > 0 ? (
 						sessions.map((session, idx) => {
 							const slotName =
@@ -64,16 +51,16 @@ export function WorkflowPipeline({
 										<button
 											onClick={() => onSelectSession(session.streamId)}
 											className={classNames(
-												"size-7 rounded-full flex items-center justify-center cursor-pointer transition-colors",
+												"size-[30px] rounded-full flex items-center justify-center cursor-pointer transition-colors",
 												status === "running"
-													? "bg-[#8b5cf6]/15 group-hover:bg-[#ff3b4d]/10"
+													? "bg-[#ffffff]/12 hover:bg-[#ff3b4d]/10"
 													: isFocused
-														? "bg-[#8b5cf6]/15"
+														? "bg-[#ffffff]/12"
 														: "hover:bg-white/[0.05]",
 											)}
 										>
-											{status === "completed" && <CheckCircle2 size={14} className="text-[#22c55e]" />}
-											{status === "running" && <Loader2 size={14} className="text-[#8b5cf6] animate-spin" />}
+											{status === "completed" && <Check size={14} className="text-[#22c55e]" />}
+											{status === "running" && <Loader2 size={14} className="text-[#ededed] animate-spin" />}
 											{status === "failed" && <Circle size={14} className="text-[#ff3b4d]" />}
 											{status === "stopped" && <Circle size={14} className="text-[#eab308]" />}
 										</button>
@@ -81,7 +68,7 @@ export function WorkflowPipeline({
 									{idx < sessions.length - 1 && (
 										<div
 											className={classNames(
-												"w-0.5 h-4 rounded-full",
+												"w-px h-[18px]",
 												status === "completed" ? "bg-[#22c55e]/40" : "bg-[#2a2a2a]",
 											)}
 										/>
@@ -94,6 +81,18 @@ export function WorkflowPipeline({
 					)}
 				</div>
 			) : (
+				<div className="pt-3.5 pb-2 flex items-center px-[18px]">
+					<span className="text-[11px] font-semibold text-[#8a8f98] tracking-[0.3px] flex-1">Workflow Pipeline</span>
+					<button
+						onClick={onToggleCollapsed}
+						className="text-[#5f6672] hover:text-[#8a8f98] transition-colors"
+						title="Collapse sidebar"
+					>
+						<ChevronRight size={14} />
+					</button>
+				</div>
+			)}
+			{!sidebarCollapsed && (
 				/* Expanded: full rows */
 				<div className="flex flex-col px-[18px] pb-4 max-h-72 overflow-y-auto">
 					{sessions.length > 0 ? (
