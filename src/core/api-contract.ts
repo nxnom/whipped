@@ -1010,6 +1010,75 @@ export const companionSessionCreateRequestSchema = z.object({
 });
 export type CompanionSessionCreateRequest = z.infer<typeof companionSessionCreateRequestSchema>;
 
+// ─── Companion plan panel ────────────────────────────────────────────────────
+// A structured plan the companion agent pushes via the `companion_show_plan` MCP
+// tool — markdown interleaved with mermaid diagrams and interactive question
+// blocks. Versioned (each push appends, never overwrites); the developer's
+// answers/comments are composed into one message and typed into the agent's
+// terminal — there is no separate response channel, so nothing here is ever
+// sent back as structured data.
+
+export const choiceOptionSchema = z.object({
+	value: z.string(),
+	label: z.string(),
+	description: z.string().optional(),
+});
+export type ChoiceOption = z.infer<typeof choiceOptionSchema>;
+
+// `label` only matters when nested inside a `composite` question (labels the
+// sub-control); a top-level question uses its parent block's `prompt` instead.
+const questionLeafInputSchema = z.discriminatedUnion("kind", [
+	z.object({
+		kind: z.literal("single_choice"),
+		name: z.string(),
+		label: z.string().optional(),
+		options: z.array(choiceOptionSchema),
+		allowOther: z.boolean().optional(),
+	}),
+	z.object({
+		kind: z.literal("multi_choice"),
+		name: z.string(),
+		label: z.string().optional(),
+		options: z.array(choiceOptionSchema),
+		allowOther: z.boolean().optional(),
+	}),
+	z.object({
+		kind: z.literal("text"),
+		name: z.string(),
+		label: z.string().optional(),
+		placeholder: z.string().optional(),
+		multiline: z.boolean().optional(),
+	}),
+]);
+
+// `composite.parts` are always leaf kinds (never nested composites), so this
+// isn't self-referential and needs no z.lazy().
+export const questionInputSchema = z.discriminatedUnion("kind", [
+	...questionLeafInputSchema.options,
+	z.object({ kind: z.literal("composite"), parts: z.array(questionLeafInputSchema) }),
+]);
+export type QuestionInput = z.infer<typeof questionInputSchema>;
+
+export const planBlockSchema = z.discriminatedUnion("type", [
+	z.object({ id: z.string(), type: z.literal("markdown"), body: z.string() }),
+	z.object({
+		id: z.string(),
+		type: z.literal("diagram"),
+		format: z.literal("mermaid"),
+		source: z.string(),
+		caption: z.string().optional(),
+	}),
+	z.object({ id: z.string(), type: z.literal("question"), prompt: z.string(), input: questionInputSchema }),
+]);
+export type PlanBlock = z.infer<typeof planBlockSchema>;
+
+export const planDocumentSchema = z.object({
+	version: z.number(),
+	createdAt: z.number(),
+	blocks: z.array(planBlockSchema),
+});
+export type PlanDocument = z.infer<typeof planDocumentSchema>;
+
 // ─── WebSocket events ─────────────────────────────────────────────────────────
 
 export type RunSessionStatus = "running" | "stopped" | "error";
@@ -1019,6 +1088,7 @@ export type RuntimeStateEvent =
 	| { type: "workspace_updated"; state: RuntimeWorkspaceStateResponse }
 	| { type: "terminal_output"; taskId: string; data: string }
 	| { type: "run_session_changed"; cardId: string | null; status: RunSessionStatus; errorMessage?: string }
+	| { type: "companion_plan_updated"; sessionId: string; plan: PlanDocument }
 	| { type: "update_available"; latestVersion: string };
 
 // ─── Projects layout ─────────────────────────────────────────────────────────

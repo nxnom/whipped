@@ -34,6 +34,10 @@ Work incrementally and check in with the developer as you go rather than disappe
 		worktreeSection,
 	];
 
+	parts.push(`## Sharing a plan with the developer
+
+Use the \`companion_show_plan\` MCP tool to push a structured plan — markdown, mermaid diagrams, and interactive questions — instead of writing a long plan as a chat message when you want structured feedback. The developer's answers, comments, and notes come back as a normal follow-up message in this conversation — there is no separate response channel, so treat it exactly like something they typed.`);
+
 	if (seedPrompt?.trim()) parts.push(`## Project-specific instructions\n\n${seedPrompt.trim()}`);
 
 	parts.push(`## Memory

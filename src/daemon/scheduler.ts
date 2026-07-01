@@ -369,7 +369,7 @@ export class TaskScheduler {
 				agentId,
 				mcpConfigPath!,
 				undefined,
-				buildMcpRoleArgs("companion"),
+				buildMcpRoleArgs("companion", undefined, taskId),
 			).catch((err) => {
 				logger.warn({ err }, "[scheduler] Failed to write companion agent MCP config");
 			});
@@ -379,7 +379,7 @@ export class TaskScheduler {
 				serverUrl,
 				workspaceId,
 				agentId,
-				buildMcpRoleArgs("companion"),
+				buildMcpRoleArgs("companion", undefined, taskId),
 			);
 			await writePluginAgentFiles(agentId, taskId, getServerPort(serverUrl), mcpSpec, { appendSystemPrompt }).catch(
 				(err) => {
@@ -392,7 +392,7 @@ export class TaskScheduler {
 				serverUrl,
 				workspaceId,
 				agentId,
-				buildMcpRoleArgs("companion"),
+				buildMcpRoleArgs("companion", undefined, taskId),
 			);
 			await writeCursorConfigFiles(taskId, getServerPort(serverUrl), mcpSpec).catch((err) => {
 				logger.warn({ err }, "[scheduler] Failed to write cursor companion agent config");
@@ -428,7 +428,7 @@ export class TaskScheduler {
 								serverUrl,
 								workspaceId,
 								agentId,
-								buildMcpRoleArgs("companion"),
+								buildMcpRoleArgs("companion", undefined, taskId),
 							)
 						: undefined,
 				model: session.model ?? null,

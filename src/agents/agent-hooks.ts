@@ -50,12 +50,15 @@ export async function writeClaudeTaskHookSettings(serverPort: number): Promise<v
 // Extra positional args appended to the MCP server spec to scope its tool set.
 // `--role` gates which tools the server registers (assistant gets recurring-agent
 // management; recurring agents get update_journal); `--recurring-agent-id` tells a
-// recurring agent's update_journal which row to write. Passed as named flags so
-// they survive regardless of whether agentId is present (position-independent).
-export function buildMcpRoleArgs(role?: string, recurringAgentId?: string): string[] {
+// recurring agent's update_journal which row to write; `--companion-session-id`
+// tells a companion agent's companion_show_plan which session to push a plan onto.
+// Passed as named flags so they survive regardless of whether agentId is present
+// (position-independent).
+export function buildMcpRoleArgs(role?: string, recurringAgentId?: string, companionSessionId?: string): string[] {
 	const args: string[] = [];
 	if (role) args.push(`--role=${role}`);
 	if (recurringAgentId) args.push(`--recurring-agent-id=${recurringAgentId}`);
+	if (companionSessionId) args.push(`--companion-session-id=${companionSessionId}`);
 	return args;
 }
 

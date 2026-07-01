@@ -10,7 +10,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { ASSISTANT_AGENT_PREFIX, DEFAULT_GIT_INSTRUCTIONS } from "../core/api-contract.js";
+import { ASSISTANT_AGENT_PREFIX, DEFAULT_GIT_INSTRUCTIONS, planBlockSchema } from "../core/api-contract.js";
 
 const serverUrl = process.argv[2] ?? process.env.WHIPPED_SERVER_URL ?? "http://127.0.0.1:3000";
 const workspaceId = process.argv[3] ?? process.env.WHIPPED_WORKSPACE_ID ?? "";
@@ -21,7 +21,8 @@ const agentId = process.argv[4] && !process.argv[4].startsWith("--") ? process.a
 //   recurring — a recurring agent; may write its own journal (id below) but cannot
 //               manage recurring agents (no self-creation).
 //   companion — a standalone coding session outside the ticket lifecycle; may look
-//               up a card for context but has no other kanban tool access.
+//               up a card for context, and push a plan to its own session's plan
+//               panel (id below), but has no other kanban tool access.
 // Anything else (task/review/unset) gets only the base board tools.
 function namedArg(flag: string): string | undefined {
 	const hit = process.argv.find((a) => a.startsWith(`${flag}=`));
@@ -29,6 +30,7 @@ function namedArg(flag: string): string | undefined {
 }
 const mcpRole = namedArg("--role") ?? "task";
 const recurringAgentId = namedArg("--recurring-agent-id") ?? "";
+const companionSessionId = namedArg("--companion-session-id") ?? "";
 
 // Authenticates this machinery process against the daemon's auth gate.
 const apiToken = process.env.WHIPPED_API_TOKEN ?? "";
@@ -62,6 +64,7 @@ const ROUTES: Record<string, RestRoute> = {
 	"recurring.update": { method: "PATCH", path: (i) => `recurring-agents/${i.id as string}` },
 	"recurring.delete": { method: "DELETE", path: (i) => `recurring-agents/${i.id as string}` },
 	"recurring.setJournal": { method: "POST", path: (i) => `recurring-agents/${i.id as string}/journal` },
+	"companion.showPlan": { method: "POST", path: (i) => `companion-sessions/${i.sessionId as string}/plan` },
 };
 
 // Mutation (POST/PATCH/DELETE): input is the JSON body.
@@ -119,14 +122,17 @@ const RECURRING_OBSERVER_TOOLS = new Set([
 // code) but is not part of the ticket lifecycle — it may look up a card for
 // context but must never create/edit/comment on one. Git instructions and the
 // project system prompt are already baked into its spawned prompt (like the dev
-// agent), so it doesn't need those lookup tools either.
-const COMPANION_OBSERVER_TOOLS = new Set(["kanban_get_board"]);
+// agent), so it doesn't need those lookup tools either. companion_show_plan is
+// the one sanctioned "write" here — it pushes to the session's own plan panel,
+// not the board, so it's an exception to the read-only rule above, not a
+// contradiction of it.
+const COMPANION_ALLOWED_TOOLS = new Set(["kanban_get_board", "companion_show_plan"]);
 
 const baseRegisterTool = server.registerTool;
 // Drop-in for server.registerTool that withholds mutating tools from observers.
 const registerTool: typeof server.registerTool = ((name: string, ...rest: unknown[]) => {
 	if (mcpRole === "recurring" && !RECURRING_OBSERVER_TOOLS.has(name)) return undefined;
-	if (mcpRole === "companion" && !COMPANION_OBSERVER_TOOLS.has(name)) return undefined;
+	if (mcpRole === "companion" && !COMPANION_ALLOWED_TOOLS.has(name)) return undefined;
 	return (baseRegisterTool as (...a: unknown[]) => unknown).call(server, name, ...rest);
 }) as typeof server.registerTool;
 
@@ -1335,6 +1341,25 @@ if (mcpRole === "recurring" && recurringAgentId) {
 				return { content: [{ type: "text", text: "Disabled. No further scheduled runs until re-enabled." }] };
 			} catch (err) {
 				return { content: [{ type: "text", text: `Disable failed: ${(err as Error).message}` }] };
+			}
+		},
+	);
+}
+
+if (mcpRole === "companion" && companionSessionId) {
+	registerTool(
+		"companion_show_plan",
+		{
+			description:
+				"Push a structured plan — markdown, mermaid diagrams, and interactive questions — to the developer's plan panel. Each call appends a new version; it does not overwrite the last one. The developer's answers, comments, and notes come back as a normal follow-up chat message — there is no separate response channel.",
+			inputSchema: { blocks: z.array(planBlockSchema).describe("Ordered plan blocks: markdown, diagram, or question") },
+		},
+		async ({ blocks }) => {
+			try {
+				await apiMutate("companion.showPlan", { sessionId: companionSessionId, workspaceId, blocks });
+				return { content: [{ type: "text", text: "Plan sent to the developer's panel." }] };
+			} catch (err) {
+				return { content: [{ type: "text", text: `Failed to send plan: ${(err as Error).message}` }] };
 			}
 		},
 	);

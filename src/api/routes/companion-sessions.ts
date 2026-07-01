@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { companionSessionCreateRequestSchema } from "../../core/api-contract.js";
+import { companionSessionCreateRequestSchema, planBlockSchema } from "../../core/api-contract.js";
 import { NotFoundError } from "../errors/http-errors.js";
 import { zv } from "../middleware/zv.js";
 import {
@@ -9,6 +9,7 @@ import {
 	getCompanionDiffService,
 } from "../services/companion-diff-service.js";
 import { commitAndMergeCompanionService, commitAndPRCompanionService } from "../services/companion-merge-service.js";
+import { createCompanionPlanEntry, listCompanionPlansEntry } from "../services/companion-plans-service.js";
 import {
 	createCompanionSessionEntry,
 	discardCompanionSessionEntry,
@@ -118,4 +119,21 @@ export const companionSessionsController = new Hono<AppEnv>()
 			const result = await commitAndPRCompanionService(id, workspaceId, commitMessage, title, description, baseRef);
 			return c.json(result);
 		},
-	);
+	)
+	.post(
+		"/:id/plan",
+		zv("param", z.object({ id: z.string() })),
+		zv("json", z.object({ workspaceId: z.string(), blocks: z.array(planBlockSchema) })),
+		async (c) => {
+			const ctx = c.var.ctx;
+			const { id } = c.req.valid("param");
+			const { workspaceId, blocks } = c.req.valid("json");
+			const plan = await createCompanionPlanEntry(id, workspaceId, blocks);
+			ctx.stateHub.broadcastCompanionPlanUpdate(workspaceId, id, plan);
+			return c.json(plan);
+		},
+	)
+	.get("/:id/plans", zv("param", z.object({ id: z.string() })), async (c) => {
+		const { id } = c.req.valid("param");
+		return c.json(await listCompanionPlansEntry(id));
+	});
