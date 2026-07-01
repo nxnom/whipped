@@ -37,6 +37,7 @@ function SingleChoiceField({
 						value={opt.value}
 						checked={value === opt.value}
 						onChange={() => onChange(opt.value)}
+						className="mt-[3px]"
 					/>
 					<span className="flex flex-col cursor-pointer" onClick={() => onChange(opt.value)}>
 						<span className="text-[13px] text-gray-200">{opt.label}</span>
@@ -73,7 +74,9 @@ function MultiChoiceField({
 			)}
 			{input.options.map((opt) => (
 				<div key={opt.value} className="flex items-start gap-2">
-					<Checkbox checked={selected.has(opt.value)} onChange={() => toggle(opt.value)} />
+					<div className="mt-[2px]">
+						<Checkbox checked={selected.has(opt.value)} onChange={() => toggle(opt.value)} />
+					</div>
 					<span className="flex flex-col cursor-pointer" onClick={() => toggle(opt.value)}>
 						<span className="text-[13px] text-gray-200">{opt.label}</span>
 						{opt.description && <span className="text-[11px] text-gray-500">{opt.description}</span>}
