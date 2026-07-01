@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.9.0] - 2026-07-01
+
+### Added
+- **Companion agent** — a new **Companion** page for pairing directly with a coding agent outside the
+  ticket pipeline: no card, no queue, just a live chat-driven session. Starting one lets you pick an
+  isolated git worktree (branched from a base ref, on a branch name you choose) or work directly in the
+  main repo checkout with no worktree at all. Optionally seed the session from one of your configured
+  workflows (copies its dev-slot prompt and pre-fills the model tier) — the workflow picker defaults to
+  the project's default workflow instead of a blank agent. A new worktree runs the project's configured
+  worktree-setup (file copy/link + install command) before the agent starts, streamed live into the
+  session's terminal, same as a ticket's worktree setup. Each session has a diff tab, a Play button to run
+  the project's start command, and Merge/Create PR actions (hidden when working directly in the main repo,
+  since there's nothing to merge). Opening the Companion page with nothing selected jumps straight to the
+  most recently active session. Deleting a session is permanent — it's removed from the list entirely,
+  not just marked discarded.
+- **Assistant chat model picker** — clicking the chat icon now shows a model picker before starting a
+  session (skipped if a session is already running, which just reattaches). Previously the model was fixed
+  from a Settings field with no way to change it per session; that field is now just the default.
+- **Sonnet 5** added to the Claude model presets.
+
 ## [0.8.1] - 2026-06-27
 
 - Fix navigation behaviour set to replace.
