@@ -1,8 +1,11 @@
-import { Button } from "@geckoui/geckoui";
+import { Button, Select, SelectOption } from "@geckoui/geckoui";
 import { type AgentModelChoice, DEFAULT_AGENT_MODEL_CHOICE } from "@runtime-contract";
-import { Bot, Square, X } from "lucide-react";
+import { Bot, ClipboardList, FileText, Square, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { AgentModelPicker } from "@/components/AgentModelPicker";
+import { AssistantPlanDialog } from "@/components/AssistantPlanDialog";
+import { usePlanVersions } from "@/components/plan/usePlanVersions";
+import { useSavedPlans } from "@/components/plan/useSavedPlans";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { useRead, useWrite } from "@/runtime/api-client";
 import { useWorkspaceState } from "@/stores/board-store";
@@ -24,6 +27,8 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 	const [starting, setStarting] = useState(false);
 	const startingRef = useRef(false);
 	const [pickedModel, setPickedModel] = useState<AgentModelChoice | null>(null);
+	const [savedPlanId, setSavedPlanId] = useState("");
+	const [planDialogOpen, setPlanDialogOpen] = useState(false);
 	const [width, setWidth] = useState(DEFAULT_WIDTH);
 	const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
@@ -36,6 +41,23 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 	});
 	const { trigger: startSessionRequest } = useWrite((api) => api("agent/session").POST());
 	const { trigger: stopSessionRequest } = useWrite((api) => api("agent/session").DELETE());
+	const { plans, sendFeedback } = usePlanVersions(workspaceId, taskId ?? "");
+	const { list: savedPlansList, remove: removeSavedPlan } = useSavedPlans(workspaceId);
+	const savedPlans = savedPlansList.data?.plans ?? [];
+
+	const onDeleteSavedPlan = async (id: string) => {
+		await removeSavedPlan.trigger({ params: { id } });
+		if (savedPlanId === id) setSavedPlanId("");
+		void savedPlansList.trigger();
+	};
+
+	// A new plan version arriving is worth surfacing even if the developer
+	// closed a previous one — this only depends on the latest version number,
+	// so it doesn't reopen the dialog on every unrelated re-render.
+	useEffect(() => {
+		if (plans[0]?.version === undefined) return;
+		setPlanDialogOpen(true);
+	}, [plans[0]?.version]);
 
 	const onDragStart = (e: React.MouseEvent) => {
 		e.preventDefault();
@@ -86,7 +108,9 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 		startingRef.current = true;
 		setStarting(true);
 		try {
-			const { data: result } = await startSessionRequest({ body: { workspaceId, override: modelValue } });
+			const { data: result } = await startSessionRequest({
+				body: { workspaceId, override: modelValue, savedPlanId: savedPlanId || undefined },
+			});
 			setTaskId(result?.taskId ?? null);
 		} finally {
 			startingRef.current = false;
@@ -116,6 +140,11 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 						<h2 className="text-sm font-medium text-[#f0f0f5]">Assistant</h2>
 					</div>
 					<div className="flex items-center gap-2">
+						{plans.length > 0 && (
+							<Button variant="ghost" size="sm" onClick={() => setPlanDialogOpen(true)}>
+								<ClipboardList size={13} />
+							</Button>
+						)}
 						{taskId && (
 							<Button variant="ghost" size="sm" onClick={() => void stopSession()}>
 								<Square size={13} className="mr-1" /> Stop
@@ -136,8 +165,21 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 							<p className="text-sm text-center">
 								Pick a model to start an interactive session for managing your board
 							</p>
-							<div className="w-full max-w-sm">
+							<div className="w-full max-w-sm flex flex-col gap-2">
 								<AgentModelPicker value={modelValue} onChange={setPickedModel} />
+								{savedPlans.length > 0 && (
+									<Select
+										value={savedPlanId}
+										onChange={(v) => setSavedPlanId(v as string)}
+										placeholder="Start from saved plan (optional)"
+										prefix={<FileText size={13} className="text-[#8888a0]" />}
+									>
+										<SelectOption value="" label="None — start fresh" />
+										{savedPlans.map((p) => (
+											<SelectOption key={p.id} value={p.id} label={p.title} onRemove={() => onDeleteSavedPlan(p.id)} />
+										))}
+									</Select>
+								)}
 							</div>
 							<Button size="sm" onClick={() => void startSession()} disabled={starting}>
 								{starting ? "Starting..." : "Start Session"}
@@ -146,6 +188,15 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 					)}
 				</div>
 			</div>
+			{taskId && (
+				<AssistantPlanDialog
+					sessionId={taskId}
+					plans={plans}
+					sendFeedback={sendFeedback}
+					open={planDialogOpen}
+					onClose={() => setPlanDialogOpen(false)}
+				/>
+			)}
 		</div>
 	);
 }

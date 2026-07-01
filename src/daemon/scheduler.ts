@@ -48,6 +48,7 @@ import { generateTaskId } from "../core/task-id.js";
 import { commitIfDirty, pushBranch } from "../git/merge-operations.js";
 import { playNotificationSound } from "../notifications/sound-player.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
+import { createCompanionPlan } from "../state/companion-plans-store.js";
 import { getCompanionSavedPlan } from "../state/companion-saved-plans-store.js";
 import { setCompanionSessionStatus, setCompanionSessionWorktreePath } from "../state/companion-sessions-store.js";
 import { buildMemoryContext } from "../state/memory-store.js";
@@ -72,6 +73,7 @@ import {
 	titleToBranch,
 } from "../worktree/worktree-manager.js";
 import { buildCompanionAgentSystemPrompt } from "./companion-agent.js";
+import { buildPlanModeGuidance, serializePlanBlocksForPrompt } from "./plan-mode-prompt.js";
 import {
 	buildDevAgentSystemPrompt,
 	buildSecretsEnv,
@@ -171,7 +173,7 @@ export class TaskScheduler {
 		return `${ASSISTANT_AGENT_PREFIX}${this.options.workspaceId}`;
 	}
 
-	async startAssistantAgent(override?: AgentModelChoice): Promise<string> {
+	async startAssistantAgent(override?: AgentModelChoice, savedPlanId?: string): Promise<string> {
 		const { workspaceId, repoPath, serverUrl, stateHub, defaultAgent } = this.options;
 		const taskId = this.assistantAgentTaskId;
 
@@ -196,7 +198,19 @@ export class TaskScheduler {
 		const agentId = assistantModel?.agentId ?? defaultAgent;
 		const secrets = projectConfig.secrets ?? [];
 		const secretsEnv = buildSecretsEnv(secrets);
-		const assistantSystemPrompt = buildAssistantAgentSystemPrompt(repoPath, secrets, projectConfig.systemPrompt);
+
+		// Seed the panel with v1 immediately (before the agent produces any output) and
+		// tell the agent what it's resuming — the plan panel is push-only (agent -> human),
+		// so without this the agent would have no way to know a plan even exists.
+		const savedPlan = savedPlanId ? getCompanionSavedPlan(savedPlanId) : null;
+		if (savedPlan) createCompanionPlan(taskId, workspaceId, savedPlan.blocks);
+
+		const assistantSystemPrompt = buildAssistantAgentSystemPrompt(
+			repoPath,
+			secrets,
+			projectConfig.systemPrompt,
+			savedPlan ? { title: savedPlan.title, blocks: savedPlan.blocks } : undefined,
+		);
 		const memContext = buildMemoryContext(workspaceId);
 		const appendSystemPrompt = memContext ? `${memContext}\n\n${assistantSystemPrompt}` : assistantSystemPrompt;
 
@@ -246,6 +260,9 @@ export class TaskScheduler {
 					...(agentId === "cursor" ? { [CURSOR_CONFIG_DIR_ENV]: getCursorConfigDir(taskId) } : {}),
 				},
 				mcpConfigPath: agentId === "claude" ? CLAUDE_ASSISTANT_MCP_CONFIG_PATH : undefined,
+				// Denies Claude's own native plan-mode tools — see writeClaudeCompanionSettings
+				// — so "plan" always means whipped_show_plan, same as the companion agent.
+				hookSettingsPath: agentId === "claude" ? CLAUDE_COMPANION_SETTINGS_PATH : undefined,
 				mcpServer:
 					agentId === "codex"
 						? buildWhippedMcpServerSpec(
@@ -427,7 +444,7 @@ export class TaskScheduler {
 				},
 				mcpConfigPath: agentId === "claude" ? mcpConfigPath : undefined,
 				// Denies Claude's own native plan-mode tools for this session — see
-				// writeClaudeCompanionSettings — so "plan" always means companion_show_plan.
+				// writeClaudeCompanionSettings — so "plan" always means whipped_show_plan.
 				hookSettingsPath: agentId === "claude" ? CLAUDE_COMPANION_SETTINGS_PATH : undefined,
 				mcpServer:
 					agentId === "codex"
@@ -1645,8 +1662,17 @@ function buildAssistantAgentSystemPrompt(
 	repoPath: string,
 	secrets: import("../core/api-contract.js").RuntimeProjectSecret[] = [],
 	systemPrompt?: string,
+	resumedPlan?: { title: string; blocks: import("../core/api-contract.js").PlanBlock[] },
 ): string {
 	const secretsSection = buildSecretsSection(secrets);
+
+	const resumedPlanSection = resumedPlan
+		? `\n\n# Resuming a saved plan
+
+This conversation was started from a previously saved plan titled "${resumedPlan.title}". Its content is shown in full below — the developer can already see this in their plan panel as version 1, but you cannot read the panel back, so this is the only place you'll see it. Treat it as the current state of the discussion: continue from here rather than re-planning from scratch, and call \`whipped_save_plan\` again as things progress so the saved plan stays in sync.
+
+${serializePlanBlocksForPrompt(resumedPlan.blocks)}`
+		: "";
 
 	return `You are the Assistant for the project at \`${repoPath}\`.
 
@@ -1681,6 +1707,10 @@ You are a conversational project assistant. You can discuss the project, help pl
 - \`kanban_get_workflows\` — list all workflows (task and story/orch) with their agent slots, model tiers, tools, and prompts
 - \`kanban_upsert_workflow\` — create or fully replace a workflow (pass complete workflow object)
 
+## Plan
+- \`whipped_show_plan\` — push a structured, interactive plan (markdown, HTML mockups, mermaid diagrams, questions) to the developer's plan panel
+- \`whipped_save_plan\` — consolidate the conversation's plan versions into one and save it to the reusable plan library
+
 ## Memory
 - \`whipped_search_memory\` — search durable project + global memory before re-discovering how something works
 - \`whipped_get_memory\` — fetch one memory's full content by id
@@ -1688,6 +1718,12 @@ You are a conversational project assistant. You can discuss the project, help pl
 - \`whipped_update_memory\` — correct an existing memory by id when it's now wrong; prefer this over saving a near-duplicate
 
 The Memory section injected above this prompt lists existing memories with their \`[id]\`. When the developer asks you to "remember" something, or states a durable preference/decision, save it. Before saving, check the injected list and \`whipped_search_memory\`; if it contradicts or supersedes an existing entry, \`whipped_update_memory\` that id instead of creating a duplicate.
+
+# Sharing a plan
+
+When you want to lay out an approach, a UI mockup, or gather structured feedback before creating tickets — or the developer asks you to "plan" something — use the \`whipped_show_plan\` MCP tool instead of writing a long plan as a chat message. Do NOT use any other built-in planning mode you might have; always push the plan through this tool instead, even for what would normally trigger that. The developer's answers, comments, and notes come back as a normal follow-up message in this conversation — there is no separate response channel, so treat it exactly like something they typed.
+
+${buildPlanModeGuidance()}${resumedPlanSection}
 
 # Card types
 

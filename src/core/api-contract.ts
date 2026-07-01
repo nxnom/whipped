@@ -1012,10 +1012,10 @@ export const companionSessionCreateRequestSchema = z.object({
 });
 export type CompanionSessionCreateRequest = z.infer<typeof companionSessionCreateRequestSchema>;
 
-// ─── Companion plan panel ────────────────────────────────────────────────────
-// A structured plan the companion agent pushes via the `companion_show_plan` MCP
-// tool — markdown, raw HTML, mermaid diagrams, and interactive question blocks
-// interleaved. Versioned (each push appends, never overwrites); the developer's
+// ─── Plan panel ───────────────────────────────────────────────────────────────
+// A structured plan pushed via the `whipped_show_plan` MCP tool (shared by the
+// companion and assistant agents) — markdown, raw HTML, mermaid diagrams, and
+// interactive question blocks interleaved. Versioned (each push appends, never overwrites); the developer's
 // answers/comments are composed into one message and typed into the agent's
 // terminal — there is no separate response channel, so nothing here is ever
 // sent back as structured data.
@@ -1104,7 +1104,7 @@ export const planDocumentSchema = z.object({
 });
 export type PlanDocument = z.infer<typeof planDocumentSchema>;
 
-// A plan consolidated (by the agent, via `companion_save_plan`) from a session's
+// A plan consolidated (by the agent, via `whipped_save_plan`) from a session's
 // version history and saved to the workspace's reusable plan library. A session
 // linked to one (via `CompanionSession.savedPlanId`) updates the same row on
 // subsequent saves instead of creating duplicates — see companion-saved-plans-service.ts.

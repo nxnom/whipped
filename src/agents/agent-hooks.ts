@@ -49,12 +49,12 @@ export async function writeClaudeTaskHookSettings(serverPort: number): Promise<v
 }
 
 // Denies Claude Code's own built-in EnterPlanMode/ExitPlanMode tools for
-// companion sessions — this removes them from Claude's context entirely, so a
-// companion agent can never trigger its native plan-mode workflow and instead
-// always uses the companion_show_plan MCP tool for anything plan-shaped, per
-// the companion system prompt. No hooks needed here (companion has no
+// companion and assistant sessions — this removes them from Claude's context
+// entirely, so neither agent can trigger its native plan-mode workflow and
+// both instead always use the whipped_show_plan MCP tool for anything
+// plan-shaped, per their system prompts. No hooks needed here (neither has a
 // Stop/UserPromptSubmit task lifecycle, unlike dev-agent tasks), and no
-// skipDangerousModePermissionPrompt — companion is meant to be interactively
+// skipDangerousModePermissionPrompt — both are meant to be interactively
 // supervised, unlike the fully-autonomous, unattended dev agent.
 export async function writeClaudeCompanionSettings(): Promise<void> {
 	const settings = {
@@ -69,7 +69,9 @@ export async function writeClaudeCompanionSettings(): Promise<void> {
 // `--role` gates which tools the server registers (assistant gets recurring-agent
 // management; recurring agents get update_journal); `--recurring-agent-id` tells a
 // recurring agent's update_journal which row to write; `--companion-session-id`
-// tells a companion agent's companion_show_plan which session to push a plan onto.
+// tells a companion agent's whipped_show_plan which session to push a plan onto
+// (the assistant role derives its own plan session id instead, from workspaceId —
+// see kanban-mcp-server.ts — so it needs no equivalent flag here).
 // Passed as named flags so they survive regardless of whether agentId is present
 // (position-independent).
 export function buildMcpRoleArgs(role?: string, recurringAgentId?: string, companionSessionId?: string): string[] {

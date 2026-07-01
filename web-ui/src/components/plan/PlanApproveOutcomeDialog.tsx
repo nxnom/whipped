@@ -3,7 +3,7 @@ import { useState } from "react";
 import { optimistic, useWrite } from "@/runtime/api-client";
 
 const SAVE_INSTRUCTION =
-	"Please consolidate everything you've proposed across this session's plan versions into one final plan and save it via the companion_save_plan tool with a short title.";
+	"Please consolidate everything you've proposed across this session's plan versions into one final plan and save it via the whipped_save_plan tool with a short title.";
 
 export function PlanApproveOutcomeDialog({
 	dismiss,

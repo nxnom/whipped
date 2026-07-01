@@ -3,11 +3,11 @@ import { deleteCompanionPlansForSession } from "../../state/companion-plans-stor
 import {
 	createCompanionSavedPlan,
 	deleteCompanionSavedPlan,
+	findCompanionSavedPlanBySourceSession,
 	listCompanionSavedPlans,
 	updateCompanionSavedPlan,
 } from "../../state/companion-saved-plans-store.js";
 import { getCompanionSession, setCompanionSessionSavedPlanId } from "../../state/companion-sessions-store.js";
-import { NotFoundError } from "../errors/http-errors.js";
 
 export async function listCompanionSavedPlansEntry(workspaceId: string): Promise<{ plans: CompanionSavedPlan[] }> {
 	return { plans: listCompanionSavedPlans(workspaceId) };
@@ -18,14 +18,17 @@ export async function deleteCompanionSavedPlanEntry(id: string): Promise<void> {
 }
 
 export async function clearCompanionPlansEntry(sessionId: string): Promise<void> {
-	if (!getCompanionSession(sessionId)) throw NotFoundError("Companion session");
 	deleteCompanionPlansForSession(sessionId);
 }
 
-// Upserts by the session's linked saved plan: a session that already saved once
-// (or resumed from a saved plan) updates that same row on every subsequent save,
-// so a saved plan tracks progress instead of accumulating duplicates. Falls back
-// to creating a new one if the linked row was deleted out from under the session.
+// Upserts the plan this sessionId last saved, so repeated saves track progress
+// instead of accumulating duplicates. Two ways to find "the last one":
+// - A real companion session tracks its link on companion_sessions.saved_plan_id
+//   (needed because a *resumed* session's own id differs from the plan's
+//   source_session_id — the link is the only way to find it).
+// - Any other sessionId (e.g. the assistant agent's synthetic per-workspace id,
+//   which has no companion_sessions row to store a link on) falls back to
+//   matching by source_session_id directly, since that id never changes.
 export async function saveCompanionPlanEntry(
 	sessionId: string,
 	workspaceId: string,
@@ -33,14 +36,21 @@ export async function saveCompanionPlanEntry(
 	blocks: PlanBlock[],
 ): Promise<CompanionSavedPlan> {
 	const session = getCompanionSession(sessionId);
-	if (!session) throw NotFoundError("Companion session");
 
-	if (session.savedPlanId) {
-		const updated = updateCompanionSavedPlan(session.savedPlanId, { title, blocks });
-		if (updated) return updated;
+	if (session) {
+		if (session.savedPlanId) {
+			const updated = updateCompanionSavedPlan(session.savedPlanId, { title, blocks });
+			if (updated) return updated;
+		}
+		const created = createCompanionSavedPlan(workspaceId, { title, blocks, sourceSessionId: sessionId });
+		setCompanionSessionSavedPlanId(sessionId, created.id);
+		return created;
 	}
 
-	const created = createCompanionSavedPlan(workspaceId, { title, blocks, sourceSessionId: sessionId });
-	setCompanionSessionSavedPlanId(sessionId, created.id);
-	return created;
+	const existing = findCompanionSavedPlanBySourceSession(sessionId);
+	if (existing) {
+		const updated = updateCompanionSavedPlan(existing.id, { title, blocks });
+		if (updated) return updated;
+	}
+	return createCompanionSavedPlan(workspaceId, { title, blocks, sourceSessionId: sessionId });
 }

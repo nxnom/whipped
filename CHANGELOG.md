@@ -15,15 +15,18 @@
   since there's nothing to merge). Opening the Companion page with nothing selected jumps straight to the
   most recently active session. Deleting a session is permanent — it's removed from the list entirely,
   not just marked discarded.
-- **Companion plan mode** — the companion agent can push a structured, interactive plan to a dedicated
-  panel next to the terminal instead of describing it as a wall of chat text: markdown, mermaid diagrams,
-  custom HTML mockups for anything visual (a layout, a dashboard), and multiple-choice/text questions.
-  Answer questions, leave a comment on any specific block, or add a free-form note, then either **Send** it
-  as feedback or **Approve** — approving offers a follow-up choice to **Save** the plan (the agent
-  consolidates every version pushed in the session into one final plan you can pick again when starting a
-  future companion session to pick up where it left off) or **Delete** this session's plan history. In a
-  companion session "plan" always means this panel — the CLI agent's own built-in plan mode is disabled so
-  it can't hijack the request. The panel is resizable (up to 90% of the viewport width) and collapsible.
+- **Plan mode**, in both the companion agent and the assistant — either can push a structured, interactive
+  plan instead of describing it as a wall of chat text: markdown, mermaid diagrams, custom HTML mockups for
+  anything visual (a layout, a dashboard), and multiple-choice/text questions. Answer questions, leave a
+  comment on any specific block, or add a free-form note, then either **Send** it as feedback or
+  **Approve** — approving offers a follow-up choice to **Save** the plan (consolidates every version pushed
+  in the session into one final, reusable plan) or **Delete** the session's plan history. The companion
+  agent shows it in a dedicated panel next to the terminal (resizable up to 90% of the viewport width,
+  collapsible); the assistant's chat sidebar is too narrow for that, so it opens as a full-page dialog
+  instead, reopenable from an icon in the assistant's topbar. Saved plans are shared across both — save one
+  from a chat with the assistant, then pick it up when starting a companion session to implement it, or vice
+  versa. In either session "plan" always means this — the CLI agent's own built-in plan mode is disabled so
+  it can't hijack the request.
 - **Assistant chat model picker** — clicking the chat icon now shows a model picker before starting a
   session (skipped if a session is already running, which just reattaches). Previously the model was fixed
   from a Settings field with no way to change it per session; that field is now just the default.

@@ -7,8 +7,8 @@ import { useMemo, useState } from "react";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { AgentModelPicker } from "@/components/AgentModelPicker";
 import { BranchSelect } from "@/components/BranchSelect";
+import { useSavedPlans } from "@/components/plan/useSavedPlans";
 import { useRead } from "@/runtime/api-client";
-import { useCompanionSavedPlans } from "./useCompanionSavedPlans";
 import { useCompanionSessions } from "./useCompanionSessions";
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
@@ -55,7 +55,7 @@ export function CompanionStartDialog({
 	const { control, setValue } = methods;
 
 	const { create } = useCompanionSessions(workspaceId);
-	const { list: savedPlansList, remove: removeSavedPlan } = useCompanionSavedPlans(workspaceId);
+	const { list: savedPlansList, remove: removeSavedPlan } = useSavedPlans(workspaceId);
 	const savedPlans = savedPlansList.data?.plans ?? [];
 	const [savedPlanId, setSavedPlanId] = useState("");
 

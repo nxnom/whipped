@@ -79,3 +79,14 @@ export function updateCompanionSavedPlan(
 export function deleteCompanionSavedPlan(id: string): void {
 	getDb().prepare("DELETE FROM companion_saved_plans WHERE id = ?").run(id);
 }
+
+// Fallback lookup for sessions with no companion_sessions row to store a link
+// on (e.g. the assistant agent's synthetic per-workspace session id) — finds
+// the most recent saved plan this exact session id already produced, so a
+// repeat save updates it instead of creating a duplicate.
+export function findCompanionSavedPlanBySourceSession(sessionId: string): CompanionSavedPlan | null {
+	const row = getDb()
+		.prepare("SELECT * FROM companion_saved_plans WHERE source_session_id = ? ORDER BY updated_at DESC LIMIT 1")
+		.get(sessionId) as CompanionSavedPlanRow | undefined;
+	return row ? savedPlanFromRow(row) : null;
+}

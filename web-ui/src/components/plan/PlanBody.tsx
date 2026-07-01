@@ -1,0 +1,165 @@
+import type { PlanDocument } from "@runtime-contract";
+import { MessageSquare, MessageSquarePlus, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { classNames } from "@/utils/classNames";
+import { PlanBlockRenderer } from "./PlanBlockRenderer";
+import { PlanFeedbackComposer } from "./PlanFeedbackComposer";
+import { PlanVersionSelector } from "./PlanVersionSelector";
+import type { PlanAnswers, PlanComment } from "./types";
+
+// All the interactive plan-viewing/feedback logic (version selection, answers,
+// per-block comments, the composer), independent of how it's presented — the
+// two current shells are the companion sidebar (PlanPanel.tsx) and the
+// assistant's full-page dialog (AssistantPlanDialog.tsx). Takes plans/
+// sendFeedback as props rather than fetching them itself, so each shell owns
+// its own single data-fetching hook call and decides independently whether to
+// render at all.
+export function PlanBody({
+	sessionId,
+	plans,
+	sendFeedback,
+	headerActions,
+	onClose,
+}: {
+	sessionId: string;
+	plans: PlanDocument[];
+	sendFeedback: (text: string) => Promise<void>;
+	headerActions?: React.ReactNode;
+	// Fires once feedback actually lands — after Send, or after Approve's
+	// follow-up Save/Delete completes (both funnel through the composer's
+	// onSent). Shells that are a dismissable dialog (not a sidebar) can use
+	// this to close themselves once there's nothing left to act on.
+	onClose?: () => void;
+}) {
+	const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
+	const [answers, setAnswers] = useState<PlanAnswers>({});
+	const [comments, setComments] = useState<PlanComment[]>([]);
+	const [commentDraftFor, setCommentDraftFor] = useState<string | null>(null);
+	const [commentDraft, setCommentDraft] = useState("");
+
+	const latestVersion = plans[0]?.version ?? null;
+
+	// Follow the latest version as new ones arrive; reset staged feedback since
+	// it was composed against the previous version's blocks/ids.
+	useEffect(() => {
+		if (latestVersion === null) return;
+		setSelectedVersion(latestVersion);
+		setAnswers({});
+		setComments([]);
+	}, [latestVersion]);
+
+	if (plans.length === 0) return null;
+
+	const activePlan = plans.find((p) => p.version === selectedVersion) ?? plans[0]!;
+	const isLatest = activePlan.version === latestVersion;
+
+	const addComment = (blockId: string) => {
+		if (!commentDraft.trim()) return;
+		setComments((prev) => [...prev, { id: crypto.randomUUID(), blockId, text: commentDraft.trim() }]);
+		setCommentDraftFor(null);
+		setCommentDraft("");
+	};
+
+	return (
+		<div className="flex-1 flex flex-col overflow-hidden">
+			<div className="flex items-center justify-between px-3 py-2.5 border-b border-[#2a2a35] shrink-0">
+				<span className="text-[13px] font-semibold text-[#f0f0f5]">Plan</span>
+				<div className="flex items-center gap-2">
+					<PlanVersionSelector
+						plans={plans}
+						selectedVersion={activePlan.version}
+						onSelectVersion={setSelectedVersion}
+					/>
+					{headerActions}
+				</div>
+			</div>
+
+			<div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 flex flex-col gap-4">
+				{activePlan.blocks.map((block) => (
+					<div key={block.id} className="group relative flex flex-col gap-1.5">
+						<PlanBlockRenderer
+							block={block}
+							answers={answers}
+							onAnswer={(name, value) => setAnswers((prev) => ({ ...prev, [name]: value }))}
+						/>
+						{comments
+							.filter((c) => c.blockId === block.id)
+							.map((c) => (
+								<div
+									key={c.id}
+									className="flex items-start gap-1.5 ml-1 pl-2.5 py-0.5 border-l border-dashed border-[#3a3a48]"
+								>
+									<MessageSquare size={11} className="mt-0.5 shrink-0 text-gray-600" />
+									<span className="flex-1 text-[11px] text-gray-400 italic">{c.text}</span>
+									{isLatest && (
+										<button
+											onClick={() => setComments((prev) => prev.filter((existing) => existing.id !== c.id))}
+											className="shrink-0 text-gray-600 hover:text-red-400 transition-colors"
+										>
+											<X size={11} />
+										</button>
+									)}
+								</div>
+							))}
+						{isLatest &&
+							(commentDraftFor === block.id ? (
+								<div className="flex flex-col gap-1.5">
+									<textarea
+										autoFocus
+										value={commentDraft}
+										onChange={(e) => setCommentDraft(e.target.value)}
+										placeholder="Leave a comment on this section…"
+										className="w-full resize-none rounded-md bg-[#0d0d12] border border-[#2a2a35] px-2.5 py-1.5 text-[12px] text-[#f0f0f5] placeholder:text-[#3a3a45] outline-none focus:border-[#3a3a48]"
+										rows={2}
+									/>
+									<div className="flex items-center gap-2 self-end">
+										<button
+											onClick={() => {
+												setCommentDraftFor(null);
+												setCommentDraft("");
+											}}
+											className="text-[11px] text-gray-500 hover:text-gray-300"
+										>
+											Cancel
+										</button>
+										<button
+											onClick={() => addComment(block.id)}
+											className="text-[11px] text-[#7c6aff] hover:text-[#9b8cff]"
+										>
+											Add
+										</button>
+									</div>
+								</div>
+							) : (
+								<button
+									onClick={() => setCommentDraftFor(block.id)}
+									className={classNames(
+										"self-start flex items-center gap-1 text-[11px] text-gray-600 hover:text-gray-300 transition-opacity",
+										"opacity-0 group-hover:opacity-100",
+									)}
+								>
+									<MessageSquarePlus size={12} /> Comment
+								</button>
+							))}
+					</div>
+				))}
+			</div>
+
+			{isLatest && (
+				<PlanFeedbackComposer
+					sessionId={sessionId}
+					version={activePlan.version}
+					blocks={activePlan.blocks}
+					answers={answers}
+					comments={comments}
+					sendFeedback={sendFeedback}
+					onSent={() => {
+						setAnswers({});
+						setComments([]);
+						onClose?.();
+					}}
+				/>
+			)}
+		</div>
+	);
+}
