@@ -1,13 +1,14 @@
-import { Button, Select, SelectOption, SelectTrigger, toast } from "@geckoui/geckoui";
-import { ArrowLeft, ChevronDown, GitBranch, Plus } from "lucide-react";
+import { Button, ConfirmDialog, toast } from "@geckoui/geckoui";
+import { GitBranch, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useRead } from "@/runtime/api-client";
+import { useCanvasVersions } from "@/components/canvas/useCanvasVersions";
 import { useWorkspaceState } from "@/stores/board-store";
-import { classNames } from "@/utils/classNames";
+import { useRunSession } from "@/stores/run-session-store";
+import { CompanionBar } from "./CompanionBar";
 import { CompanionSessionDetail } from "./CompanionSessionDetail";
 import { CompanionStartDialog } from "./CompanionStartDialog";
-import { STATUS_DOT_CLASS } from "./constants";
+import { useCompanionActions } from "./useCompanionActions";
 import { useCompanionSessions } from "./useCompanionSessions";
 
 const POLL_INTERVAL_MS = 5000;
@@ -21,12 +22,17 @@ export function CompanionPage() {
 	const workflows = state?.projectConfig.workflows ?? [];
 	const hasStartCommand = Boolean(state?.projectConfig.startCommand);
 
-	const { data: projectList } = useRead((api) => api("projects").GET());
-	const activeProject = (projectList ?? []).find((p) => p.workspaceId === wsId) ?? null;
-
 	const { list, stop, discard } = useCompanionSessions(wsId);
 	const sessions = list.data ?? [];
 	const selected = sessions.find((s) => s.id === sessionId) ?? null;
+
+	const { session: runSession, startCompanion: startProjectRun, stop: stopProjectRun } = useRunSession(wsId);
+	const { canvases } = useCanvasVersions(wsId, selected?.id ?? "");
+	const {
+		merging: _merging,
+		handleMerge,
+		handleCreatePR,
+	} = useCompanionActions(wsId, selected ?? sessions[0]!, () => void list.trigger());
 
 	const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -69,92 +75,52 @@ export function CompanionPage() {
 		void list.trigger();
 	};
 
+	const confirmDiscard = () => {
+		if (!selected) return;
+		ConfirmDialog.show({
+			title: "Delete companion session",
+			content: selected.useWorktree
+				? `Permanently delete "${selected.name}"? This removes its worktree and branch — any uncommitted work is lost, and this cannot be undone.`
+				: `Permanently delete "${selected.name}"? Nothing was created on disk, but this cannot be undone.`,
+			confirmButtonLabel: "Delete",
+			cancelButtonLabel: "Cancel",
+			onConfirm: ({ dismiss }) => {
+				void handleDiscard();
+				dismiss();
+			},
+			onCancel: ({ dismiss }) => dismiss(),
+		});
+	};
+
+	const handleRunProject = async () => {
+		if (!selected) return;
+		try {
+			await startProjectRun(selected.id);
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : "Failed to start run");
+		}
+	};
+
+	const handleStopProjectRun = async () => {
+		try {
+			await stopProjectRun();
+		} catch {
+			toast.error("Failed to stop");
+		}
+	};
+
+	const canMerge =
+		!!selected &&
+		selected.useWorktree &&
+		(selected.status === "running" || (selected.status === "stopped" && !!selected.worktreePath));
+
 	return (
 		<>
 			<div className="flex flex-col h-full overflow-hidden">
-				{/* Top bar: back nav + project/session breadcrumb (doubles as a session switcher) + new session */}
-				<div className="flex items-center gap-2 px-4 py-2.5 border-b border-whip-border bg-whip-bg shrink-0">
-					<button
-						type="button"
-						onClick={() => navigate(`/${encodeURIComponent(wsId)}/board`)}
-						title="Back to board"
-						className="flex items-center gap-1.5 min-w-0 hover:opacity-70 transition-opacity shrink-0"
-					>
-						<ArrowLeft size={16} className="text-whip-muted shrink-0" />
-						{activeProject && (
-							<span className="text-[13px] text-whip-faint truncate max-w-[160px]">{activeProject.name}</span>
-						)}
-					</button>
-
-					{activeProject && <span className="text-[13px] text-whip-faint shrink-0">/</span>}
-
-					{sessions.length > 0 ? (
-						<Select
-							value={selected?.id ?? ""}
-							onChange={(id) => select(id as string)}
-							hideDefaultEmptyUI
-							wrapperClassName="w-fit shrink-0"
-							menuClassName="w-fit"
-						>
-							<SelectTrigger>
-								{({ toggleMenu, open }) => (
-									<button
-										type="button"
-										onClick={toggleMenu}
-										className="flex items-center gap-1.5 min-w-0 hover:opacity-80 transition-opacity"
-									>
-										<span className="text-[13px] font-semibold text-whip-text truncate max-w-[240px]">
-											{selected ? selected.name : "Select session"}
-										</span>
-										<ChevronDown
-											size={13}
-											className={classNames("text-whip-faint transition-transform shrink-0", open && "rotate-180")}
-										/>
-									</button>
-								)}
-							</SelectTrigger>
-							{sessions.map((s) => (
-								<SelectOption key={s.id} value={s.id} label={s.name}>
-									{() => (
-										<div className="flex items-center gap-2 min-w-0">
-											<span className={classNames("size-1.5 rounded-full shrink-0", STATUS_DOT_CLASS[s.status])} />
-											<div className="flex flex-col min-w-0">
-												<span className="text-[13px] text-whip-text truncate">{s.name}</span>
-												<span className="text-[11px] text-whip-faint truncate font-mono">
-													{s.useWorktree ? s.branchName : "main repo"}
-												</span>
-											</div>
-										</div>
-									)}
-								</SelectOption>
-							))}
-						</Select>
-					) : (
-						<span className="text-[13px] font-semibold text-whip-text truncate">No sessions</span>
-					)}
-
-					<div className="flex-1" />
-					<button
-						type="button"
-						onClick={() => setDialogOpen(true)}
-						title="New session"
-						className="hover:opacity-70 transition-opacity shrink-0"
-					>
-						<Plus size={16} className="text-whip-muted" />
-					</button>
-				</div>
-
 				{/* Detail */}
 				<div className="flex-1 overflow-hidden flex flex-col min-h-0">
 					{selected ? (
-						<CompanionSessionDetail
-							session={selected}
-							workspaceId={wsId}
-							hasStartCommand={hasStartCommand}
-							onStop={() => void handleStop()}
-							onDiscard={() => void handleDiscard()}
-							onRefresh={() => void list.trigger()}
-						/>
+						<CompanionSessionDetail session={selected} workspaceId={wsId} />
 					) : (
 						<div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-6">
 							<div className="flex items-center justify-center size-16 rounded-full bg-whip-accent/10">
@@ -176,6 +142,25 @@ export function CompanionPage() {
 						</div>
 					)}
 				</div>
+
+				{selected && (
+					<CompanionBar
+						session={selected}
+						sessions={sessions}
+						onSelectSession={select}
+						onNewSession={() => setDialogOpen(true)}
+						canvasVersion={canvases[0]?.version ?? null}
+						hasStartCommand={hasStartCommand}
+						projectRunActive={runSession.status === "running" && runSession.cardId === selected.id}
+						onRunProject={() => void handleRunProject()}
+						onStopProjectRun={() => void handleStopProjectRun()}
+						onStopSession={() => void handleStop()}
+						canMerge={canMerge}
+						onMerge={handleMerge}
+						onCreatePR={handleCreatePR}
+						onDelete={confirmDiscard}
+					/>
+				)}
 			</div>
 
 			{dialogOpen && (

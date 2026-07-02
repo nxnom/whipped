@@ -1,7 +1,6 @@
 import type { TierLevel } from "@runtime-contract";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useWrite } from "@/runtime/api-client";
 import { ReopenPickerDialog } from "../ChatComments/ReopenPickerDialog";
 import { CommitSelector } from "./CommitSelector";
 import { DiffFileList } from "./DiffFileList";
@@ -9,17 +8,26 @@ import { FileTreeNode } from "./FileTreeNode";
 import { buildFileTree } from "./parser";
 import { type ReviewType, SubmitReviewDropdown } from "./SubmitReviewDropdown";
 import type { PendingComment } from "./types";
-import { useDiffData } from "./useDiffData";
+import type { useDiffData } from "./useDiffData";
 
-interface Props {
-	workspaceId: string;
-	cardId: string;
-	activeLevel: TierLevel;
+// Review/reopen only make sense where there's a ticket workflow behind the
+// diff — omit this entirely (e.g. the companion page's session diff) and
+// DiffView renders read-only with no comment affordances or submit control.
+export interface DiffCommentSystem {
 	isReadyForReview: boolean;
+	activeLevel: TierLevel;
 	onRefresh: () => void;
+	addComment: (summary: string) => Promise<boolean>;
+	submitFeedback: (comment?: string) => Promise<void>;
+	setActiveLevel: (level: TierLevel) => Promise<void>;
 }
 
-export function DiffView({ workspaceId, cardId, activeLevel, isReadyForReview, onRefresh }: Props) {
+interface Props {
+	diffData: ReturnType<typeof useDiffData>;
+	commentSystem?: DiffCommentSystem;
+}
+
+export function DiffView({ diffData, commentSystem }: Props) {
 	const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 	const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set());
 	const [pendingComments, setPendingComments] = useState<PendingComment[]>([]);
@@ -44,12 +52,8 @@ export function DiffView({ workspaceId, cardId, activeLevel, isReadyForReview, o
 	const resizeStartX = useRef(0);
 	const resizeStartWidth = useRef(0);
 
-	const { trigger: addReviewCommentTrigger } = useWrite((api) => api("cards/add-review-comment").POST());
-	const { trigger: submitHumanFeedbackTrigger } = useWrite((api) => api("cards/submit-human-feedback").POST());
-	const { trigger: updateCardTrigger } = useWrite((api) => api("cards/:id").PATCH());
-
 	const { selectedCommit, setSelectedCommit, files, loading, loadError, commits, baseBehindCount, refreshDiff } =
-		useDiffData(workspaceId, cardId);
+		diffData;
 
 	// Sidebar resize drag handlers
 	useEffect(() => {
@@ -114,61 +118,43 @@ export function DiffView({ workspaceId, cardId, activeLevel, isReadyForReview, o
 		lineNum !== null ? `**${file}** (line ${lineNum}):\n${text}` : `**${file}**:\n${text}`;
 
 	const saveCommentNow = async (id: string) => {
+		if (!commentSystem) return;
 		const c = pendingComments.find((c) => c.id === id);
 		if (!c) return;
-		const res = await addReviewCommentTrigger({
-			body: {
-				workspaceId,
-				cardId,
-				type: "human",
-				actor: { type: "human", id: "human" },
-				summary: reviewSummary(c.file, c.lineNum, c.text),
-			},
-		});
-		if (res.error) return; // keep staged on error
+		const ok = await commentSystem.addComment(reviewSummary(c.file, c.lineNum, c.text));
+		if (!ok) return; // keep staged on error
 		removePending(id);
-		onRefresh();
+		commentSystem.onRefresh();
 	};
 
 	const submitReview = async ({ reviewType, overallFeedback }: { reviewType: ReviewType; overallFeedback: string }) => {
+		if (!commentSystem) return;
 		for (const c of pendingComments) {
-			await addReviewCommentTrigger({
-				body: {
-					workspaceId,
-					cardId,
-					type: "human",
-					actor: { type: "human", id: "human" },
-					summary: reviewSummary(c.file, c.lineNum, c.text),
-				},
-			});
+			await commentSystem.addComment(reviewSummary(c.file, c.lineNum, c.text));
 		}
 		setPendingComments([]);
 		// Defer the reopen until the human picks the tier for the rework.
 		if (reviewType === "request_changes") {
 			setReopenFeedback(overallFeedback);
-			onRefresh();
+			commentSystem.onRefresh();
 			return;
 		}
 		if (overallFeedback) {
-			await addReviewCommentTrigger({
-				body: { workspaceId, cardId, type: "human", actor: { type: "human", id: "human" }, summary: overallFeedback },
-			});
+			await commentSystem.addComment(overallFeedback);
 		}
-		onRefresh();
+		commentSystem.onRefresh();
 	};
 
 	const reopenWith = async (level: TierLevel) => {
+		if (!commentSystem) return;
 		setReopening(true);
 		try {
-			if (level !== activeLevel) {
-				await updateCardTrigger({
-					params: { id: cardId },
-					body: { workspaceId, cardId, revision: 0, activeLevel: level },
-				});
+			if (level !== commentSystem.activeLevel) {
+				await commentSystem.setActiveLevel(level);
 			}
-			await submitHumanFeedbackTrigger({ body: { workspaceId, cardId, comment: reopenFeedback || undefined } });
+			await commentSystem.submitFeedback(reopenFeedback || undefined);
 			setReopenFeedback(null);
-			onRefresh();
+			commentSystem.onRefresh();
 		} finally {
 			setReopening(false);
 		}
@@ -230,7 +216,9 @@ export function DiffView({ workspaceId, cardId, activeLevel, isReadyForReview, o
 					<RefreshCw size={13} />
 				</button>
 
-				{isReadyForReview && <SubmitReviewDropdown pendingComments={pendingComments} onSubmit={submitReview} />}
+				{commentSystem?.isReadyForReview && (
+					<SubmitReviewDropdown pendingComments={pendingComments} onSubmit={submitReview} />
+				)}
 			</div>
 
 			{/* Base branch drift notice */}
@@ -279,24 +267,30 @@ export function DiffView({ workspaceId, cardId, activeLevel, isReadyForReview, o
 				<DiffFileList
 					files={files}
 					scrollRef={diffScrollRef}
-					draftRef={draftRef}
 					collapsed={collapsed}
 					onToggleCollapse={toggleCollapse}
-					openCommentKey={openCommentKey}
-					onOpenComment={openComment}
-					onCloseComment={() => setOpenCommentKey(null)}
-					commentDraft={commentDraft}
-					onCommentDraftChange={setCommentDraft}
-					onCommitPending={commitPending}
-					pendingComments={pendingComments}
-					onSaveComment={saveCommentNow}
-					onRemoveComment={removePending}
+					comments={
+						commentSystem
+							? {
+									draftRef,
+									openCommentKey,
+									onOpenComment: openComment,
+									onCloseComment: () => setOpenCommentKey(null),
+									commentDraft,
+									onCommentDraftChange: setCommentDraft,
+									onCommitPending: commitPending,
+									pendingComments,
+									onSaveComment: saveCommentNow,
+									onRemoveComment: removePending,
+								}
+							: undefined
+					}
 				/>
 			</div>
 
-			{reopenFeedback !== null && (
+			{commentSystem && reopenFeedback !== null && (
 				<ReopenPickerDialog
-					currentLevel={activeLevel}
+					currentLevel={commentSystem.activeLevel}
 					submitting={reopening}
 					onConfirm={(level) => void reopenWith(level)}
 					onClose={() => setReopenFeedback(null)}

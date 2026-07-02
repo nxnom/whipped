@@ -20,6 +20,9 @@ export function CanvasBody({
 	sendFeedback,
 	headerActions,
 	onClose,
+	hideHeader,
+	selectedVersion: controlledSelectedVersion,
+	onSelectVersion: controlledOnSelectVersion,
 }: {
 	sessionId: string;
 	canvases: CanvasDocument[];
@@ -30,8 +33,17 @@ export function CanvasBody({
 	// onSent). Shells that are a dismissable dialog (not a sidebar) can use
 	// this to close themselves once there's nothing left to act on.
 	onClose?: () => void;
+	// Hides the built-in title/version-selector row for shells (e.g. the
+	// companion panel) that render that bar elsewhere. When set, the caller
+	// owns selectedVersion/onSelectVersion instead of this component.
+	hideHeader?: boolean;
+	selectedVersion?: number | null;
+	onSelectVersion?: (version: number) => void;
 }) {
-	const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
+	const isControlled = controlledSelectedVersion !== undefined;
+	const [internalSelectedVersion, setInternalSelectedVersion] = useState<number | null>(null);
+	const selectedVersion = isControlled ? controlledSelectedVersion : internalSelectedVersion;
+	const setSelectedVersion = isControlled ? (controlledOnSelectVersion ?? (() => {})) : setInternalSelectedVersion;
 	const [answers, setAnswers] = useState<CanvasAnswers>({});
 	const [comments, setComments] = useState<CanvasComment[]>([]);
 	const [commentDraftFor, setCommentDraftFor] = useState<string | null>(null);
@@ -40,10 +52,11 @@ export function CanvasBody({
 	const latestVersion = canvases[0]?.version ?? null;
 
 	// Follow the latest version as new ones arrive; reset staged feedback since
-	// it was composed against the previous version's blocks/ids.
+	// it was composed against the previous version's blocks/ids. When
+	// controlled, the caller owns following the latest version itself.
 	useEffect(() => {
 		if (latestVersion === null) return;
-		setSelectedVersion(latestVersion);
+		if (!isControlled) setInternalSelectedVersion(latestVersion);
 		setAnswers({});
 		setComments([]);
 	}, [latestVersion]);
@@ -62,17 +75,19 @@ export function CanvasBody({
 
 	return (
 		<div className="flex-1 flex flex-col overflow-hidden">
-			<div className="flex items-center justify-between px-3 py-2.5 border-b border-whip-border shrink-0">
-				<span className="text-[13px] font-semibold text-whip-text">Canvas</span>
-				<div className="flex items-center gap-2">
-					<CanvasVersionSelector
-						canvases={canvases}
-						selectedVersion={activeCanvas.version}
-						onSelectVersion={setSelectedVersion}
-					/>
-					{headerActions}
+			{!hideHeader && (
+				<div className="flex items-center justify-between px-3 py-2.5 border-b border-whip-border shrink-0">
+					<span className="text-[13px] font-semibold text-whip-text">Canvas</span>
+					<div className="flex items-center gap-2">
+						<CanvasVersionSelector
+							canvases={canvases}
+							selectedVersion={activeCanvas.version}
+							onSelectVersion={setSelectedVersion}
+						/>
+						{headerActions}
+					</div>
 				</div>
-			</div>
+			)}
 
 			<div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 flex flex-col gap-4">
 				{activeCanvas.blocks.map((block) => (

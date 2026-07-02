@@ -5,14 +5,17 @@ import { parseDiff } from "./parser";
 // Declarative reads — the active one is chosen by selectedCommit and refetches
 // automatically when it changes. Values are derived, never mirrored into state
 // (Spoosh data refs change each render → a setState-in-effect would loop).
-export function useDiffData(workspaceId: string, cardId: string) {
+// `enabled` lets a caller that always mounts this hook (e.g. a tabbed panel)
+// skip the network calls while the diff tab isn't the one showing.
+export function useDiffData(workspaceId: string, cardId: string, enabled = true) {
 	const [selectedCommit, setSelectedCommit] = useState<string | null>(null);
 
 	const { data: commitsData } = useRead((api) => api("cards/commits").GET({ query: { workspaceId, cardId } }), {
+		enabled,
 		staleTime: 0,
 	});
 	const latestDiffRead = useRead((api) => api("cards/diff").GET({ query: { workspaceId, cardId } }), {
-		enabled: !selectedCommit,
+		enabled: enabled && !selectedCommit,
 		staleTime: 0,
 	});
 	const commitDiffRead = useRead(
@@ -20,7 +23,7 @@ export function useDiffData(workspaceId: string, cardId: string) {
 			api("cards/diff-for-commit").GET({
 				query: { workspaceId, cardId, commitHash: selectedCommit ?? "" },
 			}),
-		{ enabled: !!selectedCommit, staleTime: 0 },
+		{ enabled: enabled && !!selectedCommit, staleTime: 0 },
 	);
 
 	const activeDiffRead = selectedCommit ? commitDiffRead : latestDiffRead;

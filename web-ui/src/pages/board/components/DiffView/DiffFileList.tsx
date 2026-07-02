@@ -6,12 +6,11 @@ import { displayPath, fileElemId } from "./parser";
 import { PendingCommentBubble } from "./PendingCommentBubble";
 import type { DiffFile, PendingComment } from "./types";
 
-interface DiffFileListProps {
-	files: DiffFile[];
-	scrollRef: React.RefObject<HTMLDivElement>;
+// Inline-commenting affordances only make sense where there's a review
+// workflow to attach comments to (ticket diffs) — omit this bundle entirely
+// (e.g. for a companion session's diff) and DiffFileList renders read-only.
+export interface DiffCommentHandlers {
 	draftRef: React.RefObject<HTMLTextAreaElement>;
-	collapsed: Set<string>;
-	onToggleCollapse: (path: string) => void;
 	openCommentKey: string | null;
 	onOpenComment: (key: string) => void;
 	onCloseComment: () => void;
@@ -23,29 +22,22 @@ interface DiffFileListProps {
 	onRemoveComment: (id: string) => void;
 }
 
-export function DiffFileList({
-	files,
-	scrollRef,
-	draftRef,
-	collapsed,
-	onToggleCollapse,
-	openCommentKey,
-	onOpenComment,
-	onCloseComment,
-	commentDraft,
-	onCommentDraftChange,
-	onCommitPending,
-	pendingComments,
-	onSaveComment,
-	onRemoveComment,
-}: DiffFileListProps) {
+interface DiffFileListProps {
+	files: DiffFile[];
+	scrollRef: React.RefObject<HTMLDivElement>;
+	collapsed: Set<string>;
+	onToggleCollapse: (path: string) => void;
+	comments?: DiffCommentHandlers;
+}
+
+export function DiffFileList({ files, scrollRef, collapsed, onToggleCollapse, comments }: DiffFileListProps) {
 	return (
 		<div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-auto">
 			{files.map((file) => {
 				const path = displayPath(file);
 				const isCollapsed = collapsed.has(path);
 				const fileCommentKey = `${path}:header`;
-				const filePendingComments = pendingComments.filter((c) => c.file === path);
+				const filePendingComments = comments?.pendingComments.filter((c) => c.file === path) ?? [];
 
 				return (
 					<div key={path} id={fileElemId(path)} className="border-b border-whip-border-soft">
@@ -74,32 +66,44 @@ export function DiffFileList({
 									<span className="text-[#ff3b4d]">-{file.deletions}</span>
 								</span>
 							)}
-							<button
-								onClick={() => (openCommentKey === fileCommentKey ? onCloseComment() : onOpenComment(fileCommentKey))}
-								className="shrink-0 text-whip-faint hover:text-whip-text transition-colors p-0.5 rounded"
-								title="Comment on file"
-							>
-								<MessageSquare size={12} />
-							</button>
+							{comments && (
+								<button
+									onClick={() =>
+										comments.openCommentKey === fileCommentKey
+											? comments.onCloseComment()
+											: comments.onOpenComment(fileCommentKey)
+									}
+									className="shrink-0 text-whip-faint hover:text-whip-text transition-colors p-0.5 rounded"
+									title="Comment on file"
+								>
+									<MessageSquare size={12} />
+								</button>
+							)}
 						</div>
 
 						{/* File-level comment box */}
-						{openCommentKey === fileCommentKey && (
+						{comments && comments.openCommentKey === fileCommentKey && (
 							<InlineCommentBox
-								draftRef={draftRef}
-								value={commentDraft}
-								onChange={onCommentDraftChange}
-								onAdd={() => onCommitPending(path, fileCommentKey, null)}
-								onCancel={onCloseComment}
+								draftRef={comments.draftRef}
+								value={comments.commentDraft}
+								onChange={comments.onCommentDraftChange}
+								onAdd={() => comments.onCommitPending(path, fileCommentKey, null)}
+								onCancel={comments.onCloseComment}
 							/>
 						)}
 
 						{/* File-level pending comments */}
-						{filePendingComments
-							.filter((c) => c.lineKey === fileCommentKey)
-							.map((c) => (
-								<PendingCommentBubble key={c.id} comment={c} onSave={onSaveComment} onRemove={onRemoveComment} />
-							))}
+						{comments &&
+							filePendingComments
+								.filter((c) => c.lineKey === fileCommentKey)
+								.map((c) => (
+									<PendingCommentBubble
+										key={c.id}
+										comment={c}
+										onSave={comments.onSaveComment}
+										onRemove={comments.onRemoveComment}
+									/>
+								))}
 
 						{/* Hunks */}
 						{!isCollapsed &&
@@ -115,7 +119,7 @@ export function DiffFileList({
 									{hunk.lines.map((line, li) => {
 										const lineNum = line.newNum ?? line.oldNum;
 										const lineKey = `${path}:${line.oldNum ?? "-"}:${line.newNum ?? "-"}`;
-										const linePending = pendingComments.filter((c) => c.lineKey === lineKey);
+										const linePending = comments?.pendingComments.filter((c) => c.lineKey === lineKey) ?? [];
 
 										const rowBg =
 											line.type === "added" ? "bg-[#22c55e]/10" : line.type === "removed" ? "bg-[#ff3b4d]/10" : "";
@@ -171,34 +175,41 @@ export function DiffFileList({
 														{line.content}
 													</div>
 													{/* Hover comment button */}
-													<button
-														onClick={() => (openCommentKey === lineKey ? onCloseComment() : onOpenComment(lineKey))}
-														className="absolute right-1 top-0.5 opacity-0 group-hover:opacity-100 transition-opacity text-whip-text hover:text-white p-0.5 rounded bg-whip-panel-2"
-													>
-														<Plus size={11} />
-													</button>
+													{comments && (
+														<button
+															onClick={() =>
+																comments.openCommentKey === lineKey
+																	? comments.onCloseComment()
+																	: comments.onOpenComment(lineKey)
+															}
+															className="absolute right-1 top-0.5 opacity-0 group-hover:opacity-100 transition-opacity text-whip-text hover:text-white p-0.5 rounded bg-whip-panel-2"
+														>
+															<Plus size={11} />
+														</button>
+													)}
 												</div>
 
 												{/* Inline comment box */}
-												{openCommentKey === lineKey && (
+												{comments && comments.openCommentKey === lineKey && (
 													<InlineCommentBox
-														draftRef={draftRef}
-														value={commentDraft}
-														onChange={onCommentDraftChange}
-														onAdd={() => onCommitPending(path, lineKey, lineNum)}
-														onCancel={onCloseComment}
+														draftRef={comments.draftRef}
+														value={comments.commentDraft}
+														onChange={comments.onCommentDraftChange}
+														onAdd={() => comments.onCommitPending(path, lineKey, lineNum)}
+														onCancel={comments.onCloseComment}
 													/>
 												)}
 
 												{/* Pending comments on this line */}
-												{linePending.map((c) => (
-													<PendingCommentBubble
-														key={c.id}
-														comment={c}
-														onSave={onSaveComment}
-														onRemove={onRemoveComment}
-													/>
-												))}
+												{comments &&
+													linePending.map((c) => (
+														<PendingCommentBubble
+															key={c.id}
+															comment={c}
+															onSave={comments.onSaveComment}
+															onRemove={comments.onRemoveComment}
+														/>
+													))}
 											</div>
 										);
 									})}

@@ -1,164 +1,43 @@
-import { ConfirmDialog, Tooltip } from "@geckoui/geckoui";
 import type { CompanionSession } from "@runtime-contract";
-import { Columns2, GitMerge, GitPullRequest, Play, Square, TerminalSquare, Trash2 } from "lucide-react";
+import { Columns2, TerminalSquare } from "lucide-react";
 import { useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
-import { useRunSession } from "@/stores/run-session-store";
 import { classNames } from "@/utils/classNames";
-import { CanvasPanel } from "./canvas/CanvasPanel";
+import { CanvasPanelBody, CanvasPanelHeader, useCompanionCanvas } from "./canvas/CanvasPanel";
 import { CompanionDiffPanel } from "./CompanionDiffPanel";
-import { STATUS_DOT_CLASS, STATUS_LABEL } from "./constants";
-import { useCompanionActions } from "./useCompanionActions";
 
 type DetailTab = "terminal" | "diff";
 
-function Badge({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
-	return (
-		<span className="flex items-center gap-1.5 px-2.5 py-[3px] rounded-md text-[11px] text-whip-muted bg-whip-panel border border-whip-border">
-			{icon}
-			{children}
-		</span>
-	);
-}
-
-export function CompanionSessionDetail({
-	session,
-	workspaceId,
-	hasStartCommand,
-	onStop,
-	onDiscard,
-	onRefresh,
-}: {
-	session: CompanionSession;
-	workspaceId: string;
-	hasStartCommand: boolean;
-	onStop: () => void;
-	onDiscard: () => void;
-	onRefresh: () => void;
-}) {
+export function CompanionSessionDetail({ session, workspaceId }: { session: CompanionSession; workspaceId: string }) {
 	const [tab, setTab] = useState<DetailTab>("terminal");
-	const { handleMerge, handleCreatePR } = useCompanionActions(workspaceId, session, onRefresh);
-	const { session: runSession, startCompanion: startRun, stop: stopRun } = useRunSession(workspaceId);
-	const running = session.status === "running";
-	const canMerge = session.useWorktree && (running || (session.status === "stopped" && !!session.worktreePath));
-
-	const confirmDiscard = () => {
-		ConfirmDialog.show({
-			title: "Delete companion session",
-			content: session.useWorktree
-				? `Permanently delete "${session.name}"? This removes its worktree and branch — any uncommitted work is lost, and this cannot be undone.`
-				: `Permanently delete "${session.name}"? Nothing was created on disk, but this cannot be undone.`,
-			confirmButtonLabel: "Delete",
-			cancelButtonLabel: "Cancel",
-			onConfirm: ({ dismiss }) => {
-				onDiscard();
-				dismiss();
-			},
-			onCancel: ({ dismiss }) => dismiss(),
-		});
-	};
+	const canvas = useCompanionCanvas(session.id, workspaceId);
 
 	return (
 		<div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-			{/* Header: status/branch/agent badges + session actions in one row */}
-			<div className="flex items-center gap-2 px-6 py-2.5 border-b border-whip-border bg-whip-bg shrink-0 flex-wrap">
-				<span className="flex items-center gap-1.5 text-[11px] text-whip-muted">
-					<span className={classNames("size-1.5 rounded-full", STATUS_DOT_CLASS[session.status])} />
-					{STATUS_LABEL[session.status]}
-				</span>
-				<Badge icon={<GitMerge size={11} />}>
-					{session.useWorktree ? `${session.branchName} → ${session.baseRef}` : `main repo (vs ${session.baseRef})`}
-				</Badge>
-				<Badge icon={<span />}>{[session.agentId, session.model, session.effort].filter(Boolean).join(" · ")}</Badge>
-				<div className="flex-1" />
-				{hasStartCommand && !!session.worktreePath && (
-					<>
-						{runSession.status === "running" && runSession.cardId === session.id ? (
-							<Tooltip delayDuration={0} content="Stop" side="bottom" triggerAsChild>
-								<button
-									onClick={() => void stopRun()}
-									className="cursor-pointer text-whip-faint hover:text-[#ff3b4d] transition-colors"
-								>
-									<Square size={15} className="fill-current" />
-								</button>
-							</Tooltip>
-						) : (
-							<Tooltip
-								delayDuration={0}
-								content={runSession.status === "running" ? "Another run is active" : "Run"}
-								side="bottom"
-								triggerAsChild
-							>
-								<button
-									onClick={() => void startRun(session.id)}
-									disabled={runSession.status === "running"}
-									className="cursor-pointer text-whip-faint hover:text-[#22c55e] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-								>
-									<Play size={15} />
-								</button>
-							</Tooltip>
-						)}
-					</>
-				)}
-				{running && (
-					<Tooltip delayDuration={0} content="Stop session" side="bottom" triggerAsChild>
-						<button onClick={onStop} className="cursor-pointer text-whip-faint hover:text-whip-text transition-colors">
-							<Square size={15} />
+			{/* Tab bar — canvas title/version-selector shares this row instead of its own strip */}
+			<div className="flex items-center justify-between shrink-0 bg-whip-bg border-b border-whip-border pl-5 pr-3">
+				<div className="flex">
+					{(
+						[
+							{ id: "terminal" as const, label: "Terminal", Icon: TerminalSquare },
+							{ id: "diff" as const, label: "Diff", Icon: Columns2 },
+						] satisfies { id: DetailTab; label: string; Icon: typeof TerminalSquare }[]
+					).map(({ id, label, Icon }) => (
+						<button
+							key={id}
+							onClick={() => setTab(id)}
+							className={classNames(
+								"relative flex items-center gap-1.5 px-4 py-[11px] text-xs font-medium transition-colors",
+								tab === id ? "text-whip-text" : "text-whip-faint hover:text-whip-muted",
+							)}
+						>
+							<Icon size={11} />
+							{label}
+							{tab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-whip-accent" />}
 						</button>
-					</Tooltip>
-				)}
-				{canMerge && (
-					<>
-						<Tooltip delayDuration={0} content="Merge into base branch" side="bottom" triggerAsChild>
-							<button
-								onClick={handleMerge}
-								className="cursor-pointer text-whip-faint hover:text-[#22c55e] transition-colors"
-							>
-								<GitMerge size={15} />
-							</button>
-						</Tooltip>
-						<Tooltip delayDuration={0} content="Create PR" side="bottom" triggerAsChild>
-							<button
-								onClick={handleCreatePR}
-								className="cursor-pointer text-whip-faint hover:text-whip-text transition-colors"
-							>
-								<GitPullRequest size={15} />
-							</button>
-						</Tooltip>
-					</>
-				)}
-				<div className="w-px h-[18px] bg-whip-border shrink-0" />
-				<Tooltip delayDuration={0} content="Delete session" side="bottom" triggerAsChild>
-					<button
-						onClick={confirmDiscard}
-						className="cursor-pointer text-whip-faint hover:text-[#ff3b4d] transition-colors"
-					>
-						<Trash2 size={15} />
-					</button>
-				</Tooltip>
-			</div>
-
-			{/* Tab bar */}
-			<div className="flex shrink-0 bg-whip-bg border-b border-whip-border px-5">
-				{(
-					[
-						{ id: "terminal" as const, label: "Terminal", Icon: TerminalSquare },
-						{ id: "diff" as const, label: "Diff", Icon: Columns2 },
-					] satisfies { id: DetailTab; label: string; Icon: typeof TerminalSquare }[]
-				).map(({ id, label, Icon }) => (
-					<button
-						key={id}
-						onClick={() => setTab(id)}
-						className={classNames(
-							"relative flex items-center gap-1.5 px-4 py-[11px] text-xs font-medium transition-colors",
-							tab === id ? "text-whip-text" : "text-whip-faint hover:text-whip-muted",
-						)}
-					>
-						<Icon size={11} />
-						{label}
-						{tab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-whip-accent" />}
-					</button>
-				))}
+					))}
+				</div>
+				{tab === "terminal" && <CanvasPanelHeader canvas={canvas} />}
 			</div>
 
 			{/* Tab content — a companion session is a single persistent terminal stream,
@@ -171,7 +50,7 @@ export function CompanionSessionDetail({
 					workspaceId={workspaceId}
 					className={classNames("flex-1 min-h-0", tab !== "terminal" && "hidden")}
 				/>
-				{tab === "terminal" && <CanvasPanel sessionId={session.id} workspaceId={workspaceId} />}
+				{tab === "terminal" && <CanvasPanelBody sessionId={session.id} canvas={canvas} />}
 				{tab === "diff" && <CompanionDiffPanel sessionId={session.id} />}
 			</div>
 		</div>

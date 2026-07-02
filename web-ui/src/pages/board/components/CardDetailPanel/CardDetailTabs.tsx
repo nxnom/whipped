@@ -1,10 +1,12 @@
 import type { RuntimeBoardCard, WorkflowSlot } from "@runtime-contract";
 import { Check, Loader2 } from "lucide-react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
+import { useWrite } from "@/runtime/api-client";
 import { classNames } from "@/utils/classNames";
 import { CardMemoryTab } from "../CardMemoryTab";
 import { ChatComments } from "../ChatComments";
-import { DiffView } from "../DiffView";
+import { type DiffCommentSystem, DiffView } from "../DiffView";
+import { useDiffData } from "../DiffView/useDiffData";
 import { SESSION_TYPE_LABELS, sessionStatus } from "./constants";
 import type { RightTab } from "./types";
 
@@ -38,6 +40,32 @@ export function CardDetailTabs({
 	const hasPlan = !!card.plan?.trim();
 	const activeSession = visibleSessions.find((s) => s.streamId === activeStreamId);
 	const installSession = visibleSessions.find((s) => s.type === "install");
+
+	const diffData = useDiffData(workspaceId, card.id, rightTab === "diff");
+	const { trigger: addReviewCommentTrigger } = useWrite((api) => api("cards/add-review-comment").POST());
+	const { trigger: submitHumanFeedbackTrigger } = useWrite((api) => api("cards/submit-human-feedback").POST());
+	const { trigger: updateCardTrigger } = useWrite((api) => api("cards/:id").PATCH());
+
+	const commentSystem: DiffCommentSystem = {
+		isReadyForReview,
+		activeLevel: card.activeLevel,
+		onRefresh,
+		addComment: async (summary) => {
+			const res = await addReviewCommentTrigger({
+				body: { workspaceId, cardId: card.id, type: "human", actor: { type: "human", id: "human" }, summary },
+			});
+			return !res.error;
+		},
+		submitFeedback: async (comment) => {
+			await submitHumanFeedbackTrigger({ body: { workspaceId, cardId: card.id, comment } });
+		},
+		setActiveLevel: async (level) => {
+			await updateCardTrigger({
+				params: { id: card.id },
+				body: { workspaceId, cardId: card.id, revision: 0, activeLevel: level },
+			});
+		},
+	};
 
 	const sessionPill = (session: TerminalSession) => {
 		const slotName =
@@ -89,15 +117,7 @@ export function CardDetailTabs({
 						<p className="text-xs">Start the agent to see terminal output here</p>
 					</div>
 				))}
-			{rightTab === "diff" && (
-				<DiffView
-					workspaceId={workspaceId}
-					cardId={card.id}
-					activeLevel={card.activeLevel}
-					isReadyForReview={isReadyForReview}
-					onRefresh={onRefresh}
-				/>
-			)}
+			{rightTab === "diff" && <DiffView diffData={diffData} commentSystem={commentSystem} />}
 			{rightTab === "plan" && (
 				<div className="flex-1 overflow-y-auto p-5">
 					{hasPlan ? (

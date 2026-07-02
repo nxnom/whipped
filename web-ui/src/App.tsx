@@ -80,7 +80,12 @@ export default function App() {
 	const navigate = useNavigate();
 	const location = useLocation();
 
-	const activeWorkspaceId = location.pathname.split("/").filter(Boolean)[0] ?? null;
+	const pathSegments = location.pathname.split("/").filter(Boolean);
+	const activeWorkspaceId = pathSegments[0] ?? null;
+	// Companion and Recurring Agents each have their own bottom bar with session/run
+	// controls, so the global one would just duplicate it.
+	const section = pathSegments[1];
+	const hideGlobalRunBar = section === "companion" || section === "recurring-agents";
 	const [agentOpen, setAgentOpen] = useState(false);
 	const [showAddProject, setShowAddProject] = useState(false);
 
@@ -117,7 +122,7 @@ export default function App() {
 								</Routes>
 							</ErrorBoundary>
 						</div>
-						{activeWorkspaceId && <RunBar workspaceId={activeWorkspaceId} />}
+						{activeWorkspaceId && !hideGlobalRunBar && <RunBar workspaceId={activeWorkspaceId} />}
 					</main>
 
 					{activeWorkspaceId && (
