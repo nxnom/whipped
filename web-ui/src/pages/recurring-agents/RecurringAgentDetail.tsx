@@ -1,13 +1,13 @@
-import { Menu, MenuItem, MenuTrigger, Tooltip } from "@geckoui/geckoui";
+import { Tooltip } from "@geckoui/geckoui";
 import type { RecurringAgent } from "@runtime-contract";
-import { Ellipsis, Loader2, Pencil, Play, Power, Save, TerminalSquare, Trash2 } from "lucide-react";
+import { Loader2, Save, TerminalSquare } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { classNames } from "@/utils/classNames";
 import { RecurringAgentOverview } from "./RecurringAgentOverview";
 import { RecurringRunList } from "./RecurringRunList";
 
-type DetailTab = "overview" | "journal" | "terminal";
+export type DetailTab = "overview" | "journal" | "terminal";
 
 const TABS: Array<{ id: DetailTab; label: string }> = [
 	{ id: "overview", label: "Overview" },
@@ -18,25 +18,18 @@ const TABS: Array<{ id: DetailTab; label: string }> = [
 export function RecurringAgentDetail({
 	agent,
 	workspaceId,
-	running,
+	tab,
+	onTabChange,
 	savingJournal,
-	onToggleEnabled,
-	onRunNow,
-	onEdit,
-	onDelete,
 	onSaveJournal,
 }: {
 	agent: RecurringAgent;
 	workspaceId: string;
-	running: boolean;
+	tab: DetailTab;
+	onTabChange: (tab: DetailTab) => void;
 	savingJournal: boolean;
-	onToggleEnabled: (enabled: boolean) => void;
-	onRunNow: () => void;
-	onEdit: () => void;
-	onDelete: () => void;
 	onSaveJournal: (journal: string) => void;
 }) {
-	const [tab, setTab] = useState<DetailTab>("overview");
 	const [journal, setJournal] = useState(agent.journal);
 	// recentRuns is newest-first, so [0] is the latest run.
 	const latestStreamId = agent.recentRuns[0]?.streamId ?? null;
@@ -48,7 +41,6 @@ export function RecurringAgentDetail({
 		if (loadedId.current !== agent.id) {
 			loadedId.current = agent.id;
 			setJournal(agent.journal);
-			setTab("overview");
 		}
 	}, [agent.id, agent.journal]);
 
@@ -57,101 +49,34 @@ export function RecurringAgentDetail({
 		setActiveStreamId(latestStreamId);
 	}, [latestStreamId]);
 
-	const modelLabel = [agent.model.agentId, agent.model.model, agent.model.effort].filter(Boolean).join(" · ");
-	const description = agent.instructions.trim().split("\n")[0] || "No instructions.";
-
-	const handleRunNow = () => {
-		onRunNow();
-		setTab("terminal");
-	};
-
 	const selectRun = (streamId: string) => {
 		setActiveStreamId(streamId);
-		setTab("terminal");
+		onTabChange("terminal");
 	};
 
 	return (
 		<div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-			{/* Header */}
-			<div className="flex items-center gap-[18px] px-[22px] py-5 border-b border-whip-border-soft bg-whip-surface shrink-0">
-				<div className="flex-1 min-w-0 flex flex-col gap-2">
-					<div className="flex items-center gap-2.5">
-						<span
-							className={classNames(
-								"size-[9px] rounded-full shrink-0",
-								agent.enabled ? "bg-[#22c55e]" : "bg-whip-muted",
-							)}
-						/>
-						<span className="text-[22px] font-bold text-whip-text truncate">{agent.name}</span>
-						<span className="shrink-0 rounded-full bg-whip-panel border border-whip-border px-[9px] py-0.5 text-xs font-bold text-whip-muted">
-							{agent.enabled ? "Enabled" : "Disabled"}
-						</span>
-					</div>
-					<span className="text-[13px] font-medium text-whip-muted truncate">{description}</span>
-				</div>
-
-				<Tooltip delayDuration={0} content={running ? "Starting..." : "Run now"} side="bottom" triggerAsChild>
+			{/* Tab bar */}
+			<div className="flex shrink-0 bg-whip-bg border-b border-whip-border px-5">
+				{TABS.map(({ id, label }) => (
 					<button
-						onClick={handleRunNow}
-						disabled={running}
-						className="flex items-center gap-2 h-[38px] px-3 rounded-md bg-whip-accent text-[13px] font-bold text-whip-accent-text disabled:opacity-40 disabled:cursor-not-allowed transition-opacity hover:opacity-85"
-					>
-						<Play size={16} />
-						Run now
-					</button>
-				</Tooltip>
-				<button
-					onClick={onEdit}
-					className="flex items-center gap-2 h-[38px] px-3 rounded-md bg-whip-panel border border-whip-border text-[13px] font-bold text-whip-muted hover:text-whip-text transition-colors"
-				>
-					<Pencil size={16} />
-					Edit
-				</button>
-				<Menu placement="bottom-end">
-					<MenuTrigger>
-						{({ toggleMenu }) => (
-							<button
-								onClick={toggleMenu}
-								className="flex items-center gap-2 h-[38px] px-3 rounded-md bg-whip-panel border border-whip-border text-[13px] font-bold text-whip-muted hover:text-whip-text transition-colors"
-							>
-								<Ellipsis size={16} />
-								More
-							</button>
+						key={id}
+						onClick={() => onTabChange(id)}
+						className={classNames(
+							"relative flex items-center gap-1.5 px-4 py-[11px] text-xs font-medium transition-colors",
+							tab === id ? "text-whip-text" : "text-whip-faint hover:text-whip-muted",
 						)}
-					</MenuTrigger>
-					<MenuItem onClick={() => onToggleEnabled(!agent.enabled)}>
-						<span className="flex items-center gap-1.5">
-							<Power size={12} /> {agent.enabled ? "Disable agent" : "Enable agent"}
-						</span>
-					</MenuItem>
-					<MenuItem onClick={onDelete}>
-						<span className="flex items-center gap-1.5 text-[#ff3b4d]">
-							<Trash2 size={12} /> Delete agent
-						</span>
-					</MenuItem>
-				</Menu>
-
-				{/* Compact tabs */}
-				<div className="flex items-center gap-0.5 shrink-0 rounded-lg border border-whip-border bg-whip-bg p-[3px]">
-					{TABS.map(({ id, label }) => (
-						<button
-							key={id}
-							onClick={() => setTab(id)}
-							className={classNames(
-								"h-7 px-3 rounded-[5px] text-xs font-bold transition-colors",
-								tab === id ? "bg-whip-panel-2 text-whip-text" : "text-whip-faint hover:text-whip-muted",
-							)}
-						>
-							{label}
-							{id === "terminal" && agent.recentRuns.length > 0 ? ` (${agent.recentRuns.length})` : ""}
-						</button>
-					))}
-				</div>
+					>
+						{label}
+						{id === "terminal" && agent.recentRuns.length > 0 ? ` (${agent.recentRuns.length})` : ""}
+						{tab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-whip-accent" />}
+					</button>
+				))}
 			</div>
 
 			{/* Tab content */}
 			<div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-				{tab === "overview" && <RecurringAgentOverview agent={agent} modelLabel={modelLabel} onSelectRun={selectRun} />}
+				{tab === "overview" && <RecurringAgentOverview agent={agent} onSelectRun={selectRun} />}
 
 				{tab === "journal" && (
 					<div className="flex-1 min-h-0 flex flex-col px-6 py-5 gap-3">
