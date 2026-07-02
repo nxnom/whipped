@@ -1,23 +1,23 @@
-import "./canvasContent.css";
+import { useEffect, useRef } from "react";
+import canvasContentCss from "./canvasContent.css?inline";
 
-// Rendered as-is via dangerouslySetInnerHTML — same trust boundary as the
-// markdown block's rehype-raw pass-through (this is the user's own coding
-// agent, not untrusted third-party input).
-//
-// The panel is user-resizable (MIN_WIDTH/MAX_WIDTH in CanvasPanel.tsx), and raw
-// HTML doesn't go through react-markdown's `components` override system the
-// way markdown blocks do, so there's no per-element className hook to make
-// content reflow. The `canvas-content` class (canvasContent.css, shared with
-// MarkdownBlock) keeps the common width-prone elements (images, tables,
-// pre/code, embeds) inside the panel's current width via plain descendant
-// selectors, rather than a page's worth of Tailwind `[&_x]:` arbitrary
-// variants living in this className string.
+// Rendered inside a shadow root instead of straight into the page's DOM. The
+// agent sends a full mockup document — its own <style> tag, sometimes a whole
+// <!DOCTYPE html> wrapper — and a <style> element applies to the entire
+// document it's connected to regardless of DOM nesting. Without a shadow
+// boundary, one mockup's CSS reset (`* { margin: 0 }`, `body { background }`)
+// leaks out and breaks the rest of the app's layout. The shadow root gets its
+// own copy of canvasContent.css so images/tables/pre/code still stay inside
+// the panel width the same way MarkdownBlock's does.
 export function HtmlBlock({ body }: { body: string }) {
-	return (
-		<div
-			className="canvas-content overflow-x-auto text-[13px] leading-relaxed text-whip-text break-words"
-			// biome-ignore lint/security/noDangerouslySetInnerHtml: intentional — agent-authored HTML block, see comment above
-			dangerouslySetInnerHTML={{ __html: body }}
-		/>
-	);
+	const hostRef = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		const host = hostRef.current;
+		if (!host) return;
+		const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
+		shadow.innerHTML = `<style>${canvasContentCss}</style><div class="canvas-content">${body}</div>`;
+	}, [body]);
+
+	return <div ref={hostRef} className="max-w-full overflow-x-auto text-[13px] leading-relaxed text-whip-text" />;
 }
