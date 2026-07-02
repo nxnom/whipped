@@ -262,7 +262,7 @@ export function WorkflowsSection({
 	return (
 		<div className="flex-1 flex flex-col overflow-hidden">
 			{/* Page header */}
-			<div className="px-10 pt-6">
+			<div className="px-10 pt-6 pb-5">
 				<div className="flex items-center mb-1">
 					<span className="text-[20px] font-semibold text-whip-text">Workflows</span>
 					<div className="flex-1" />

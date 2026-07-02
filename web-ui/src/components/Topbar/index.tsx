@@ -1,10 +1,9 @@
-import { MessageSquare, Moon, Settings, Sun } from "lucide-react";
+import { MessageSquare, Settings } from "lucide-react";
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
 import { useRead, useWrite } from "@/runtime/api-client";
 import { useWorkspaceState } from "@/stores/board-store";
-import { toggleTheme, useTheme } from "@/stores/theme-store";
 import { classNames } from "@/utils/classNames";
 import { firstSortedProjectId } from "@/utils/projects";
 import logo from "@/assets/logo.png";
@@ -19,7 +18,6 @@ interface TopbarProps {
 export function Topbar({ workspaceId, onOpenAgent }: TopbarProps) {
 	const navigate = useNavigate();
 	const location = useLocation();
-	const theme = useTheme();
 	const { connected } = useWorkspaceState(workspaceId);
 	const { data: projectList } = useRead((api) => api("projects").GET());
 	const { data: layout } = useRead((api) => api("projects/layout").GET());
@@ -83,13 +81,6 @@ export function Topbar({ workspaceId, onOpenAgent }: TopbarProps) {
 					<span className={classNames("size-[7px] rounded-full", connected ? "bg-[#22c55e]" : "bg-[#5f6672]")} />
 					<span className="text-xs font-medium text-whip-muted">{connected ? "Connected" : "Offline"}</span>
 				</div>
-				<button
-					onClick={toggleTheme}
-					title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-					className="p-1.5 text-whip-muted hover:text-whip-text transition-colors"
-				>
-					{theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-				</button>
 				<button onClick={onOpenAgent} className="p-1.5 text-whip-muted hover:text-whip-text transition-colors">
 					<MessageSquare size={18} />
 				</button>

@@ -18,7 +18,7 @@ const PROJECT_NAV: Array<{ id: ProjectSection; label: string; icon: React.ReactN
 ];
 
 const GLOBAL_NAV: Array<{ id: GlobalSection; label: string; icon: React.ReactNode }> = [
-	{ id: "runtime", label: "Runtime Config", icon: <Server size={15} /> },
+	{ id: "runtime", label: "Preferences", icon: <Server size={15} /> },
 	{ id: "notifications", label: "Notifications", icon: <Bell size={15} /> },
 	{ id: "tunnel", label: "Tunnel", icon: <Globe size={15} /> },
 	{ id: "slack", label: "Slack", icon: <Slack size={15} /> },

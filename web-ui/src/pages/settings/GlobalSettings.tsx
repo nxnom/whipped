@@ -3,8 +3,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import type { RuntimeGlobalConfig } from "@runtime-contract";
 import { AGENT_BINARY_OPTIONS } from "@runtime-contract";
 import { type GlobalConfigForm, type GlobalConfigFormInput, globalConfigFormSchema } from "@runtime-validation/config";
+import { Moon, Sun } from "lucide-react";
 import { FormProvider, useForm } from "react-hook-form";
 import { useRead, useWrite } from "@/runtime/api-client";
+import { setTheme, useTheme } from "@/stores/theme-store";
+import { classNames } from "@/utils/classNames";
 import type { GlobalSection } from "./_shared";
 
 function PageHeader({ title, description }: { title: string; description: string }) {
@@ -40,6 +43,37 @@ function FieldRow({ label, description, children }: { label: string; description
 const selectClassName =
 	"w-[240px] font-mono text-[12px] focus:outline-none focus:border-whip-accent cursor-pointer text-whip-text bg-whip-panel border border-whip-border rounded-md px-3 py-[9px]";
 
+// Lives here rather than in the topbar so switching it never happens while a
+// terminal session is mounted — xterm's canvas renderer doesn't pick up the
+// new theme colors live, only on next mount, so toggling from a page that
+// always fully remounts (this one) avoids leaving a stale-colored terminal.
+function ThemeToggle() {
+	const theme = useTheme();
+	return (
+		<div className="flex items-center gap-0.5 shrink-0 rounded-lg border border-whip-border bg-whip-bg p-[3px]">
+			{(
+				[
+					{ value: "dark" as const, label: "Dark", Icon: Moon },
+					{ value: "light" as const, label: "Light", Icon: Sun },
+				] satisfies { value: "dark" | "light"; label: string; Icon: typeof Moon }[]
+			).map(({ value, label, Icon }) => (
+				<button
+					key={value}
+					type="button"
+					onClick={() => setTheme(value)}
+					className={classNames(
+						"flex items-center gap-1.5 h-7 px-3 rounded-[5px] text-xs font-bold transition-colors",
+						theme === value ? "bg-whip-panel-2 text-whip-text" : "text-whip-faint hover:text-whip-muted",
+					)}
+				>
+					<Icon size={13} />
+					{label}
+				</button>
+			))}
+		</div>
+	);
+}
+
 // biome-ignore lint/correctness/noUnusedFunctionParameters: required by caller interface
 export function GlobalSettings({ section }: { section: GlobalSection }) {
 	const { data: config } = useRead((api) => api("config").GET());
@@ -65,7 +99,7 @@ export function GlobalSettings({ section }: { section: GlobalSection }) {
 	if (!config) {
 		return (
 			<div className="flex-1 flex flex-col">
-				<PageHeader title="Global Runtime Config" description="Settings that apply across all projects" />
+				<PageHeader title="Preferences" description="Settings that apply across all projects" />
 				<div className="flex items-center justify-center py-20 text-sm text-whip-faint">Loading...</div>
 			</div>
 		);
@@ -78,7 +112,7 @@ export function GlobalSettings({ section }: { section: GlobalSection }) {
 
 	return (
 		<div className="flex-1 flex flex-col overflow-hidden">
-			<PageHeader title="Global Runtime Config" description="Settings that apply across all projects" />
+			<PageHeader title="Preferences" description="Settings that apply across all projects" />
 			<div className="flex-1 overflow-y-auto px-10 py-6">
 				<FormProvider {...methods}>
 					<form onSubmit={onSubmit} className="flex flex-col gap-6">
@@ -164,6 +198,13 @@ export function GlobalSettings({ section }: { section: GlobalSection }) {
 						</div>
 					</form>
 				</FormProvider>
+
+				<div className="flex flex-col gap-4 pt-6 mt-6 border-t border-whip-panel">
+					<SectionDivider title="Appearance" />
+					<FieldRow label="Theme" description="Light or dark UI, applied on this browser">
+						<ThemeToggle />
+					</FieldRow>
+				</div>
 
 				<div className="flex flex-col gap-4 pt-6 mt-6 border-t border-whip-panel">
 					<SectionDivider title="Session" />
