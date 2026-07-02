@@ -1,31 +1,19 @@
-import { Switch, Tooltip } from "@geckoui/geckoui";
+import { Menu, MenuItem, MenuTrigger, Tooltip } from "@geckoui/geckoui";
 import type { RecurringAgent } from "@runtime-contract";
-import { BookText, Clock, Cpu, FileText, Loader2, Pencil, Play, Save, TerminalSquare, Trash2 } from "lucide-react";
+import { Ellipsis, Loader2, Pencil, Play, Power, Save, TerminalSquare, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { classNames } from "@/utils/classNames";
-import { formatDuration, formatRelative, formatSchedule, formatTimestamp } from "./helpers";
-import { RecurringRunList, StatusIcon } from "./RecurringRunList";
+import { RecurringAgentOverview } from "./RecurringAgentOverview";
+import { RecurringRunList } from "./RecurringRunList";
 
 type DetailTab = "overview" | "journal" | "terminal";
 
-function Badge({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
-	return (
-		<span className="flex items-center gap-1.5 px-2.5 py-[3px] rounded-md text-[11px] text-whip-muted bg-whip-panel border border-whip-border">
-			{icon}
-			{children}
-		</span>
-	);
-}
-
-function StatRow({ label, value }: { label: string; value: string }) {
-	return (
-		<div className="flex items-center justify-between gap-2 text-[12px]">
-			<span className="text-whip-faint">{label}</span>
-			<span className="text-whip-text">{value}</span>
-		</div>
-	);
-}
+const TABS: Array<{ id: DetailTab; label: string }> = [
+	{ id: "overview", label: "Overview" },
+	{ id: "journal", label: "Journal" },
+	{ id: "terminal", label: "Terminal" },
+];
 
 export function RecurringAgentDetail({
 	agent,
@@ -70,158 +58,100 @@ export function RecurringAgentDetail({
 	}, [latestStreamId]);
 
 	const modelLabel = [agent.model.agentId, agent.model.model, agent.model.effort].filter(Boolean).join(" · ");
-	const isRunning = agent.recentRuns.some((r) => r.status === "running");
-	const finishedRuns = agent.recentRuns.filter((r) => r.status !== "running");
-	const okRuns = finishedRuns.filter((r) => r.status === "ok").length;
-	const successRate = finishedRuns.length ? Math.round((okRuns / finishedRuns.length) * 100) : null;
+	const description = agent.instructions.trim().split("\n")[0] || "No instructions.";
 
 	const handleRunNow = () => {
 		onRunNow();
 		setTab("terminal");
 	};
 
-	const tabs = [
-		{ id: "overview" as DetailTab, label: "Overview", Icon: FileText },
-		{ id: "journal" as DetailTab, label: "Journal", Icon: BookText },
-		{
-			id: "terminal" as DetailTab,
-			label: `Terminal${agent.recentRuns.length ? ` (${agent.recentRuns.length})` : ""}`,
-			Icon: TerminalSquare,
-		},
-	];
+	const selectRun = (streamId: string) => {
+		setActiveStreamId(streamId);
+		setTab("terminal");
+	};
 
 	return (
 		<div className="flex-1 flex flex-col min-h-0 overflow-hidden">
 			{/* Header */}
-			<div className="flex items-center gap-3 px-6 py-2.5 border-b border-whip-border bg-whip-bg shrink-0">
-				<span className="text-[13px] font-semibold text-whip-text truncate">{agent.name}</span>
-				<div className="flex-1" />
-				<label className="flex items-center gap-1.5">
-					<Switch size="sm" checked={agent.enabled} onChange={onToggleEnabled} />
-					<span className="text-[11px] text-whip-muted">{agent.enabled ? "Enabled" : "Disabled"}</span>
-				</label>
-				<div className="w-px h-[18px] bg-whip-border shrink-0" />
+			<div className="flex items-center gap-[18px] px-[22px] py-5 border-b border-whip-border-soft bg-whip-surface shrink-0">
+				<div className="flex-1 min-w-0 flex flex-col gap-2">
+					<div className="flex items-center gap-2.5">
+						<span
+							className={classNames(
+								"size-[9px] rounded-full shrink-0",
+								agent.enabled ? "bg-[#22c55e]" : "bg-whip-muted",
+							)}
+						/>
+						<span className="text-[22px] font-bold text-whip-text truncate">{agent.name}</span>
+						<span className="shrink-0 rounded-full bg-whip-panel border border-whip-border px-[9px] py-0.5 text-xs font-bold text-whip-muted">
+							{agent.enabled ? "Enabled" : "Disabled"}
+						</span>
+					</div>
+					<span className="text-[13px] font-medium text-whip-muted truncate">{description}</span>
+				</div>
+
 				<Tooltip delayDuration={0} content={running ? "Starting..." : "Run now"} side="bottom" triggerAsChild>
 					<button
 						onClick={handleRunNow}
 						disabled={running}
-						className="cursor-pointer text-whip-faint hover:text-[#22c55e] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+						className="flex items-center gap-2 h-[38px] px-3 rounded-md bg-whip-accent text-[13px] font-bold text-whip-accent-text disabled:opacity-40 disabled:cursor-not-allowed transition-opacity hover:opacity-85"
 					>
-						<Play size={15} />
+						<Play size={16} />
+						Run now
 					</button>
 				</Tooltip>
-				<Tooltip delayDuration={0} content="Edit" side="bottom" triggerAsChild>
-					<button onClick={onEdit} className="cursor-pointer text-whip-faint hover:text-whip-text transition-colors">
-						<Pencil size={15} />
-					</button>
-				</Tooltip>
-				<div className="w-px h-[18px] bg-whip-border shrink-0" />
-				<Tooltip delayDuration={0} content="Delete agent" side="bottom" triggerAsChild>
-					<button onClick={onDelete} className="cursor-pointer text-whip-faint hover:text-[#ff3b4d] transition-colors">
-						<Trash2 size={15} />
-					</button>
-				</Tooltip>
-			</div>
-
-			{/* Sub-header badges */}
-			<div className="flex items-center gap-2 px-6 py-2 border-b border-whip-border bg-whip-bg shrink-0 flex-wrap">
-				<Badge icon={<Clock size={11} />}>{formatSchedule(agent.schedule)}</Badge>
-				<Badge icon={<Cpu size={11} />}>{modelLabel}</Badge>
-				<div className="flex-1" />
-				{isRunning ? (
-					<span className="flex items-center gap-1.5 text-[11px] font-medium text-whip-text">
-						<span className="size-[7px] rounded-full bg-whip-text animate-pulse" /> Running
-					</span>
-				) : (
-					agent.enabled &&
-					agent.nextRunAt && <span className="text-[11px] text-whip-faint">Next {formatRelative(agent.nextRunAt)}</span>
-				)}
-			</div>
-
-			{/* Tab bar */}
-			<div className="flex shrink-0 bg-whip-bg border-b border-whip-border px-5">
-				{tabs.map(({ id, label, Icon }) => (
-					<button
-						key={id}
-						onClick={() => setTab(id)}
-						className={classNames(
-							"relative flex items-center gap-1.5 px-4 py-[11px] text-xs font-medium transition-colors",
-							tab === id ? "text-whip-text" : "text-whip-faint hover:text-whip-muted",
+				<button
+					onClick={onEdit}
+					className="flex items-center gap-2 h-[38px] px-3 rounded-md bg-whip-panel border border-whip-border text-[13px] font-bold text-whip-muted hover:text-whip-text transition-colors"
+				>
+					<Pencil size={16} />
+					Edit
+				</button>
+				<Menu placement="bottom-end">
+					<MenuTrigger>
+						{({ toggleMenu }) => (
+							<button
+								onClick={toggleMenu}
+								className="flex items-center gap-2 h-[38px] px-3 rounded-md bg-whip-panel border border-whip-border text-[13px] font-bold text-whip-muted hover:text-whip-text transition-colors"
+							>
+								<Ellipsis size={16} />
+								More
+							</button>
 						)}
-					>
-						<Icon size={11} />
-						{label}
-						{tab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-whip-accent" />}
-					</button>
-				))}
+					</MenuTrigger>
+					<MenuItem onClick={() => onToggleEnabled(!agent.enabled)}>
+						<span className="flex items-center gap-1.5">
+							<Power size={12} /> {agent.enabled ? "Disable agent" : "Enable agent"}
+						</span>
+					</MenuItem>
+					<MenuItem onClick={onDelete}>
+						<span className="flex items-center gap-1.5 text-[#ff3b4d]">
+							<Trash2 size={12} /> Delete agent
+						</span>
+					</MenuItem>
+				</Menu>
+
+				{/* Compact tabs */}
+				<div className="flex items-center gap-0.5 shrink-0 rounded-lg border border-whip-border bg-whip-bg p-[3px]">
+					{TABS.map(({ id, label }) => (
+						<button
+							key={id}
+							onClick={() => setTab(id)}
+							className={classNames(
+								"h-7 px-3 rounded-[5px] text-xs font-bold transition-colors",
+								tab === id ? "bg-whip-panel-2 text-whip-text" : "text-whip-faint hover:text-whip-muted",
+							)}
+						>
+							{label}
+							{id === "terminal" && agent.recentRuns.length > 0 ? ` (${agent.recentRuns.length})` : ""}
+						</button>
+					))}
+				</div>
 			</div>
 
 			{/* Tab content */}
 			<div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-				{tab === "overview" && (
-					<div className="flex flex-1 min-h-0">
-						{/* Instructions — plain text, no card */}
-						<div className="flex-1 min-w-0 overflow-y-auto px-6 pt-5">
-							<span className="text-[13px] font-medium text-whip-text">Instructions</span>
-							<p className="mt-2 text-[13px] text-whip-muted whitespace-pre-wrap leading-relaxed">
-								{agent.instructions.trim() || "No instructions."}
-							</p>
-						</div>
-
-						{/* Activity — same style as the Terminal run sidebar */}
-						<div className="w-64 shrink-0 bg-whip-bg border-l border-whip-border flex flex-col overflow-hidden">
-							<div className="px-4 py-3 border-b border-whip-border shrink-0">
-								<span className="text-xs font-semibold text-whip-muted">Activity</span>
-							</div>
-							<div className="px-4 py-3 flex flex-col gap-2 border-b border-whip-border shrink-0">
-								<StatRow label="Next run" value={agent.enabled ? formatRelative(agent.nextRunAt) : "—"} />
-								<StatRow label="Last run" value={agent.lastRunAt ? formatRelative(agent.lastRunAt) : "Never"} />
-								<StatRow label="Runs" value={String(agent.recentRuns.length)} />
-								<StatRow label="Success" value={successRate !== null ? `${successRate}%` : "—"} />
-							</div>
-							<div className="flex-1 overflow-y-auto px-2 py-2">
-								{agent.recentRuns.length === 0 ? (
-									<p className="px-2 py-3 text-[11px] text-whip-faint">No runs yet.</p>
-								) : (
-									agent.recentRuns.map((run) => {
-										const duration = formatDuration(run.startedAt, run.endedAt);
-										return (
-											<button
-												key={run.id}
-												onClick={() => {
-													if (!run.streamId) return;
-													setActiveStreamId(run.streamId);
-													setTab("terminal");
-												}}
-												disabled={!run.streamId}
-												className={classNames(
-													"w-full flex items-start gap-2 rounded px-1.5 py-2 text-left transition-colors hover:bg-white/[0.03]",
-													!run.streamId && "cursor-default",
-												)}
-											>
-												<div className="mt-0.5 shrink-0">
-													<StatusIcon status={run.status} />
-												</div>
-												<div className="flex-1 min-w-0 flex flex-col gap-0.5">
-													<span className="text-[12px] text-whip-text truncate">{formatTimestamp(run.startedAt)}</span>
-													<span className="text-[10px] text-whip-faint flex items-center gap-1.5">
-														{run.trigger === "manual" ? "Manual" : "Scheduled"}
-														{duration && (
-															<>
-																<span>·</span>
-																<span className="font-mono">{duration}</span>
-															</>
-														)}
-													</span>
-												</div>
-											</button>
-										);
-									})
-								)}
-							</div>
-						</div>
-					</div>
-				)}
+				{tab === "overview" && <RecurringAgentOverview agent={agent} modelLabel={modelLabel} onSelectRun={selectRun} />}
 
 				{tab === "journal" && (
 					<div className="flex-1 min-h-0 flex flex-col px-6 py-5 gap-3">

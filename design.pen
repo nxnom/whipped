@@ -20185,6 +20185,1451 @@
           ]
         }
       ]
+    },
+    {
+      "type": "frame",
+      "id": "ngDXX",
+      "x": 6944,
+      "y": 0,
+      "name": "Recurring Agents — Monitor Workspace",
+      "clip": true,
+      "width": 1600,
+      "height": 950,
+      "fill": "$whip-bg",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "hDIWu",
+          "name": "Global Topbar",
+          "width": "fill_container",
+          "height": 66,
+          "fill": "#030303",
+          "stroke": "$whip-border-soft",
+          "strokeWidth": {
+            "bottom": 1
+          },
+          "gap": 20,
+          "padding": [
+            0,
+            24
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "GdwJD",
+              "name": "Brand",
+              "width": 188,
+              "height": "fill_container",
+              "gap": 10,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "SyZjj",
+                  "name": "Whipped Mark",
+                  "fill": "#0A0A0A",
+                  "width": 34,
+                  "height": 34,
+                  "stroke": "#D9A441",
+                  "strokeWidth": 1.4
+                },
+                {
+                  "type": "text",
+                  "id": "wnsGF",
+                  "name": "Whipped Logo Text",
+                  "fill": "$whip-text",
+                  "content": "Whipped",
+                  "fontFamily": "$whip-font",
+                  "fontSize": 22,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "F5NXh",
+              "name": "Project Switcher",
+              "width": 250,
+              "height": 40,
+              "fill": "$whip-panel",
+              "cornerRadius": 6,
+              "stroke": "$whip-border",
+              "strokeWidth": 1,
+              "gap": 10,
+              "padding": [
+                0,
+                14
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "uNdFJ",
+                  "name": "Project Folder Icon",
+                  "width": 18,
+                  "height": 18,
+                  "icon": "folder-open",
+                  "library": "lucide",
+                  "fill": "$whip-muted"
+                },
+                {
+                  "type": "frame",
+                  "id": "XZNqk",
+                  "name": "Project Switcher Text",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 1,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "nyi0h",
+                      "name": "Project Scope Label",
+                      "fill": "$whip-muted",
+                      "content": "Personal",
+                      "fontFamily": "$whip-font",
+                      "fontSize": 11,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "G9UTNo",
+                      "name": "Project Name",
+                      "fill": "$whip-text",
+                      "content": "game-items-shop",
+                      "fontFamily": "$whip-font",
+                      "fontSize": 14,
+                      "fontWeight": "700"
+                    }
+                  ]
+                },
+                {
+                  "type": "icon",
+                  "id": "VSgYO",
+                  "name": "Project Dropdown Icon",
+                  "width": 16,
+                  "height": 16,
+                  "icon": "chevron-down",
+                  "library": "lucide",
+                  "fill": "$whip-muted"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "j6w3fg",
+              "name": "Primary Navigation",
+              "height": 42,
+              "gap": 6,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "P2aia",
+                  "name": "Nav Board",
+                  "height": 38,
+                  "fill": "#00000000",
+                  "cornerRadius": 6,
+                  "stroke": "#00000000",
+                  "strokeWidth": 1,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    14
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "B9Wng",
+                      "name": "Nav Board Label",
+                      "fill": "$whip-muted",
+                      "content": "Board",
+                      "fontFamily": "$whip-font",
+                      "fontSize": 14,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "cPOZl",
+                  "name": "Nav Recurring Agents",
+                  "height": 38,
+                  "fill": "$whip-panel",
+                  "cornerRadius": 6,
+                  "stroke": "$whip-border",
+                  "strokeWidth": 1,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    14
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "XLb89",
+                      "name": "Nav Recurring Agents Label",
+                      "fill": "$whip-text",
+                      "content": "Recurring Agents",
+                      "fontFamily": "$whip-font",
+                      "fontSize": 14,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "KPi6j",
+                      "name": "Nav Recurring Agents Count",
+                      "height": 20,
+                      "fill": "$whip-panel-2",
+                      "cornerRadius": 10,
+                      "stroke": "$whip-border",
+                      "strokeWidth": 1,
+                      "padding": [
+                        0,
+                        7
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Vc16N",
+                          "name": "Nav Recurring Agents Count Text",
+                          "fill": "$whip-text",
+                          "content": "1",
+                          "fontFamily": "$whip-mono",
+                          "fontSize": 11,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "wu6mc",
+                  "name": "Nav Companion",
+                  "height": 38,
+                  "fill": "#00000000",
+                  "cornerRadius": 6,
+                  "stroke": "#00000000",
+                  "strokeWidth": 1,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    14
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "kF0Ij",
+                      "name": "Nav Companion Label",
+                      "fill": "$whip-muted",
+                      "content": "Companion",
+                      "fontFamily": "$whip-font",
+                      "fontSize": 14,
+                      "fontWeight": "600"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "n2gsk",
+              "name": "Topbar Spacer",
+              "width": "fill_container",
+              "height": 1
+            },
+            {
+              "type": "frame",
+              "id": "s9HqsA",
+              "name": "Connection Status",
+              "height": 36,
+              "fill": "$whip-panel",
+              "cornerRadius": 6,
+              "stroke": "$whip-border",
+              "strokeWidth": 1,
+              "gap": 8,
+              "padding": [
+                0,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "X5dBnQ",
+                  "name": "Connection Dot",
+                  "fill": "$whip-green",
+                  "width": 8,
+                  "height": 8
+                },
+                {
+                  "type": "text",
+                  "id": "qzryZ",
+                  "name": "Connection Label",
+                  "fill": "$whip-muted",
+                  "content": "Connected",
+                  "fontFamily": "$whip-font",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "CnF6h",
+              "name": "Theme Icon Button",
+              "width": 36,
+              "height": 36,
+              "fill": "#00000000",
+              "cornerRadius": 6,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "aV7Xb",
+                  "name": "Theme Icon",
+                  "width": 20,
+                  "height": 20,
+                  "icon": "sun",
+                  "library": "lucide",
+                  "fill": "$whip-muted"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "JuuUi",
+              "name": "Messages Icon Button",
+              "width": 36,
+              "height": 36,
+              "fill": "#00000000",
+              "cornerRadius": 6,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "E0vJeL",
+                  "name": "Messages Icon",
+                  "width": 20,
+                  "height": 20,
+                  "icon": "message-square",
+                  "library": "lucide",
+                  "fill": "$whip-muted"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "jjeyG",
+              "name": "Settings Icon Button",
+              "width": 36,
+              "height": 36,
+              "fill": "#00000000",
+              "cornerRadius": 6,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "OMfdA",
+                  "name": "Settings Icon",
+                  "width": 20,
+                  "height": 20,
+                  "icon": "settings",
+                  "library": "lucide",
+                  "fill": "$whip-muted"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "fSQeC",
+          "name": "Recurring Agents Page",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "$whip-bg",
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "Yt32E",
+              "name": "Recurring Agents Header",
+              "width": "fill_container",
+              "height": 132,
+              "fill": "$whip-bg",
+              "stroke": "$whip-border-soft",
+              "strokeWidth": {
+                "bottom": 1
+              },
+              "layout": "none",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "lL7iJ",
+                  "x": 32,
+                  "y": 16,
+                  "name": "Page Title",
+                  "fill": "$whip-text",
+                  "content": "Recurring Agents",
+                  "fontFamily": "$whip-font",
+                  "fontSize": 26,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "Izei4",
+                  "x": 32,
+                  "y": 55,
+                  "name": "Page Subtitle",
+                  "fill": "$whip-muted",
+                  "content": "Scheduled read-only observers that create cards, keep a journal, and preserve terminal history.",
+                  "fontFamily": "$whip-font",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "frame",
+                  "id": "A8L4wg",
+                  "x": 32,
+                  "y": 88,
+                  "name": "Agent Pill Football Configs Background",
+                  "width": 202,
+                  "height": 34,
+                  "fill": "$whip-panel",
+                  "cornerRadius": 17,
+                  "stroke": "$whip-text",
+                  "strokeWidth": 1,
+                  "layout": "none"
+                },
+                {
+                  "type": "ellipse",
+                  "id": "McSxC",
+                  "x": 44,
+                  "y": 101,
+                  "name": "Agent Pill Football Configs Dot",
+                  "fill": "$whip-muted",
+                  "width": 8,
+                  "height": 8
+                },
+                {
+                  "type": "text",
+                  "id": "b5EQ2D",
+                  "x": 60,
+                  "y": 95,
+                  "name": "Agent Pill Football Configs Name",
+                  "fill": "$whip-text",
+                  "content": "Football Configs",
+                  "fontFamily": "$whip-font",
+                  "fontSize": 13,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "oP4sz",
+                  "x": 174,
+                  "y": 96,
+                  "name": "Agent Pill Football Configs State",
+                  "fill": "$whip-faint",
+                  "content": "Disabled",
+                  "fontFamily": "$whip-font",
+                  "fontSize": 11,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "frame",
+                  "id": "yxSSe",
+                  "x": 242,
+                  "y": 88,
+                  "name": "Agent Pill Sentry Triage Background",
+                  "width": 178,
+                  "height": 34,
+                  "fill": "#00000000",
+                  "cornerRadius": 17,
+                  "stroke": "$whip-border",
+                  "strokeWidth": 1,
+                  "layout": "none"
+                },
+                {
+                  "type": "ellipse",
+                  "id": "bBR8U",
+                  "x": 254,
+                  "y": 101,
+                  "name": "Agent Pill Sentry Triage Dot",
+                  "fill": "$whip-green",
+                  "width": 8,
+                  "height": 8
+                },
+                {
+                  "type": "text",
+                  "id": "neyee",
+                  "x": 270,
+                  "y": 95,
+                  "name": "Agent Pill Sentry Triage Name",
+                  "fill": "$whip-muted",
+                  "content": "Sentry Triage",
+                  "fontFamily": "$whip-font",
+                  "fontSize": 13,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "j0uji",
+                  "x": 364,
+                  "y": 96,
+                  "name": "Agent Pill Sentry Triage State",
+                  "fill": "$whip-faint",
+                  "content": "Enabled",
+                  "fontFamily": "$whip-font",
+                  "fontSize": 11,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "frame",
+                  "id": "LOdph",
+                  "x": 428,
+                  "y": 88,
+                  "name": "Agent Pill Dependency Sweep Background",
+                  "width": 218,
+                  "height": 34,
+                  "fill": "#00000000",
+                  "cornerRadius": 17,
+                  "stroke": "$whip-border",
+                  "strokeWidth": 1,
+                  "layout": "none"
+                },
+                {
+                  "type": "ellipse",
+                  "id": "bdxNU",
+                  "x": 440,
+                  "y": 101,
+                  "name": "Agent Pill Dependency Sweep Dot",
+                  "fill": "$whip-green",
+                  "width": 8,
+                  "height": 8
+                },
+                {
+                  "type": "text",
+                  "id": "Ehuh9",
+                  "x": 456,
+                  "y": 95,
+                  "name": "Agent Pill Dependency Sweep Name",
+                  "fill": "$whip-muted",
+                  "content": "Dependency Sweep",
+                  "fontFamily": "$whip-font",
+                  "fontSize": 13,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "SxIKr",
+                  "x": 590,
+                  "y": 96,
+                  "name": "Agent Pill Dependency Sweep State",
+                  "fill": "$whip-faint",
+                  "content": "Enabled",
+                  "fontFamily": "$whip-font",
+                  "fontSize": 11,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "frame",
+                  "id": "S1YCGN",
+                  "x": 1439,
+                  "y": 26,
+                  "name": "New Agent Button",
+                  "width": 127,
+                  "height": 40,
+                  "fill": "$whip-text",
+                  "cornerRadius": 6,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    14
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "UxdoF",
+                      "name": "New Agent Icon",
+                      "width": 16,
+                      "height": 16,
+                      "icon": "plus",
+                      "library": "lucide",
+                      "fill": "$whip-bg"
+                    },
+                    {
+                      "type": "text",
+                      "id": "ZZpFb",
+                      "name": "New Agent Label",
+                      "fill": "$whip-bg",
+                      "content": "New Agent",
+                      "fontFamily": "$whip-font",
+                      "fontSize": 14,
+                      "fontWeight": "700"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "E6zoxr",
+              "name": "Recurring Agents Main",
+              "width": "fill_container",
+              "height": "fill_container",
+              "fill": "$whip-bg",
+              "gap": 18,
+              "padding": [
+                20,
+                32
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "O0xcOk",
+                  "name": "Selected Agent Workspace",
+                  "clip": true,
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$whip-bg",
+                  "cornerRadius": 8,
+                  "stroke": "$whip-border",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "Pxh7A",
+                      "name": "Selected Agent Header",
+                      "width": "fill_container",
+                      "height": 104,
+                      "fill": "$whip-surface",
+                      "stroke": "$whip-border-soft",
+                      "strokeWidth": {
+                        "bottom": 1
+                      },
+                      "gap": 18,
+                      "padding": [
+                        20,
+                        22
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "qD5Pd",
+                          "name": "Selected Agent Identity",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 8,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "mcBNG",
+                              "name": "Selected Agent Name Row",
+                              "gap": 10,
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "ellipse",
+                                  "id": "ffKEy",
+                                  "name": "Selected Agent Status Dot",
+                                  "fill": "$whip-muted",
+                                  "width": 9,
+                                  "height": 9
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "KfLJX",
+                                  "name": "Selected Agent Name",
+                                  "fill": "$whip-text",
+                                  "content": "Football Configs",
+                                  "fontFamily": "$whip-font",
+                                  "fontSize": 22,
+                                  "fontWeight": "700"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "rkYC0",
+                                  "name": "Selected Agent Disabled Pill",
+                                  "height": 24,
+                                  "fill": "$whip-panel",
+                                  "cornerRadius": 12,
+                                  "stroke": "$whip-border",
+                                  "strokeWidth": 1,
+                                  "padding": [
+                                    0,
+                                    9
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "DxLw3",
+                                      "name": "Selected Agent Disabled Text",
+                                      "fill": "$whip-muted",
+                                      "content": "Disabled",
+                                      "fontFamily": "$whip-font",
+                                      "fontSize": 12,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "iKan4",
+                              "name": "Selected Agent Description",
+                              "fill": "$whip-muted",
+                              "content": "Read-only scheduled observer for football-related game configuration gaps.",
+                              "fontFamily": "$whip-font",
+                              "fontSize": 13,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "V8bsMG",
+                          "name": "Selected Agent Action Run now",
+                          "height": 38,
+                          "fill": "$whip-text",
+                          "cornerRadius": 6,
+                          "stroke": "#00000000",
+                          "strokeWidth": 1,
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            12
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "MXVBX",
+                              "name": "Selected Agent Action Run now Icon",
+                              "width": 16,
+                              "height": 16,
+                              "icon": "play",
+                              "library": "lucide",
+                              "fill": "$whip-bg"
+                            },
+                            {
+                              "type": "text",
+                              "id": "XhVrP",
+                              "name": "Selected Agent Action Run now Text",
+                              "fill": "$whip-bg",
+                              "content": "Run now",
+                              "fontFamily": "$whip-font",
+                              "fontSize": 13,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "xvuYG",
+                          "name": "Selected Agent Action Edit",
+                          "height": 38,
+                          "fill": "$whip-panel",
+                          "cornerRadius": 6,
+                          "stroke": "$whip-border",
+                          "strokeWidth": 1,
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            12
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "JUpAk",
+                              "name": "Selected Agent Action Edit Icon",
+                              "width": 16,
+                              "height": 16,
+                              "icon": "pencil",
+                              "library": "lucide",
+                              "fill": "$whip-muted"
+                            },
+                            {
+                              "type": "text",
+                              "id": "o6GRJP",
+                              "name": "Selected Agent Action Edit Text",
+                              "fill": "$whip-muted",
+                              "content": "Edit",
+                              "fontFamily": "$whip-font",
+                              "fontSize": 13,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "CrUjf",
+                          "name": "Selected Agent Action More",
+                          "height": 38,
+                          "fill": "$whip-panel",
+                          "cornerRadius": 6,
+                          "stroke": "$whip-border",
+                          "strokeWidth": 1,
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            12
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "INFNU",
+                              "name": "Selected Agent Action More Icon",
+                              "width": 16,
+                              "height": 16,
+                              "icon": "ellipsis",
+                              "library": "lucide",
+                              "fill": "$whip-muted"
+                            },
+                            {
+                              "type": "text",
+                              "id": "s84Oa",
+                              "name": "Selected Agent Action More Text",
+                              "fill": "$whip-muted",
+                              "content": "More",
+                              "fontFamily": "$whip-font",
+                              "fontSize": 13,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "uMykA",
+                          "name": "Selected Agent Compact Tabs",
+                          "height": 34,
+                          "fill": "$whip-bg",
+                          "cornerRadius": 7,
+                          "stroke": "$whip-border",
+                          "strokeWidth": 1,
+                          "gap": 2,
+                          "padding": 3,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "dkaej",
+                              "name": "Compact Tab Overview",
+                              "width": 82,
+                              "height": 28,
+                              "fill": "$whip-panel-2",
+                              "cornerRadius": 5,
+                              "justifyContent": "center",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "e27j7",
+                                  "name": "Compact Tab Overview Label",
+                                  "fill": "$whip-text",
+                                  "content": "Overview",
+                                  "fontFamily": "$whip-font",
+                                  "fontSize": 12,
+                                  "fontWeight": "700"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "AHECI",
+                              "name": "Compact Tab Journal",
+                              "width": 70,
+                              "height": 28,
+                              "fill": "#00000000",
+                              "cornerRadius": 5,
+                              "justifyContent": "center",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "pFtEH",
+                                  "name": "Compact Tab Journal Label",
+                                  "fill": "$whip-faint",
+                                  "content": "Journal",
+                                  "fontFamily": "$whip-font",
+                                  "fontSize": 12,
+                                  "fontWeight": "700"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "LoXxg",
+                              "name": "Compact Tab Terminal",
+                              "width": 78,
+                              "height": 28,
+                              "fill": "#00000000",
+                              "cornerRadius": 5,
+                              "justifyContent": "center",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "w1kft",
+                                  "name": "Compact Tab Terminal Label",
+                                  "fill": "$whip-faint",
+                                  "content": "Terminal",
+                                  "fontFamily": "$whip-font",
+                                  "fontSize": 12,
+                                  "fontWeight": "700"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "d9m4R",
+                      "name": "Overview Content",
+                      "width": "fill_container",
+                      "height": "fill_container",
+                      "fill": "$whip-bg",
+                      "gap": 18,
+                      "padding": 24,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "iIfQ2",
+                          "name": "Instructions Panel",
+                          "width": "fill_container",
+                          "height": "fill_container",
+                          "fill": "$whip-surface",
+                          "cornerRadius": 8,
+                          "stroke": "$whip-border",
+                          "strokeWidth": 1,
+                          "layout": "vertical",
+                          "gap": 18,
+                          "padding": 22,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "R00WOn",
+                              "name": "Instructions Title",
+                              "fill": "$whip-text",
+                              "content": "Instructions",
+                              "fontFamily": "$whip-font",
+                              "fontSize": 16,
+                              "fontWeight": "700"
+                            },
+                            {
+                              "type": "text",
+                              "id": "yJcOE",
+                              "name": "Instructions Body",
+                              "fill": "$whip-muted",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "Add game configs for football related games. The agent runs as a read-only observer, creates kanban cards for findings, and records notes in its journal so it does not file the same issue twice.",
+                              "lineHeight": 1.45,
+                              "fontFamily": "$whip-font",
+                              "fontSize": 14,
+                              "fontWeight": "500"
+                            },
+                            {
+                              "type": "rectangle",
+                              "id": "fgOa2",
+                              "name": "Instructions Divider",
+                              "fill": "$whip-border-soft",
+                              "width": "fill_container",
+                              "height": 1
+                            },
+                            {
+                              "type": "frame",
+                              "id": "vNZQC",
+                              "name": "Observer Capabilities",
+                              "width": "fill_container",
+                              "gap": 10,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "t19eTR",
+                                  "name": "Capability Read project state",
+                                  "height": 30,
+                                  "fill": "$whip-panel",
+                                  "cornerRadius": 15,
+                                  "stroke": "$whip-border",
+                                  "strokeWidth": 1,
+                                  "padding": [
+                                    0,
+                                    10
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "ZtMxN",
+                                      "name": "Capability Read project state Text",
+                                      "fill": "$whip-muted",
+                                      "content": "Read project state",
+                                      "fontFamily": "$whip-font",
+                                      "fontSize": 12,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "O61Lo",
+                                  "name": "Capability Create cards",
+                                  "height": 30,
+                                  "fill": "$whip-panel",
+                                  "cornerRadius": 15,
+                                  "stroke": "$whip-border",
+                                  "strokeWidth": 1,
+                                  "padding": [
+                                    0,
+                                    10
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "jhtjE",
+                                      "name": "Capability Create cards Text",
+                                      "fill": "$whip-muted",
+                                      "content": "Create cards",
+                                      "fontFamily": "$whip-font",
+                                      "fontSize": 12,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "xyPnc",
+                                  "name": "Capability Update journal",
+                                  "height": 30,
+                                  "fill": "$whip-panel",
+                                  "cornerRadius": 15,
+                                  "stroke": "$whip-border",
+                                  "strokeWidth": 1,
+                                  "padding": [
+                                    0,
+                                    10
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "T66MR",
+                                      "name": "Capability Update journal Text",
+                                      "fill": "$whip-muted",
+                                      "content": "Update journal",
+                                      "fontFamily": "$whip-font",
+                                      "fontSize": 12,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "OUMwM",
+                                  "name": "Capability Replay terminal",
+                                  "height": 30,
+                                  "fill": "$whip-panel",
+                                  "cornerRadius": 15,
+                                  "stroke": "$whip-border",
+                                  "strokeWidth": 1,
+                                  "padding": [
+                                    0,
+                                    10
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "v8x2Wu",
+                                      "name": "Capability Replay terminal Text",
+                                      "fill": "$whip-muted",
+                                      "content": "Replay terminal",
+                                      "fontFamily": "$whip-font",
+                                      "fontSize": 12,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "CYiZN",
+                          "name": "Overview Right Rail",
+                          "width": 360,
+                          "height": "fill_container",
+                          "layout": "vertical",
+                          "gap": 14,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "WAsSc",
+                              "name": "Agent Details Panel",
+                              "width": "fill_container",
+                              "height": 218,
+                              "fill": "$whip-surface",
+                              "cornerRadius": 8,
+                              "stroke": "$whip-border",
+                              "strokeWidth": 1,
+                              "layout": "vertical",
+                              "gap": 10,
+                              "padding": 18,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "tihYL",
+                                  "name": "Agent Details Title",
+                                  "fill": "$whip-text",
+                                  "content": "Agent details",
+                                  "fontFamily": "$whip-font",
+                                  "fontSize": 15,
+                                  "fontWeight": "700"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "Vc5d6",
+                                  "name": "Agent Detail Schedule",
+                                  "width": "fill_container",
+                                  "height": 22,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "nOmuh",
+                                      "name": "Agent Detail Schedule Label",
+                                      "fill": "$whip-muted",
+                                      "content": "Schedule",
+                                      "fontFamily": "$whip-font",
+                                      "fontSize": 13,
+                                      "fontWeight": "600"
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "hN8Ev",
+                                      "name": "Agent Detail Schedule Spacer",
+                                      "width": "fill_container",
+                                      "height": 1
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "T7jAY",
+                                      "name": "Agent Detail Schedule Value",
+                                      "fill": "$whip-text",
+                                      "content": "Every 1 hour",
+                                      "fontFamily": "$whip-font",
+                                      "fontSize": 13,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "Io0ku",
+                                  "name": "Agent Detail Model",
+                                  "width": "fill_container",
+                                  "height": 22,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "P8wqY",
+                                      "name": "Agent Detail Model Label",
+                                      "fill": "$whip-muted",
+                                      "content": "Model",
+                                      "fontFamily": "$whip-font",
+                                      "fontSize": 13,
+                                      "fontWeight": "600"
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "GPT3d",
+                                      "name": "Agent Detail Model Spacer",
+                                      "width": "fill_container",
+                                      "height": 1
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "B8wp0r",
+                                      "name": "Agent Detail Model Value",
+                                      "fill": "$whip-text",
+                                      "content": "claude · low",
+                                      "fontFamily": "$whip-font",
+                                      "fontSize": 13,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "m7npb",
+                                  "name": "Agent Detail Next run",
+                                  "width": "fill_container",
+                                  "height": 22,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "DP718",
+                                      "name": "Agent Detail Next run Label",
+                                      "fill": "$whip-muted",
+                                      "content": "Next run",
+                                      "fontFamily": "$whip-font",
+                                      "fontSize": 13,
+                                      "fontWeight": "600"
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "UvaK9",
+                                      "name": "Agent Detail Next run Spacer",
+                                      "width": "fill_container",
+                                      "height": 1
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "pb5XZ",
+                                      "name": "Agent Detail Next run Value",
+                                      "fill": "$whip-text",
+                                      "content": "—",
+                                      "fontFamily": "$whip-font",
+                                      "fontSize": 13,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "B8uqY",
+                                  "name": "Agent Detail Runs",
+                                  "width": "fill_container",
+                                  "height": 22,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "G4CdL8",
+                                      "name": "Agent Detail Runs Label",
+                                      "fill": "$whip-muted",
+                                      "content": "Runs",
+                                      "fontFamily": "$whip-font",
+                                      "fontSize": 13,
+                                      "fontWeight": "600"
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "Gwt39",
+                                      "name": "Agent Detail Runs Spacer",
+                                      "width": "fill_container",
+                                      "height": 1
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "U3Hbqr",
+                                      "name": "Agent Detail Runs Value",
+                                      "fill": "$whip-text",
+                                      "content": "2",
+                                      "fontFamily": "$whip-font",
+                                      "fontSize": 13,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "C6IPR",
+                                  "name": "Agent Detail Success",
+                                  "width": "fill_container",
+                                  "height": 22,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "c1Kl0",
+                                      "name": "Agent Detail Success Label",
+                                      "fill": "$whip-muted",
+                                      "content": "Success",
+                                      "fontFamily": "$whip-font",
+                                      "fontSize": 13,
+                                      "fontWeight": "600"
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "nxxwW",
+                                      "name": "Agent Detail Success Spacer",
+                                      "width": "fill_container",
+                                      "height": 1
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "IL91R",
+                                      "name": "Agent Detail Success Value",
+                                      "fill": "$whip-text",
+                                      "content": "50%",
+                                      "fontFamily": "$whip-font",
+                                      "fontSize": 13,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "yoAoY",
+                              "name": "Recent Runs Panel",
+                              "width": "fill_container",
+                              "height": "fill_container",
+                              "fill": "$whip-surface",
+                              "cornerRadius": 8,
+                              "stroke": "$whip-border",
+                              "strokeWidth": 1,
+                              "layout": "vertical",
+                              "gap": 8,
+                              "padding": 14,
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "GbXgC",
+                                  "name": "Recent Runs Title",
+                                  "fill": "$whip-text",
+                                  "content": "Recent runs",
+                                  "fontFamily": "$whip-font",
+                                  "fontSize": 15,
+                                  "fontWeight": "700"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "KMTyt",
+                                  "name": "Recent Run Jun 6, 02:10 AM",
+                                  "width": "fill_container",
+                                  "height": 52,
+                                  "gap": 10,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "ellipse",
+                                      "id": "T7ly2T",
+                                      "name": "Recent Run Jun 6, 02:10 AM Dot",
+                                      "fill": "$whip-green",
+                                      "width": 10,
+                                      "height": 10
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "RDFEH",
+                                      "name": "Recent Run Jun 6, 02:10 AM Text",
+                                      "width": "fill_container",
+                                      "layout": "vertical",
+                                      "gap": 3,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "PTyW8",
+                                          "name": "Recent Run Jun 6, 02:10 AM Time",
+                                          "fill": "$whip-text",
+                                          "content": "Jun 6, 02:10 AM",
+                                          "fontFamily": "$whip-font",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "S3oS20",
+                                          "name": "Recent Run Jun 6, 02:10 AM Meta",
+                                          "fill": "$whip-faint",
+                                          "content": "Manual · 1m 24s",
+                                          "fontFamily": "$whip-font",
+                                          "fontSize": 11,
+                                          "fontWeight": "600"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "YCQWL",
+                                  "name": "Recent Run Jun 6, 02:09 AM",
+                                  "width": "fill_container",
+                                  "height": 52,
+                                  "gap": 10,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "ellipse",
+                                      "id": "rl0CB",
+                                      "name": "Recent Run Jun 6, 02:09 AM Dot",
+                                      "fill": "$whip-yellow",
+                                      "width": 10,
+                                      "height": 10
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "HBbj7",
+                                      "name": "Recent Run Jun 6, 02:09 AM Text",
+                                      "width": "fill_container",
+                                      "layout": "vertical",
+                                      "gap": 3,
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "VDBYt",
+                                          "name": "Recent Run Jun 6, 02:09 AM Time",
+                                          "fill": "$whip-text",
+                                          "content": "Jun 6, 02:09 AM",
+                                          "fontFamily": "$whip-font",
+                                          "fontSize": 13,
+                                          "fontWeight": "700"
+                                        },
+                                        {
+                                          "type": "text",
+                                          "id": "t31Th",
+                                          "name": "Recent Run Jun 6, 02:09 AM Meta",
+                                          "fill": "$whip-faint",
+                                          "content": "Manual · 11s",
+                                          "fontFamily": "$whip-font",
+                                          "fontSize": 11,
+                                          "fontWeight": "600"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   ],
   "variables": {

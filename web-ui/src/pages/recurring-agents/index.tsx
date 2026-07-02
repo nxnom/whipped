@@ -1,11 +1,11 @@
 import { Button, ConfirmDialog, toast } from "@geckoui/geckoui";
 import type { RecurringAgent } from "@runtime-contract";
-import { ArrowLeft, Clock, Plus } from "lucide-react";
+import { Clock, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { RecurringAgentDetail } from "./RecurringAgentDetail";
 import { RecurringAgentDialog } from "./RecurringAgentDialog";
-import { RecurringAgentList } from "./RecurringAgentList";
+import { RecurringAgentsHeader } from "./RecurringAgentsHeader";
 import { useRecurringAgents } from "./useRecurringAgents";
 
 const POLL_INTERVAL_MS = 5000;
@@ -87,67 +87,49 @@ export function RecurringAgentsPage() {
 
 	return (
 		<>
-			<div className="flex h-full overflow-hidden">
-				{/* List rail */}
-				<div className="w-[300px] shrink-0 flex flex-col bg-whip-bg border-r border-whip-border">
-					<div className="flex items-center gap-2 px-4 py-4 border-b border-whip-border">
-						<button
-							type="button"
-							onClick={() => navigate(`/${encodeURIComponent(wsId)}/board`)}
-							title="Back to board"
-							className="hover:opacity-70 transition-opacity"
-						>
-							<ArrowLeft size={16} className="text-whip-muted" />
-						</button>
-						<span className="flex-1 text-[14px] font-semibold text-whip-text">Recurring Agents</span>
-						<button
-							type="button"
-							onClick={() => openDialog()}
-							title="New agent"
-							className="hover:opacity-70 transition-opacity"
-						>
-							<Plus size={16} className="text-whip-muted" />
-						</button>
-					</div>
-					<div className="flex-1 overflow-y-auto">
-						<RecurringAgentList agents={agents} selectedId={selected?.id ?? null} onSelect={select} />
-					</div>
-				</div>
+			<div className="flex flex-col h-full overflow-hidden bg-whip-bg">
+				<RecurringAgentsHeader
+					agents={agents}
+					selectedId={selected?.id ?? null}
+					onSelect={select}
+					onNewAgent={() => openDialog()}
+				/>
 
-				{/* Detail */}
-				<div className="flex-1 overflow-hidden flex flex-col min-h-0">
-					{selected ? (
-						<RecurringAgentDetail
-							agent={selected}
-							workspaceId={wsId}
-							running={runNow.loading}
-							savingJournal={saveJournal.loading}
-							onToggleEnabled={handleToggle}
-							onRunNow={handleRunNow}
-							onEdit={() => openDialog(selected)}
-							onDelete={handleDelete}
-							onSaveJournal={handleSaveJournal}
-						/>
-					) : (
-						<div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-6">
-							<div className="flex items-center justify-center size-16 rounded-full bg-whip-accent/10">
-								<Clock size={28} className="text-whip-accent" />
+				<div className="flex-1 min-h-0 p-5 px-8">
+					<div className="h-full flex flex-col overflow-hidden rounded-lg border border-whip-border">
+						{selected ? (
+							<RecurringAgentDetail
+								agent={selected}
+								workspaceId={wsId}
+								running={runNow.loading}
+								savingJournal={saveJournal.loading}
+								onToggleEnabled={handleToggle}
+								onRunNow={handleRunNow}
+								onEdit={() => openDialog(selected)}
+								onDelete={handleDelete}
+								onSaveJournal={handleSaveJournal}
+							/>
+						) : (
+							<div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-6">
+								<div className="flex items-center justify-center size-16 rounded-full bg-whip-accent/10">
+									<Clock size={28} className="text-whip-accent" />
+								</div>
+								<div className="flex flex-col gap-1">
+									<span className="text-[16px] font-semibold text-whip-text">
+										{agents.length ? "Select an agent" : "No recurring agents yet"}
+									</span>
+									<span className="text-[13px] text-whip-faint">
+										Scheduled agents observe your project and report — they don't write code.
+									</span>
+								</div>
+								<Button size="sm" onClick={() => openDialog()}>
+									<span className="flex items-center gap-1.5">
+										<Plus size={14} /> New agent
+									</span>
+								</Button>
 							</div>
-							<div className="flex flex-col gap-1">
-								<span className="text-[16px] font-semibold text-whip-text">
-									{agents.length ? "Select an agent" : "No recurring agents yet"}
-								</span>
-								<span className="text-[13px] text-whip-faint">
-									Scheduled agents observe your project and report — they don't write code.
-								</span>
-							</div>
-							<Button size="sm" onClick={() => openDialog()}>
-								<span className="flex items-center gap-1.5">
-									<Plus size={14} /> New agent
-								</span>
-							</Button>
-						</div>
-					)}
+						)}
+					</div>
 				</div>
 			</div>
 
