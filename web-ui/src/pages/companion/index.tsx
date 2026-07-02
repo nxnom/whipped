@@ -132,7 +132,7 @@ export function CompanionPage() {
 							<Loader2 size={20} className="animate-spin text-whip-faint" />
 						</div>
 					) : selected ? (
-						<CompanionSessionDetail session={selected} workspaceId={wsId} />
+						<CompanionSessionDetail session={selected} workspaceId={wsId} onStopSession={() => void handleStop()} />
 					) : (
 						<div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-6 overflow-y-auto py-8">
 							<div className="flex items-center justify-center size-16 rounded-full bg-whip-accent/10 shrink-0">
@@ -189,7 +189,6 @@ export function CompanionPage() {
 						projectRunActive={runSession.status === "running" && runSession.cardId === selected.id}
 						onRunProject={() => void handleRunProject()}
 						onStopProjectRun={() => void handleStopProjectRun()}
-						onStopSession={() => void handleStop()}
 						canMerge={canMerge}
 						onMerge={handleMerge}
 						onCreatePR={handleCreatePR}

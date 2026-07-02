@@ -1,4 +1,4 @@
-import { Menu, MenuItem, MenuTrigger, Tooltip } from "@geckoui/geckoui";
+import { Menu, MenuItem, MenuTrigger } from "@geckoui/geckoui";
 import type { CompanionSession } from "@runtime-contract";
 import { ChevronDown, GitMerge, GitPullRequest, Play, Plus, Square, Trash2 } from "lucide-react";
 import { classNames } from "@/utils/classNames";
@@ -14,7 +14,6 @@ interface CompanionBarProps {
 	projectRunActive: boolean;
 	onRunProject: () => void;
 	onStopProjectRun: () => void;
-	onStopSession: () => void;
 	canMerge: boolean;
 	onMerge: () => void;
 	onCreatePR: () => void;
@@ -64,7 +63,6 @@ export function CompanionBar({
 	projectRunActive,
 	onRunProject,
 	onStopProjectRun,
-	onStopSession,
 	canMerge,
 	onMerge,
 	onCreatePR,
@@ -129,13 +127,6 @@ export function CompanionBar({
 
 			<div className="flex-1" />
 
-			{session.status === "running" && (
-				<Tooltip delayDuration={0} content="Stop this session" side="top" triggerAsChild>
-					<span>
-						<ActionButton icon={<Square size={13} />} label="Stop" onClick={onStopSession} />
-					</span>
-				</Tooltip>
-			)}
 			{hasStartCommand &&
 				!!session.worktreePath &&
 				(projectRunActive ? (

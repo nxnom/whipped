@@ -1,5 +1,6 @@
+import { Tooltip } from "@geckoui/geckoui";
 import type { CompanionSession } from "@runtime-contract";
-import { Columns2, TerminalSquare } from "lucide-react";
+import { Columns2, OctagonX, TerminalSquare } from "lucide-react";
 import { useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { classNames } from "@/utils/classNames";
@@ -8,7 +9,15 @@ import { CompanionDiffPanel } from "./CompanionDiffPanel";
 
 type DetailTab = "terminal" | "diff";
 
-export function CompanionSessionDetail({ session, workspaceId }: { session: CompanionSession; workspaceId: string }) {
+export function CompanionSessionDetail({
+	session,
+	workspaceId,
+	onStopSession,
+}: {
+	session: CompanionSession;
+	workspaceId: string;
+	onStopSession: () => void;
+}) {
 	const [tab, setTab] = useState<DetailTab>("terminal");
 	const canvas = useCompanionCanvas(session.id, workspaceId);
 
@@ -37,7 +46,22 @@ export function CompanionSessionDetail({ session, workspaceId }: { session: Comp
 						</button>
 					))}
 				</div>
-				{tab === "terminal" && <CanvasPanelHeader canvas={canvas} />}
+				<div className="flex items-center gap-2">
+					{tab === "terminal" && <CanvasPanelHeader canvas={canvas} />}
+					{session.status === "running" && (
+						<Tooltip delayDuration={0} content="Kill this session" side="bottom" triggerAsChild>
+							<span>
+								<button
+									onClick={onStopSession}
+									className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-whip-border bg-whip-panel text-xs font-semibold text-[#ff3b4d] hover:bg-[#ff3b4d]/10 transition-colors shrink-0"
+								>
+									<OctagonX size={13} />
+									Kill
+								</button>
+							</span>
+						</Tooltip>
+					)}
+				</div>
 			</div>
 
 			{/* Tab content — a companion session is a single persistent terminal stream,

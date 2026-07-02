@@ -82,11 +82,9 @@ export default function App() {
 
 	const pathSegments = location.pathname.split("/").filter(Boolean);
 	const activeWorkspaceId = pathSegments[0] ?? null;
-	// Companion and Recurring Agents each have their own bottom bar with session/run
-	// controls, so the global one would just duplicate it.
-	const section = pathSegments[1];
-	const isCompanion = section === "companion";
-	const isRecurringAgents = section === "recurring-agents";
+	// Recurring Agents has its own bottom bar with session/run controls, so the
+	// global one would just duplicate it.
+	const isRecurringAgents = pathSegments[1] === "recurring-agents";
 	const [agentOpen, setAgentOpen] = useState(false);
 	const [showAddProject, setShowAddProject] = useState(false);
 

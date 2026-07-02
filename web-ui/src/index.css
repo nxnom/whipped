@@ -88,4 +88,8 @@
   ::-webkit-scrollbar-thumb:hover {
     background: var(--color-whip-border-hover);
   }
+
+  button {
+    cursor: pointer;
+  }
 }
