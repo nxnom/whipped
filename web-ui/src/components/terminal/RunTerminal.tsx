@@ -2,6 +2,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 import "@xterm/xterm/css/xterm.css";
+import { useTheme } from "@/stores/theme-store";
 import { classNames } from "@/utils/classNames";
 import { xtermTheme } from "./xtermTheme";
 
@@ -12,6 +13,16 @@ interface RunTerminalProps {
 
 export function RunTerminal({ workspaceId, className }: RunTerminalProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
+	const termRef = useRef<Terminal | null>(null);
+	const theme = useTheme();
+
+	// Re-theme an already-mounted terminal instead of leaving it locked to
+	// whatever was active when it connected — xterm resolves the theme once
+	// into its own color state, so it doesn't pick up new CSS custom property
+	// values on its own.
+	useEffect(() => {
+		if (termRef.current) termRef.current.options.theme = xtermTheme();
+	}, [theme]);
 
 	useEffect(() => {
 		const container = containerRef.current;
@@ -24,52 +35,73 @@ export function RunTerminal({ workspaceId, className }: RunTerminalProps) {
 			cursorBlink: true,
 			scrollback: 10000,
 		});
+		termRef.current = term;
 
 		const fit = new FitAddon();
 		term.loadAddon(fit);
 		term.open(container);
-		requestAnimationFrame(() => requestAnimationFrame(() => fit.fit()));
 
-		const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-		const ws = new WebSocket(
-			`${proto}//${window.location.host}/api/run-terminal?workspaceId=${encodeURIComponent(workspaceId)}`,
-		);
-
-		ws.addEventListener("open", () => {
-			fit.fit();
-		});
-
-		ws.addEventListener("message", (event) => {
-			if (typeof event.data === "string") term.write(event.data);
-			else if (event.data instanceof ArrayBuffer) term.write(new Uint8Array(event.data));
-		});
-
-		ws.addEventListener("error", () => {
-			term.write("\r\n\x1b[31m[run terminal: connection failed]\x1b[0m\r\n");
-		});
-
-		const inputDisposable = term.onData((data) => {
-			if (ws.readyState === WebSocket.OPEN) {
-				ws.send(data);
-			}
-		});
-
+		let disposed = false;
+		let ws: WebSocket | null = null;
+		let inputDisposable: { dispose(): void } | null = null;
+		let resizeObserver: ResizeObserver | null = null;
 		let resizeTimer: ReturnType<typeof setTimeout> | null = null;
-		const resizeObserver = new ResizeObserver(() => {
-			if (resizeTimer !== null) clearTimeout(resizeTimer);
-			resizeTimer = setTimeout(() => {
-				resizeTimer = null;
+		let raf2 = 0;
+
+		// Wait for the container to settle into its final layout size before
+		// connecting — fitting after the buffer replay has already started can
+		// leave the terminal sized wrong for the content it just received.
+		const raf1 = requestAnimationFrame(() => {
+			raf2 = requestAnimationFrame(() => {
+				if (disposed) return;
 				fit.fit();
-			}, 50);
+
+				const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+				ws = new WebSocket(
+					`${proto}//${window.location.host}/api/run-terminal?workspaceId=${encodeURIComponent(workspaceId)}`,
+				);
+				const socket = ws;
+
+				socket.addEventListener("open", () => {
+					fit.fit();
+				});
+
+				socket.addEventListener("message", (event) => {
+					if (typeof event.data === "string") term.write(event.data);
+					else if (event.data instanceof ArrayBuffer) term.write(new Uint8Array(event.data));
+				});
+
+				socket.addEventListener("error", () => {
+					term.write("\r\n\x1b[31m[run terminal: connection failed]\x1b[0m\r\n");
+				});
+
+				inputDisposable = term.onData((data) => {
+					if (socket.readyState === WebSocket.OPEN) {
+						socket.send(data);
+					}
+				});
+
+				resizeObserver = new ResizeObserver(() => {
+					if (resizeTimer !== null) clearTimeout(resizeTimer);
+					resizeTimer = setTimeout(() => {
+						resizeTimer = null;
+						fit.fit();
+					}, 50);
+				});
+				resizeObserver.observe(container);
+			});
 		});
-		resizeObserver.observe(container);
 
 		return () => {
-			resizeObserver.disconnect();
-			inputDisposable.dispose();
+			disposed = true;
+			cancelAnimationFrame(raf1);
+			cancelAnimationFrame(raf2);
+			resizeObserver?.disconnect();
+			inputDisposable?.dispose();
 			if (resizeTimer !== null) clearTimeout(resizeTimer);
-			ws.close(1000);
+			ws?.close(1000);
 			term.dispose();
+			termRef.current = null;
 		};
 	}, [workspaceId]);
 

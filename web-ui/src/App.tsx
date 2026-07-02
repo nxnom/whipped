@@ -85,7 +85,8 @@ export default function App() {
 	// Companion and Recurring Agents each have their own bottom bar with session/run
 	// controls, so the global one would just duplicate it.
 	const section = pathSegments[1];
-	const hideGlobalRunBar = section === "companion" || section === "recurring-agents";
+	const isCompanion = section === "companion";
+	const isRecurringAgents = section === "recurring-agents";
 	const [agentOpen, setAgentOpen] = useState(false);
 	const [showAddProject, setShowAddProject] = useState(false);
 
@@ -122,7 +123,7 @@ export default function App() {
 								</Routes>
 							</ErrorBoundary>
 						</div>
-						{activeWorkspaceId && !hideGlobalRunBar && <RunBar workspaceId={activeWorkspaceId} />}
+						{activeWorkspaceId && !isRecurringAgents && <RunBar workspaceId={activeWorkspaceId} />}
 					</main>
 
 					{activeWorkspaceId && (

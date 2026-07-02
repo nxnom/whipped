@@ -69,13 +69,37 @@ export function RunBar({ workspaceId }: RunBarProps) {
 				{cardAgentId &&
 					(() => {
 						const colors: Record<string, { dot: string; text: string; bg: string }> = {
-							claude: { dot: "bg-[#8b5cf6]", text: "text-[#8b5cf6]", bg: "bg-[#8b5cf6]/10" },
-							codex: { dot: "bg-[#22c55e]", text: "text-[#22c55e]", bg: "bg-[#22c55e]/10" },
-							cursor: { dot: "bg-[#3b82f6]", text: "text-[#3b82f6]", bg: "bg-[#3b82f6]/10" },
-							opencode: { dot: "bg-[#f97316]", text: "text-[#f97316]", bg: "bg-[#f97316]/10" },
-							mimo: { dot: "bg-[#fb8147]", text: "text-[#fb8147]", bg: "bg-[#fb8147]/10" },
+							claude: {
+								dot: "bg-[#8b5cf6]",
+								text: "text-[#8b5cf6]",
+								bg: "bg-[#8b5cf6]/10",
+							},
+							codex: {
+								dot: "bg-[#22c55e]",
+								text: "text-[#22c55e]",
+								bg: "bg-[#22c55e]/10",
+							},
+							cursor: {
+								dot: "bg-[#3b82f6]",
+								text: "text-[#3b82f6]",
+								bg: "bg-[#3b82f6]/10",
+							},
+							opencode: {
+								dot: "bg-[#f97316]",
+								text: "text-[#f97316]",
+								bg: "bg-[#f97316]/10",
+							},
+							mimo: {
+								dot: "bg-[#fb8147]",
+								text: "text-[#fb8147]",
+								bg: "bg-[#fb8147]/10",
+							},
 						};
-						const ac = colors[cardAgentId] ?? { dot: "bg-[#5f6672]", text: "text-whip-muted", bg: "bg-[#5f6672]/10" };
+						const ac = colors[cardAgentId] ?? {
+							dot: "bg-[#5f6672]",
+							text: "text-whip-muted",
+							bg: "bg-[#5f6672]/10",
+						};
 						return (
 							<span
 								className={classNames(

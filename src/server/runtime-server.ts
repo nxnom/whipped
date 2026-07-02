@@ -848,23 +848,33 @@ export async function createRuntimeServer(options: ServerOptions) {
 				}
 			});
 
-			// Send snapshot: prefer active session buffer; fall back to hub/disk for completed tasks.
+			// Send snapshot: prefer active session buffer; fall back to disk/hub for completed tasks.
 			// null means no active session — safe to use stale fallback.
 			// "" means active session with no output yet — send nothing (blank terminal).
+			// Disk is checked before the hub's in-memory cache: the hub caps at 64KB and
+			// truncates with a raw string slice, which can land mid-escape-sequence and
+			// corrupt the whole replay (garbled ASCII art, stray colored blocks) for any
+			// session long enough to have been trimmed. The disk file is written on every
+			// output chunk with the full, untruncated buffer, so it's the accurate copy
+			// once a task is no longer live. Sessions that never persist to disk (e.g.
+			// companion/assistant) fall through to the hub snapshot as before.
 			const activeBuffer = schedulers.get(workspaceId)?.getOutputBuffer(taskId) ?? null;
 			if (activeBuffer !== null) {
 				if (activeBuffer && ws.readyState === 1) ws.send(prepareBufferForReplay(activeBuffer));
 			} else {
-				const hubSnapshot = stateHub.getTerminalBuffer(workspaceId, taskId);
-				if (hubSnapshot) {
-					if (ws.readyState === 1) ws.send(prepareBufferForReplay(hubSnapshot));
-				} else {
-					loadTerminalBuffer(workspaceId, taskId)
-						.then((diskSnapshot) => {
-							if (diskSnapshot && ws.readyState === 1) ws.send(prepareBufferForReplay(diskSnapshot));
-						})
-						.catch(() => {});
-				}
+				loadTerminalBuffer(workspaceId, taskId)
+					.then((diskSnapshot) => {
+						if (diskSnapshot) {
+							if (ws.readyState === 1) ws.send(prepareBufferForReplay(diskSnapshot));
+							return;
+						}
+						const hubSnapshot = stateHub.getTerminalBuffer(workspaceId, taskId);
+						if (hubSnapshot && ws.readyState === 1) ws.send(prepareBufferForReplay(hubSnapshot));
+					})
+					.catch(() => {
+						const hubSnapshot = stateHub.getTerminalBuffer(workspaceId, taskId);
+						if (hubSnapshot && ws.readyState === 1) ws.send(prepareBufferForReplay(hubSnapshot));
+					});
 			}
 
 			// Forward keyboard input and resize messages from client to PTY

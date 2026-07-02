@@ -96,9 +96,7 @@ export function CanvasBody({
 				</div>
 			)}
 
-			<div
-				className={classNames("flex-1 min-h-0 overflow-y-auto px-3 py-3 flex flex-col gap-4", readOnly && "opacity-60")}
-			>
+			<div className={classNames("flex-1 min-h-0 overflow-y-auto px-3 py-3 flex flex-col gap-4")}>
 				{activeCanvas.blocks.map((block) => (
 					<div key={block.id} className="group relative flex flex-col gap-1.5">
 						<CanvasBlockRenderer

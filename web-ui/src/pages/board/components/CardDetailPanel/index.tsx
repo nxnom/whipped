@@ -157,7 +157,6 @@ export function CardDetailPanel({
 					isReadyForReview={isReadyForReview}
 					rightTab={rightTab}
 					hasTerminalOutput={hasTerminalOutput}
-					visibleSessions={visibleSessions}
 					activeStreamId={activeStreamId}
 					onRefresh={onRefresh}
 				/>

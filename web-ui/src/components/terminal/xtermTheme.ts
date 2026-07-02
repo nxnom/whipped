@@ -1,13 +1,21 @@
 import type { ITheme } from "@xterm/xterm";
 
-// Reads the actual --color-whip-bg value so the terminal background always tracks
-// the app's main background token instead of drifting to its own hardcoded shade.
+function cssVar(name: string, fallback: string): string {
+	const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+	return value || fallback;
+}
+
+// Reads the app's live theme tokens (not hardcoded colors) so default/unstyled
+// terminal text stays readable in both themes. xterm re-renders its canvas
+// when terminal.options.theme is reassigned, so callers can call this again
+// on theme change to re-theme an already-mounted terminal (see TaskTerminal /
+// RunTerminal's theme-change effect) instead of leaving it locked to whatever
+// was active when it connected.
 export function xtermTheme(): ITheme {
-	const bg = getComputedStyle(document.documentElement).getPropertyValue("--color-whip-bg").trim() || "#050505";
 	return {
-		background: bg,
-		foreground: "#ededed",
-		cursor: "#ffffff",
-		selectionBackground: "#2a2a2a",
+		background: cssVar("--color-whip-bg", "#050505"),
+		foreground: cssVar("--color-whip-text", "#ededed"),
+		cursor: cssVar("--color-whip-text", "#ededed"),
+		selectionBackground: cssVar("--color-whip-border-hover", "#3a3a3a"),
 	};
 }
