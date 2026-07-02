@@ -71,13 +71,13 @@ export function EnvironmentSecretsSection({
 			<div className="flex flex-col gap-4">
 				{/* Secrets header */}
 				<div className="flex items-center gap-2">
-					<span className="text-[15px] font-semibold shrink-0 text-[#ededed]">Secrets</span>
-					<div className="flex-1 h-px bg-[#111111]" />
+					<span className="text-[15px] font-semibold shrink-0 text-whip-text">Secrets</span>
+					<div className="flex-1 h-px bg-whip-panel" />
 
 					{/* Paste .env */}
 					<button
 						onClick={() => setPasteOpen((v) => !v)}
-						className="flex items-center gap-1.5 hover:opacity-80 transition-opacity border border-[#2a2a2a] rounded-[5px] px-2.5 py-[5px] text-[#8a8f98]"
+						className="flex items-center gap-1.5 hover:opacity-80 transition-opacity border border-whip-border rounded-[5px] px-2.5 py-[5px] text-whip-muted"
 					>
 						<ClipboardPaste size={12} />
 						<span className="text-[11px]">Paste .env</span>
@@ -86,7 +86,7 @@ export function EnvironmentSecretsSection({
 					{/* Add Secret */}
 					<button
 						onClick={() => setAddingSecret(true)}
-						className="flex items-center gap-1.5 hover:opacity-80 transition-opacity border border-[#ffffff] rounded-[5px] px-2.5 py-[5px] text-[#ffffff]"
+						className="flex items-center gap-1.5 hover:opacity-80 transition-opacity border border-whip-accent rounded-[5px] px-2.5 py-[5px] text-whip-accent"
 					>
 						<Plus size={12} />
 						<span className="text-[11px] font-medium">Add Secret</span>
@@ -101,7 +101,7 @@ export function EnvironmentSecretsSection({
 							onChange={(e) => setEnvText(e.target.value)}
 							placeholder={'GITHUB_TOKEN=ghp_xxx\nFIGMA_TOKEN="abc123"\n# comments ignored'}
 							rows={5}
-							className="w-full font-mono text-[12px] focus:outline-none resize-none bg-[#111111] border border-[#2a2a2a] rounded-md px-3 py-[9px] text-[#ededed]"
+							className="w-full font-mono text-[12px] focus:outline-none resize-none bg-whip-panel border border-whip-border rounded-md px-3 py-[9px] text-whip-text"
 						/>
 						<div className="flex justify-end gap-2">
 							<button
@@ -109,14 +109,14 @@ export function EnvironmentSecretsSection({
 									setPasteOpen(false);
 									setEnvText("");
 								}}
-								className="text-[12px] px-3 py-1.5 rounded-md hover:opacity-70 transition-opacity text-[#8a8f98] border border-[#2a2a2a]"
+								className="text-[12px] px-3 py-1.5 rounded-md hover:opacity-70 transition-opacity text-whip-muted border border-whip-border"
 							>
 								Cancel
 							</button>
 							<button
 								onClick={handlePasteApply}
 								disabled={!envText.trim()}
-								className="text-[12px] font-medium px-3 py-1.5 rounded-md transition-opacity disabled:opacity-40 bg-[#ffffff] text-white"
+								className="text-[12px] font-medium px-3 py-1.5 rounded-md transition-opacity disabled:opacity-40 bg-whip-accent text-whip-accent-text"
 							>
 								Apply
 							</button>
@@ -144,7 +144,7 @@ export function EnvironmentSecretsSection({
 				<button
 					onClick={handleSaveAll}
 					disabled={saving}
-					className="text-sm font-medium px-4 py-2 rounded-lg transition-opacity disabled:opacity-50 bg-[#ffffff] text-white"
+					className="text-sm font-medium px-4 py-2 rounded-lg transition-opacity disabled:opacity-50 bg-whip-accent text-whip-accent-text"
 				>
 					{saving ? "Saving..." : "Save"}
 				</button>

@@ -32,12 +32,12 @@ export function BoardPage() {
 		<div className="flex-1 overflow-hidden flex flex-col min-h-0">
 			<UpdateBanner />
 			{!connected && !state ? (
-				<div className="flex-1 flex items-center justify-center flex-col gap-3 text-[#5f6672]">
+				<div className="flex-1 flex items-center justify-center flex-col gap-3 text-whip-faint">
 					<WifiOff size={32} />
 					<p className="text-sm">Connecting to server...</p>
 				</div>
 			) : !state ? (
-				<div className="flex-1 flex items-center justify-center text-[#5f6672] text-sm">Loading...</div>
+				<div className="flex-1 flex items-center justify-center text-whip-faint text-sm">Loading...</div>
 			) : (
 				<KanbanBoard
 					state={state}

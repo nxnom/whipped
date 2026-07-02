@@ -18,7 +18,7 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 			onClick={onClick}
 			className={classNames(
 				"flex-1 py-1.5 text-[13px] rounded-md transition-colors",
-				active ? "bg-[#ffffff] text-white" : "text-[#8a8f98] hover:text-[#ededed]",
+				active ? "bg-whip-accent text-whip-accent-text" : "text-whip-muted hover:text-whip-text",
 			)}
 		>
 			{children}
@@ -36,7 +36,7 @@ export function ScheduleEditor() {
 
 	return (
 		<div className="flex flex-col gap-3">
-			<div className="flex gap-1 p-1 rounded-lg bg-[#111111] border border-[#2a2a2a]">
+			<div className="flex gap-1 p-1 rounded-lg bg-whip-panel border border-whip-border">
 				<TabButton active={isInterval} onClick={() => setValue("scheduleKind", "interval")}>
 					Interval
 				</TabButton>
@@ -47,7 +47,7 @@ export function ScheduleEditor() {
 
 			{isInterval ? (
 				<div className="flex items-center gap-2">
-					<span className="text-[13px] text-[#8a8f98]">Every</span>
+					<span className="text-[13px] text-whip-muted">Every</span>
 					<RHFNumberInput
 						name="intervalValue"
 						className="w-20"
@@ -82,7 +82,7 @@ export function ScheduleEditor() {
 						)}
 						{freq === "monthly" && (
 							<div className="flex items-center gap-1.5">
-								<span className="text-[12px] text-[#8a8f98]">Day</span>
+								<span className="text-[12px] text-whip-muted">Day</span>
 								<RHFNumberInput
 									name="calDom"
 									className="w-16"
@@ -99,7 +99,7 @@ export function ScheduleEditor() {
 						/>
 					</div>
 					<div className="flex items-center gap-2">
-						<span className="text-[13px] text-[#8a8f98] w-20 shrink-0">Timezone</span>
+						<span className="text-[13px] text-whip-muted w-20 shrink-0">Timezone</span>
 						<div className="flex-1">
 							<RHFSelect name="calTimezone" filterable>
 								{timezoneOptions().map((tz) => (

@@ -8,6 +8,6 @@ export function slotTypeColor(type: string): string {
 	if (type === "dev") return "#3b82f6";
 	if (type === "plan") return "#eab308";
 	if (type === "review") return "#22c55e";
-	if (type === "orch") return "#ffffff";
-	return "#8a8f98";
+	if (type === "orch") return "var(--whip-text)";
+	return "var(--whip-muted)";
 }

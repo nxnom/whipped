@@ -15,14 +15,14 @@ interface StorySubtaskListProps {
 export function StorySubtaskList({ subtaskDrafts, allCards, onAdd, onEdit, onRemove }: StorySubtaskListProps) {
 	return (
 		<div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-			<div className="h-px bg-[#2a2a2a] shrink-0 my-2" />
+			<div className="h-px bg-whip-border shrink-0 my-2" />
 			{/* Subtasks header */}
 			<div className="flex items-center gap-2 shrink-0 mb-2">
-				<ListTree size={14} className="text-[#8a8f98]" />
-				<span className="text-xs font-semibold text-[#8a8f98]">Subtasks</span>
+				<ListTree size={14} className="text-whip-muted" />
+				<span className="text-xs font-semibold text-whip-muted">Subtasks</span>
 				{subtaskDrafts.length > 0 && (
-					<div className="bg-[#2a2a2a] rounded-full px-1.5 py-0.5">
-						<span className="text-[10px] text-[#5f6672]">{subtaskDrafts.length}</span>
+					<div className="bg-whip-border rounded-full px-1.5 py-0.5">
+						<span className="text-[10px] text-whip-faint">{subtaskDrafts.length}</span>
 					</div>
 				)}
 				<div className="flex-1" />
@@ -44,10 +44,10 @@ export function StorySubtaskList({ subtaskDrafts, allCards, onAdd, onEdit, onRem
 				{subtaskDrafts.length === 0 && (
 					<div
 						onClick={onAdd}
-						className="border border-dashed border-[#2a2a2a] rounded-lg p-5 flex flex-col items-center gap-2 cursor-pointer hover:border-[#3a3a3a] hover:bg-white/[0.02] transition-colors"
+						className="border border-dashed border-whip-border rounded-lg p-5 flex flex-col items-center gap-2 cursor-pointer hover:border-whip-border-hover hover:bg-white/[0.02] transition-colors"
 					>
-						<Plus size={16} className="text-[#5f6672]" />
-						<p className="text-xs text-[#5f6672]">At least one subtask is required</p>
+						<Plus size={16} className="text-whip-faint" />
+						<p className="text-xs text-whip-faint">At least one subtask is required</p>
 					</div>
 				)}
 				{subtaskDrafts.map((subtask, i) => {
@@ -60,11 +60,11 @@ export function StorySubtaskList({ subtaskDrafts, allCards, onAdd, onEdit, onRem
 						<button
 							key={subtask.tempId}
 							onClick={() => onEdit(subtask.tempId)}
-							className="flex items-center gap-2.5 bg-[#111111] border border-[#2a2a2a] rounded-md px-2.5 py-2 text-left hover:border-[#3a3a3a] transition-colors group w-full"
+							className="flex items-center gap-2.5 bg-whip-panel border border-whip-border rounded-md px-2.5 py-2 text-left hover:border-whip-border-hover transition-colors group w-full"
 						>
-							<GripVertical size={12} className="text-[#2a2a2a] shrink-0" />
-							<span className="text-[10px] text-[#5f6672] font-mono shrink-0 w-4">{i + 1}</span>
-							<span className="flex-1 min-w-0 text-xs text-[#ededed] truncate">
+							<GripVertical size={12} className="text-whip-border shrink-0" />
+							<span className="text-[10px] text-whip-faint font-mono shrink-0 w-4">{i + 1}</span>
+							<span className="flex-1 min-w-0 text-xs text-whip-text truncate">
 								{subtask.description?.split("\n")[0] ?? subtask.tempId}
 							</span>
 							{priorityOpt && (
@@ -85,7 +85,7 @@ export function StorySubtaskList({ subtaskDrafts, allCards, onAdd, onEdit, onRem
 									e.stopPropagation();
 									onRemove(subtask.tempId);
 								}}
-								className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-[#5f6672] hover:text-[#ff3b4d] p-0.5"
+								className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-whip-faint hover:text-[#ff3b4d] p-0.5"
 							>
 								<X size={12} />
 							</span>

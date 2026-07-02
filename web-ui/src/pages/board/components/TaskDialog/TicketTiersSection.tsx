@@ -67,10 +67,10 @@ export function TicketTiersSection({ workflow }: { workflow: Workflow | undefine
 
 	return (
 		<div className="flex flex-col gap-2">
-			<span className="text-[11px] font-medium text-[#5f6672]">Model tiers</span>
+			<span className="text-[11px] font-medium text-whip-faint">Model tiers</span>
 			<RHFInputGroup
 				label="Level"
-				labelClassName="text-[10px] font-medium text-[#5f6672] tracking-[0.3px] uppercase"
+				labelClassName="text-[10px] font-medium text-whip-faint tracking-[0.3px] uppercase"
 				className="flex flex-col gap-1"
 				errorClassName="text-[11px] text-[#ff3b4d] mt-1"
 			>
@@ -91,17 +91,17 @@ export function TicketTiersSection({ workflow }: { workflow: Workflow | undefine
 					if (!sc) return null;
 					const value = sc.pinnedPairId ? `p:${sc.pinnedPairId}` : `m:${sc.mode}`;
 					return (
-						<div key={slot.id} className="flex flex-col gap-1 bg-[#111111] border border-[#2a2a2a] rounded-md p-2">
+						<div key={slot.id} className="flex flex-col gap-1 bg-whip-panel border border-whip-border rounded-md p-2">
 							<div className="flex items-center gap-2">
-								<span className="text-[12px] text-[#ededed]">{slot.name}</span>
+								<span className="text-[12px] text-whip-text">{slot.name}</span>
 								<div className="flex-1" />
 								<button
 									type="button"
 									onClick={() => setEditingSlotId(slot.id)}
-									className="flex items-center gap-1 hover:opacity-80 transition-opacity bg-transparent border border-[#2a2a2a] rounded-[4px] px-2 py-[3px]"
+									className="flex items-center gap-1 hover:opacity-80 transition-opacity bg-transparent border border-whip-border rounded-[4px] px-2 py-[3px]"
 								>
-									<Pencil size={11} className="text-[#5f6672]" />
-									<span className="text-[10px] text-[#5f6672]">Edit tiers</span>
+									<Pencil size={11} className="text-whip-faint" />
+									<span className="text-[10px] text-whip-faint">Edit tiers</span>
 								</button>
 							</div>
 							<Select value={value} onChange={(v) => onSelectChange(slot.id, v)}>

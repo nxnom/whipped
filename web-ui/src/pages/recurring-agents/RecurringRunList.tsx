@@ -4,7 +4,7 @@ import { classNames } from "@/utils/classNames";
 import { formatDuration, formatTimestamp } from "./helpers";
 
 export function StatusIcon({ status }: { status: RecurringAgentRun["status"] }) {
-	if (status === "running") return <Loader2 size={14} className="text-[#ffffff] animate-spin" />;
+	if (status === "running") return <Loader2 size={14} className="text-whip-text animate-spin" />;
 	if (status === "ok") return <CheckCircle2 size={14} className="text-[#22c55e]" />;
 	if (status === "error") return <Circle size={14} className="text-[#ff3b4d]" />;
 	return <Circle size={14} className="text-[#eab308]" />;
@@ -21,13 +21,13 @@ export function RecurringRunList({
 	onSelect: (streamId: string) => void;
 }) {
 	return (
-		<div className="w-64 shrink-0 bg-[#0b0b0b] border-l border-[#2a2a2a] flex flex-col overflow-hidden">
-			<div className="px-4 py-3 border-b border-[#2a2a2a] shrink-0">
-				<span className="text-xs font-semibold text-[#8a8f98]">Runs</span>
+		<div className="w-64 shrink-0 bg-whip-surface border-l border-whip-border flex flex-col overflow-hidden">
+			<div className="px-4 py-3 border-b border-whip-border shrink-0">
+				<span className="text-xs font-semibold text-whip-muted">Runs</span>
 			</div>
 			<div className="flex-1 overflow-y-auto px-2 py-2">
 				{runs.length === 0 ? (
-					<p className="px-2 py-3 text-[11px] text-[#5f6672]">No runs yet.</p>
+					<p className="px-2 py-3 text-[11px] text-whip-faint">No runs yet.</p>
 				) : (
 					runs.map((run) => {
 						const focused = run.streamId === activeStreamId;
@@ -39,24 +39,24 @@ export function RecurringRunList({
 								disabled={!run.streamId}
 								className={classNames(
 									"w-full flex items-stretch gap-2 rounded px-1.5 py-2 text-left transition-colors",
-									focused ? "bg-[#ffffff]/10" : "hover:bg-white/[0.03]",
+									focused ? "bg-whip-accent/10" : "hover:bg-white/[0.03]",
 									!run.streamId && "opacity-50 cursor-default",
 								)}
 							>
 								<div
 									className={classNames(
 										"w-0.5 shrink-0 rounded-full self-stretch",
-										focused ? "bg-[#ffffff]" : "bg-transparent",
+										focused ? "bg-whip-accent" : "bg-transparent",
 									)}
 								/>
 								<div className="mt-0.5 shrink-0">
 									<StatusIcon status={run.status} />
 								</div>
 								<div className="flex-1 min-w-0 flex flex-col gap-0.5">
-									<span className={classNames("text-[12px] truncate", focused ? "text-[#c4baff]" : "text-[#ededed]")}>
+									<span className={classNames("text-[12px] truncate", focused ? "text-whip-accent" : "text-whip-text")}>
 										{formatTimestamp(run.startedAt)}
 									</span>
-									<span className="text-[10px] text-[#5f6672] flex items-center gap-1.5">
+									<span className="text-[10px] text-whip-faint flex items-center gap-1.5">
 										{run.trigger === "manual" ? "Manual" : "Scheduled"}
 										{duration && (
 											<>

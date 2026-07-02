@@ -14,7 +14,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 	if (!data) {
 		if (loading) {
 			return (
-				<div className="dark min-h-screen flex items-center justify-center bg-whip-bg">
+				<div className="min-h-screen flex items-center justify-center bg-whip-bg">
 					<Spinner />
 				</div>
 			);

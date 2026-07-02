@@ -35,7 +35,7 @@ export function AgentBinarySelect({
 				{AGENT_BINARY_OPTIONS.map((o) => (
 					<SelectOption key={o.value} value={o.value} label={o.label}>
 						<span className="flex items-center gap-1.5 w-full">
-							<span className={isMissing(o.value) ? "text-[#8a8f98]" : ""}>{o.label}</span>
+							<span className={isMissing(o.value) ? "text-whip-muted" : ""}>{o.label}</span>
 							{isMissing(o.value) && <AlertTriangle size={11} className="text-[#eab308] ml-auto shrink-0" />}
 						</span>
 					</SelectOption>

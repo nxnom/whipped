@@ -93,17 +93,17 @@ function MemoryForm({
 	return (
 		<FormProvider {...methods}>
 			<form onSubmit={submit} className="flex flex-col gap-4">
-				<h3 className="text-[15px] font-semibold text-[#ededed]">{existing ? "Edit memory" : `New ${scope} memory`}</h3>
+				<h3 className="text-[15px] font-semibold text-whip-text">{existing ? "Edit memory" : `New ${scope} memory`}</h3>
 
 				<div className="grid grid-cols-2 gap-3">
-					<RHFInputGroup label="Type" labelClassName="text-[12px] font-medium text-[#ededed]">
+					<RHFInputGroup label="Type" labelClassName="text-[12px] font-medium text-whip-text">
 						<RHFSelect<MemoryType> name="type">
 							{MEMORY_TYPE_OPTIONS.map((o) => (
 								<SelectOption key={o.value} value={o.value} label={o.label} />
 							))}
 						</RHFSelect>
 					</RHFInputGroup>
-					<RHFInputGroup label="Importance" labelClassName="text-[12px] font-medium text-[#ededed]">
+					<RHFInputGroup label="Importance" labelClassName="text-[12px] font-medium text-whip-text">
 						<RHFSelect<number> name="importance">
 							<SelectOption value={1} label="1 — normal" />
 							<SelectOption value={2} label="2 — high" />
@@ -112,25 +112,25 @@ function MemoryForm({
 					</RHFInputGroup>
 				</div>
 
-				<RHFInputGroup label="Title" labelClassName="text-[12px] font-medium text-[#ededed]">
+				<RHFInputGroup label="Title" labelClassName="text-[12px] font-medium text-whip-text">
 					<RHFInput name="title" placeholder="Short summary" />
 				</RHFInputGroup>
 
-				<RHFInputGroup label="Content" labelClassName="text-[12px] font-medium text-[#ededed]">
+				<RHFInputGroup label="Content" labelClassName="text-[12px] font-medium text-whip-text">
 					<RHFTextarea name="content" placeholder="The durable fact / convention / lesson…" rows={6} />
 				</RHFInputGroup>
 
 				{scope === "global" && (
 					<>
 						<div className="flex flex-col gap-1.5">
-							<span className="text-[12px] font-medium text-[#ededed]">Tags</span>
+							<span className="text-[12px] font-medium text-whip-text">Tags</span>
 							<TagInput value={tags} onChange={setTags} suggestions={suggestions} />
-							<span className="text-[11px] text-[#5f6672]">
+							<span className="text-[11px] text-whip-faint">
 								Required. Projects subscribing to one of these tags will see this memory.
 							</span>
 						</div>
 						<div className="flex flex-col gap-1.5">
-							<span className="text-[12px] font-medium text-[#ededed]">Also bind to specific projects (optional)</span>
+							<span className="text-[12px] font-medium text-whip-text">Also bind to specific projects (optional)</span>
 							<ProjectMultiSelect
 								value={bindings}
 								onChange={setBindings}
@@ -173,18 +173,18 @@ function MemoryRow({
 }) {
 	const otherBoundCount = memory.boundWorkspaceIds.length - (boundToCurrent ? 1 : 0);
 	return (
-		<div className="flex flex-col gap-1.5 bg-[#111111] border border-[#2a2a2a] rounded-lg px-4 py-3">
+		<div className="flex flex-col gap-1.5 bg-whip-panel border border-whip-border rounded-lg px-4 py-3">
 			<div className="flex items-center gap-2">
-				<span className="text-[10px] font-mono uppercase tracking-wide text-[#ffffff] bg-[#ffffff15] px-1.5 py-0.5 rounded">
+				<span className="text-[10px] font-mono uppercase tracking-wide text-whip-accent bg-whip-accent/15 px-1.5 py-0.5 rounded">
 					{TYPE_LABEL[memory.type]}
 				</span>
 				{memory.importance > 1 && (
-					<span className="text-[10px] text-[#5f6672]">{memory.importance === 3 ? "critical" : "high"}</span>
+					<span className="text-[10px] text-whip-faint">{memory.importance === 3 ? "critical" : "high"}</span>
 				)}
-				<span className="text-[13px] font-semibold text-[#ededed] truncate">{memory.title}</span>
+				<span className="text-[13px] font-semibold text-whip-text truncate">{memory.title}</span>
 				<div className="flex-1" />
 				{onToggleBind && (
-					<label className="flex items-center gap-1.5 text-[11px] text-[#8a8f98] hover:text-[#ededed] cursor-pointer">
+					<label className="flex items-center gap-1.5 text-[11px] text-whip-muted hover:text-whip-text cursor-pointer">
 						<Checkbox checked={boundToCurrent ?? false} onChange={(e) => onToggleBind(e.target.checked)} />
 						This project
 					</label>
@@ -198,33 +198,33 @@ function MemoryRow({
 						<Check size={13} /> Approve
 					</button>
 				)}
-				<button onClick={onEdit} className="text-[11px] text-[#8a8f98] hover:text-[#ededed] transition-colors">
+				<button onClick={onEdit} className="text-[11px] text-whip-muted hover:text-whip-text transition-colors">
 					Edit
 				</button>
-				<button onClick={onDelete} className="text-[#5f6672] hover:text-[#ff3b4d] transition-colors">
+				<button onClick={onDelete} className="text-whip-faint hover:text-[#ff3b4d] transition-colors">
 					<Trash2 size={13} />
 				</button>
 			</div>
-			<p className="text-[12px] text-[#8a8f98] whitespace-pre-wrap break-words line-clamp-3">{memory.content}</p>
+			<p className="text-[12px] text-whip-muted whitespace-pre-wrap break-words line-clamp-3">{memory.content}</p>
 			{memory.tags.length > 0 && (
 				<div className="flex flex-wrap items-center gap-1">
 					{memory.tags.map((tag) => (
-						<span key={tag} className="text-[10px] text-[#ededed] bg-[#2a2a2a] rounded px-1.5 py-0.5">
+						<span key={tag} className="text-[10px] text-whip-text bg-whip-border rounded px-1.5 py-0.5">
 							{tag}
 						</span>
 					))}
 					{boundToCurrent && (
-						<span className="text-[10px] text-[#ffffff] bg-[#ffffff15] rounded px-1.5 py-0.5">this project</span>
+						<span className="text-[10px] text-whip-accent bg-whip-accent/15 rounded px-1.5 py-0.5">this project</span>
 					)}
 					{otherBoundCount > 0 && (
-						<span className="text-[10px] text-[#5f6672]">
+						<span className="text-[10px] text-whip-faint">
 							+ {otherBoundCount} other project{otherBoundCount > 1 ? "s" : ""}
 						</span>
 					)}
 				</div>
 			)}
 			{memory.originAgent && (
-				<span className="text-[10px] text-[#5f6672] font-mono">
+				<span className="text-[10px] text-whip-faint font-mono">
 					from {memory.originAgent.agent}
 					{memory.originAgent.model ? ` · ${memory.originAgent.model}` : ""}
 				</span>
@@ -357,14 +357,14 @@ export function MemorySection({ workspaceId }: { workspaceId: string }) {
 		<div className="flex-1 overflow-y-auto px-10 py-6 flex flex-col gap-5">
 			{/* Scope tabs + add */}
 			<div className="flex items-center gap-2">
-				<div className="flex items-center gap-0 bg-[#111111] border border-[#2a2a2a] rounded-md p-[2px]">
+				<div className="flex items-center gap-0 bg-whip-panel border border-whip-border rounded-md p-[2px]">
 					{(["project", "global"] as MemoryScope[]).map((s) => (
 						<button
 							key={s}
 							onClick={() => setScope(s)}
 							className={classNames(
 								"px-3 py-1 text-[12px] rounded transition-colors capitalize",
-								scope === s ? "bg-[#2a2a2a] text-[#ededed]" : "text-[#5f6672] hover:text-[#8a8f98]",
+								scope === s ? "bg-whip-border text-whip-text" : "text-whip-faint hover:text-whip-muted",
 							)}
 						>
 							{s}
@@ -407,15 +407,15 @@ export function MemorySection({ workspaceId }: { workspaceId: string }) {
 
 			{/* Approved */}
 			<div className="flex flex-col gap-2">
-				<span className="text-[12px] font-semibold text-[#8a8f98]">
+				<span className="text-[12px] font-semibold text-whip-muted">
 					{scope === "project" ? "Project memory" : "Global memory"} ({approved.length})
 				</span>
 				{loading ? (
-					<span className="text-[12px] text-[#5f6672]">Loading…</span>
+					<span className="text-[12px] text-whip-faint">Loading…</span>
 				) : approved.length === 0 ? (
 					<div className="flex flex-col items-center gap-1 py-10 text-center">
-						<span className="text-[13px] text-[#5f6672]">No {scope} memory yet.</span>
-						<span className="text-[11px] text-[#5f6672]">
+						<span className="text-[13px] text-whip-faint">No {scope} memory yet.</span>
+						<span className="text-[11px] text-whip-faint">
 							Agents add these as they work, or add one manually above.
 						</span>
 					</div>

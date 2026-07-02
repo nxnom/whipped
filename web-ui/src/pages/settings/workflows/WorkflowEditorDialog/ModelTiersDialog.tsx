@@ -56,19 +56,19 @@ export function ModelTiersDialog({
 	return (
 		<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70" onClick={onClose}>
 			<div
-				className="flex flex-col overflow-hidden bg-[#0b0b0b] rounded-xl border border-[#2a2a2a] w-[80vw] max-w-[980px] max-h-[85vh] shadow-[0_8px_40px_4px_rgba(0,0,0,0.38)]"
+				className="flex flex-col overflow-hidden bg-whip-surface rounded-xl border border-whip-border w-[80vw] max-w-[980px] max-h-[85vh] shadow-[0_8px_40px_4px_rgba(0,0,0,0.38)]"
 				onClick={(e) => e.stopPropagation()}
 			>
 				{/* Header */}
-				<div className="flex items-center gap-3 shrink-0 px-6 py-4 border-b border-[#2a2a2a]">
-					<span className="text-[15px] font-semibold text-[#ededed] flex-1">Model tiers</span>
-					<span className="text-[11px] text-[#5f6672]">Order = priority (top first)</span>
+				<div className="flex items-center gap-3 shrink-0 px-6 py-4 border-b border-whip-border">
+					<span className="text-[15px] font-semibold text-whip-text flex-1">Model tiers</span>
+					<span className="text-[11px] text-whip-faint">Order = priority (top first)</span>
 					<Button variant="outlined" size="sm" onClick={addRow}>
 						<Plus size={13} />
 						<span className="text-[12px]">Add tier</span>
 					</Button>
 					<button onClick={onClose} className="hover:opacity-70 transition-opacity">
-						<X size={18} className="text-[#5f6672]" />
+						<X size={18} className="text-whip-faint" />
 					</button>
 				</div>
 
@@ -78,7 +78,7 @@ export function ModelTiersDialog({
 						{["", "Level", "Agent", "Model", "Effort", "Free", ""].map((h, i) => (
 							<span
 								key={i}
-								className="text-[10px] font-semibold text-[#5f6672] tracking-[0.5px] uppercase pb-1 border-b border-[#2a2a2a]"
+								className="text-[10px] font-semibold text-whip-faint tracking-[0.5px] uppercase pb-1 border-b border-whip-border"
 							>
 								{h}
 							</span>
@@ -98,7 +98,7 @@ export function ModelTiersDialog({
 				</div>
 
 				{/* Footer */}
-				<div className="shrink-0 flex items-center justify-end gap-2 px-6 py-4 border-t border-[#2a2a2a]">
+				<div className="shrink-0 flex items-center justify-end gap-2 px-6 py-4 border-t border-whip-border">
 					<Button variant="ghost" onClick={onClose}>
 						Cancel
 					</Button>
@@ -134,7 +134,7 @@ function TierRow({
 					title="Move up"
 					className="hover:opacity-80 transition-opacity disabled:opacity-25"
 				>
-					<ChevronUp size={13} className="text-[#8a8f98]" />
+					<ChevronUp size={13} className="text-whip-muted" />
 				</button>
 				<button
 					type="button"
@@ -143,7 +143,7 @@ function TierRow({
 					title="Move down"
 					className="hover:opacity-80 transition-opacity disabled:opacity-25"
 				>
-					<ChevronDown size={13} className="text-[#8a8f98]" />
+					<ChevronDown size={13} className="text-whip-muted" />
 				</button>
 			</div>
 			<Select

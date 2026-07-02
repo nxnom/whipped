@@ -23,13 +23,13 @@ export function PrimaryNav({ workspaceId, recurringCount = 0 }: PrimaryNavProps)
 						className={classNames(
 							"flex items-center gap-1.5 px-2.5 py-[7px] rounded-md text-xs font-medium border transition-colors",
 							isActive
-								? "bg-[#111111] border-[#2a2a2a] text-[#ededed]"
-								: "bg-transparent border-transparent text-[#8a8f98] hover:text-[#ededed]",
+								? "bg-whip-panel border-whip-border text-whip-text"
+								: "bg-transparent border-transparent text-whip-muted hover:text-whip-text",
 						)}
 					>
 						{item.label}
 						{item.segment === "recurring-agents" && recurringCount > 0 && (
-							<span className="text-[10px] font-mono font-semibold text-[#8a8f98]">{recurringCount}</span>
+							<span className="text-[10px] font-mono font-semibold text-whip-muted">{recurringCount}</span>
 						)}
 					</button>
 				);

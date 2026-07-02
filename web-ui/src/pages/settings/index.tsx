@@ -1,15 +1,4 @@
-import {
-	ArrowLeft,
-	Bell,
-	BookOpen,
-	Brain,
-	Globe,
-	Server,
-	SlidersHorizontal,
-	Slack,
-	Terminal,
-	Workflow,
-} from "lucide-react";
+import { Bell, BookOpen, Brain, Globe, Server, SlidersHorizontal, Slack, Terminal, Workflow } from "lucide-react";
 import { classNames } from "@/utils/classNames";
 import { useNavigate, useParams } from "react-router-dom";
 import { useWorkspaceState } from "@/stores/board-store";
@@ -58,20 +47,10 @@ export function SettingsPage() {
 	return (
 		<div className="flex-1 overflow-hidden flex bg-whip-bg">
 			{/* Sidebar */}
-			<aside className="w-[220px] shrink-0 flex flex-col bg-whip-bg border-r border-[#2a2a2a]">
-				{/* Header */}
-				<button
-					onClick={() => navigate(`/${encodeURIComponent(workspaceId)}/board`)}
-					className="flex items-center gap-2 p-[18px] hover:opacity-80 transition-opacity text-left w-full"
-				>
-					<ArrowLeft size={16} className="text-[#5f6672]" />
-					<span className="text-sm font-semibold text-[#ededed]">Settings</span>
-				</button>
-				<div className="h-px bg-[#2a2a2a]" />
-
+			<aside className="w-[220px] shrink-0 flex flex-col bg-whip-bg border-r border-whip-border">
 				{/* PROJECT section */}
-				<div className="px-[18px] pt-[14px] pb-[6px]">
-					<span className="text-[10px] font-medium uppercase text-[#5f6672] tracking-[1px]">PROJECT</span>
+				<div className="px-[18px] pt-[18px] pb-[6px]">
+					<span className="text-[10px] font-medium uppercase text-whip-faint tracking-[1px]">PROJECT</span>
 				</div>
 				{PROJECT_NAV.map((item) => (
 					<NavItem key={item.id} item={item} active={section === item.id} onSelect={handleSelect} />
@@ -80,9 +59,9 @@ export function SettingsPage() {
 				<div className="flex-1" />
 
 				{/* GLOBAL section */}
-				<div className="border-t border-[#2a2a2a]">
+				<div className="border-t border-whip-border">
 					<div className="px-[18px] pt-[14px] pb-[6px]">
-						<span className="text-[10px] font-medium uppercase text-[#5f6672] tracking-[1px]">GLOBAL</span>
+						<span className="text-[10px] font-medium uppercase text-whip-faint tracking-[1px]">GLOBAL</span>
 					</div>
 					{GLOBAL_NAV.map((item) => (
 						<NavItem key={item.id} item={item} active={section === item.id} onSelect={handleSelect} />
@@ -123,11 +102,13 @@ function NavItem({
 			onClick={() => onSelect(item.id)}
 			className={classNames(
 				"w-full flex items-center gap-[10px] py-2 px-[18px] text-xs transition-colors border-l-2",
-				active ? "bg-[#161616] border-[#ffffff]" : "bg-transparent border-transparent",
+				active ? "bg-whip-panel-2 border-whip-accent" : "bg-transparent border-transparent",
 			)}
 		>
-			<span className={classNames("flex items-center", active ? "text-[#ffffff]" : "text-[#5f6672]")}>{item.icon}</span>
-			<span className={classNames(active ? "text-[#ededed] font-medium" : "text-[#8a8f98]")}>{item.label}</span>
+			<span className={classNames("flex items-center", active ? "text-whip-accent" : "text-whip-faint")}>
+				{item.icon}
+			</span>
+			<span className={classNames(active ? "text-whip-text font-medium" : "text-whip-muted")}>{item.label}</span>
 		</button>
 	);
 }

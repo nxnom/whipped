@@ -2,15 +2,15 @@ import { AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 import { classNames } from "@/utils/classNames";
 import type { ParsedImportRow } from "./types";
 
-const HEADER = "px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-[#5f6672]";
+const HEADER = "px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-whip-faint";
 const CELL = "px-3 py-2 align-top text-[#c8c8d4]";
 
 export function ImportPreviewTable({ rows }: { rows: ParsedImportRow[] }) {
 	return (
-		<div className="overflow-auto rounded-lg border border-[#2a2a2a]">
+		<div className="overflow-auto rounded-lg border border-whip-border">
 			<table className="w-full border-collapse text-xs">
 				<thead className="sticky top-0 bg-[#16161c]">
-					<tr className="border-b border-[#2a2a2a]">
+					<tr className="border-b border-whip-border">
 						<th className={HEADER}>#</th>
 						<th className={HEADER}>Title</th>
 						<th className={HEADER}>Type</th>
@@ -31,7 +31,7 @@ export function ImportPreviewTable({ rows }: { rows: ParsedImportRow[] }) {
 									invalid ? "bg-[#ff3b4d]/5" : "hover:bg-[#1a1a22]",
 								)}
 							>
-								<td className={classNames(CELL, "text-[#5f6672]")}>{row.index + 1}</td>
+								<td className={classNames(CELL, "text-whip-faint")}>{row.index + 1}</td>
 								<td className={classNames(CELL, "max-w-[280px]")}>
 									<span className="line-clamp-2">{row.title}</span>
 								</td>

@@ -190,14 +190,14 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, projectName }: Kan
 
 	return (
 		<div className="flex-1 overflow-hidden flex flex-col relative bg-whip-bg">
-			<div className="flex items-center gap-4 px-6 py-0 h-[82px] border-b border-[#1f1f1f] shrink-0">
+			<div className="flex items-center gap-4 px-6 py-0 h-[82px] border-b border-whip-border-soft shrink-0">
 				{/* Title block */}
 				<div className="flex flex-col gap-[7px] w-[300px] shrink-0">
-					<h2 className="text-[20px] font-semibold text-[#ededed] truncate">{projectName ?? "Board"}</h2>
+					<h2 className="text-[20px] font-semibold text-whip-text truncate">{projectName ?? "Board"}</h2>
 					<div className="flex items-center gap-2">
 						{currentBranch && (
-							<span className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#111111] border border-[#2a2a2a] text-xs text-[#8a8f98]">
-								<GitBranch size={11} className="text-[#5f6672]" />
+							<span className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-whip-panel border border-whip-border text-xs text-whip-muted">
+								<GitBranch size={11} className="text-whip-faint" />
 								<span>{currentBranch}</span>
 							</span>
 						)}
@@ -224,20 +224,20 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, projectName }: Kan
 
 				{/* Board summary */}
 				<div className="flex items-center gap-2.5">
-					<span className="flex items-center gap-1.5 px-2.5 py-[7px] rounded-md bg-[#111111] border border-[#2a2a2a]">
+					<span className="flex items-center gap-1.5 px-2.5 py-[7px] rounded-md bg-whip-panel border border-whip-border">
 						<span className="size-[7px] rounded-full bg-[#eab308]" />
-						<span className="text-xs text-[#8a8f98]">Ready</span>
-						<span className="text-xs font-mono font-bold text-[#ededed]">{columnCount("ready_for_review")}</span>
+						<span className="text-xs text-whip-muted">Ready</span>
+						<span className="text-xs font-mono font-bold text-whip-text">{columnCount("ready_for_review")}</span>
 					</span>
-					<span className="flex items-center gap-1.5 px-2.5 py-[7px] rounded-md bg-[#111111] border border-[#2a2a2a]">
-						<span className="size-[7px] rounded-full bg-[#ffffff]" />
-						<span className="text-xs text-[#8a8f98]">Running</span>
-						<span className="text-xs font-mono font-bold text-[#ededed]">{runningCount}</span>
+					<span className="flex items-center gap-1.5 px-2.5 py-[7px] rounded-md bg-whip-panel border border-whip-border">
+						<span className="size-[7px] rounded-full bg-whip-text" />
+						<span className="text-xs text-whip-muted">Running</span>
+						<span className="text-xs font-mono font-bold text-whip-text">{runningCount}</span>
 					</span>
-					<span className="flex items-center gap-1.5 px-2.5 py-[7px] rounded-md bg-[#111111] border border-[#2a2a2a]">
+					<span className="flex items-center gap-1.5 px-2.5 py-[7px] rounded-md bg-whip-panel border border-whip-border">
 						<span className="size-[7px] rounded-full bg-[#ff3b4d]" />
-						<span className="text-xs text-[#8a8f98]">Blocked</span>
-						<span className="text-xs font-mono font-bold text-[#ededed]">{columnCount("blocked")}</span>
+						<span className="text-xs text-whip-muted">Blocked</span>
+						<span className="text-xs font-mono font-bold text-whip-text">{columnCount("blocked")}</span>
 					</span>
 				</div>
 
@@ -246,32 +246,32 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, projectName }: Kan
 				{/* Header actions */}
 				<Menu
 					placement="bottom-end"
-					menuClassName="w-[250px] p-2 flex flex-col gap-1 bg-[#111111] border border-[#2a2a2a] rounded-lg"
+					menuClassName="w-[250px] p-2 flex flex-col gap-1 bg-whip-panel border border-whip-border rounded-lg"
 				>
 					<MenuTrigger>
 						{({ toggleMenu }) => (
 							<button
 								onClick={toggleMenu}
-								className="flex items-center gap-2 px-2.5 py-2 rounded-md bg-[#111111] border border-[#2a2a2a] hover:border-[#3a3a3a] transition-colors"
+								className="flex items-center gap-2 px-2.5 py-2 rounded-md bg-whip-panel border border-whip-border hover:border-whip-border-hover transition-colors"
 							>
-								<Bot size={13} className="text-[#8a8f98]" />
-								<span className="text-xs font-medium text-[#8a8f98]">Automation</span>
-								<span className={`size-1.5 rounded-full ${automationActive ? "bg-[#ffffff]" : "bg-[#22c55e]"}`} />
-								<span className="text-xs font-semibold text-[#ededed]">{automationActive ? "Running" : "Idle"}</span>
-								<ChevronDown size={12} className="text-[#5f6672]" />
+								<Bot size={13} className="text-whip-muted" />
+								<span className="text-xs font-medium text-whip-muted">Automation</span>
+								<span className={`size-1.5 rounded-full ${automationActive ? "bg-whip-text" : "bg-[#22c55e]"}`} />
+								<span className="text-xs font-semibold text-whip-text">{automationActive ? "Running" : "Idle"}</span>
+								<ChevronDown size={12} className="text-whip-faint" />
 							</button>
 						)}
 					</MenuTrigger>
 					<div className="flex items-center gap-2 px-2.5 py-2 rounded-md bg-whip-bg">
-						<span className={`size-[7px] rounded-full ${automationActive ? "bg-[#ffffff]" : "bg-[#22c55e]"}`} />
-						<span className="text-xs font-semibold text-[#ededed]">
+						<span className={`size-[7px] rounded-full ${automationActive ? "bg-whip-text" : "bg-[#22c55e]"}`} />
+						<span className="text-xs font-semibold text-whip-text">
 							{runningCount > 0 ? `${runningCount} agent${runningCount === 1 ? "" : "s"} running` : "No agents running"}
 						</span>
 					</div>
 					<button
 						onClick={handleResumeAll}
 						title="Mark every Todo task Ready for Dev"
-						className="flex items-center gap-2 px-2.5 py-2 rounded-md text-xs text-[#8a8f98] hover:bg-[#161616] transition-colors text-left"
+						className="flex items-center gap-2 px-2.5 py-2 rounded-md text-xs text-whip-muted hover:bg-whip-panel-2 transition-colors text-left"
 					>
 						<ListChecks size={14} />
 						Resume all Todo tasks
@@ -288,17 +288,17 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, projectName }: Kan
 
 				<Menu
 					placement="bottom-end"
-					menuClassName="w-[150px] p-2 flex flex-col gap-1 bg-[#111111] border border-[#2a2a2a] rounded-lg"
+					menuClassName="w-[150px] p-2 flex flex-col gap-1 bg-whip-panel border border-whip-border rounded-lg"
 				>
 					<MenuTrigger>
 						{({ toggleMenu }) => (
 							<button
 								onClick={toggleMenu}
-								className="flex items-center gap-2 px-3 py-2 rounded-md bg-[#111111] border border-[#2a2a2a] hover:border-[#3a3a3a] transition-colors"
+								className="flex items-center gap-2 px-3 py-2 rounded-md bg-whip-panel border border-whip-border hover:border-whip-border-hover transition-colors"
 							>
-								<Plus size={13} className="text-[#ededed]" />
-								<span className="text-xs font-bold text-[#ededed]">Create</span>
-								<ChevronDown size={12} className="text-[#8a8f98]" />
+								<Plus size={13} className="text-whip-text" />
+								<span className="text-xs font-bold text-whip-text">Create</span>
+								<ChevronDown size={12} className="text-whip-muted" />
 							</button>
 						)}
 					</MenuTrigger>
@@ -307,7 +307,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, projectName }: Kan
 							setCreateDialogMode("task");
 							setCreateDialogOpen(true);
 						}}
-						className="flex items-center gap-2 px-2.5 py-2 rounded-md bg-[#ffffff]/12 text-xs font-semibold text-[#ededed] text-left"
+						className="flex items-center gap-2 px-2.5 py-2 rounded-md bg-whip-accent/12 text-xs font-semibold text-whip-text text-left"
 					>
 						<Plus size={14} />
 						New Task
@@ -317,14 +317,14 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, projectName }: Kan
 							setCreateDialogMode("story");
 							setCreateDialogOpen(true);
 						}}
-						className="flex items-center gap-2 px-2.5 py-2 rounded-md text-xs text-[#8a8f98] hover:bg-[#161616] transition-colors text-left"
+						className="flex items-center gap-2 px-2.5 py-2 rounded-md text-xs text-whip-muted hover:bg-whip-panel-2 transition-colors text-left"
 					>
 						<Layers size={14} />
 						New Story
 					</button>
 					<button
 						onClick={() => setImportDialogOpen(true)}
-						className="flex items-center gap-2 px-2.5 py-2 rounded-md text-xs text-[#8a8f98] hover:bg-[#161616] transition-colors text-left"
+						className="flex items-center gap-2 px-2.5 py-2 rounded-md text-xs text-whip-muted hover:bg-whip-panel-2 transition-colors text-left"
 					>
 						<Upload size={14} />
 						Import JSON
@@ -345,7 +345,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, projectName }: Kan
 							<button
 								onClick={handleRunBase}
 								disabled={runSession.status === "running"}
-								className="flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-[#ededed] text-xs font-bold text-[#050505] hover:bg-white disabled:opacity-50 transition-colors"
+								className="flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-whip-accent text-xs font-bold text-whip-accent-text hover:opacity-90 disabled:opacity-50 transition-colors"
 							>
 								<Play size={11} className="fill-current" />
 								Run
@@ -364,7 +364,7 @@ export function KanbanBoard({ state, onRefresh, onDeleteCard, projectName }: Kan
 								.filter((c): c is RuntimeBoardCard => Boolean(c));
 							return (
 								<div key={column.id} className="flex">
-									{idx > 0 && <div className="w-px bg-[#1f1f1f] self-stretch mx-2 shrink-0" />}
+									{idx > 0 && <div className="w-px bg-whip-border-soft self-stretch mx-2 shrink-0" />}
 									<KanbanColumn
 										column={column}
 										cards={cards}

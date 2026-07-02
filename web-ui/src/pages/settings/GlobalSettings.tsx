@@ -9,9 +9,9 @@ import type { GlobalSection } from "./_shared";
 
 function PageHeader({ title, description }: { title: string; description: string }) {
 	return (
-		<div className="shrink-0 flex flex-col gap-1 px-10 py-6 border-b border-[#2a2a2a]">
-			<h1 className="text-xl font-semibold text-[#ededed]">{title}</h1>
-			<p className="text-[13px] text-[#5f6672]">{description}</p>
+		<div className="shrink-0 flex flex-col gap-1 px-10 py-6 border-b border-whip-border">
+			<h1 className="text-xl font-semibold text-whip-text">{title}</h1>
+			<p className="text-[13px] text-whip-faint">{description}</p>
 		</div>
 	);
 }
@@ -19,8 +19,8 @@ function PageHeader({ title, description }: { title: string; description: string
 function SectionDivider({ title }: { title: string }) {
 	return (
 		<div className="flex items-center gap-3">
-			<span className="text-[15px] font-semibold text-[#ededed]">{title}</span>
-			<div className="flex-1 h-px bg-[#111111]" />
+			<span className="text-[15px] font-semibold text-whip-text">{title}</span>
+			<div className="flex-1 h-px bg-whip-panel" />
 		</div>
 	);
 }
@@ -29,8 +29,8 @@ function FieldRow({ label, description, children }: { label: string; description
 	return (
 		<div className="flex items-center gap-4">
 			<div className="flex-1 flex flex-col gap-0.5">
-				<span className="text-[13px] font-medium text-[#ededed]">{label}</span>
-				<span className="text-[11px] text-[#5f6672]">{description}</span>
+				<span className="text-[13px] font-medium text-whip-text">{label}</span>
+				<span className="text-[11px] text-whip-faint">{description}</span>
 			</div>
 			{children}
 		</div>
@@ -38,7 +38,7 @@ function FieldRow({ label, description, children }: { label: string; description
 }
 
 const selectClassName =
-	"w-[240px] font-mono text-[12px] focus:outline-none focus:border-[#ffffff] cursor-pointer text-[#ededed] bg-[#111111] border border-[#2a2a2a] rounded-md px-3 py-[9px]";
+	"w-[240px] font-mono text-[12px] focus:outline-none focus:border-whip-accent cursor-pointer text-whip-text bg-whip-panel border border-whip-border rounded-md px-3 py-[9px]";
 
 // biome-ignore lint/correctness/noUnusedFunctionParameters: required by caller interface
 export function GlobalSettings({ section }: { section: GlobalSection }) {
@@ -66,7 +66,7 @@ export function GlobalSettings({ section }: { section: GlobalSection }) {
 		return (
 			<div className="flex-1 flex flex-col">
 				<PageHeader title="Global Runtime Config" description="Settings that apply across all projects" />
-				<div className="flex items-center justify-center py-20 text-sm text-[#5f6672]">Loading...</div>
+				<div className="flex items-center justify-center py-20 text-sm text-whip-faint">Loading...</div>
 			</div>
 		);
 	}
@@ -165,7 +165,7 @@ export function GlobalSettings({ section }: { section: GlobalSection }) {
 					</form>
 				</FormProvider>
 
-				<div className="flex flex-col gap-4 pt-6 mt-6 border-t border-[#111111]">
+				<div className="flex flex-col gap-4 pt-6 mt-6 border-t border-whip-panel">
 					<SectionDivider title="Session" />
 					<FieldRow label="Sign out" description="End your session on this browser. Local access stays open.">
 						<Button variant="outlined" onClick={() => logout()}>

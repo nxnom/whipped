@@ -36,7 +36,7 @@ export function DescriptionAttachmentEditor({
 	setAttachments,
 	className,
 	placeholder,
-	textColorClass = "text-[#ededed]",
+	textColorClass = "text-whip-text",
 	autoFocus,
 }: Props) {
 	const taRef = useRef<HTMLTextAreaElement>(null);
@@ -118,7 +118,7 @@ export function DescriptionAttachmentEditor({
 				}}
 				placeholder={placeholder}
 				className={classNames("shrink-0", className)}
-				metricsClassName={classNames("text-[15px] leading-[1.7] placeholder-[#2a2a2a] h-full p-0", textColorClass)}
+				metricsClassName={classNames("text-[15px] leading-[1.7] placeholder-whip-faint h-full p-0", textColorClass)}
 			/>
 
 			{displayed.length > 0 && (
@@ -132,24 +132,24 @@ export function DescriptionAttachmentEditor({
 								<img
 									src={a.previewUrl}
 									alt={a.name}
-									className="h-12 w-12 object-cover rounded border border-[#2a2a2a]"
+									className="h-12 w-12 object-cover rounded border border-whip-border"
 									title={a.name}
 								/>
 							) : (
 								<div
-									className="h-12 w-12 flex flex-col items-center justify-center rounded border border-[#2a2a2a] bg-[#111111] gap-1"
+									className="h-12 w-12 flex flex-col items-center justify-center rounded border border-whip-border bg-whip-panel gap-1"
 									title={a.name}
 								>
-									<Paperclip size={12} className="text-[#5f6672]" />
-									<span className="text-[9px] text-[#5f6672] truncate w-10 text-center px-1">{a.name}</span>
+									<Paperclip size={12} className="text-whip-faint" />
+									<span className="text-[9px] text-whip-faint truncate w-10 text-center px-1">{a.name}</span>
 								</div>
 							)}
 							<button
 								type="button"
 								onClick={() => removeByN(a.n)}
-								className="absolute -top-1 -right-1 size-4 rounded-full bg-[#111111] border border-[#2a2a2a] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+								className="absolute -top-1 -right-1 size-4 rounded-full bg-whip-panel border border-whip-border flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
 							>
-								<X size={9} className="text-[#ededed]" />
+								<X size={9} className="text-whip-text" />
 							</button>
 						</div>
 					))}
@@ -160,7 +160,7 @@ export function DescriptionAttachmentEditor({
 				<button
 					type="button"
 					onClick={() => fileRef.current?.click()}
-					className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-[#2a2a2a] text-[11px] text-[#5f6672] hover:text-[#ededed] hover:border-[#3a3a3a] transition-colors"
+					className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-whip-border text-[11px] text-whip-faint hover:text-whip-text hover:border-whip-border-hover transition-colors"
 				>
 					<Paperclip size={12} />
 					Attach files

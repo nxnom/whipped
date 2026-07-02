@@ -20,8 +20,8 @@ export const COLUMN_LABELS: Record<string, string> = {
 };
 
 export const DEP_COL_BADGE: Record<string, string> = {
-	todo: "text-[#5f6672] bg-[#161616]",
-	in_progress: "text-[#ededed] bg-[#ffffff]/10",
+	todo: "text-whip-faint bg-whip-panel-2",
+	in_progress: "text-whip-text bg-whip-text/10",
 	reopened: "text-[#f97316] bg-[#f97316]/10",
 	ready_for_review: "text-[#eab308] bg-[#eab308]/10",
 	blocked: "text-[#ff3b4d] bg-[#ff3b4d]/10",
@@ -34,17 +34,17 @@ export const COLUMN_STATUS: Record<
 > = {
 	todo: {
 		label: "Todo",
-		color: "text-[#5f6672]",
-		bg: "bg-[#5f6672]/10",
-		border: "border-[#5f6672]/25",
-		dotColor: "bg-[#5f6672]",
+		color: "text-whip-faint",
+		bg: "bg-whip-faint/10",
+		border: "border-whip-faint/25",
+		dotColor: "bg-whip-faint",
 	},
 	in_progress: {
 		label: "In Progress",
-		color: "text-[#ededed]",
-		bg: "bg-[#ffffff]/10",
-		border: "border-[#ffffff]/25",
-		dotColor: "bg-[#ffffff]",
+		color: "text-whip-text",
+		bg: "bg-whip-text/10",
+		border: "border-whip-text/25",
+		dotColor: "bg-whip-text",
 		glow: "#ffffff60",
 	},
 	reopened: {
@@ -86,7 +86,7 @@ export const PRIORITY_BADGE: Record<string, { color: string; bg: string; border:
 		border: "border-[#eab308]/25",
 		dotColor: "bg-[#eab308]",
 	},
-	low: { color: "text-[#5f6672]", bg: "bg-[#5f6672]/10", border: "border-[#5f6672]/25", dotColor: "bg-[#5f6672]" },
+	low: { color: "text-whip-faint", bg: "bg-whip-faint/10", border: "border-whip-faint/25", dotColor: "bg-whip-faint" },
 };
 
 // Labels for terminal-session types that aren't workflow slots (e.g. worktree install).

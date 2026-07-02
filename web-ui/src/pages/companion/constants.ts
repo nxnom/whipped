@@ -11,7 +11,7 @@ export const STATUS_LABEL: Record<CompanionSessionStatus, string> = {
 export const STATUS_DOT_CLASS: Record<CompanionSessionStatus, string> = {
 	installing: "bg-[#eab308] animate-pulse",
 	running: "bg-[#22c55e]",
-	stopped: "bg-[#3a3a3a]",
-	merged: "bg-[#ffffff]",
-	discarded: "bg-[#3a3a3a]",
+	stopped: "bg-whip-faint",
+	merged: "bg-whip-text",
+	discarded: "bg-whip-faint",
 };

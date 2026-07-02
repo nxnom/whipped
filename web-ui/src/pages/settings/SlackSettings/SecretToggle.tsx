@@ -9,7 +9,7 @@ export function SecretToggle({ visible, onToggle }: { visible: boolean; onToggle
 		<button
 			type="button"
 			onClick={onToggle}
-			className="absolute right-2 top-1/2 -translate-y-1/2 opacity-40 hover:opacity-80 transition-opacity text-[#ededed]"
+			className="absolute right-2 top-1/2 -translate-y-1/2 opacity-40 hover:opacity-80 transition-opacity text-whip-text"
 		>
 			{visible ? <EyeOff size={14} /> : <Eye size={14} />}
 		</button>

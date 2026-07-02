@@ -40,11 +40,11 @@ const PRIORITY_STYLES: Record<string, string> = {
 	urgent: "text-[#ff3b4d] bg-[#ff3b4d]/10",
 	high: "text-[#f97316] bg-[#f97316]/10",
 	medium: "text-[#eab308] bg-[#eab308]/10",
-	low: "text-[#5f6672] bg-[#5f6672]/10",
+	low: "text-whip-faint bg-whip-faint/10",
 };
 
 const SESSION_STATE_COLORS: Record<string, string> = {
-	running: "text-[#ededed]",
+	running: "text-whip-text",
 	completed: "text-[#22c55e]",
 	failed: "text-[#ff3b4d]",
 };
@@ -66,7 +66,7 @@ export function KanbanCard({
 	const isRunning = isCardRunning(card);
 	const lastTs = card.terminalSessions?.at(-1);
 	const sessionState = isRunning ? "running" : lastTs?.state;
-	const sessionColor = sessionState ? (SESSION_STATE_COLORS[sessionState] ?? "text-[#8a8f98]") : null;
+	const sessionColor = sessionState ? (SESSION_STATE_COLORS[sessionState] ?? "text-whip-muted") : null;
 	const isStory = card.type === "story";
 	const isSubtask = card.type === "subtask";
 	const lastActivity = card.activityLog?.at(-1)?.message;
@@ -90,16 +90,16 @@ export function KanbanCard({
 		: undefined;
 
 	const borderClass = (snapshot_isDragging: boolean) => {
-		if (snapshot_isDragging) return "border-[#ededed] shadow-lg shadow-black/40 rotate-1";
+		if (snapshot_isDragging) return "border-whip-text shadow-lg shadow-black/40 rotate-1";
 		if (isStory) return "border-[#8b5cf6]/60";
 		if (
 			(card.columnId === "in_progress" || card.columnId === "reopened" || card.columnId === "ready_for_review") &&
 			isRunning
 		) {
-			return "border-[#ffffff] shadow-[0_0_10px_rgba(255,255,255,0.15)]";
+			return "border-whip-text shadow-[0_0_10px_rgba(255,255,255,0.15)]";
 		}
 		if (card.columnId === "todo" && card.readyForDev) return "border-[#22c55e]/50";
-		return "border-[#2a2a2a]";
+		return "border-whip-border";
 	};
 
 	return (
@@ -111,7 +111,7 @@ export function KanbanCard({
 					{...provided.dragHandleProps}
 					className={classNames(
 						"border rounded-lg overflow-hidden select-none transition-all duration-150 group",
-						isStory ? "bg-[#8b5cf6]/10 hover:border-[#8b5cf6]/60" : "bg-[#111111] hover:border-[#3a3a3a]",
+						isStory ? "bg-[#8b5cf6]/10 hover:border-[#8b5cf6]/60" : "bg-whip-panel hover:border-whip-border-hover",
 						borderClass(snapshot.isDragging),
 					)}
 				>
@@ -128,18 +128,18 @@ export function KanbanCard({
 							<p
 								className={classNames(
 									"text-sm font-medium leading-snug flex-1",
-									isStory ? "text-[#ededed]" : "text-[#ededed]",
+									isStory ? "text-whip-text" : "text-whip-text",
 								)}
 							>
 								{card.description?.split("\n")[0] ?? card.id}
 							</p>
 							<div className="flex items-center gap-1 shrink-0">
-								{isRunning && <span className="mt-0.5 size-2 rounded-full bg-[#ededed] animate-pulse" />}
+								{isRunning && <span className="mt-0.5 size-2 rounded-full bg-whip-text animate-pulse" />}
 							</div>
 						</div>
 
 						{card.description?.includes("\n") && (
-							<p className="mt-1.5 text-xs text-[#8a8f98] line-clamp-2">
+							<p className="mt-1.5 text-xs text-whip-muted line-clamp-2">
 								{card.description.split("\n").slice(1).join("\n").trim()}
 							</p>
 						)}
@@ -162,14 +162,14 @@ export function KanbanCard({
 						{isStory && subtaskIds.length > 0 && (
 							<div className="mt-2.5">
 								<div className="flex items-center justify-between mb-1">
-									<span className="text-[10px] text-[#5f6672]">
+									<span className="text-[10px] text-whip-faint">
 										{subtaskIds.length} subtask{subtaskIds.length === 1 ? "" : "s"}
 									</span>
-									<span className="text-[10px] text-[#8a8f98]">
+									<span className="text-[10px] text-whip-muted">
 										{metSubtasks.length}/{subtaskIds.length}
 									</span>
 								</div>
-								<div className="h-1 bg-[#2a2a2a] rounded-full overflow-hidden">
+								<div className="h-1 bg-whip-border rounded-full overflow-hidden">
 									<div
 										className="h-full bg-[#8b5cf6] rounded-full transition-all"
 										style={{ width: `${(metSubtasks.length / subtaskIds.length) * 100}%` }}
@@ -182,7 +182,7 @@ export function KanbanCard({
 							{isSubtask && (
 								<span
 									title={parentStory ? `Subtask of: ${parentStory.description?.split("\n")[0]}` : "Subtask"}
-									className="flex items-center gap-1 text-[10px] text-[#5f6672] bg-[#2a2a2a] rounded px-1.5 py-0.5 font-medium max-w-[180px]"
+									className="flex items-center gap-1 text-[10px] text-whip-faint bg-whip-border rounded px-1.5 py-0.5 font-medium max-w-[180px]"
 								>
 									<Layers size={10} className="shrink-0 text-[#8b5cf6]/70" />
 									<span className="truncate">{parentStory?.description?.split("\n")[0] ?? "subtask"}</span>
@@ -205,7 +205,7 @@ export function KanbanCard({
 								<span
 									className={classNames(
 										"flex items-center gap-1 text-xs rounded px-1.5 py-0.5 font-medium",
-										allDepsMet ? "text-[#8a8f98] bg-[#2a2a2a]" : "text-[#f97316] bg-[#f97316]/10",
+										allDepsMet ? "text-whip-muted bg-whip-border" : "text-[#f97316] bg-[#f97316]/10",
 									)}
 								>
 									<Link2 size={10} />
@@ -215,9 +215,9 @@ export function KanbanCard({
 							{card.agentId &&
 								(() => {
 									const ac = AGENT_DISPLAY[card.agentId!] ?? {
-										dotColor: "bg-[#5f6672]",
-										color: "text-[#8a8f98]",
-										bg: "bg-[#5f6672]/10",
+										dotColor: "bg-whip-faint",
+										color: "text-whip-muted",
+										bg: "bg-whip-faint/10",
 									};
 									return (
 										<span
@@ -259,7 +259,7 @@ export function KanbanCard({
 							)}
 							{card.baseRef && (
 								<span
-									className="flex items-center gap-1 text-[10px] text-[#5f6672] bg-[#2a2a2a]/30 rounded px-1.5 py-0.5 font-mono"
+									className="flex items-center gap-1 text-[10px] text-whip-faint bg-whip-border/30 rounded px-1.5 py-0.5 font-mono"
 									title={`Base branch: ${card.baseRef}`}
 								>
 									<GitBranch size={9} />
@@ -272,14 +272,14 @@ export function KanbanCard({
 						</div>
 						{card.branchName && (
 							<div className="mt-1.5 flex items-center gap-1">
-								<GitBranch size={9} className="text-[#5f6672] shrink-0" />
-								<span className="text-[10px] text-[#5f6672] font-mono truncate">{card.branchName}</span>
+								<GitBranch size={9} className="text-whip-faint shrink-0" />
+								<span className="text-[10px] text-whip-faint font-mono truncate">{card.branchName}</span>
 							</div>
 						)}
 					</div>
 					{/* Action bar — hidden by default, visible on group-hover */}
 					<div
-						className="px-3 pb-2 border-t border-[#2a2a2a] flex items-center gap-0.5 pt-1.5"
+						className="px-3 pb-2 border-t border-whip-border flex items-center gap-0.5 pt-1.5"
 						onClick={(e) => e.stopPropagation()}
 					>
 						{isRunningNow ? (
@@ -288,7 +288,7 @@ export function KanbanCard({
 									e.stopPropagation();
 									onStop?.();
 								}}
-								className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-[#ff3b4d] hover:bg-[#1f1f1f] transition-colors cursor-pointer"
+								className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-[#ff3b4d] hover:bg-whip-border-soft transition-colors cursor-pointer"
 								title="Stop running"
 							>
 								<Square size={13} className="fill-current" />
@@ -300,7 +300,7 @@ export function KanbanCard({
 									e.stopPropagation();
 									onRun();
 								}}
-								className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-[#8a8f98] hover:text-[#22c55e] hover:bg-[#1f1f1f] transition-colors cursor-pointer"
+								className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-whip-muted hover:text-[#22c55e] hover:bg-whip-border-soft transition-colors cursor-pointer"
 								title="Run ticket"
 							>
 								<Play size={13} />
@@ -316,8 +316,8 @@ export function KanbanCard({
 								className={classNames(
 									"flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs transition-colors cursor-pointer",
 									card.readyForDev
-										? "text-[#22c55e] hover:text-[#8a8f98] hover:bg-[#1f1f1f]"
-										: "text-[#8a8f98] hover:text-[#22c55e] hover:bg-[#1f1f1f]",
+										? "text-[#22c55e] hover:text-whip-muted hover:bg-whip-border-soft"
+										: "text-whip-muted hover:text-[#22c55e] hover:bg-whip-border-soft",
 								)}
 								title={card.readyForDev ? "Unmark as ready" : "Mark as ready for agent"}
 							>
@@ -330,7 +330,7 @@ export function KanbanCard({
 									e.stopPropagation();
 									void openPath({ body: { path: card.worktreePath! } });
 								}}
-								className="px-2.5 py-1.5 rounded text-xs text-[#8a8f98] hover:text-[#ededed] hover:bg-[#1f1f1f] transition-colors cursor-pointer"
+								className="px-2.5 py-1.5 rounded text-xs text-whip-muted hover:text-whip-text hover:bg-whip-border-soft transition-colors cursor-pointer"
 								title="Open worktree folder"
 							>
 								<FolderOpen size={13} />
@@ -343,7 +343,7 @@ export function KanbanCard({
 									e.stopPropagation();
 									onEdit();
 								}}
-								className="px-2.5 py-1.5 rounded text-xs text-[#8a8f98] hover:text-[#ededed] hover:bg-[#1f1f1f] transition-colors cursor-pointer"
+								className="px-2.5 py-1.5 rounded text-xs text-whip-muted hover:text-whip-text hover:bg-whip-border-soft transition-colors cursor-pointer"
 								title={isStory ? "Edit story" : "Edit task"}
 							>
 								<Pencil size={13} />
@@ -355,7 +355,7 @@ export function KanbanCard({
 									e.stopPropagation();
 									onDelete();
 								}}
-								className="px-2.5 py-1.5 rounded text-xs text-[#8a8f98] hover:text-[#ff3b4d] hover:bg-[#1f1f1f] transition-colors cursor-pointer"
+								className="px-2.5 py-1.5 rounded text-xs text-whip-muted hover:text-[#ff3b4d] hover:bg-whip-border-soft transition-colors cursor-pointer"
 								title="Delete"
 							>
 								<Trash2 size={13} />

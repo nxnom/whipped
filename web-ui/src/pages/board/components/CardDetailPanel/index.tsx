@@ -177,8 +177,8 @@ export function CardDetailPanel({
 
 			{/* attempt count hint in bottom bar only when retries exist */}
 			{card.autoFixAttempts > 0 && (
-				<div className="flex items-center gap-2.5 px-6 py-2 border-t border-[#2a2a2a] bg-[#0b0b0b] shrink-0">
-					<span className="text-[10px] text-[#5f6672]">Attempt {card.autoFixAttempts + 1}</span>
+				<div className="flex items-center gap-2.5 px-6 py-2 border-t border-whip-border bg-whip-surface shrink-0">
+					<span className="text-[10px] text-whip-faint">Attempt {card.autoFixAttempts + 1}</span>
 				</div>
 			)}
 			<RunBar workspaceId={workspaceId} />

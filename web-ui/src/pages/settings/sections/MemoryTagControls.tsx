@@ -28,14 +28,14 @@ export function TagInput({
 
 	return (
 		<div className="flex flex-col gap-2">
-			<div className="flex flex-wrap items-center gap-1.5 bg-[#111111] border border-[#2a2a2a] rounded-md px-2 py-1.5">
+			<div className="flex flex-wrap items-center gap-1.5 bg-whip-panel border border-whip-border rounded-md px-2 py-1.5">
 				{value.map((tag) => (
 					<span
 						key={tag}
-						className="flex items-center gap-1 text-[11px] text-[#ededed] bg-[#2a2a2a] rounded px-1.5 py-0.5"
+						className="flex items-center gap-1 text-[11px] text-whip-text bg-whip-border rounded px-1.5 py-0.5"
 					>
 						{tag}
-						<button type="button" onClick={() => remove(tag)} className="text-[#5f6672] hover:text-[#ff3b4d]">
+						<button type="button" onClick={() => remove(tag)} className="text-whip-faint hover:text-[#ff3b4d]">
 							<X size={11} />
 						</button>
 					</span>
@@ -53,7 +53,7 @@ export function TagInput({
 						}
 					}}
 					placeholder={value.length > 0 ? "" : "add tag…"}
-					className="flex-1 min-w-[80px] bg-transparent text-[12px] text-[#ededed] outline-none placeholder:text-[#5f6672]"
+					className="flex-1 min-w-[80px] bg-transparent text-[12px] text-whip-text outline-none placeholder:text-whip-faint"
 				/>
 			</div>
 			{unused.length > 0 && (
@@ -63,7 +63,7 @@ export function TagInput({
 							key={s}
 							type="button"
 							onClick={() => add(s)}
-							className="text-[10px] text-[#8a8f98] hover:text-[#ededed] border border-[#2a2a2a] rounded px-1.5 py-0.5"
+							className="text-[10px] text-whip-muted hover:text-whip-text border border-whip-border rounded px-1.5 py-0.5"
 						>
 							+ {s}
 						</button>
@@ -99,11 +99,11 @@ export function ProjectMultiSelect({
 	const toggle = (id: string) => onChange(value.includes(id) ? value.filter((v) => v !== id) : [...value, id]);
 
 	return (
-		<div className="flex flex-col gap-1 max-h-40 overflow-y-auto bg-[#111111] border border-[#2a2a2a] rounded-md p-2">
+		<div className="flex flex-col gap-1 max-h-40 overflow-y-auto bg-whip-panel border border-whip-border rounded-md p-2">
 			{projects.map((p) => (
 				<label
 					key={p.workspaceId}
-					className="flex items-center gap-2 text-[12px] text-[#ededed] cursor-pointer hover:text-[#ededed]"
+					className="flex items-center gap-2 text-[12px] text-whip-text cursor-pointer hover:text-whip-text"
 				>
 					<Checkbox checked={value.includes(p.workspaceId)} onChange={() => toggle(p.workspaceId)} />
 					<span className="truncate">
@@ -112,7 +112,7 @@ export function ProjectMultiSelect({
 					</span>
 				</label>
 			))}
-			{projects.length === 0 && <span className="text-[11px] text-[#5f6672]">No projects.</span>}
+			{projects.length === 0 && <span className="text-[11px] text-whip-faint">No projects.</span>}
 		</div>
 	);
 }
@@ -139,10 +139,10 @@ export function ProjectTagsBar({
 	};
 
 	return (
-		<div className="flex flex-col gap-2 bg-[#111111] border border-[#2a2a2a] rounded-lg px-4 py-3">
-			<span className="text-[12px] font-semibold text-[#ededed]">Tags this project subscribes to</span>
+		<div className="flex flex-col gap-2 bg-whip-panel border border-whip-border rounded-lg px-4 py-3">
+			<span className="text-[12px] font-semibold text-whip-text">Tags this project subscribes to</span>
 			<TagInput value={tags} onChange={apply} suggestions={suggestions} />
-			<span className="text-[11px] text-[#5f6672]">
+			<span className="text-[11px] text-whip-faint">
 				A global memory reaches this project when it shares one of these tags.
 			</span>
 		</div>

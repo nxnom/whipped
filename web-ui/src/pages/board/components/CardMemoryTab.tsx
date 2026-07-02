@@ -37,15 +37,15 @@ export function CardMemoryTab({ cardId }: { cardId: string }) {
 	};
 
 	if (loading) {
-		return <div className="flex-1 flex items-center justify-center text-xs text-[#5f6672]">Loading…</div>;
+		return <div className="flex-1 flex items-center justify-center text-xs text-whip-faint">Loading…</div>;
 	}
 
 	if (memories.length === 0) {
 		return (
-			<div className="flex-1 flex flex-col items-center justify-center gap-3 text-[#5f6672]">
+			<div className="flex-1 flex flex-col items-center justify-center gap-3 text-whip-faint">
 				<Brain size={32} className="text-[#3a3a4a]" />
 				<p className="text-sm">No memory from this task</p>
-				<p className="text-xs text-[#5f6672] max-w-xs text-center">
+				<p className="text-xs text-whip-faint max-w-xs text-center">
 					When the dev agent saves a durable fact, convention, or lesson while working this card, it shows up here.
 				</p>
 			</div>
@@ -55,16 +55,16 @@ export function CardMemoryTab({ cardId }: { cardId: string }) {
 	return (
 		<div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
 			{memories.map((m) => (
-				<div key={m.id} className="flex flex-col gap-1.5 bg-[#111111] border border-[#2a2a2a] rounded-lg px-4 py-3">
+				<div key={m.id} className="flex flex-col gap-1.5 bg-whip-panel border border-whip-border rounded-lg px-4 py-3">
 					<div className="flex items-center gap-2">
 						<span className="text-[10px] font-mono uppercase tracking-wide text-[#8b5cf6] bg-[#8b5cf615] px-1.5 py-0.5 rounded">
 							{TYPE_LABEL[m.type]}
 						</span>
-						<span className="text-[10px] text-[#5f6672]">{m.scope}</span>
+						<span className="text-[10px] text-whip-faint">{m.scope}</span>
 						{m.status === "pending" && (
 							<span className="text-[10px] text-[#eab308] bg-[#eab308]/10 px-1.5 py-0.5 rounded">pending</span>
 						)}
-						<span className="text-[13px] font-semibold text-[#ededed] truncate">{m.title}</span>
+						<span className="text-[13px] font-semibold text-whip-text truncate">{m.title}</span>
 						<div className="flex-1" />
 						{m.status === "pending" && (
 							<button
@@ -75,13 +75,13 @@ export function CardMemoryTab({ cardId }: { cardId: string }) {
 								<Check size={13} /> Approve
 							</button>
 						)}
-						<button onClick={() => remove(m)} className="text-[#5f6672] hover:text-[#ff3b4d] transition-colors">
+						<button onClick={() => remove(m)} className="text-whip-faint hover:text-[#ff3b4d] transition-colors">
 							<Trash2 size={13} />
 						</button>
 					</div>
-					<p className="text-[12px] text-[#8a8f98] whitespace-pre-wrap break-words">{m.content}</p>
+					<p className="text-[12px] text-whip-muted whitespace-pre-wrap break-words">{m.content}</p>
 					{m.originAgent && (
-						<span className="text-[10px] text-[#5f6672] font-mono">
+						<span className="text-[10px] text-whip-faint font-mono">
 							from {m.originAgent.agent}
 							{m.originAgent.model ? ` · ${m.originAgent.model}` : ""}
 						</span>

@@ -63,13 +63,13 @@ export function SubmitReviewDropdown({ pendingComments, onSubmit }: SubmitReview
 			</button>
 
 			{open && (
-				<div className="absolute top-full right-0 mt-1.5 z-50 w-[400px] font-sans bg-[#0b0b0b] border border-[#2a2a2a] rounded-lg shadow-2xl overflow-hidden">
+				<div className="absolute top-full right-0 mt-1.5 z-50 w-[400px] font-sans bg-whip-surface border border-whip-border rounded-lg shadow-2xl overflow-hidden">
 					{/* Dropdown header */}
-					<div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2a2a]">
-						<span className="text-sm font-semibold text-[#ededed]">Finish your review</span>
+					<div className="flex items-center justify-between px-4 py-3 border-b border-whip-border">
+						<span className="text-sm font-semibold text-whip-text">Finish your review</span>
 						<button
 							onClick={() => setOpen(false)}
-							className="text-[#5f6672] hover:text-[#ededed] transition-colors p-0.5 rounded"
+							className="text-whip-faint hover:text-whip-text transition-colors p-0.5 rounded"
 						>
 							<X size={14} />
 						</button>
@@ -78,19 +78,19 @@ export function SubmitReviewDropdown({ pendingComments, onSubmit }: SubmitReview
 					<div className="p-4 space-y-3">
 						{/* Pending inline comments summary */}
 						{pendingComments.length > 0 && (
-							<div className="bg-[#161616] border border-[#2a2a2a] rounded-lg px-3 py-2">
-								<p className="text-xs text-[#8a8f98]">
-									<span className="font-semibold text-[#ededed]">{pendingComments.length}</span> pending inline comment
+							<div className="bg-whip-panel-2 border border-whip-border rounded-lg px-3 py-2">
+								<p className="text-xs text-whip-muted">
+									<span className="font-semibold text-whip-text">{pendingComments.length}</span> pending inline comment
 									{pendingComments.length !== 1 ? "s" : ""} staged
 								</p>
 								<div className="mt-1.5 space-y-0.5 max-h-16 overflow-y-auto">
 									{pendingComments.map((c) => (
 										<div key={c.id} className="flex items-start gap-1.5 text-[11px]">
-											<span className="text-[#5f6672] font-mono shrink-0">
+											<span className="text-whip-faint font-mono shrink-0">
 												{c.file}
 												{c.lineNum !== null ? `:${c.lineNum}` : ""}
 											</span>
-											<span className="text-[#8a8f98] truncate">— {c.text}</span>
+											<span className="text-whip-muted truncate">— {c.text}</span>
 										</div>
 									))}
 								</div>
@@ -98,54 +98,54 @@ export function SubmitReviewDropdown({ pendingComments, onSubmit }: SubmitReview
 						)}
 
 						{/* Feedback textarea */}
-						<div className="rounded-lg border border-[#2a2a2a] bg-whip-bg focus-within:border-[#3a3a3a] transition-colors">
+						<div className="rounded-lg border border-whip-border bg-whip-bg focus-within:border-whip-border-hover transition-colors">
 							<textarea
 								autoFocus
 								value={overallFeedback}
 								onChange={(e) => setOverallFeedback(e.target.value)}
 								placeholder="Leave a comment…"
 								rows={4}
-								className="w-full bg-transparent text-sm text-[#ededed] px-3 pt-3 pb-2 resize-none outline-none placeholder-[#5f6672]"
+								className="w-full bg-transparent text-sm text-whip-text px-3 pt-3 pb-2 resize-none outline-none placeholder-whip-faint"
 							/>
 						</div>
 
 						{/* Review type */}
-						<div className="border border-[#2a2a2a] rounded-lg divide-y divide-[#2a2a2a] overflow-hidden">
-							<label className="flex items-start gap-3 px-3 py-2.5 cursor-pointer hover:bg-[#161616] transition-colors">
+						<div className="border border-whip-border rounded-lg divide-y divide-whip-border overflow-hidden">
+							<label className="flex items-start gap-3 px-3 py-2.5 cursor-pointer hover:bg-whip-panel-2 transition-colors">
 								<input
 									type="radio"
 									name="review-type"
 									value="comment"
 									checked={reviewType === "comment"}
 									onChange={() => setReviewType("comment")}
-									className="mt-0.5 accent-[#ededed] shrink-0"
+									className="mt-0.5 accent-whip-accent shrink-0"
 								/>
 								<div>
-									<p className="text-xs font-semibold text-[#ededed]">Comment</p>
-									<p className="text-[11px] text-[#8a8f98] mt-0.5">
+									<p className="text-xs font-semibold text-whip-text">Comment</p>
+									<p className="text-[11px] text-whip-muted mt-0.5">
 										Submit general feedback without reopening the task.
 									</p>
 								</div>
 							</label>
-							<label className="flex items-start gap-3 px-3 py-2.5 cursor-pointer hover:bg-[#161616] transition-colors">
+							<label className="flex items-start gap-3 px-3 py-2.5 cursor-pointer hover:bg-whip-panel-2 transition-colors">
 								<input
 									type="radio"
 									name="review-type"
 									value="request_changes"
 									checked={reviewType === "request_changes"}
 									onChange={() => setReviewType("request_changes")}
-									className="mt-0.5 accent-[#ededed] shrink-0"
+									className="mt-0.5 accent-whip-accent shrink-0"
 								/>
 								<div>
-									<p className="text-xs font-semibold text-[#ededed]">Request changes</p>
-									<p className="text-[11px] text-[#8a8f98] mt-0.5">Submit feedback and reopen the task for fixes.</p>
+									<p className="text-xs font-semibold text-whip-text">Request changes</p>
+									<p className="text-[11px] text-whip-muted mt-0.5">Submit feedback and reopen the task for fixes.</p>
 								</div>
 							</label>
 						</div>
 					</div>
 
 					{/* Dropdown footer */}
-					<div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-[#2a2a2a] bg-[#0b0b0b]">
+					<div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-whip-border bg-whip-surface">
 						<Button variant="outlined" size="sm" onClick={() => setOpen(false)}>
 							Cancel
 						</Button>

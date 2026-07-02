@@ -7,7 +7,7 @@ export type SettingsSection = ProjectSection | GlobalSection;
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
 	return (
 		<div>
-			<label className="text-xs text-[#8a8f98] block mb-1">{label}</label>
+			<label className="text-xs text-whip-muted block mb-1">{label}</label>
 			{children}
 		</div>
 	);

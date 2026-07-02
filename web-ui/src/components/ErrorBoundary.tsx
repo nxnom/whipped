@@ -18,12 +18,12 @@ export class ErrorBoundary extends Component<Props, State> {
 	render() {
 		if (this.state.error) {
 			return (
-				<div className="flex-1 flex flex-col items-center justify-center gap-3 text-[#8a8f98]">
-					<p className="text-sm font-medium text-[#8a8f98]">Something went wrong</p>
-					<p className="text-xs text-[#5f6672] max-w-sm text-center">{this.state.error.message}</p>
+				<div className="flex-1 flex flex-col items-center justify-center gap-3 text-whip-muted">
+					<p className="text-sm font-medium text-whip-muted">Something went wrong</p>
+					<p className="text-xs text-whip-faint max-w-sm text-center">{this.state.error.message}</p>
 					<button
 						onClick={() => this.setState({ error: null })}
-						className="text-xs text-[#ededed] hover:text-[#ededed]"
+						className="text-xs text-whip-text hover:text-whip-text"
 					>
 						Try again
 					</button>

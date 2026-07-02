@@ -69,15 +69,15 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 		<div>
 			{showDate && (
 				<div className="flex items-center gap-3 px-4 my-3">
-					<div className="flex-1 h-px bg-[#1f1f1f]" />
-					<span className="text-[11px] text-[#5f6672] font-medium shrink-0">{formatDateLabel(comment.createdAt)}</span>
-					<div className="flex-1 h-px bg-[#1f1f1f]" />
+					<div className="flex-1 h-px bg-whip-border-soft" />
+					<span className="text-[11px] text-whip-faint font-medium shrink-0">{formatDateLabel(comment.createdAt)}</span>
+					<div className="flex-1 h-px bg-whip-border-soft" />
 				</div>
 			)}
 
 			<div
 				className={classNames(
-					"group flex items-start gap-3 px-4 hover:bg-[#111111]",
+					"group flex items-start gap-3 px-4 hover:bg-whip-panel",
 					showHeader ? "mt-3 pb-0.5" : "py-0.5",
 				)}
 			>
@@ -86,7 +86,7 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 					{showHeader ? (
 						<Avatar comment={comment} />
 					) : (
-						<span className="block w-8 text-center text-[8px] text-[#5f6672] opacity-0 group-hover:opacity-100 transition-opacity tabular-nums whitespace-nowrap pt-1">
+						<span className="block w-8 text-center text-[8px] text-whip-faint opacity-0 group-hover:opacity-100 transition-opacity tabular-nums whitespace-nowrap pt-1">
 							{new Date(comment.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
 						</span>
 					)}
@@ -95,14 +95,14 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 				<div className="flex-1 min-w-0">
 					{showHeader && (
 						<div className="flex items-baseline gap-2 mb-0.5 flex-wrap">
-							<span className="font-semibold text-sm text-[#ededed]">{name}</span>
+							<span className="font-semibold text-sm text-whip-text">{name}</span>
 							<AgentBadge comment={comment} />
-							<span className="text-xs text-[#5f6672] tabular-nums">
+							<span className="text-xs text-whip-faint tabular-nums">
 								{new Date(comment.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
 							</span>
 							{sourceCardTitle && (
 								<span
-									className="text-[10px] px-1.5 py-0.5 rounded font-medium text-[#8a8f98] bg-[#161616] border border-[#2a2a2a] truncate max-w-[160px]"
+									className="text-[10px] px-1.5 py-0.5 rounded font-medium text-whip-muted bg-whip-panel-2 border border-whip-border truncate max-w-[160px]"
 									title={sourceCardTitle}
 								>
 									{sourceCardTitle}
@@ -110,7 +110,7 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 							)}
 						</div>
 					)}
-					<div className="prose-chat text-sm text-[#ededed] leading-relaxed [overflow-wrap:anywhere]">
+					<div className="prose-chat text-sm text-whip-text leading-relaxed [overflow-wrap:anywhere]">
 						<ReactMarkdown
 							remarkPlugins={[remarkGfm]}
 							rehypePlugins={
@@ -133,13 +133,13 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 					{/* Issues */}
 					{comment.issues && comment.issues.length > 0 && (
 						<details className="mt-1">
-							<summary className="text-[11px] text-[#8a8f98] cursor-pointer">
+							<summary className="text-[11px] text-whip-muted cursor-pointer">
 								{comment.issues.length} issue{comment.issues.length !== 1 ? "s" : ""}
 							</summary>
 							<ul className="mt-1 space-y-0.5">
 								{comment.issues.map((issue, idx) => (
-									<li key={idx} className="text-[11px] font-mono text-[#8a8f98]">
-										<span className={SEVERITY_COLOR[issue.severity] ?? "text-[#8a8f98]"}>[{issue.severity}]</span>{" "}
+									<li key={idx} className="text-[11px] font-mono text-whip-muted">
+										<span className={SEVERITY_COLOR[issue.severity] ?? "text-whip-muted"}>[{issue.severity}]</span>{" "}
 										{issue.file}
 										{issue.line != null ? `:${issue.line}` : ""}
 										{issue.file ? " — " : ""}
@@ -152,12 +152,12 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 
 					{/* Visual comment metadata */}
 					{vc && (
-						<div className="mt-1.5 flex flex-col gap-1.5 px-2 py-1.5 rounded bg-[#8b5cf6]/8 border border-[#8b5cf6]/20 text-[11px] text-[#8a8f98]">
+						<div className="mt-1.5 flex flex-col gap-1.5 px-2 py-1.5 rounded bg-[#8b5cf6]/8 border border-[#8b5cf6]/20 text-[11px] text-whip-muted">
 							<div className="flex items-center gap-1.5">
 								<span className="px-1.5 py-0.5 rounded text-[10px] font-medium text-[#f5f5f5] bg-[#8b5cf6]/15">
 									Visual
 								</span>
-								{vcElements.length > 1 && <span className="text-[#8a8f98]">{vcElements.length} elements</span>}
+								{vcElements.length > 1 && <span className="text-whip-muted">{vcElements.length} elements</span>}
 							</div>
 							{vcElements.map((el, idx) => {
 								const shortFile = el.sourceFile?.split("/").slice(-2).join("/");
@@ -179,11 +179,11 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 												</span>
 											)}
 											{el.elementSelector && <code className="font-mono text-[#c4b5fd]">{el.elementSelector}</code>}
-											{chainDisplay && <span className="text-[#8a8f98]">🧩 {chainDisplay}</span>}
+											{chainDisplay && <span className="text-whip-muted">🧩 {chainDisplay}</span>}
 										</div>
-										{el.elementText && <div className="text-[#8a8f98] italic line-clamp-2">"{el.elementText}"</div>}
+										{el.elementText && <div className="text-whip-muted italic line-clamp-2">"{el.elementText}"</div>}
 										{shortFile && (
-											<span className="font-mono text-[#5f6672]">
+											<span className="font-mono text-whip-faint">
 												{shortFile}
 												{el.sourceLine != null ? `:${el.sourceLine}` : ""}
 											</span>
@@ -193,7 +193,7 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 												href={el.pageUrl}
 												target="_blank"
 												rel="noreferrer"
-												className="truncate text-[#5f6672] hover:text-[#8a8f98] transition-colors"
+												className="truncate text-whip-faint hover:text-whip-muted transition-colors"
 											>
 												🔗 {el.pageUrl}
 											</a>
@@ -206,7 +206,7 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 									href={vc.pageUrl}
 									target="_blank"
 									rel="noreferrer"
-									className="truncate text-[#5f6672] hover:text-[#8a8f98] transition-colors"
+									className="truncate text-whip-faint hover:text-whip-muted transition-colors"
 								>
 									{vc.pageUrl}
 								</a>
@@ -240,7 +240,7 @@ export function CommentItem({ entry, workspaceId, showDate, showHeader, workflow
 					onClick={handleDelete}
 					title="Delete comment"
 					aria-label="Delete comment"
-					className="shrink-0 mt-2 p-1 rounded text-[#5f6672] opacity-0 group-hover:opacity-100 transition-opacity hover:text-[#ff3b4d] hover:bg-[#1f1f1f]"
+					className="shrink-0 mt-2 p-1 rounded text-whip-faint opacity-0 group-hover:opacity-100 transition-opacity hover:text-[#ff3b4d] hover:bg-whip-border-soft"
 				>
 					<Trash2 className="w-3.5 h-3.5" />
 				</button>

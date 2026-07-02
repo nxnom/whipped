@@ -124,10 +124,10 @@ export function SlackSettings() {
 	if (!config) {
 		return (
 			<div className="flex-1 flex flex-col">
-				<div className="shrink-0 flex flex-col gap-1 px-10 py-6 border-b border-[#2a2a2a]">
-					<h1 className="text-xl font-semibold text-[#ededed]">Slack</h1>
+				<div className="shrink-0 flex flex-col gap-1 px-10 py-6 border-b border-whip-border">
+					<h1 className="text-xl font-semibold text-whip-text">Slack</h1>
 				</div>
-				<div className="flex items-center justify-center py-20 text-sm text-[#5f6672]">Loading...</div>
+				<div className="flex items-center justify-center py-20 text-sm text-whip-faint">Loading...</div>
 			</div>
 		);
 	}
@@ -143,9 +143,9 @@ export function SlackSettings() {
 
 	return (
 		<div className="flex-1 flex flex-col overflow-hidden">
-			<div className="shrink-0 flex flex-col gap-1 px-10 py-6 border-b border-[#2a2a2a]">
-				<h1 className="text-xl font-semibold text-[#ededed]">Slack</h1>
-				<p className="text-[13px] text-[#5f6672]">
+			<div className="shrink-0 flex flex-col gap-1 px-10 py-6 border-b border-whip-border">
+				<h1 className="text-xl font-semibold text-whip-text">Slack</h1>
+				<p className="text-[13px] text-whip-faint">
 					One channel per project, one message per ticket. Replies sync both ways.
 				</p>
 			</div>
@@ -162,13 +162,13 @@ export function SlackSettings() {
 					{/* Slack integration section */}
 					<div className="flex flex-col gap-4">
 						<div className="flex items-center gap-3">
-							<span className="text-[15px] font-semibold text-[#ededed]">Slack</span>
-							<div className="flex-1 h-px bg-[#111111]" />
+							<span className="text-[15px] font-semibold text-whip-text">Slack</span>
+							<div className="flex-1 h-px bg-whip-panel" />
 						</div>
 						<div className="flex items-center justify-between">
 							<div className="flex flex-col gap-0.5">
-								<span className="text-[13px] font-medium text-[#ededed]">Enable Slack integration</span>
-								<span className="text-[11px] text-[#5f6672]">
+								<span className="text-[13px] font-medium text-whip-text">Enable Slack integration</span>
+								<span className="text-[11px] text-whip-faint">
 									{config.slackEnabled
 										? "Active — notifications and replies are syncing."
 										: "Paused — no messages will be sent or received."}
@@ -180,7 +180,7 @@ export function SlackSettings() {
 								onClick={handleToggleEnabled}
 								className={classNames(
 									"relative shrink-0 transition-colors w-9 h-5 rounded-[10px]",
-									config.slackEnabled ? "bg-[#ffffff]" : "bg-[#2a2a2a]",
+									config.slackEnabled ? "bg-whip-accent" : "bg-whip-border",
 								)}
 							>
 								<span
@@ -197,13 +197,13 @@ export function SlackSettings() {
 					<FormProvider {...methods}>
 						<form onSubmit={handleCreateApp} className="flex flex-col gap-0">
 							<div className="flex items-center gap-3">
-								<span className="text-[15px] font-semibold text-[#ededed]">Setup</span>
-								<div className="flex-1 h-px bg-[#111111]" />
+								<span className="text-[15px] font-semibold text-whip-text">Setup</span>
+								<div className="flex-1 h-px bg-whip-panel" />
 								{fullyConfigured && (
 									<button
 										type="button"
 										onClick={() => setShowSetup((v) => !v)}
-										className="text-[11px] transition-opacity hover:opacity-80 shrink-0 text-[#5f6672]"
+										className="text-[11px] transition-opacity hover:opacity-80 shrink-0 text-whip-faint"
 									>
 										{showSetup ? "Collapse" : "Reconfigure"}
 									</button>
@@ -212,11 +212,11 @@ export function SlackSettings() {
 							{fullyConfigured && !showSetup ? null : (
 								<div className="mt-5">
 									{fullyConfigured && showSetup && (
-										<div className="flex items-center gap-3 mb-5 pb-5 border-b border-[#111111]">
+										<div className="flex items-center gap-3 mb-5 pb-5 border-b border-whip-panel">
 											<button
 												type="button"
 												onClick={handleInstall}
-												className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 bg-[#1a1a2e] border border-[#3a3aff60] text-[#ffffff]"
+												className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity hover:opacity-80 bg-[#1a1a2e] border border-[#3a3aff60] text-whip-accent"
 											>
 												<ExternalLink size={13} />
 												Reinstall to Workspace
@@ -235,55 +235,55 @@ export function SlackSettings() {
 
 									{/* Step 1: Config token + public URL */}
 									<StepRow n={1} title="Get an App Configuration Token" done={step1Done} active={!step1Done}>
-										<p className="text-[12px] text-[#5f6672]">
+										<p className="text-[12px] text-whip-faint">
 											Go to{" "}
 											<a
 												href="https://api.slack.com/apps"
 												target="_blank"
 												rel="noreferrer"
-												className="inline-flex items-center gap-0.5 hover:opacity-80 text-[#ffffff]"
+												className="inline-flex items-center gap-0.5 hover:opacity-80 text-whip-accent"
 											>
 												api.slack.com/apps <ExternalLink size={10} />
 											</a>{" "}
 											— scroll to the bottom of the page to find the{" "}
-											<strong className="text-[#ededed]">Your App Configuration Tokens</strong> section → click{" "}
-											<strong className="text-[#ededed]">Generate Token</strong> → select your workspace → copy the
+											<strong className="text-whip-text">Your App Configuration Tokens</strong> section → click{" "}
+											<strong className="text-whip-text">Generate Token</strong> → select your workspace → copy the
 											token.
 										</p>
-										<p className="text-[11px] text-[#5f6672]">
+										<p className="text-[11px] text-whip-faint">
 											Note: this token expires after 12 hours, but you only need it once to create the app.
 										</p>
 										<RHFInputGroup
 											label="Bot name"
-											labelClassName="text-[11px] font-medium text-[#8a8f98]"
+											labelClassName="text-[11px] font-medium text-whip-muted"
 											className="flex flex-col gap-2"
 										>
 											<RHFInput
 												name="botName"
 												placeholder="Whipped"
-												inputClassName="font-mono text-[12px] focus:outline-none focus:border-[#ffffff] px-3 py-[9px] bg-[#111111] border border-[#2a2a2a] rounded-md text-[#ededed]"
+												inputClassName="font-mono text-[12px] focus:outline-none focus:border-whip-accent px-3 py-[9px] bg-whip-panel border border-whip-border rounded-md text-whip-text"
 											/>
-											<p className="text-[11px] text-[#5f6672]">
+											<p className="text-[11px] text-whip-faint">
 												Shown in Slack as the bot's display name — use something like "OE Office" or "OE Home" to
 												identify the device.
 											</p>
 										</RHFInputGroup>
 										<div className="flex flex-col gap-2">
-											<label className="text-[11px] font-medium text-[#8a8f98]">App Configuration Token</label>
+											<label className="text-[11px] font-medium text-whip-muted">App Configuration Token</label>
 											<RHFSecretInput name="appConfigToken" placeholder="xoxe-..." />
 											<RHFError name="appConfigToken" className="text-[11px] text-[#ff3b4d]" />
 										</div>
 										<div className="flex flex-col gap-2">
-											<label className="text-[11px] font-medium text-[#8a8f98]">
+											<label className="text-[11px] font-medium text-whip-muted">
 												Public URL (Cloudflare Tunnel domain)
 											</label>
 											{publicUrl ? (
-												<div className="flex items-center gap-2 px-3 py-2 rounded font-mono text-[12px] bg-[#111111] border border-[#2a2a2a] text-[#4ade80]">
+												<div className="flex items-center gap-2 px-3 py-2 rounded font-mono text-[12px] bg-whip-panel border border-whip-border text-[#4ade80]">
 													<Check size={12} />
 													{publicUrl}
 												</div>
 											) : (
-												<div className="flex items-center gap-2 px-3 py-2 rounded text-[12px] bg-[#111111] border border-[#4a2a1a] text-[#f87171]">
+												<div className="flex items-center gap-2 px-3 py-2 rounded text-[12px] bg-whip-panel border border-[#4a2a1a] text-[#f87171]">
 													No tunnel domain configured —{" "}
 													<button
 														type="button"
@@ -306,7 +306,7 @@ export function SlackSettings() {
 											</div>
 										) : (
 											<>
-												<p className="text-[12px] text-[#5f6672]">
+												<p className="text-[12px] text-whip-faint">
 													We'll call the Slack API to create and configure the app automatically using your token and
 													public URL.
 												</p>
@@ -319,7 +319,7 @@ export function SlackSettings() {
 												<button
 													type="submit"
 													disabled={!step1Done || createApp.loading}
-													className="self-start flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity disabled:opacity-40 hover:opacity-80 bg-[#ffffff] text-white"
+													className="self-start flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity disabled:opacity-40 hover:opacity-80 bg-whip-accent text-whip-accent-text"
 												>
 													{createApp.loading ? (
 														<Loader2 size={14} className="animate-spin" />
@@ -341,11 +341,11 @@ export function SlackSettings() {
 											</div>
 										) : (
 											<>
-												<p className="text-[12px] text-[#5f6672]">
+												<p className="text-[12px] text-whip-faint">
 													Click the button to open Slack's install page. After you click Allow, the bot token is
 													captured automatically and saved here.
 												</p>
-												<p className="text-[12px] text-[#5f6672]">
+												<p className="text-[12px] text-whip-faint">
 													Make sure your Cloudflare Tunnel is running (Settings → Tunnel) before clicking — Slack needs
 													to reach the callback URL.
 												</p>
@@ -353,7 +353,7 @@ export function SlackSettings() {
 													type="button"
 													onClick={handleInstall}
 													disabled={!step2Done}
-													className="self-start flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity disabled:opacity-40 hover:opacity-80 bg-[#1a1a2e] border border-[#3a3aff60] text-[#ffffff]"
+													className="self-start flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium transition-opacity disabled:opacity-40 hover:opacity-80 bg-[#1a1a2e] border border-[#3a3aff60] text-whip-accent"
 												>
 													<ExternalLink size={14} />
 													Install to Workspace
@@ -377,7 +377,7 @@ export function SlackSettings() {
 						<div className="flex flex-col gap-3">
 							<button
 								onClick={() => setShowAdvanced((v) => !v)}
-								className="self-start flex items-center gap-1.5 text-[11px] transition-opacity hover:opacity-80 text-[#5f6672]"
+								className="self-start flex items-center gap-1.5 text-[11px] transition-opacity hover:opacity-80 text-whip-faint"
 							>
 								<ChevronRight
 									size={12}

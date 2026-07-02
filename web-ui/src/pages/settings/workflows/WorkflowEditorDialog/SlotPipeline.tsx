@@ -20,20 +20,20 @@ export function SlotPipeline({
 	onAddSlot: (type: "review" | "plan" | "orch") => void;
 }) {
 	return (
-		<div className="shrink-0 px-6 py-4 border-b border-[#2a2a2a]">
+		<div className="shrink-0 px-6 py-4 border-b border-whip-border">
 			{/* Pipeline header */}
 			<div className="flex items-center gap-2 mb-3">
-				<span className="text-[10px] font-semibold shrink-0 text-[#5f6672] tracking-[1px]">PIPELINE</span>
-				<div className="flex-1 h-px bg-[#111111]" />
+				<span className="text-[10px] font-semibold shrink-0 text-whip-faint tracking-[1px]">PIPELINE</span>
+				<div className="flex-1 h-px bg-whip-panel" />
 				<Menu placement="bottom-end">
 					<MenuTrigger>
 						{({ toggleMenu }) => (
 							<button
 								onClick={toggleMenu}
-								className="flex items-center gap-1 hover:opacity-80 transition-opacity bg-transparent border border-[#2a2a2a] rounded-[4px] px-2 py-[3px]"
+								className="flex items-center gap-1 hover:opacity-80 transition-opacity bg-transparent border border-whip-border rounded-[4px] px-2 py-[3px]"
 							>
-								<Plus size={11} className="text-[#5f6672]" />
-								<span className="text-[10px] text-[#5f6672]">Add Slot</span>
+								<Plus size={11} className="text-whip-faint" />
+								<span className="text-[10px] text-whip-faint">Add Slot</span>
 							</button>
 						)}
 					</MenuTrigger>
@@ -56,29 +56,33 @@ export function SlotPipeline({
 						<div key={slot.id} className="flex items-center">
 							{idx > 0 && (
 								<div className="flex items-center justify-center w-8">
-									<ArrowRight size={14} className={showArrow ? "text-[#2a2a2a]" : "text-transparent"} />
+									<ArrowRight size={14} className={showArrow ? "text-whip-border" : "text-transparent"} />
 								</div>
 							)}
 							<button
 								onClick={() => onSwitchSlot(slot.id)}
 								className={classNames(
 									"flex items-center transition-colors rounded-lg px-3.5 py-2 gap-2",
-									isSelected ? "bg-[#ffffff15] border-2 border-[#ffffff]" : "bg-[#111111] border border-[#2a2a2a]",
+									isSelected
+										? "bg-whip-accent/15 border-2 border-whip-accent"
+										: "bg-whip-panel border border-whip-border",
 									isDisabled ? "opacity-40" : "",
 								)}
 							>
 								<div
 									className="flex items-center justify-center shrink-0 w-5 h-5 rounded-[10px]"
-									style={{ background: isDisabled ? "#2a2a2a25" : `${color}25` }}
+									style={{
+										background: isDisabled ? "color-mix(in srgb, var(--whip-border) 15%, transparent)" : `${color}25`,
+									}}
 								>
-									<span className="text-[9px] font-bold" style={{ color: isDisabled ? "#5f6672" : color }}>
+									<span className="text-[9px] font-bold" style={{ color: isDisabled ? "var(--whip-faint)" : color }}>
 										{idx + 1}
 									</span>
 								</div>
 								<span
 									className={classNames(
 										"text-[12px]",
-										isSelected ? "text-[#ededed] font-semibold" : isDisabled ? "text-[#5f6672]" : "text-[#8a8f98]",
+										isSelected ? "text-whip-text font-semibold" : isDisabled ? "text-whip-faint" : "text-whip-muted",
 										isDisabled ? "line-through" : "",
 									)}
 								>
@@ -88,7 +92,7 @@ export function SlotPipeline({
 						</div>
 					);
 				})}
-				{sortedSlots.length === 0 && <span className="text-[12px] text-[#5f6672]">No slots — add one above</span>}
+				{sortedSlots.length === 0 && <span className="text-[12px] text-whip-faint">No slots — add one above</span>}
 			</div>
 		</div>
 	);

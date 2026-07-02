@@ -12,7 +12,7 @@ import { useRead } from "@/runtime/api-client";
 import { useCompanionSessions } from "./useCompanionSessions";
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
-	return <span className="text-[11px] font-medium text-[#5f6672]">{children}</span>;
+	return <span className="text-[11px] font-medium text-whip-faint">{children}</span>;
 }
 
 export function CompanionStartDialog({
@@ -100,21 +100,21 @@ export function CompanionStartDialog({
 			<FormProvider {...methods}>
 				<form
 					onSubmit={onSubmit}
-					className="relative flex flex-col w-[520px] max-w-[calc(100vw-80px)] max-h-[calc(100vh-80px)] rounded-xl bg-[#0b0b0b] border border-[#2a2a2a] shadow-[0_8px_40px_4px_#00000060] overflow-hidden"
+					className="relative flex flex-col w-[520px] max-w-[calc(100vw-80px)] max-h-[calc(100vh-80px)] rounded-xl bg-whip-surface border border-whip-border shadow-[0_8px_40px_4px_#00000060] overflow-hidden"
 				>
-					<div className="flex items-center gap-3 px-6 py-3.5 border-b border-[#2a2a2a] shrink-0">
-						<span className="text-[15px] font-semibold text-[#ededed]">New Companion Session</span>
+					<div className="flex items-center gap-3 px-6 py-3.5 border-b border-whip-border shrink-0">
+						<span className="text-[15px] font-semibold text-whip-text">New Companion Session</span>
 						<div className="flex-1" />
-						<button type="button" onClick={onClose} className="text-[#5f6672] hover:text-[#ededed] transition-colors">
+						<button type="button" onClick={onClose} className="text-whip-faint hover:text-whip-text transition-colors">
 							<X size={18} />
 						</button>
 					</div>
 
 					<div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 flex flex-col gap-4">
-						<div className="flex items-center justify-between gap-3 rounded-lg border border-[#2a2a2a] px-3.5 py-3">
+						<div className="flex items-center justify-between gap-3 rounded-lg border border-whip-border px-3.5 py-3">
 							<div className="flex flex-col gap-0.5">
-								<span className="text-[13px] font-medium text-[#ededed]">Isolated worktree</span>
-								<span className="text-[11px] text-[#5f6672]">
+								<span className="text-[13px] font-medium text-whip-text">Isolated worktree</span>
+								<span className="text-[11px] text-whip-faint">
 									{useWorktree
 										? "Branches into its own worktree — safe to run alongside other work."
 										: "Works directly in your main repo checkout — no worktree or new branch."}
@@ -147,7 +147,7 @@ export function CompanionStartDialog({
 									value={savedCanvasId}
 									onChange={(v) => setSavedCanvasId(v as string)}
 									placeholder="None — start fresh"
-									prefix={<FileText size={13} className="text-[#8a8f98]" />}
+									prefix={<FileText size={13} className="text-whip-muted" />}
 								>
 									<SelectOption value="" label="None — start fresh" />
 									{savedCanvases.map((p) => (
@@ -163,7 +163,7 @@ export function CompanionStartDialog({
 								name="workflowId"
 								onChange={onWorkflowChange}
 								placeholder="No workflow — blank agent"
-								prefix={<WorkflowIcon size={14} className="text-[#8a8f98]" />}
+								prefix={<WorkflowIcon size={14} className="text-whip-muted" />}
 							>
 								<SelectOption value="" label="No workflow — blank agent" />
 								{taskWorkflows.map((w) => (
@@ -178,12 +178,12 @@ export function CompanionStartDialog({
 						</div>
 					</div>
 
-					<div className="flex items-center gap-2.5 px-6 py-3.5 border-t border-[#2a2a2a] shrink-0">
+					<div className="flex items-center gap-2.5 px-6 py-3.5 border-t border-whip-border shrink-0">
 						<div className="flex-1" />
 						<button
 							type="submit"
 							disabled={create.loading}
-							className="flex items-center gap-1.5 px-5 py-2 rounded-md text-xs font-semibold text-white bg-[#ffffff] transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+							className="flex items-center gap-1.5 px-5 py-2 rounded-md text-xs font-semibold text-whip-accent-text bg-whip-accent transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
 						>
 							{create.loading ? "Starting..." : "Start Session"}
 						</button>

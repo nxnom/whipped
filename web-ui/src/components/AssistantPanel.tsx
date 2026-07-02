@@ -131,13 +131,13 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 			{/* Drag handle */}
 			<div
 				onMouseDown={onDragStart}
-				className="w-1 shrink-0 cursor-col-resize hover:bg-[#ffffff]/40 active:bg-[#ffffff]/60 transition-colors bg-[#2a2a2a]"
+				className="w-1 shrink-0 cursor-col-resize hover:bg-whip-accent/40 active:bg-whip-accent/60 transition-colors bg-whip-border"
 			/>
-			<div className="flex-1 border-l border-[#2a2a2a] flex flex-col overflow-hidden">
-				<div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2a2a] shrink-0">
+			<div className="flex-1 border-l border-whip-border flex flex-col overflow-hidden">
+				<div className="flex items-center justify-between px-4 py-3 border-b border-whip-border shrink-0">
 					<div className="flex items-center gap-2">
-						<Bot size={16} className="text-[#ededed]" />
-						<h2 className="text-sm font-medium text-[#ededed]">Assistant</h2>
+						<Bot size={16} className="text-whip-text" />
+						<h2 className="text-sm font-medium text-whip-text">Assistant</h2>
 					</div>
 					<div className="flex items-center gap-2">
 						{canvases.length > 0 && (
@@ -160,7 +160,7 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 					{checking ? null : taskId ? (
 						<TaskTerminal taskId={taskId} workspaceId={workspaceId} className="flex-1 min-h-0" />
 					) : (
-						<div className="flex-1 flex flex-col items-center justify-center gap-4 text-[#5f6672] px-6">
+						<div className="flex-1 flex flex-col items-center justify-center gap-4 text-whip-faint px-6">
 							<Bot size={40} />
 							<p className="text-sm text-center">
 								Pick a model to start an interactive session for managing your board
@@ -172,7 +172,7 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 										value={savedCanvasId}
 										onChange={(v) => setSavedCanvasId(v as string)}
 										placeholder="Start from saved canvas (optional)"
-										prefix={<FileText size={13} className="text-[#8a8f98]" />}
+										prefix={<FileText size={13} className="text-whip-muted" />}
 									>
 										<SelectOption value="" label="None — start fresh" />
 										{savedCanvases.map((p) => (

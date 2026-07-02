@@ -20,13 +20,13 @@ export function CanvasVersionSelector({
 				{({ toggleMenu, open }) => (
 					<button
 						onClick={toggleMenu}
-						className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#161616] border border-[#2a2a2a] hover:border-[#3a3a3a] text-[#8a8f98] hover:text-[#ededed] text-[11px] transition-colors"
+						className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-whip-panel-2 border border-whip-border hover:border-whip-border-hover text-whip-muted hover:text-whip-text text-[11px] transition-colors"
 					>
-						<FileText size={11} className="text-[#8a8f98]" />
+						<FileText size={11} className="text-whip-muted" />
 						<span>v{selectedVersion}</span>
 						<ChevronDown
 							size={10}
-							className={classNames("text-[#5f6672] transition-transform", open && "rotate-180")}
+							className={classNames("text-whip-faint transition-transform", open && "rotate-180")}
 						/>
 					</button>
 				)}
@@ -36,7 +36,7 @@ export function CanvasVersionSelector({
 					<div
 						className={classNames(
 							"flex items-center gap-2.5 text-[11px]",
-							selectedVersion === p.version ? "text-[#ededed]" : "text-[#8a8f98]",
+							selectedVersion === p.version ? "text-whip-text" : "text-whip-muted",
 						)}
 					>
 						<span className="font-mono text-[#8b5cf6] w-8 shrink-0 text-left">v{p.version}</span>

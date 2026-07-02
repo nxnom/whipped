@@ -188,14 +188,14 @@ export function WorkflowEditorDialog({
 		<FormProvider {...methods}>
 			<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={onClose}>
 				<div
-					className="flex overflow-hidden bg-[#0b0b0b] rounded-xl border border-[#2a2a2a] w-[87.5vw] max-w-[1400px] h-[89.5vh] max-h-[850px] shadow-[0_8px_40px_4px_rgba(0,0,0,0.38)]"
+					className="flex overflow-hidden bg-whip-surface rounded-xl border border-whip-border w-[87.5vw] max-w-[1400px] h-[89.5vh] max-h-[850px] shadow-[0_8px_40px_4px_rgba(0,0,0,0.38)]"
 					onClick={(e) => e.stopPropagation()}
 				>
 					{/* Left panel */}
 					<div className="flex-1 flex flex-col overflow-hidden">
 						{/* Dialog header */}
-						<div className="flex items-center gap-3 shrink-0 px-6 py-4 border-b border-[#2a2a2a]">
-							<WorkflowIcon size={18} className="text-[#ffffff] shrink-0" />
+						<div className="flex items-center gap-3 shrink-0 px-6 py-4 border-b border-whip-border">
+							<WorkflowIcon size={18} className="text-whip-accent shrink-0" />
 							<Controller
 								control={control}
 								name="name"
@@ -203,7 +203,7 @@ export function WorkflowEditorDialog({
 									<input
 										value={field.value}
 										onChange={(e) => field.onChange(e.target.value)}
-										className="bg-transparent outline-none text-[17px] font-semibold min-w-0 flex-1 text-[#ededed]"
+										className="bg-transparent outline-none text-[17px] font-semibold min-w-0 flex-1 text-whip-text"
 										placeholder="Workflow name"
 									/>
 								)}
@@ -218,7 +218,7 @@ export function WorkflowEditorDialog({
 								<span className="text-[10px] font-medium text-[#3b82f6]">{forStory ? "Story" : "Task"}</span>
 							</div>
 							<button onClick={onClose} className="hover:opacity-70 transition-opacity shrink-0">
-								<X size={18} className="text-[#5f6672]" />
+								<X size={18} className="text-whip-faint" />
 							</button>
 						</div>
 
@@ -248,7 +248,7 @@ export function WorkflowEditorDialog({
 								onBrowse={() => setBrowsingPath(true)}
 							/>
 						) : (
-							<div className="flex-1 flex items-center justify-center text-[13px] text-[#5f6672]">
+							<div className="flex-1 flex items-center justify-center text-[13px] text-whip-faint">
 								Select a slot to edit its instructions
 							</div>
 						)}

@@ -8,7 +8,7 @@ export function Avatar({ comment }: { comment: RuntimeReviewComment }) {
 	if (actor.type === "human" || actor.type === "external") {
 		const initials = actor.id.slice(0, 2).toUpperCase();
 		return (
-			<div className="w-8 h-8 rounded-full flex items-center justify-center bg-[#2a2a2a] text-[11px] font-bold text-[#ededed] shrink-0 select-none">
+			<div className="w-8 h-8 rounded-full flex items-center justify-center bg-whip-border text-[11px] font-bold text-whip-text shrink-0 select-none">
 				{initials}
 			</div>
 		);
@@ -18,7 +18,7 @@ export function Avatar({ comment }: { comment: RuntimeReviewComment }) {
 
 	if (err) {
 		return (
-			<div className="w-8 h-8 rounded-full flex items-center justify-center bg-[#2a2a2a] text-[11px] font-bold text-[#ededed] shrink-0 select-none">
+			<div className="w-8 h-8 rounded-full flex items-center justify-center bg-whip-border text-[11px] font-bold text-whip-text shrink-0 select-none">
 				{actor.id.slice(0, 2).toUpperCase()}
 			</div>
 		);
@@ -28,7 +28,7 @@ export function Avatar({ comment }: { comment: RuntimeReviewComment }) {
 		<img
 			src={`https://api.dicebear.com/9.x/fun-emoji/svg?seed=${encodeURIComponent(seed)}`}
 			alt={actor.id}
-			className="w-8 h-8 rounded-full shrink-0 bg-[#161616]"
+			className="w-8 h-8 rounded-full shrink-0 bg-whip-panel-2"
 			onError={() => setErr(true)}
 			loading="lazy"
 		/>

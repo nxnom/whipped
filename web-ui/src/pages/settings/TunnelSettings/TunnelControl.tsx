@@ -30,7 +30,7 @@ export function TunnelControl() {
 	const acting = startTunnel.loading || stopTunnel.loading;
 
 	return (
-		<div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-[#111111] border border-[#2a2a2a]">
+		<div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-whip-panel border border-whip-border">
 			<div className="flex items-center gap-2 flex-1 min-w-0">
 				{status === "starting" ? (
 					<Loader2 size={8} className="animate-spin shrink-0" style={{ color: style.dot }} />
@@ -40,7 +40,7 @@ export function TunnelControl() {
 				<span className="text-[13px]" style={{ color: style.text }}>
 					{style.label}
 				</span>
-				{state?.error && <span className="text-[11px] font-mono truncate text-[#5f6672]">— {state.error}</span>}
+				{state?.error && <span className="text-[11px] font-mono truncate text-whip-faint">— {state.error}</span>}
 			</div>
 			<button
 				onClick={isRunning ? handleStop : handleStart}

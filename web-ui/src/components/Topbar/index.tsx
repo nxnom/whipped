@@ -1,9 +1,10 @@
-import { MessageSquare, Settings } from "lucide-react";
+import { MessageSquare, Moon, Settings, Sun } from "lucide-react";
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AddProjectDialog } from "@/components/AddProjectDialog";
 import { useRead, useWrite } from "@/runtime/api-client";
 import { useWorkspaceState } from "@/stores/board-store";
+import { toggleTheme, useTheme } from "@/stores/theme-store";
 import { classNames } from "@/utils/classNames";
 import { firstSortedProjectId } from "@/utils/projects";
 import logo from "@/assets/logo.png";
@@ -18,6 +19,7 @@ interface TopbarProps {
 export function Topbar({ workspaceId, onOpenAgent }: TopbarProps) {
 	const navigate = useNavigate();
 	const location = useLocation();
+	const theme = useTheme();
 	const { connected } = useWorkspaceState(workspaceId);
 	const { data: projectList } = useRead((api) => api("projects").GET());
 	const { data: layout } = useRead((api) => api("projects/layout").GET());
@@ -55,10 +57,10 @@ export function Topbar({ workspaceId, onOpenAgent }: TopbarProps) {
 
 	return (
 		<>
-			<header className="flex items-center gap-4 h-16 px-5 shrink-0 bg-whip-bg border-b border-[#1f1f1f]">
+			<header className="flex items-center gap-4 h-16 px-5 shrink-0 bg-whip-bg border-b border-whip-border-soft">
 				<div className="flex items-center gap-2.5 w-[170px] shrink-0">
 					<img src={logo} alt="Whipped" className="shrink-0 size-7 rounded-[7px] object-cover" />
-					<span className="text-[17px] font-bold text-[#ededed]">Whipped</span>
+					<span className="text-[17px] font-bold text-whip-text">Whipped</span>
 				</div>
 
 				<ProjectSwitcher
@@ -74,16 +76,23 @@ export function Topbar({ workspaceId, onOpenAgent }: TopbarProps) {
 
 				<div className="flex-1" />
 
-				<div className="flex items-center gap-1.5 px-2.5 py-[7px] rounded-md bg-[#111111] border border-[#2a2a2a]">
+				<div className="flex items-center gap-1.5 px-2.5 py-[7px] rounded-md bg-whip-panel border border-whip-border">
 					<span className={classNames("size-[7px] rounded-full", connected ? "bg-[#22c55e]" : "bg-[#5f6672]")} />
-					<span className="text-xs font-medium text-[#8a8f98]">{connected ? "Connected" : "Offline"}</span>
+					<span className="text-xs font-medium text-whip-muted">{connected ? "Connected" : "Offline"}</span>
 				</div>
-				<button onClick={onOpenAgent} className="p-1.5 text-[#8a8f98] hover:text-[#ededed] transition-colors">
+				<button
+					onClick={toggleTheme}
+					title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+					className="p-1.5 text-whip-muted hover:text-whip-text transition-colors"
+				>
+					{theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+				</button>
+				<button onClick={onOpenAgent} className="p-1.5 text-whip-muted hover:text-whip-text transition-colors">
 					<MessageSquare size={18} />
 				</button>
 				<button
 					onClick={() => navigate(`/${encodeURIComponent(workspaceId)}/settings`)}
-					className="p-1.5 text-[#8a8f98] hover:text-[#ededed] transition-colors"
+					className="p-1.5 text-whip-muted hover:text-whip-text transition-colors"
 				>
 					<Settings size={18} />
 				</button>

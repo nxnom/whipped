@@ -24,12 +24,15 @@ export function FileTreeNode({
 			<button
 				onClick={() => onFileClick(node.fullPath)}
 				title={node.fullPath}
-				className="flex items-center gap-2 w-full text-left py-1 hover:bg-[#161616] rounded text-[14px] text-[#8a8f98] hover:text-[#ededed] font-sans transition-colors"
+				className="flex items-center gap-2 w-full text-left py-1 hover:bg-whip-panel-2 rounded text-[14px] text-whip-muted hover:text-whip-text font-sans transition-colors"
 				style={{ paddingLeft: `${8 + depth * 14}px`, paddingRight: 8 }}
 			>
 				<File
 					size={13}
-					className={classNames("shrink-0", isNew ? "text-[#22c55e]" : isDeleted ? "text-[#ff3b4d]" : "text-[#5f6672]")}
+					className={classNames(
+						"shrink-0",
+						isNew ? "text-[#22c55e]" : isDeleted ? "text-[#ff3b4d]" : "text-whip-faint",
+					)}
 				/>
 				<span className="flex-1 truncate min-w-0">{node.name}</span>
 				{isNew && (
@@ -62,13 +65,13 @@ export function FileTreeNode({
 			{node.name && (
 				<button
 					onClick={() => onToggleDir(node.fullPath)}
-					className="flex items-center gap-1.5 w-full text-left py-1 hover:bg-[#161616] rounded text-[14px] text-[#8a8f98] hover:text-[#8a8f98] font-sans transition-colors"
+					className="flex items-center gap-1.5 w-full text-left py-1 hover:bg-whip-panel-2 rounded text-[14px] text-whip-muted hover:text-whip-muted font-sans transition-colors"
 					style={{ paddingLeft: `${8 + depth * 14}px`, paddingRight: 8 }}
 				>
 					{isCollapsed ? (
-						<ChevronRight size={13} className="shrink-0 text-[#5f6672]" />
+						<ChevronRight size={13} className="shrink-0 text-whip-faint" />
 					) : (
-						<ChevronDown size={13} className="shrink-0 text-[#5f6672]" />
+						<ChevronDown size={13} className="shrink-0 text-whip-faint" />
 					)}
 					{isCollapsed ? (
 						<Folder size={13} className="shrink-0 text-[#eab308]/60 ml-0.5" />

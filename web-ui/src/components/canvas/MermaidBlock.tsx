@@ -40,15 +40,15 @@ export function MermaidBlock({ id, source, caption }: { id: string; source: stri
 					<AlertTriangle size={12} />
 					Failed to render diagram: {error}
 				</div>
-				<pre className="overflow-x-auto whitespace-pre text-[11px] font-mono text-[#8a8f98]">{source}</pre>
+				<pre className="overflow-x-auto whitespace-pre text-[11px] font-mono text-whip-muted">{source}</pre>
 			</div>
 		);
 	}
 
 	return (
 		<div className="flex flex-col gap-1.5">
-			<div ref={containerRef} className="overflow-x-auto rounded-lg bg-[#111111] p-3" />
-			{caption && <span className="text-[11px] text-[#8a8f98] text-center">{caption}</span>}
+			<div ref={containerRef} className="overflow-x-auto rounded-lg bg-whip-panel p-3" />
+			{caption && <span className="text-[11px] text-whip-muted text-center">{caption}</span>}
 		</div>
 	);
 }

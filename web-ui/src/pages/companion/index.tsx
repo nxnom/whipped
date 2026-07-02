@@ -73,20 +73,20 @@ export function CompanionPage() {
 		<>
 			<div className="flex flex-col h-full overflow-hidden">
 				{/* Top bar: back nav + project/session breadcrumb (doubles as a session switcher) + new session */}
-				<div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#2a2a2a] bg-[#0b0b0b] shrink-0">
+				<div className="flex items-center gap-2 px-4 py-2.5 border-b border-whip-border bg-whip-bg shrink-0">
 					<button
 						type="button"
 						onClick={() => navigate(`/${encodeURIComponent(wsId)}/board`)}
 						title="Back to board"
 						className="flex items-center gap-1.5 min-w-0 hover:opacity-70 transition-opacity shrink-0"
 					>
-						<ArrowLeft size={16} className="text-[#8a8f98] shrink-0" />
+						<ArrowLeft size={16} className="text-whip-muted shrink-0" />
 						{activeProject && (
-							<span className="text-[13px] text-[#5f6672] truncate max-w-[160px]">{activeProject.name}</span>
+							<span className="text-[13px] text-whip-faint truncate max-w-[160px]">{activeProject.name}</span>
 						)}
 					</button>
 
-					{activeProject && <span className="text-[13px] text-[#3a3a3a] shrink-0">/</span>}
+					{activeProject && <span className="text-[13px] text-whip-faint shrink-0">/</span>}
 
 					{sessions.length > 0 ? (
 						<Select
@@ -103,12 +103,12 @@ export function CompanionPage() {
 										onClick={toggleMenu}
 										className="flex items-center gap-1.5 min-w-0 hover:opacity-80 transition-opacity"
 									>
-										<span className="text-[13px] font-semibold text-[#ededed] truncate max-w-[240px]">
+										<span className="text-[13px] font-semibold text-whip-text truncate max-w-[240px]">
 											{selected ? selected.name : "Select session"}
 										</span>
 										<ChevronDown
 											size={13}
-											className={classNames("text-[#5f6672] transition-transform shrink-0", open && "rotate-180")}
+											className={classNames("text-whip-faint transition-transform shrink-0", open && "rotate-180")}
 										/>
 									</button>
 								)}
@@ -119,8 +119,8 @@ export function CompanionPage() {
 										<div className="flex items-center gap-2 min-w-0">
 											<span className={classNames("size-1.5 rounded-full shrink-0", STATUS_DOT_CLASS[s.status])} />
 											<div className="flex flex-col min-w-0">
-												<span className="text-[13px] text-[#ededed] truncate">{s.name}</span>
-												<span className="text-[11px] text-[#5f6672] truncate font-mono">
+												<span className="text-[13px] text-whip-text truncate">{s.name}</span>
+												<span className="text-[11px] text-whip-faint truncate font-mono">
 													{s.useWorktree ? s.branchName : "main repo"}
 												</span>
 											</div>
@@ -130,7 +130,7 @@ export function CompanionPage() {
 							))}
 						</Select>
 					) : (
-						<span className="text-[13px] font-semibold text-[#ededed] truncate">No sessions</span>
+						<span className="text-[13px] font-semibold text-whip-text truncate">No sessions</span>
 					)}
 
 					<div className="flex-1" />
@@ -140,7 +140,7 @@ export function CompanionPage() {
 						title="New session"
 						className="hover:opacity-70 transition-opacity shrink-0"
 					>
-						<Plus size={16} className="text-[#8a8f98]" />
+						<Plus size={16} className="text-whip-muted" />
 					</button>
 				</div>
 
@@ -157,14 +157,14 @@ export function CompanionPage() {
 						/>
 					) : (
 						<div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-6">
-							<div className="flex items-center justify-center size-16 rounded-full bg-[#ffffff10]">
-								<GitBranch size={28} className="text-[#ffffff]" />
+							<div className="flex items-center justify-center size-16 rounded-full bg-whip-accent/10">
+								<GitBranch size={28} className="text-whip-accent" />
 							</div>
 							<div className="flex flex-col gap-1">
-								<span className="text-[16px] font-semibold text-[#ededed]">
+								<span className="text-[16px] font-semibold text-whip-text">
 									{sessions.length ? "Select a session" : "No companion sessions yet"}
 								</span>
-								<span className="text-[13px] text-[#5f6672]">
+								<span className="text-[13px] text-whip-faint">
 									Pair directly with a coding agent in its own isolated worktree.
 								</span>
 							</div>

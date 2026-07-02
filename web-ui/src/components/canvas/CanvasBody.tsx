@@ -62,8 +62,8 @@ export function CanvasBody({
 
 	return (
 		<div className="flex-1 flex flex-col overflow-hidden">
-			<div className="flex items-center justify-between px-3 py-2.5 border-b border-[#2a2a2a] shrink-0">
-				<span className="text-[13px] font-semibold text-[#ededed]">Canvas</span>
+			<div className="flex items-center justify-between px-3 py-2.5 border-b border-whip-border shrink-0">
+				<span className="text-[13px] font-semibold text-whip-text">Canvas</span>
 				<div className="flex items-center gap-2">
 					<CanvasVersionSelector
 						canvases={canvases}
@@ -88,14 +88,14 @@ export function CanvasBody({
 							.map((c) => (
 								<div
 									key={c.id}
-									className="flex items-start gap-1.5 ml-1 pl-2.5 py-0.5 border-l border-dashed border-[#3a3a3a]"
+									className="flex items-start gap-1.5 ml-1 pl-2.5 py-0.5 border-l border-dashed border-whip-border-hover"
 								>
-									<MessageSquare size={11} className="mt-0.5 shrink-0 text-[#5f6672]" />
-									<span className="flex-1 text-[11px] text-[#8a8f98] italic">{c.text}</span>
+									<MessageSquare size={11} className="mt-0.5 shrink-0 text-whip-faint" />
+									<span className="flex-1 text-[11px] text-whip-muted italic">{c.text}</span>
 									{isLatest && (
 										<button
 											onClick={() => setComments((prev) => prev.filter((existing) => existing.id !== c.id))}
-											className="shrink-0 text-[#5f6672] hover:text-[#ff3b4d] transition-colors"
+											className="shrink-0 text-whip-faint hover:text-[#ff3b4d] transition-colors"
 										>
 											<X size={11} />
 										</button>
@@ -110,7 +110,7 @@ export function CanvasBody({
 										value={commentDraft}
 										onChange={(e) => setCommentDraft(e.target.value)}
 										placeholder="Leave a comment on this section…"
-										className="w-full resize-none rounded-md bg-[#111111] border border-[#2a2a2a] px-2.5 py-1.5 text-[12px] text-[#ededed] placeholder:text-[#3a3a3a] outline-none focus:border-[#3a3a3a]"
+										className="w-full resize-none rounded-md bg-whip-panel border border-whip-border px-2.5 py-1.5 text-[12px] text-whip-text placeholder:text-whip-faint outline-none focus:border-whip-border-hover"
 										rows={2}
 									/>
 									<div className="flex items-center gap-2 self-end">
@@ -119,13 +119,13 @@ export function CanvasBody({
 												setCommentDraftFor(null);
 												setCommentDraft("");
 											}}
-											className="text-[11px] text-[#8a8f98] hover:text-[#ededed]"
+											className="text-[11px] text-whip-muted hover:text-whip-text"
 										>
 											Cancel
 										</button>
 										<button
 											onClick={() => addComment(block.id)}
-											className="text-[11px] text-[#ededed] hover:text-[#ffffff]"
+											className="text-[11px] text-whip-text hover:text-whip-accent"
 										>
 											Add
 										</button>
@@ -135,7 +135,7 @@ export function CanvasBody({
 								<button
 									onClick={() => setCommentDraftFor(block.id)}
 									className={classNames(
-										"self-start flex items-center gap-1 text-[11px] text-[#5f6672] hover:text-[#ededed] transition-opacity",
+										"self-start flex items-center gap-1 text-[11px] text-whip-faint hover:text-whip-text transition-opacity",
 										"opacity-0 group-hover:opacity-100",
 									)}
 								>

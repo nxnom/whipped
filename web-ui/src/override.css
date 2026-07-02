@@ -4,225 +4,240 @@
    over @geckoui/geckoui/styles.css (which is imported inside @layer components
    — un-layered always beats layered regardless of order).
 
-   The `.dark` class lives on <html> (see index.html) so these rules also reach
+   `.dark`/`.light` live on <html> (see index.html) so these rules also reach
    GeckoUI components rendered through GeckoUIPortal at <body> level (Dialog,
-   ConfirmDialog, Toast, Drawer, Menu popups).
+   ConfirmDialog, Toast, Drawer, Menu popups). Every rule here reads the
+   --whip-* custom properties (defined per-theme in index.css) rather than
+   literal hex, so GeckoUI components automatically follow the active theme.
 
-   Palette (Vercel-style monochrome + status): #050505 / #0B0B0B / #111111 /
-   #161616 / #2A2A2A / #1F1F1F, primary accent is white (#FFFFFF on dark, text
-   flips to #050505 on top of it). Status: green #22C55E, red #FF3B4D,
-   yellow #EAB308, orange #F97316, purple #8B5CF6 (semantic-only, e.g. agent
-   badges / delivery-mode badges — not the primary accent).
+   Palette (Vercel-style monochrome + status): bg/surface/panel/panel-2,
+   border/border-soft, text/muted/faint, and a single accent that's white on
+   dark / near-black on light (text flips to the opposite on top of it).
+   Status colors (green/red/yellow/orange/purple) stay constant across themes.
    ──────────────────────────────────────────────────────────────────────── */
-.dark {
-	--color-surface-primary: #0b0b0b; /* dialog / menu bg */
-	--color-surface-secondary: #111111; /* input / select bg */
-	--color-surface-tertiary: #111111; /* sidebar bg */
-	--color-surface-hover: #161616; /* subtle hover */
-	--color-surface-hover-strong: #2a2a2a; /* strong hover / selected */
-	--color-surface-active: #2a2a2a;
-	--color-surface-disabled: #111111;
-	--color-surface-emphasis: #2a2a2a;
-	--color-surface-overlay: #000000;
+:where(.dark, .light) {
+	--color-surface-primary: var(--whip-surface); /* dialog / menu bg */
+	--color-surface-secondary: var(--whip-panel); /* input / select bg */
+	--color-surface-tertiary: var(--whip-panel); /* sidebar bg */
+	--color-surface-hover: var(--whip-panel-2); /* subtle hover */
+	--color-surface-hover-strong: var(--whip-border); /* strong hover / selected */
+	--color-surface-active: var(--whip-border);
+	--color-surface-disabled: var(--whip-panel);
+	--color-surface-emphasis: var(--whip-border);
+	--color-surface-overlay: var(--whip-overlay);
 
-	--color-border-primary: #2a2a2a;
-	--color-border-secondary: #2a2a2a;
-	--color-border-focus: #ffffff;
-	--color-border-hover: #3a3a3a;
-	--color-border-disabled: #1f1f1f;
+	--color-border-primary: var(--whip-border);
+	--color-border-secondary: var(--whip-border);
+	--color-border-focus: var(--whip-accent);
+	--color-border-hover: var(--whip-border-hover);
+	--color-border-disabled: var(--whip-border-soft);
 
-	--color-text-primary: #ededed;
-	--color-text-secondary: #8a8f98;
-	--color-text-tertiary: #8a8f98;
-	--color-text-muted: #5f6672;
-	--color-text-placeholder: #5f6672;
-	--color-text-disabled: #5f6672;
-	--color-text-inverse: #050505;
-	--color-text-on-primary: #050505;
+	--color-text-primary: var(--whip-text);
+	--color-text-secondary: var(--whip-muted);
+	--color-text-tertiary: var(--whip-muted);
+	--color-text-muted: var(--whip-faint);
+	--color-text-placeholder: var(--whip-faint);
+	--color-text-disabled: var(--whip-faint);
+	--color-text-inverse: var(--whip-accent-text);
+	--color-text-on-primary: var(--whip-accent-text);
 
-	/* Accent white — drives focus rings, checked states, primary buttons */
-	--color-primary-300: #f5f5f5;
-	--color-primary-400: #ffffff;
-	--color-primary-500: #e5e5e5;
-	--color-primary-600: #d4d4d4;
-	--color-primary-700: #a3a3a3;
+	/* Accent — drives focus rings, checked states, primary buttons */
+	--color-primary-300: var(--whip-accent);
+	--color-primary-400: var(--whip-accent);
+	--color-primary-500: var(--whip-accent);
+	--color-primary-600: var(--whip-accent);
+	--color-primary-700: var(--whip-accent);
 }
 
 /* ─── Button ─────────────────────────────────────────────────────────────────
-   GeckoUI's variant text colors can read low-contrast on the dark panels, so
-   pin them explicitly. */
-.dark .GeckoUIButton[data-variant="filled"] {
-	background-color: #ededed;
-	color: #050505;
+   GeckoUI's variant text colors can read low-contrast on the panels, so pin
+   them explicitly. */
+:where(.dark, .light) .GeckoUIButton[data-variant="filled"] {
+	background-color: var(--whip-accent);
+	color: var(--whip-accent-text);
 	border: 1px solid transparent;
 }
-.dark .GeckoUIButton[data-variant="filled"]:hover:not(:disabled) {
-	background-color: #ffffff;
+:where(.dark, .light) .GeckoUIButton[data-variant="filled"]:hover:not(:disabled) {
+	opacity: 0.85;
 }
-.dark .GeckoUIButton[data-variant="outlined"] {
+:where(.dark, .light) .GeckoUIButton[data-variant="outlined"] {
 	background-color: transparent;
-	color: #ededed;
-	border: 1px solid #2a2a2a;
+	color: var(--whip-text);
+	border: 1px solid var(--whip-border);
 }
-.dark .GeckoUIButton[data-variant="outlined"]:hover:not(:disabled) {
-	background-color: #111111;
-	border-color: #3a3a3a;
+:where(.dark, .light) .GeckoUIButton[data-variant="outlined"]:hover:not(:disabled) {
+	background-color: var(--whip-panel);
+	border-color: var(--whip-border-hover);
 }
-.dark .GeckoUIButton[data-variant="ghost"] {
+:where(.dark, .light) .GeckoUIButton[data-variant="ghost"] {
 	background-color: transparent;
-	color: #8a8f98;
+	color: var(--whip-muted);
 }
-.dark .GeckoUIButton[data-variant="ghost"]:hover:not(:disabled) {
-	background-color: #111111;
-	color: #ededed;
+:where(.dark, .light) .GeckoUIButton[data-variant="ghost"]:hover:not(:disabled) {
+	background-color: var(--whip-panel);
+	color: var(--whip-text);
 }
-.dark .GeckoUIButton:disabled {
+:where(.dark, .light) .GeckoUIButton:disabled {
 	opacity: 0.4;
 }
 
 /* ─── Input ──────────────────────────────────────────────────────────────── */
-.dark .GeckoUIInput {
-	background-color: #111111;
+:where(.dark, .light) .GeckoUIInput {
+	background-color: var(--whip-panel);
 	min-height: 36px;
 	font-size: 12px;
 }
-.dark .GeckoUIInput__input {
-	color: #ededed;
+:where(.dark, .light) .GeckoUIInput__input {
+	color: var(--whip-text);
+}
+/* The base component's hover/focus border rides on the accent color, which is
+   pure white/near-black here — far too bright against the muted panels. */
+:where(.dark, .light) .GeckoUIInput[data-state="enabled"]:hover,
+:where(.dark, .light) .GeckoUIInput[data-state="enabled"]:focus-within {
+	border-color: var(--whip-border-hover);
 }
 
 /* ─── Select trigger ─────────────────────────────────────────────────────── */
-.dark .GeckoUISelectButton {
-	background-color: #111111;
+:where(.dark, .light) .GeckoUISelectButton {
+	background-color: var(--whip-panel);
 	min-height: 36px;
 	font-size: 12px;
-	color: #ededed;
+	color: var(--whip-text);
 }
 
-.dark .GeckoUISelectButton__value {
+:where(.dark, .light) .GeckoUISelectButton__value {
 	font-size: 12px;
-	color: #ededed;
+	color: var(--whip-text);
 }
 
-.dark .GeckoUISelectButton__multiselected {
-	background-color: #ffffff1a;
-	color: #ededed;
+:where(.dark, .light) .GeckoUISelectButton__multiselected {
+	background-color: color-mix(in srgb, var(--whip-accent) 10%, transparent);
+	color: var(--whip-text);
 	border-radius: 4px;
 	font-size: 11px;
 }
 
-.dark .GeckoUISelectButton__icons {
-	color: #5f6672;
+:where(.dark, .light) .GeckoUISelectButton__icons {
+	color: var(--whip-faint);
 }
 
-.dark .GeckoUISelectButton__search__input {
+:where(.dark, .light) .GeckoUISelectButton__search__input {
 	font-size: 12px;
-	color: #ededed;
+	color: var(--whip-text);
 	background: transparent;
 }
 
 /* ─── Select dropdown ────────────────────────────────────────────────────── */
-.dark .GeckoUISelectMenu {
-	background-color: #0b0b0b;
-	border: 1px solid #2a2a2a;
+:where(.dark, .light) .GeckoUISelectMenu {
+	background-color: var(--whip-surface);
+	border: 1px solid var(--whip-border);
 	border-radius: 8px;
-	box-shadow: 0 8px 32px #00000060;
+	box-shadow: 0 8px 32px #00000030;
 }
 
-.dark .GeckoUISelectMenu__search {
-	background-color: #111111;
-	border-bottom: 1px solid #2a2a2a;
+:where(.dark, .light) .GeckoUISelectMenu__search {
+	background-color: var(--whip-panel);
+	border-bottom: 1px solid var(--whip-border);
 	padding: 8px;
 }
 
-.dark .GeckoUISelectMenu__items {
+:where(.dark, .light) .GeckoUISelectMenu__items {
 	border-radius: 8px;
 }
 
-.dark .GeckoUISelectEmpty {
-	color: #5f6672;
+:where(.dark, .light) .GeckoUISelectEmpty {
+	color: var(--whip-faint);
 	font-size: 12px;
 }
 
 /* ─── Select option ──────────────────────────────────────────────────────── */
-.dark .GeckoUISelectOption {
+:where(.dark, .light) .GeckoUISelectOption {
 	font-size: 12px;
-	color: #ededed;
+	color: var(--whip-text);
 	border-radius: 4px;
 }
 
-.dark .GeckoUISelectOption:not([data-disabled="true"]):hover {
-	background-color: #111111;
+:where(.dark, .light) .GeckoUISelectOption:not([data-disabled="true"]):hover {
+	background-color: var(--whip-panel);
 }
 
-.dark .GeckoUISelectOption[data-selected="true"] {
-	background-color: #ffffff1a;
-	color: #ededed;
+:where(.dark, .light) .GeckoUISelectOption[data-selected="true"] {
+	background-color: color-mix(in srgb, var(--whip-accent) 10%, transparent);
+	color: var(--whip-text);
 }
 
-.dark .GeckoUISelectOption__check {
-	color: #ffffff;
+:where(.dark, .light) .GeckoUISelectOption__check {
+	color: var(--whip-accent);
 }
 
 /* ─── Switch ─────────────────────────────────────────────────────────────── */
-.dark .GeckoUISwitch {
-	background-color: #2a2a2a;
+:where(.dark, .light) .GeckoUISwitch {
+	background-color: var(--whip-border);
 }
-.dark .GeckoUISwitch:has(input:checked) {
-	background-color: #ffffff;
+:where(.dark, .light) .GeckoUISwitch:has(input:checked) {
+	background-color: var(--whip-accent);
 }
-.dark .GeckoUISwitch__thumb {
-	background-color: #ededed;
+:where(.dark, .light) .GeckoUISwitch__thumb {
+	background-color: var(--whip-text);
 }
-.dark .GeckoUISwitch:has(input:checked) .GeckoUISwitch__thumb {
-	background-color: #050505;
+:where(.dark, .light) .GeckoUISwitch:has(input:checked) .GeckoUISwitch__thumb {
+	background-color: var(--whip-accent-text);
 }
 
 /* ─── Textarea ───────────────────────────────────────────────────────────── */
-.dark .GeckoUITextarea {
-	background-color: var(--color-whip-bg);
-	color: #ededed;
+:where(.dark, .light) .GeckoUITextarea {
+	background-color: var(--whip-bg);
+	color: var(--whip-text);
 	font-size: 13px;
+}
+:where(.dark, .light) .GeckoUITextarea:hover {
+	border-color: var(--whip-border-hover);
+}
+/* The base component's focus-visible outline rides on the accent color, which
+   is pure white/near-black here — far too bright against the muted panels. */
+:where(.dark, .light) .GeckoUITextarea:focus-visible {
+	outline: 2px solid var(--whip-border-hover);
 }
 
 /* ─── Dialog / ConfirmDialog ─────────────────────────────────────────────── */
-.dark .GeckoUIDialog__dialog,
-.dark .GeckoUIConfirmDialog__dialog {
-	background-color: #0b0b0b;
-	border: 1px solid #2a2a2a;
+:where(.dark, .light) .GeckoUIDialog__dialog,
+:where(.dark, .light) .GeckoUIConfirmDialog__dialog {
+	background-color: var(--whip-surface);
+	border: 1px solid var(--whip-border);
 	border-radius: 0.75rem;
 }
-.dark .GeckoUIConfirmDialog__title {
-	color: #ededed;
+:where(.dark, .light) .GeckoUIConfirmDialog__title {
+	color: var(--whip-text);
 }
-.dark .GeckoUIConfirmDialog__content {
-	color: #8a8f98;
+:where(.dark, .light) .GeckoUIConfirmDialog__content {
+	color: var(--whip-muted);
 }
 
 /* ─── Drawer ─────────────────────────────────────────────────────────────── */
-.dark .GeckoUIDrawer__drawer {
-	background-color: #0b0b0b;
-	border-color: #2a2a2a;
+:where(.dark, .light) .GeckoUIDrawer__drawer {
+	background-color: var(--whip-surface);
+	border-color: var(--whip-border);
 }
 
 /* ─── Menu popup ─────────────────────────────────────────────────────────── */
-.dark .GeckoUIMenu__items {
-	background-color: #0b0b0b;
-	border: 1px solid #2a2a2a;
+:where(.dark, .light) .GeckoUIMenu__items {
+	background-color: var(--whip-surface);
+	border: 1px solid var(--whip-border);
 	border-radius: 8px;
-	box-shadow: 0 8px 32px #00000060;
+	box-shadow: 0 8px 32px #00000030;
 }
 
-.dark .GeckoUIMenu__item {
-	color: #ededed;
+:where(.dark, .light) .GeckoUIMenu__item {
+	color: var(--whip-text);
 }
 
-.dark .GeckoUIMenu__item:hover {
-	background-color: #111111;
+:where(.dark, .light) .GeckoUIMenu__item:hover {
+	background-color: var(--whip-panel);
 }
 
 /* ─── Tooltip ────────────────────────────────────────────────────────────── */
-.dark .GeckoUITooltip {
-	background-color: #111111;
-	color: #ededed;
-	border: 1px solid #2a2a2a;
+:where(.dark, .light) .GeckoUITooltip {
+	background-color: var(--whip-panel);
+	color: var(--whip-text);
+	border: 1px solid var(--whip-border);
 }

@@ -35,24 +35,24 @@ function HomeRoute({ onAddProject }: { onAddProject: () => void }) {
 
 	return (
 		<div className="flex-1 flex flex-col items-center justify-center gap-6">
-			<div className="flex items-center justify-center w-20 h-20 rounded-full bg-[#ffffff10]">
-				<Cpu size={36} className="text-[#ededed]" />
+			<div className="flex items-center justify-center w-20 h-20 rounded-full bg-whip-accent/10">
+				<Cpu size={36} className="text-whip-text" />
 			</div>
 			<div className="flex flex-col items-center gap-2">
-				<span className="text-[24px] font-semibold text-[#ededed]">No project open</span>
-				<span className="text-[14px] text-[#5f6672]">Add a repository to start running autonomous AI agents</span>
+				<span className="text-[24px] font-semibold text-whip-text">No project open</span>
+				<span className="text-[14px] text-whip-faint">Add a repository to start running autonomous AI agents</span>
 			</div>
 			<button
 				onClick={onAddProject}
-				className="flex items-center gap-2 bg-[#ededed] rounded-lg py-3 px-6 hover:bg-white transition-colors"
+				className="flex items-center gap-2 bg-whip-accent rounded-lg py-3 px-6 hover:opacity-85 transition-opacity"
 			>
-				<Plus size={16} className="text-[#050505]" />
-				<span className="text-[14px] font-semibold text-[#050505]">Add Project</span>
+				<Plus size={16} className="text-whip-accent-text" />
+				<span className="text-[14px] font-semibold text-whip-accent-text">Add Project</span>
 			</button>
 			<div className="flex items-center gap-1.5">
-				<span className="text-[12px] text-[#5f6672]">or press</span>
-				<div className="bg-[#111111] border border-[#2a2a2a] rounded px-1.5 py-0.5">
-					<span className="text-[#8a8f98] font-mono text-[11px]">⌘ N</span>
+				<span className="text-[12px] text-whip-faint">or press</span>
+				<div className="bg-whip-panel border border-whip-border rounded px-1.5 py-0.5">
+					<span className="text-whip-muted font-mono text-[11px]">⌘ N</span>
 				</div>
 			</div>
 		</div>
@@ -63,12 +63,12 @@ function NotFoundPage() {
 	const navigate = useNavigate();
 	return (
 		<div className="flex-1 flex flex-col items-center justify-center gap-4">
-			<span className="text-[72px] font-bold text-[#2a2a2a]">404</span>
-			<span className="text-[20px] font-semibold text-[#ededed]">Page not found</span>
-			<span className="text-[14px] text-[#5f6672]">The page you're looking for doesn't exist.</span>
+			<span className="text-[72px] font-bold text-whip-border">404</span>
+			<span className="text-[20px] font-semibold text-whip-text">Page not found</span>
+			<span className="text-[14px] text-whip-faint">The page you're looking for doesn't exist.</span>
 			<button
 				onClick={() => navigate("/", { replace: true })}
-				className="mt-2 text-[14px] text-[#ededed] hover:underline"
+				className="mt-2 text-[14px] text-whip-text hover:underline"
 			>
 				Go home
 			</button>
@@ -97,7 +97,7 @@ export default function App() {
 
 	return (
 		<>
-			<div className="dark flex flex-col h-screen bg-whip-bg text-[#ededed] overflow-hidden">
+			<div className="flex flex-col h-screen bg-whip-bg text-whip-text overflow-hidden">
 				{activeWorkspaceId && <Topbar workspaceId={activeWorkspaceId} onOpenAgent={() => setAgentOpen((v) => !v)} />}
 				<div className="flex-1 overflow-hidden flex">
 					<main className="flex-1 overflow-hidden flex flex-col">

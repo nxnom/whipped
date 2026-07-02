@@ -37,14 +37,14 @@ export function CompanionDiffPanel({ sessionId }: { sessionId: string }) {
 	};
 
 	if (loading) {
-		return <div className="flex-1 flex items-center justify-center text-[#8a8f98] text-sm">Loading diff…</div>;
+		return <div className="flex-1 flex items-center justify-center text-whip-muted text-sm">Loading diff…</div>;
 	}
 
 	if (loadError) {
 		return (
-			<div className="flex-1 flex flex-col items-center justify-center gap-3 text-[#8a8f98]">
+			<div className="flex-1 flex flex-col items-center justify-center gap-3 text-whip-muted">
 				<p className="text-sm">{loadError}</p>
-				<button onClick={refreshDiff} className="flex items-center gap-1.5 text-xs text-[#ededed] hover:text-white">
+				<button onClick={refreshDiff} className="flex items-center gap-1.5 text-xs text-whip-text hover:text-white">
 					<RefreshCw size={12} /> Retry
 				</button>
 			</div>
@@ -53,9 +53,9 @@ export function CompanionDiffPanel({ sessionId }: { sessionId: string }) {
 
 	if (files.length === 0) {
 		return (
-			<div className="flex-1 flex flex-col items-center justify-center gap-3 text-[#8a8f98]">
+			<div className="flex-1 flex flex-col items-center justify-center gap-3 text-whip-muted">
 				<p className="text-sm">No changes yet</p>
-				<button onClick={refreshDiff} className="flex items-center gap-1.5 text-xs text-[#ededed] hover:text-white">
+				<button onClick={refreshDiff} className="flex items-center gap-1.5 text-xs text-whip-text hover:text-white">
 					<RefreshCw size={12} /> Refresh
 				</button>
 			</div>
@@ -68,8 +68,8 @@ export function CompanionDiffPanel({ sessionId }: { sessionId: string }) {
 
 	return (
 		<div className="flex-1 min-h-0 flex flex-col font-mono text-xs bg-whip-bg">
-			<div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-[#1f1f1f] bg-[#111111] font-sans">
-				<span className="text-[#8a8f98] text-xs">
+			<div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-whip-border-soft bg-whip-panel font-sans">
+				<span className="text-whip-muted text-xs">
 					{files.length} file{files.length !== 1 ? "s" : ""}
 					{" · "}
 					<span className="text-[#22c55e]">+{totalAdditions}</span>{" "}
@@ -81,7 +81,7 @@ export function CompanionDiffPanel({ sessionId }: { sessionId: string }) {
 				<div className="flex-1" />
 				<button
 					onClick={refreshDiff}
-					className="text-[#5f6672] hover:text-[#ededed] transition-colors p-1 rounded hover:bg-[#1f1f1f]"
+					className="text-whip-faint hover:text-whip-text transition-colors p-1 rounded hover:bg-whip-border-soft"
 					title="Refresh diff"
 				>
 					<RefreshCw size={13} />
@@ -98,7 +98,7 @@ export function CompanionDiffPanel({ sessionId }: { sessionId: string }) {
 			)}
 
 			<div className="flex flex-1 min-h-0">
-				<div className="shrink-0 w-[208px] border-r border-[#1f1f1f] overflow-y-auto bg-[#111111] py-2">
+				<div className="shrink-0 w-[208px] border-r border-whip-border-soft overflow-y-auto bg-whip-panel py-2">
 					<FileTreeNode
 						node={fileTree}
 						depth={0}

@@ -17,14 +17,14 @@ export function PendingCommentBubble({
 				<div className="flex items-center gap-1 shrink-0">
 					<button
 						onClick={() => onSave(comment.id)}
-						className="text-[10px] text-[#8a8f98] hover:text-[#ededed] transition-colors px-1.5 py-0.5 rounded border border-[#2a2a2a] hover:border-white/40"
+						className="text-[10px] text-whip-muted hover:text-whip-text transition-colors px-1.5 py-0.5 rounded border border-whip-border hover:border-white/40"
 						title="Save to Comments tab"
 					>
 						Save
 					</button>
 					<button
 						onClick={() => onRemove(comment.id)}
-						className="text-[#5f6672] hover:text-[#ff3b4d] transition-colors"
+						className="text-whip-faint hover:text-[#ff3b4d] transition-colors"
 					>
 						<X size={11} />
 					</button>

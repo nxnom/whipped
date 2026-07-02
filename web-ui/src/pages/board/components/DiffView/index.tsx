@@ -176,14 +176,14 @@ export function DiffView({ workspaceId, cardId, activeLevel, isReadyForReview, o
 
 	// ── Loading / error states ────────────────────────────────────────────────
 	if (loading) {
-		return <div className="flex-1 flex items-center justify-center text-[#8a8f98] text-sm">Loading diff…</div>;
+		return <div className="flex-1 flex items-center justify-center text-whip-muted text-sm">Loading diff…</div>;
 	}
 
 	if (loadError) {
 		return (
-			<div className="flex-1 flex flex-col items-center justify-center gap-3 text-[#8a8f98]">
+			<div className="flex-1 flex flex-col items-center justify-center gap-3 text-whip-muted">
 				<p className="text-sm">{loadError}</p>
-				<button onClick={refreshDiff} className="flex items-center gap-1.5 text-xs text-[#ededed] hover:text-white">
+				<button onClick={refreshDiff} className="flex items-center gap-1.5 text-xs text-whip-text hover:text-white">
 					<RefreshCw size={12} /> Retry
 				</button>
 			</div>
@@ -192,9 +192,9 @@ export function DiffView({ workspaceId, cardId, activeLevel, isReadyForReview, o
 
 	if (files.length === 0) {
 		return (
-			<div className="flex-1 flex flex-col items-center justify-center gap-3 text-[#8a8f98]">
+			<div className="flex-1 flex flex-col items-center justify-center gap-3 text-whip-muted">
 				<p className="text-sm">No changes yet</p>
-				<button onClick={refreshDiff} className="flex items-center gap-1.5 text-xs text-[#ededed] hover:text-white">
+				<button onClick={refreshDiff} className="flex items-center gap-1.5 text-xs text-whip-text hover:text-white">
 					<RefreshCw size={12} /> Refresh
 				</button>
 			</div>
@@ -208,8 +208,8 @@ export function DiffView({ workspaceId, cardId, activeLevel, isReadyForReview, o
 	return (
 		<div className="flex-1 min-h-0 flex flex-col font-mono text-xs bg-whip-bg relative">
 			{/* Top bar */}
-			<div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-[#1f1f1f] bg-whip-bg font-sans">
-				<span className="text-[#8a8f98] text-xs">
+			<div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-whip-border-soft bg-whip-bg font-sans">
+				<span className="text-whip-muted text-xs">
 					{files.length} file{files.length !== 1 ? "s" : ""}
 					{" · "}
 					<span className="text-[#22c55e]">+{totalAdditions}</span>{" "}
@@ -224,7 +224,7 @@ export function DiffView({ workspaceId, cardId, activeLevel, isReadyForReview, o
 
 				<button
 					onClick={refreshDiff}
-					className="text-[#5f6672] hover:text-[#ededed] transition-colors p-1 rounded hover:bg-[#161616]"
+					className="text-whip-faint hover:text-whip-text transition-colors p-1 rounded hover:bg-whip-panel-2"
 					title="Refresh diff"
 				>
 					<RefreshCw size={13} />
@@ -248,7 +248,7 @@ export function DiffView({ workspaceId, cardId, activeLevel, isReadyForReview, o
 			<div className="flex flex-1 min-h-0">
 				{/* File tree sidebar */}
 				<div
-					className="relative shrink-0 border-r border-[#1f1f1f] overflow-y-auto bg-whip-bg py-2"
+					className="relative shrink-0 border-r border-whip-border-soft overflow-y-auto bg-whip-bg py-2"
 					style={{ width: sidebarWidth }}
 				>
 					<FileTreeNode
@@ -271,7 +271,7 @@ export function DiffView({ workspaceId, cardId, activeLevel, isReadyForReview, o
 						className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-white/20 transition-colors z-10 group"
 						title="Drag to resize"
 					>
-						<div className="absolute inset-y-0 right-0 w-px bg-[#1f1f1f] group-hover:bg-white/60 transition-colors" />
+						<div className="absolute inset-y-0 right-0 w-px bg-whip-border-soft group-hover:bg-white/60 transition-colors" />
 					</div>
 				</div>
 

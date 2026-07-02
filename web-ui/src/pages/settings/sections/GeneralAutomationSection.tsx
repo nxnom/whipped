@@ -15,8 +15,8 @@ import { SaveRow } from "../_shared";
 function SectionDivider({ title }: { title: string }) {
 	return (
 		<div className="flex items-center gap-3">
-			<span className="text-sm font-semibold text-[#ededed]">{title}</span>
-			<div className="flex-1 h-px bg-[#2a2a2a]" />
+			<span className="text-sm font-semibold text-whip-text">{title}</span>
+			<div className="flex-1 h-px bg-whip-border" />
 		</div>
 	);
 }
@@ -25,8 +25,8 @@ function FieldRow({ label, description, children }: { label: string; description
 	return (
 		<div className="flex items-center gap-4">
 			<div className="flex-1 flex flex-col gap-0.5">
-				<span className="text-[13px] font-medium text-[#ededed]">{label}</span>
-				<span className="text-[11px] text-[#5f6672]">{description}</span>
+				<span className="text-[13px] font-medium text-whip-text">{label}</span>
+				<span className="text-[11px] text-whip-faint">{description}</span>
 			</div>
 			{children}
 		</div>
@@ -169,8 +169,8 @@ export function GeneralAutomationSection({
 				<div className="flex flex-col gap-4">
 					<SectionDivider title="Assistant" />
 					<div className="flex flex-col gap-1.5">
-						<span className="text-[13px] font-medium text-[#ededed]">Agent &amp; model</span>
-						<span className="text-[11px] text-[#5f6672]">
+						<span className="text-[13px] font-medium text-whip-text">Agent &amp; model</span>
+						<span className="text-[11px] text-whip-faint">
 							Default agent for the in-app assistant, used unless you pick a different model when opening a session.
 						</span>
 						<div className="mt-1 max-w-xl">

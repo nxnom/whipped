@@ -12,9 +12,9 @@ import { InstructionsSection } from "./sections/InstructionsSection";
 
 function PageHeader({ title, description }: { title: string; description: string }) {
 	return (
-		<div className="shrink-0 flex flex-col gap-1 px-10 py-6 border-b border-[#2a2a2a]">
-			<h1 className="text-xl font-semibold text-[#ededed]">{title}</h1>
-			<p className="text-[13px] text-[#5f6672]">{description}</p>
+		<div className="shrink-0 flex flex-col gap-1 px-10 py-6 border-b border-whip-border">
+			<h1 className="text-xl font-semibold text-whip-text">{title}</h1>
+			<p className="text-[13px] text-whip-faint">{description}</p>
 		</div>
 	);
 }
@@ -114,7 +114,7 @@ export function ProjectSettings({ workspaceId, section }: { workspaceId: string;
 		return (
 			<div className="flex-1 flex flex-col">
 				<PageHeader title={meta.title} description={meta.description} />
-				<div className="flex items-center justify-center py-20 text-sm text-[#5f6672]">Loading...</div>
+				<div className="flex items-center justify-center py-20 text-sm text-whip-faint">Loading...</div>
 			</div>
 		);
 	}

@@ -48,16 +48,16 @@ export function DiffFileList({
 				const filePendingComments = pendingComments.filter((c) => c.file === path);
 
 				return (
-					<div key={path} id={fileElemId(path)} className="border-b border-[#1f1f1f]">
+					<div key={path} id={fileElemId(path)} className="border-b border-whip-border-soft">
 						{/* File header */}
-						<div className="flex items-center gap-2 px-3 py-2 bg-[#111111] border-b border-[#1f1f1f] sticky top-0 z-10">
+						<div className="flex items-center gap-2 px-3 py-2 bg-whip-panel border-b border-whip-border-soft sticky top-0 z-10">
 							<button
 								onClick={() => onToggleCollapse(path)}
-								className="text-[#5f6672] hover:text-[#8a8f98] shrink-0 transition-colors"
+								className="text-whip-faint hover:text-whip-muted shrink-0 transition-colors"
 							>
 								{isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
 							</button>
-							<span className="flex-1 text-[#ededed] text-[11px] truncate font-sans">
+							<span className="flex-1 text-whip-text text-[11px] truncate font-sans">
 								{path}
 								{file.isNew && (
 									<span className="ml-2 text-[10px] text-[#22c55e] bg-[#22c55e]/10 px-1.5 py-0.5 rounded">
@@ -76,7 +76,7 @@ export function DiffFileList({
 							)}
 							<button
 								onClick={() => (openCommentKey === fileCommentKey ? onCloseComment() : onOpenComment(fileCommentKey))}
-								className="shrink-0 text-[#5f6672] hover:text-[#ededed] transition-colors p-0.5 rounded"
+								className="shrink-0 text-whip-faint hover:text-whip-text transition-colors p-0.5 rounded"
 								title="Comment on file"
 							>
 								<MessageSquare size={12} />
@@ -107,7 +107,7 @@ export function DiffFileList({
 							file.hunks.map((hunk, hi) => (
 								<div key={hi}>
 									{/* Hunk header */}
-									<div className="px-2 py-0.5 bg-[#161616] text-[#8a8f98] border-y border-[#2a2a2a] whitespace-pre font-mono text-[11px]">
+									<div className="px-2 py-0.5 bg-whip-panel-2 text-whip-muted border-y border-whip-border whitespace-pre font-mono text-[11px]">
 										{hunk.header}
 									</div>
 
@@ -130,7 +130,7 @@ export function DiffFileList({
 												? "text-[#22c55e]"
 												: line.type === "removed"
 													? "text-[#ff3b4d]"
-													: "text-[#5f6672]";
+													: "text-whip-faint";
 										const sign = line.type === "added" ? "+" : line.type === "removed" ? "-" : " ";
 										const signColor =
 											line.type === "added"
@@ -143,7 +143,7 @@ export function DiffFileList({
 												? "text-[#86efac]"
 												: line.type === "removed"
 													? "text-[#fca5a5]"
-													: "text-[#8a8f98]";
+													: "text-whip-muted";
 
 										return (
 											<div key={li}>
@@ -154,7 +154,7 @@ export function DiffFileList({
 													{/* Line number */}
 													<div
 														className={classNames(
-															"w-10 shrink-0 text-right pr-2 py-0.5 select-none border-r border-[#1f1f1f] font-mono text-[11px]",
+															"w-10 shrink-0 text-right pr-2 py-0.5 select-none border-r border-whip-border-soft font-mono text-[11px]",
 															numBg,
 															numColor,
 														)}
@@ -173,7 +173,7 @@ export function DiffFileList({
 													{/* Hover comment button */}
 													<button
 														onClick={() => (openCommentKey === lineKey ? onCloseComment() : onOpenComment(lineKey))}
-														className="absolute right-1 top-0.5 opacity-0 group-hover:opacity-100 transition-opacity text-[#ededed] hover:text-white p-0.5 rounded bg-[#161616]"
+														className="absolute right-1 top-0.5 opacity-0 group-hover:opacity-100 transition-opacity text-whip-text hover:text-white p-0.5 rounded bg-whip-panel-2"
 													>
 														<Plus size={11} />
 													</button>
@@ -206,7 +206,7 @@ export function DiffFileList({
 							))}
 
 						{!isCollapsed && file.isBinary && (
-							<div className="px-4 py-3 text-[#8a8f98] italic font-sans text-xs">Binary file changed</div>
+							<div className="px-4 py-3 text-whip-muted italic font-sans text-xs">Binary file changed</div>
 						)}
 					</div>
 				);

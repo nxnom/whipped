@@ -45,10 +45,10 @@ function Footer({
 	const { closeMenu } = useMenu();
 
 	return (
-		<div className="flex items-center gap-2 pt-2 border-t border-[#1f1f1f]">
+		<div className="flex items-center gap-2 pt-2 border-t border-whip-border-soft">
 			<button
 				onClick={() => sidebarRef.current?.addFolder()}
-				className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-md bg-whip-bg border border-[#1f1f1f] text-[#8a8f98] hover:text-[#ededed] transition-colors text-xs"
+				className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-md bg-whip-bg border border-whip-border-soft text-whip-muted hover:text-whip-text transition-colors text-xs"
 			>
 				<FolderPlus size={13} />
 				New Folder
@@ -58,7 +58,7 @@ function Footer({
 					closeMenu();
 					onAddProject();
 				}}
-				className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-md bg-[#ededed] hover:bg-white transition-colors text-xs font-bold text-[#050505]"
+				className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-md bg-whip-accent hover:opacity-85 transition-opacity text-xs font-bold text-whip-accent-text"
 			>
 				<Plus size={13} />
 				New Project
@@ -93,33 +93,33 @@ export function ProjectSwitcher({
 	return (
 		<Menu
 			placement="bottom-start"
-			menuClassName="w-[336px] p-2 flex flex-col gap-1.5 bg-[#111111] border border-[#2a2a2a] rounded-lg shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
+			menuClassName="w-[336px] p-2 flex flex-col gap-1.5 bg-whip-panel border border-whip-border rounded-lg shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
 		>
 			<MenuTrigger>
 				{({ toggleMenu }) => (
 					<button
 						onClick={toggleMenu}
-						className="flex items-center gap-2.5 h-[38px] px-3 rounded-md bg-[#111111] border border-[#2a2a2a] hover:border-[#3a3a3a] transition-colors min-w-[220px]"
+						className="flex items-center gap-2.5 h-[38px] px-3 rounded-md bg-whip-panel border border-whip-border hover:border-whip-border-hover transition-colors min-w-[220px]"
 					>
-						<FolderOpen size={16} className="text-[#8a8f98] shrink-0" />
+						<FolderOpen size={16} className="text-whip-muted shrink-0" />
 						<div className="flex-1 min-w-0 text-left">
-							<p className="text-[10px] font-medium text-[#5f6672] leading-none">Personal</p>
-							<p className="text-[13px] font-semibold text-[#ededed] truncate leading-tight mt-0.5">
+							<p className="text-[10px] font-medium text-whip-faint leading-none">Personal</p>
+							<p className="text-[13px] font-semibold text-whip-text truncate leading-tight mt-0.5">
 								{activeProject?.name ?? "Select project"}
 							</p>
 						</div>
-						<ChevronDown size={14} className="text-[#8a8f98] shrink-0" />
+						<ChevronDown size={14} className="text-whip-muted shrink-0" />
 					</button>
 				)}
 			</MenuTrigger>
 
-			<div className="flex items-center gap-2 h-[34px] px-2.5 rounded-md bg-whip-bg border border-[#1f1f1f]">
-				<Search size={14} className="text-[#5f6672] shrink-0" />
+			<div className="flex items-center gap-2 h-[34px] px-2.5 rounded-md bg-whip-bg border border-whip-border-soft">
+				<Search size={14} className="text-whip-faint shrink-0" />
 				<input
 					value={search}
 					onChange={(e) => setSearch(e.target.value)}
 					placeholder="Find project..."
-					className="flex-1 min-w-0 bg-transparent outline-none text-xs text-[#ededed] placeholder:text-[#5f6672]"
+					className="flex-1 min-w-0 bg-transparent outline-none text-xs text-whip-text placeholder:text-whip-faint"
 				/>
 			</div>
 

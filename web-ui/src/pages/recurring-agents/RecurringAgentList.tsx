@@ -13,7 +13,7 @@ export function RecurringAgentList({
 }) {
 	if (agents.length === 0) {
 		return (
-			<div className="px-4 py-6 text-[13px] text-[#5f6672]">
+			<div className="px-4 py-6 text-[13px] text-whip-faint">
 				No recurring agents yet. Create one to run a task on a schedule.
 			</div>
 		);
@@ -29,23 +29,23 @@ export function RecurringAgentList({
 						type="button"
 						onClick={() => onSelect(agent.id)}
 						className={classNames(
-							"flex flex-col gap-1 px-4 py-3 text-left border-b border-[#1f1f1f] transition-colors",
-							active ? "bg-[#161616]" : "hover:bg-[#111111]",
+							"flex flex-col gap-1 px-4 py-3 text-left border-b border-whip-border-soft transition-colors",
+							active ? "bg-whip-panel-2" : "hover:bg-whip-panel",
 						)}
 					>
 						<div className="flex items-center gap-2">
 							<span
 								className={classNames(
 									"size-1.5 rounded-full shrink-0",
-									agent.enabled ? "bg-[#22c55e]" : "bg-[#3a3a3a]",
+									agent.enabled ? "bg-[#22c55e]" : "bg-whip-faint",
 								)}
 							/>
-							<span className="text-[13px] font-medium text-[#ededed] truncate">{agent.name}</span>
+							<span className="text-[13px] font-medium text-whip-text truncate">{agent.name}</span>
 						</div>
 						<div className="flex items-center justify-between gap-2 pl-3.5">
-							<span className="text-[11px] text-[#5f6672] truncate">{formatSchedule(agent.schedule)}</span>
+							<span className="text-[11px] text-whip-faint truncate">{formatSchedule(agent.schedule)}</span>
 							{agent.enabled && agent.nextRunAt && (
-								<span className="text-[11px] text-[#5f6672] shrink-0">{formatRelative(agent.nextRunAt)}</span>
+								<span className="text-[11px] text-whip-faint shrink-0">{formatRelative(agent.nextRunAt)}</span>
 							)}
 						</div>
 					</button>

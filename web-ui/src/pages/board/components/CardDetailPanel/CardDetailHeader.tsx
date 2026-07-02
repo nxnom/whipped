@@ -21,7 +21,7 @@ interface CardDetailHeaderProps {
 }
 
 const ACTION_BUTTON =
-	"flex items-center justify-center size-[34px] rounded-md bg-[#111111] border border-[#2a2a2a] transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
+	"flex items-center justify-center size-[34px] rounded-md bg-whip-panel border border-whip-border transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
 
 export function CardDetailHeader({
 	card,
@@ -41,20 +41,24 @@ export function CardDetailHeader({
 	const columnStatus = COLUMN_STATUS[card.columnId];
 
 	return (
-		<div className="flex items-center gap-3 px-6 h-14 border-b border-[#1f1f1f] bg-whip-bg shrink-0">
-			<button onClick={onClose} className="text-[#8a8f98] hover:text-[#ededed] transition-colors" title="Back to board">
+		<div className="flex items-center gap-3 px-6 h-14 border-b border-whip-border-soft bg-whip-bg shrink-0">
+			<button
+				onClick={onClose}
+				className="text-whip-muted hover:text-whip-text transition-colors"
+				title="Back to board"
+			>
 				<ArrowLeft size={18} />
 			</button>
-			<div className="w-px h-5 bg-[#2a2a2a] shrink-0" />
+			<div className="w-px h-5 bg-whip-border shrink-0" />
 			<div className="flex flex-col gap-[3px] min-w-0 flex-1 max-w-[720px]">
 				<div className="flex items-center gap-1.5 text-[11px]">
-					{projectName && <span className="text-[#8a8f98]">{projectName}</span>}
-					{projectName && columnStatus && <span className="text-[#5f6672]">/</span>}
+					{projectName && <span className="text-whip-muted">{projectName}</span>}
+					{projectName && columnStatus && <span className="text-whip-faint">/</span>}
 					{columnStatus && (
 						<span className={classNames("font-semibold", columnStatus.color)}>{columnStatus.label}</span>
 					)}
 				</div>
-				<span className="text-sm font-semibold text-[#ededed] truncate">
+				<span className="text-sm font-semibold text-whip-text truncate">
 					{card.description?.split("\n")[0] ?? card.id}
 				</span>
 			</div>
@@ -64,7 +68,7 @@ export function CardDetailHeader({
 					href={externalUrl}
 					target="_blank"
 					rel="noreferrer"
-					className="text-[#5f6672] hover:text-[#ededed] transition-colors"
+					className="text-whip-faint hover:text-whip-text transition-colors"
 					title="Open external link"
 				>
 					<ExternalLink size={15} />
@@ -75,7 +79,7 @@ export function CardDetailHeader({
 					<Tooltip delayDuration={0} content="Stop" side="bottom" triggerAsChild>
 						<button
 							onClick={() => void stopRun()}
-							className={classNames(ACTION_BUTTON, "text-[#8a8f98] hover:text-[#ff3b4d]")}
+							className={classNames(ACTION_BUTTON, "text-whip-muted hover:text-[#ff3b4d]")}
 						>
 							<Square size={15} className="fill-current" />
 						</button>
@@ -90,7 +94,7 @@ export function CardDetailHeader({
 						<button
 							onClick={() => void startRun(card.id)}
 							disabled={runSession.status === "running"}
-							className={classNames(ACTION_BUTTON, "text-[#ededed] hover:text-[#22c55e]")}
+							className={classNames(ACTION_BUTTON, "text-whip-text hover:text-[#22c55e]")}
 						>
 							<Play size={15} />
 						</button>
@@ -107,7 +111,7 @@ export function CardDetailHeader({
 						<button
 							onClick={onMerge}
 							disabled={merging}
-							className={classNames(ACTION_BUTTON, "text-[#8a8f98] hover:text-[#22c55e]")}
+							className={classNames(ACTION_BUTTON, "text-whip-muted hover:text-[#22c55e]")}
 						>
 							<GitMerge size={15} />
 						</button>
@@ -127,7 +131,7 @@ export function CardDetailHeader({
 							<button
 								onClick={onPR}
 								disabled={merging}
-								className={classNames(ACTION_BUTTON, "text-[#8a8f98] hover:text-[#22c55e]")}
+								className={classNames(ACTION_BUTTON, "text-whip-muted hover:text-[#22c55e]")}
 							>
 								<GitPullRequest size={15} />
 							</button>

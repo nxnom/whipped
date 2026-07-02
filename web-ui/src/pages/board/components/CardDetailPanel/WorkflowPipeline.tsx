@@ -32,7 +32,7 @@ export function WorkflowPipeline({
 				<div className="flex flex-col items-center pt-3.5 pb-4 gap-3">
 					<button
 						onClick={onToggleCollapsed}
-						className="text-[#5f6672] hover:text-[#8a8f98] transition-colors"
+						className="text-whip-faint hover:text-whip-muted transition-colors"
 						title="Expand sidebar"
 					>
 						<ChevronLeft size={14} />
@@ -53,14 +53,14 @@ export function WorkflowPipeline({
 											className={classNames(
 												"size-[30px] rounded-full flex items-center justify-center cursor-pointer transition-colors",
 												status === "running"
-													? "bg-[#ffffff]/12 hover:bg-[#ff3b4d]/10"
+													? "bg-whip-text/12 hover:bg-[#ff3b4d]/10"
 													: isFocused
-														? "bg-[#ffffff]/12"
+														? "bg-whip-text/12"
 														: "hover:bg-white/[0.05]",
 											)}
 										>
 											{status === "completed" && <Check size={14} className="text-[#22c55e]" />}
-											{status === "running" && <Loader2 size={14} className="text-[#ededed] animate-spin" />}
+											{status === "running" && <Loader2 size={14} className="text-whip-text animate-spin" />}
 											{status === "failed" && <Circle size={14} className="text-[#ff3b4d]" />}
 											{status === "stopped" && <Circle size={14} className="text-[#eab308]" />}
 										</button>
@@ -69,7 +69,7 @@ export function WorkflowPipeline({
 										<div
 											className={classNames(
 												"w-px h-[18px]",
-												status === "completed" ? "bg-[#22c55e]/40" : "bg-[#2a2a2a]",
+												status === "completed" ? "bg-[#22c55e]/40" : "bg-whip-border",
 											)}
 										/>
 									)}
@@ -77,15 +77,15 @@ export function WorkflowPipeline({
 							);
 						})
 					) : (
-						<div className="size-2 rounded-full bg-[#2a2a2a] mt-1" />
+						<div className="size-2 rounded-full bg-whip-border mt-1" />
 					)}
 				</div>
 			) : (
 				<div className="pt-3.5 pb-2 flex items-center px-[18px]">
-					<span className="text-[11px] font-semibold text-[#8a8f98] tracking-[0.3px] flex-1">Workflow Pipeline</span>
+					<span className="text-[11px] font-semibold text-whip-muted tracking-[0.3px] flex-1">Workflow Pipeline</span>
 					<button
 						onClick={onToggleCollapsed}
-						className="text-[#5f6672] hover:text-[#8a8f98] transition-colors"
+						className="text-whip-faint hover:text-whip-muted transition-colors"
 						title="Collapse sidebar"
 					>
 						<ChevronRight size={14} />
@@ -142,7 +142,7 @@ export function WorkflowPipeline({
 											<div
 												className={classNames(
 													"w-0.5 flex-1 min-h-[12px] rounded-full mt-0.5 mb-0.5",
-													status === "completed" ? "bg-[#22c55e]/40" : "bg-[#2a2a2a]",
+													status === "completed" ? "bg-[#22c55e]/40" : "bg-whip-border",
 												)}
 											/>
 										)}
@@ -157,22 +157,22 @@ export function WorkflowPipeline({
 												isFocused
 													? "text-[#c4b5fd]"
 													: status === "running"
-														? "font-semibold text-[#ededed]"
+														? "font-semibold text-whip-text"
 														: status === "completed"
-															? "text-[#ededed]"
-															: "text-[#5f6672]",
+															? "text-whip-text"
+															: "text-whip-faint",
 											)}
 										>
 											{slotName}
 										</span>
 										<span className="text-[10px] flex items-center gap-1.5">
-											{status === "running" && <span className="text-[#f5f5f5]">Running</span>}
+											{status === "running" && <span className="text-whip-text">Running</span>}
 											{status === "completed" && <span className="text-[#22c55e]">Completed</span>}
-											{status !== "running" && status !== "completed" && <span className="text-[#5f6672]">—</span>}
+											{status !== "running" && status !== "completed" && <span className="text-whip-faint">—</span>}
 											{duration && (
 												<>
-													<span className="text-[#5f6672]">·</span>
-													<span className="text-[#5f6672] font-mono">{duration}</span>
+													<span className="text-whip-faint">·</span>
+													<span className="text-whip-faint font-mono">{duration}</span>
 												</>
 											)}
 										</span>
@@ -181,7 +181,7 @@ export function WorkflowPipeline({
 							);
 						})
 					) : (
-						<p className="text-xs text-[#5f6672] pb-2">Not started yet</p>
+						<p className="text-xs text-whip-faint pb-2">Not started yet</p>
 					)}
 				</div>
 			)}

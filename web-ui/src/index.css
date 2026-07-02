@@ -6,9 +6,57 @@
   @import "@geckoui/geckoui/styles.css";
 }
 
+/* ─── Theme tokens ───────────────────────────────────────────────────────────
+   Tailwind @theme aliases stay constant; the actual hex values live in the
+   --whip-* custom properties below, scoped per .dark/.light on <html> — so
+   bg-whip-bg / text-whip-text / etc. automatically follow the active theme. */
 @theme {
-  --color-whip-bg: #050505;
+  --color-whip-bg: var(--whip-bg);
+  --color-whip-surface: var(--whip-surface);
+  --color-whip-panel: var(--whip-panel);
+  --color-whip-panel-2: var(--whip-panel-2);
+  --color-whip-border: var(--whip-border);
+  --color-whip-border-soft: var(--whip-border-soft);
+  --color-whip-border-hover: var(--whip-border-hover);
+  --color-whip-text: var(--whip-text);
+  --color-whip-muted: var(--whip-muted);
+  --color-whip-faint: var(--whip-faint);
+  --color-whip-accent: var(--whip-accent);
+  --color-whip-accent-text: var(--whip-accent-text);
+  --color-whip-overlay: var(--whip-overlay);
   --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+}
+
+.dark {
+  --whip-bg: #050505;
+  --whip-surface: #0b0b0b;
+  --whip-panel: #111111;
+  --whip-panel-2: #161616;
+  --whip-border: #2a2a2a;
+  --whip-border-soft: #1f1f1f;
+  --whip-border-hover: #3a3a3a;
+  --whip-text: #ededed;
+  --whip-muted: #8a8f98;
+  --whip-faint: #5f6672;
+  --whip-accent: #ffffff;
+  --whip-accent-text: #050505;
+  --whip-overlay: #000000;
+}
+
+.light {
+  --whip-bg: #ffffff;
+  --whip-surface: #f7f7f8;
+  --whip-panel: #f1f1f3;
+  --whip-panel-2: #e7e7ea;
+  --whip-border: #e0e0e3;
+  --whip-border-soft: #ececef;
+  --whip-border-hover: #c7c7cc;
+  --whip-text: #0a0a0a;
+  --whip-muted: #52525b;
+  --whip-faint: #71717a;
+  --whip-accent: #0a0a0a;
+  --whip-accent-text: #ffffff;
+  --whip-overlay: #00000080;
 }
 
 @layer base {
@@ -19,7 +67,7 @@
   body {
     margin: 0;
     background: var(--color-whip-bg);
-    color: #ededed;
+    color: var(--color-whip-text);
     font-family: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
   }
 
@@ -33,11 +81,11 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #2a2a2a;
+    background: var(--color-whip-border);
     border-radius: 3px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #3a3a3a;
+    background: var(--color-whip-border-hover);
   }
 }

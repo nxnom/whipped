@@ -15,7 +15,7 @@ export function BranchSelect({ branches, value, onChange, placeholder = "Select 
 			onChange={(v) => onChange(v as string)}
 			placeholder={placeholder}
 			filterable
-			prefix={<GitBranch size={13} className="text-[#8a8f98]" />}
+			prefix={<GitBranch size={13} className="text-whip-muted" />}
 		>
 			{branches.map((b) => (
 				<SelectOption key={b} value={b} label={b} />

@@ -24,15 +24,15 @@ export function CompanionDiffFileList({
 				const isCollapsed = collapsed.has(path);
 
 				return (
-					<div key={path} id={fileElemId(path)} className="border-b border-[#1f1f1f]">
-						<div className="flex items-center gap-2 px-3 py-2 bg-[#111111] border-b border-[#1f1f1f] sticky top-0 z-10">
+					<div key={path} id={fileElemId(path)} className="border-b border-whip-border-soft">
+						<div className="flex items-center gap-2 px-3 py-2 bg-whip-panel border-b border-whip-border-soft sticky top-0 z-10">
 							<button
 								onClick={() => onToggleCollapse(path)}
-								className="text-[#5f6672] hover:text-[#8a8f98] shrink-0 transition-colors"
+								className="text-whip-faint hover:text-whip-muted shrink-0 transition-colors"
 							>
 								{isCollapsed ? "▸" : "▾"}
 							</button>
-							<span className="flex-1 text-[#8a8f98] text-[11px] truncate font-sans">
+							<span className="flex-1 text-whip-muted text-[11px] truncate font-sans">
 								{path}
 								{file.isNew && (
 									<span className="ml-2 text-[10px] text-[#22c55e] bg-[#22c55e]/10 px-1.5 py-0.5 rounded">
@@ -55,24 +55,24 @@ export function CompanionDiffFileList({
 							!file.isBinary &&
 							file.hunks.map((hunk, hi) => (
 								<div key={hi}>
-									<div className="px-2 py-0.5 bg-[#161616] text-[#8a8f98]/90 border-y border-[#2a2a2a]/60 whitespace-pre font-mono text-[11px]">
+									<div className="px-2 py-0.5 bg-whip-panel-2 text-whip-muted/90 border-y border-whip-border/60 whitespace-pre font-mono text-[11px]">
 										{hunk.header}
 									</div>
 									{hunk.lines.map((line, li) => {
 										const rowBg =
-											line.type === "added" ? "bg-[#0f3321]" : line.type === "removed" ? "bg-[#330f10]" : "";
+											line.type === "added" ? "bg-[#22c55e]/10" : line.type === "removed" ? "bg-[#ff3b4d]/10" : "";
 										const numBg =
 											line.type === "added"
-												? "bg-[#143d27]"
+												? "bg-[#22c55e]/20"
 												: line.type === "removed"
-													? "bg-[#3d1416]"
+													? "bg-[#ff3b4d]/20"
 													: "bg-transparent";
 										const numColor =
 											line.type === "added"
 												? "text-[#22c55e]/70"
 												: line.type === "removed"
 													? "text-[#ff3b4d]/70"
-													: "text-[#3a3a4a]";
+													: "text-whip-faint";
 										const sign = line.type === "added" ? "+" : line.type === "removed" ? "-" : " ";
 										const signColor =
 											line.type === "added"
@@ -82,16 +82,16 @@ export function CompanionDiffFileList({
 													: "text-transparent";
 										const textColor =
 											line.type === "added"
-												? "text-[#b7f5d0]"
+												? "text-[#86efac]"
 												: line.type === "removed"
-													? "text-[#ffd0d2]"
-													: "text-[#6b6b80]";
+													? "text-[#fca5a5]"
+													: "text-whip-muted";
 
 										return (
 											<div key={li} className={classNames("flex hover:brightness-110 transition-[filter]", rowBg)}>
 												<div
 													className={classNames(
-														"w-10 shrink-0 text-right pr-2 py-0.5 select-none border-r border-[#1f1f1f] font-mono text-[11px]",
+														"w-10 shrink-0 text-right pr-2 py-0.5 select-none border-r border-whip-border-soft font-mono text-[11px]",
 														numBg,
 														numColor,
 													)}
@@ -113,7 +113,7 @@ export function CompanionDiffFileList({
 							))}
 
 						{!isCollapsed && file.isBinary && (
-							<div className="px-4 py-3 text-[#8a8f98] italic font-sans text-xs">Binary file changed</div>
+							<div className="px-4 py-3 text-whip-muted italic font-sans text-xs">Binary file changed</div>
 						)}
 					</div>
 				);

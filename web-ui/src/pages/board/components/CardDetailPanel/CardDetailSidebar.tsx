@@ -44,7 +44,7 @@ export function CardDetailSidebar({
 	return (
 		<div
 			className={classNames(
-				"shrink-0 bg-whip-bg border-l border-[#2a2a2a] flex flex-col overflow-hidden transition-all duration-200",
+				"shrink-0 bg-whip-bg border-l border-whip-border flex flex-col overflow-hidden transition-all duration-200",
 				sidebarCollapsed ? "w-14" : "w-80",
 			)}
 		>

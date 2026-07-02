@@ -13,8 +13,8 @@ function StepBadge({ n, done, active }: { n: number; done: boolean; active: bool
 				done
 					? "bg-[#1a3a1a] border-[#2a6a2a] text-[#4ade80]"
 					: active
-						? "bg-[#1a1a2e] border-[#3a3aff60] text-[#ffffff]"
-						: "bg-[#111111] border-[#2a2a2a] text-[#5f6672]",
+						? "bg-[#1a1a2e] border-[#3a3aff60] text-whip-accent"
+						: "bg-whip-panel border-whip-border text-whip-faint",
 			)}
 		>
 			{done ? <Check size={12} /> : n}
@@ -39,13 +39,13 @@ export function StepRow({
 		<div className="flex gap-4">
 			<div className="flex flex-col items-center gap-1">
 				<StepBadge n={n} done={done} active={active} />
-				{children && <div className="flex-1 w-px bg-[#2a2a2a] min-h-2" />}
+				{children && <div className="flex-1 w-px bg-whip-border min-h-2" />}
 			</div>
 			<div className="flex flex-col gap-3 flex-1 pb-6">
 				<p
 					className={classNames(
 						"text-[13px] font-medium leading-none pt-0.5",
-						active || done ? "text-[#ededed]" : "text-[#5f6672]",
+						active || done ? "text-whip-text" : "text-whip-faint",
 					)}
 				>
 					{title}

@@ -13,5 +13,5 @@ export const MODEL_STYLE: Record<string, string> = {
 export const SEVERITY_COLOR: Record<string, string> = {
 	blocking: "text-[#ff3b4d]",
 	warning: "text-[#eab308]",
-	info: "text-[#ededed]",
+	info: "text-whip-text",
 };

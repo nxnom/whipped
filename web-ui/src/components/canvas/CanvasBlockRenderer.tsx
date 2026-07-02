@@ -26,7 +26,7 @@ export function CanvasBlockRenderer({
 		case "question":
 			return (
 				<div className="flex flex-col gap-2">
-					<span className="text-[13px] font-medium text-[#ededed]">
+					<span className="text-[13px] font-medium text-whip-text">
 						{block.prompt} {block.input.kind !== "composite" && <RequiredMark required={block.input.required} />}
 					</span>
 					<QuestionBlock input={block.input} answers={answers} onAnswer={onAnswer} disabled={disabled} />

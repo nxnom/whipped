@@ -13,13 +13,13 @@ export function AttachmentItem({ path, name, mimeType }: { path: string; name: s
 					src={attachmentUrl(path)}
 					alt={name}
 					className={classNames(
-						"rounded border border-[#2a2a2a] cursor-pointer object-contain",
+						"rounded border border-whip-border cursor-pointer object-contain",
 						expanded ? "max-w-full max-h-96" : "max-h-24 max-w-48",
 					)}
 					onClick={() => setExpanded((v) => !v)}
 					title={expanded ? "Click to collapse" : "Click to expand"}
 				/>
-				<div className="text-[10px] text-[#5f6672] mt-0.5">{name}</div>
+				<div className="text-[10px] text-whip-faint mt-0.5">{name}</div>
 			</div>
 		);
 	}
@@ -28,7 +28,7 @@ export function AttachmentItem({ path, name, mimeType }: { path: string; name: s
 			href={attachmentUrl(path)}
 			target="_blank"
 			rel="noreferrer"
-			className="mt-1 inline-flex items-center gap-1.5 px-2 py-1 rounded border border-[#2a2a2a] bg-[#161616] text-xs text-[#ededed] hover:text-[#ededed] hover:border-[#3a3a3a] transition-colors max-w-[200px]"
+			className="mt-1 inline-flex items-center gap-1.5 px-2 py-1 rounded border border-whip-border bg-whip-panel-2 text-xs text-whip-text hover:text-whip-text hover:border-whip-border-hover transition-colors max-w-[200px]"
 			title={name}
 		>
 			<Paperclip size={11} className="shrink-0" />

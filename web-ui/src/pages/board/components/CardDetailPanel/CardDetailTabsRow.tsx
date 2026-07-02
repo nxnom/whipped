@@ -30,7 +30,7 @@ export function CardDetailTabsRow({
 	const agentBadge = agentId ? (AGENT_DISPLAY[agentId] ?? null) : null;
 
 	return (
-		<div className="flex items-center gap-3.5 px-6 h-11 border-b border-[#1f1f1f] bg-whip-bg shrink-0">
+		<div className="flex items-center gap-3.5 px-6 h-11 border-b border-whip-border-soft bg-whip-bg shrink-0">
 			<div className="flex items-center h-full">
 				{tabs.map(({ id, label, Icon }) => (
 					<button
@@ -38,12 +38,12 @@ export function CardDetailTabsRow({
 						onClick={() => setRightTab(id)}
 						className={classNames(
 							"relative flex items-center gap-1.5 px-3 h-full text-xs font-medium transition-colors",
-							rightTab === id ? "text-[#ededed]" : "text-[#8a8f98] hover:text-[#ededed]",
+							rightTab === id ? "text-whip-text" : "text-whip-muted hover:text-whip-text",
 						)}
 					>
 						{Icon && <Icon size={12} />}
 						{label}
-						{rightTab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#ededed]" />}
+						{rightTab === id && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-whip-accent" />}
 					</button>
 				))}
 			</div>
@@ -75,23 +75,23 @@ export function CardDetailTabsRow({
 				</span>
 			)}
 			{card.branchName && (
-				<span className="flex items-center gap-1.5 px-2 py-[5px] rounded-md bg-[#111111] border border-[#2a2a2a] text-[11px] font-mono font-semibold text-[#8a8f98]">
-					<GitBranch size={11} className="text-[#5f6672]" />
+				<span className="flex items-center gap-1.5 px-2 py-[5px] rounded-md bg-whip-panel border border-whip-border text-[11px] font-mono font-semibold text-whip-muted">
+					<GitBranch size={11} className="text-whip-faint" />
 					{card.branchName}
 				</span>
 			)}
 			{card.worktreePath && (
 				<button
 					onClick={() => void openTerminalTrigger({ body: { path: card.worktreePath! } })}
-					className="flex items-center gap-1.5 px-2 py-[5px] rounded-md bg-[#111111] border border-[#2a2a2a] text-[11px] font-mono font-semibold text-[#8a8f98] hover:border-[#3a3a3a] transition-colors"
+					className="flex items-center gap-1.5 px-2 py-[5px] rounded-md bg-whip-panel border border-whip-border text-[11px] font-mono font-semibold text-whip-muted hover:border-whip-border-hover transition-colors"
 				>
-					<FolderOpen size={11} className="text-[#5f6672]" />
+					<FolderOpen size={11} className="text-whip-faint" />
 					{card.worktreePath.split("/").slice(-2).join("/")}
 				</button>
 			)}
 			{isRunning && (
-				<span className="flex items-center gap-1.5 text-[11px] font-medium text-[#ededed]">
-					<Clock size={13} className="text-[#5f6672]" />
+				<span className="flex items-center gap-1.5 text-[11px] font-medium text-whip-text">
+					<Clock size={13} className="text-whip-faint" />
 					<span className="font-mono">{formatElapsed(elapsedSec)}</span>
 				</span>
 			)}

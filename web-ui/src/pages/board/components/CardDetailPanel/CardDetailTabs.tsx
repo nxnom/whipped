@@ -46,7 +46,7 @@ export function CardDetailTabs({
 		return (
 			<span
 				key={session.streamId}
-				className="flex items-center gap-1.5 px-2.5 py-[7px] rounded-md bg-[#111111] border border-[#2a2a2a]"
+				className="flex items-center gap-1.5 px-2.5 py-[7px] rounded-md bg-whip-panel border border-whip-border"
 			>
 				{status === "running" ? (
 					<Loader2 size={13} className="text-[#22c55e] animate-spin" />
@@ -56,11 +56,11 @@ export function CardDetailTabs({
 					<span
 						className={classNames(
 							"size-[7px] rounded-full",
-							status === "failed" ? "bg-[#ff3b4d]" : status === "stopped" ? "bg-[#eab308]" : "bg-[#5f6672]",
+							status === "failed" ? "bg-[#ff3b4d]" : status === "stopped" ? "bg-[#eab308]" : "bg-whip-faint",
 						)}
 					/>
 				)}
-				<span className="text-xs font-semibold text-[#ededed]">
+				<span className="text-xs font-semibold text-whip-text">
 					{slotName} · {status}
 				</span>
 			</span>
@@ -76,14 +76,14 @@ export function CardDetailTabs({
 							{activeSession && sessionPill(activeSession)}
 							{installSession && installSession.streamId !== activeSession?.streamId && sessionPill(installSession)}
 							<div className="flex-1" />
-							<span className="text-[11px] font-mono text-[#5f6672]">stream: {activeStreamId}</span>
+							<span className="text-[11px] font-mono text-whip-faint">stream: {activeStreamId}</span>
 						</div>
-						<div className="flex-1 min-h-0 rounded-md border border-[#1f1f1f] bg-[#0b0b0b] p-3 overflow-hidden">
+						<div className="flex-1 min-h-0 rounded-md border border-whip-border-soft bg-whip-surface p-3 overflow-hidden">
 							<TaskTerminal key={activeStreamId} taskId={activeStreamId} workspaceId={workspaceId} className="h-full" />
 						</div>
 					</div>
 				) : (
-					<div className="flex-1 flex items-center justify-center flex-col gap-3 text-[#5f6672]">
+					<div className="flex-1 flex items-center justify-center flex-col gap-3 text-whip-faint">
 						<span className="text-4xl">⌨</span>
 						<p className="text-sm">No agent output yet</p>
 						<p className="text-xs">Start the agent to see terminal output here</p>
@@ -101,9 +101,9 @@ export function CardDetailTabs({
 			{rightTab === "plan" && (
 				<div className="flex-1 overflow-y-auto p-5">
 					{hasPlan ? (
-						<p className="text-[13px] text-[#ededed] whitespace-pre-wrap leading-relaxed">{card.plan}</p>
+						<p className="text-[13px] text-whip-text whitespace-pre-wrap leading-relaxed">{card.plan}</p>
 					) : (
-						<div className="flex-1 flex items-center justify-center text-xs text-[#5f6672]">No plan for this card</div>
+						<div className="flex-1 flex items-center justify-center text-xs text-whip-faint">No plan for this card</div>
 					)}
 				</div>
 			)}

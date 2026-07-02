@@ -35,7 +35,7 @@ export const TokenTextarea = forwardRef<HTMLTextAreaElement, TokenTextareaProps>
 			return (
 				<mark
 					key={i}
-					className="rounded-[3px] bg-[#2a2a2a] text-[#c4c4d4]"
+					className="rounded-[3px] bg-whip-border text-[#c4c4d4]"
 					style={{ boxDecorationBreak: "clone", WebkitBoxDecorationBreak: "clone" }}
 				>
 					{p}
@@ -84,7 +84,7 @@ export const TokenTextarea = forwardRef<HTMLTextAreaElement, TokenTextareaProps>
 					onScroll?.(e);
 				}}
 				className={classNames("relative block w-full resize-none bg-transparent outline-none", metricsClassName)}
-				style={{ color: "transparent", caretColor: "#ededed", ...style }}
+				style={{ color: "transparent", caretColor: "var(--whip-text)", ...style }}
 				{...rest}
 			/>
 		</div>
