@@ -43,10 +43,6 @@ function FieldRow({ label, description, children }: { label: string; description
 const selectClassName =
 	"w-[240px] font-mono text-[12px] focus:outline-none focus:border-whip-accent cursor-pointer text-whip-text bg-whip-panel border border-whip-border rounded-md px-3 py-[9px]";
 
-// Lives here rather than in the topbar so switching it never happens while a
-// terminal session is mounted — xterm's canvas renderer doesn't pick up the
-// new theme colors live, only on next mount, so toggling from a page that
-// always fully remounts (this one) avoids leaving a stale-colored terminal.
 function ThemeToggle() {
 	const theme = useTheme();
 	return (

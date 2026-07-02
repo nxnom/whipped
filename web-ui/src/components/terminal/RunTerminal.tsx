@@ -2,9 +2,8 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useRef } from "react";
 import "@xterm/xterm/css/xterm.css";
-import { useTheme } from "@/stores/theme-store";
 import { classNames } from "@/utils/classNames";
-import { xtermTheme } from "./xtermTheme";
+import { XTERM_THEME } from "./xtermTheme";
 
 interface RunTerminalProps {
 	workspaceId: string;
@@ -14,22 +13,13 @@ interface RunTerminalProps {
 export function RunTerminal({ workspaceId, className }: RunTerminalProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const termRef = useRef<Terminal | null>(null);
-	const theme = useTheme();
-
-	// Re-theme an already-mounted terminal instead of leaving it locked to
-	// whatever was active when it connected — xterm resolves the theme once
-	// into its own color state, so it doesn't pick up new CSS custom property
-	// values on its own.
-	useEffect(() => {
-		if (termRef.current) termRef.current.options.theme = xtermTheme();
-	}, [theme]);
 
 	useEffect(() => {
 		const container = containerRef.current;
 		if (!container) return;
 
 		const term = new Terminal({
-			theme: xtermTheme(),
+			theme: XTERM_THEME,
 			fontSize: 12,
 			fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
 			cursorBlink: true,
@@ -105,5 +95,11 @@ export function RunTerminal({ workspaceId, className }: RunTerminalProps) {
 		};
 	}, [workspaceId]);
 
-	return <div ref={containerRef} className={classNames(className ?? "h-40", "overflow-hidden")} />;
+	return (
+		<div
+			ref={containerRef}
+			className={classNames(className ?? "h-40", "overflow-hidden")}
+			style={{ background: XTERM_THEME.background }}
+		/>
+	);
 }
