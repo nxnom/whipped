@@ -23,6 +23,7 @@ export function CanvasBody({
 	hideHeader,
 	selectedVersion: controlledSelectedVersion,
 	onSelectVersion: controlledOnSelectVersion,
+	readOnly,
 }: {
 	sessionId: string;
 	canvases: CanvasDocument[];
@@ -39,6 +40,11 @@ export function CanvasBody({
 	hideHeader?: boolean;
 	selectedVersion?: number | null;
 	onSelectVersion?: (version: number) => void;
+	// Set when the process backing sendFeedback is no longer running (e.g. a
+	// stopped companion session) — feedback would have nowhere to go, so every
+	// answer/comment/composer affordance is hidden the same way an old version
+	// already is.
+	readOnly?: boolean;
 }) {
 	const isControlled = controlledSelectedVersion !== undefined;
 	const [internalSelectedVersion, setInternalSelectedVersion] = useState<number | null>(null);
@@ -65,6 +71,7 @@ export function CanvasBody({
 
 	const activeCanvas = canvases.find((p) => p.version === selectedVersion) ?? canvases[0]!;
 	const isLatest = activeCanvas.version === latestVersion;
+	const interactive = isLatest && !readOnly;
 
 	const addComment = (blockId: string) => {
 		if (!commentDraft.trim()) return;
@@ -89,14 +96,16 @@ export function CanvasBody({
 				</div>
 			)}
 
-			<div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 flex flex-col gap-4">
+			<div
+				className={classNames("flex-1 min-h-0 overflow-y-auto px-3 py-3 flex flex-col gap-4", readOnly && "opacity-60")}
+			>
 				{activeCanvas.blocks.map((block) => (
 					<div key={block.id} className="group relative flex flex-col gap-1.5">
 						<CanvasBlockRenderer
 							block={block}
 							answers={answers}
 							onAnswer={(name, value) => setAnswers((prev) => ({ ...prev, [name]: value }))}
-							disabled={!isLatest}
+							disabled={!interactive}
 						/>
 						{comments
 							.filter((c) => c.blockId === block.id)
@@ -107,7 +116,7 @@ export function CanvasBody({
 								>
 									<MessageSquare size={11} className="mt-0.5 shrink-0 text-whip-faint" />
 									<span className="flex-1 text-[11px] text-whip-muted italic">{c.text}</span>
-									{isLatest && (
+									{interactive && (
 										<button
 											onClick={() => setComments((prev) => prev.filter((existing) => existing.id !== c.id))}
 											className="shrink-0 text-whip-faint hover:text-[#ff3b4d] transition-colors"
@@ -117,7 +126,7 @@ export function CanvasBody({
 									)}
 								</div>
 							))}
-						{isLatest &&
+						{interactive &&
 							(commentDraftFor === block.id ? (
 								<div className="flex flex-col gap-1.5">
 									<textarea
@@ -161,7 +170,13 @@ export function CanvasBody({
 				))}
 			</div>
 
-			{isLatest && (
+			{isLatest && readOnly && (
+				<div className="border-t border-whip-border p-3 shrink-0">
+					<span className="text-[11px] text-whip-faint">Session is no longer active — canvas is read-only.</span>
+				</div>
+			)}
+
+			{interactive && (
 				<CanvasFeedbackComposer
 					sessionId={sessionId}
 					version={activeCanvas.version}

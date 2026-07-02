@@ -44,17 +44,16 @@ export function CompanionPage() {
 
 	const select = (id: string) => navigate(`/${encodeURIComponent(wsId)}/companion/${encodeURIComponent(id)}`);
 
-	// Landing on the page with no session selected: jump straight to the most
-	// recently active one (installing or running) so you don't land on an empty
-	// state when something's actually happening. Falls back to nothing selected
-	// when every session is idle — never steals focus from an idle session the
-	// user explicitly picked.
+	// Landing on the page with no session selected: prefer the most recently
+	// active one (installing or running); if every session is idle, still show
+	// the most recently updated one rather than an empty state with no way to
+	// pick — the session switcher only lives in the bottom bar, which needs a
+	// selected session to render at all.
 	useEffect(() => {
 		if (sessionId || sessions.length === 0) return;
-		const active = sessions
-			.filter((s) => s.status === "running" || s.status === "installing")
-			.sort((a, b) => b.updatedAt - a.updatedAt)[0];
-		if (active) navigate(`/${encodeURIComponent(wsId)}/companion/${encodeURIComponent(active.id)}`);
+		const byRecency = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt);
+		const target = byRecency.find((s) => s.status === "running" || s.status === "installing") ?? byRecency[0];
+		if (target) navigate(`/${encodeURIComponent(wsId)}/companion/${encodeURIComponent(target.id)}`, { replace: true });
 	}, [sessionId, sessions, wsId, navigate]);
 
 	const handleStop = async () => {

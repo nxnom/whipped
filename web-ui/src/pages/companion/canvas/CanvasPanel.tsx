@@ -58,9 +58,11 @@ export function CanvasPanelHeader({ canvas }: { canvas: ReturnType<typeof useCom
 export function CanvasPanelBody({
 	sessionId,
 	canvas,
+	readOnly,
 }: {
 	sessionId: string;
 	canvas: ReturnType<typeof useCompanionCanvas>;
+	readOnly?: boolean;
 }) {
 	const { canvases, sendFeedback, collapsed, selectedVersion, setSelectedVersion } = canvas;
 
@@ -107,6 +109,7 @@ export function CanvasPanelBody({
 					hideHeader
 					selectedVersion={selectedVersion}
 					onSelectVersion={setSelectedVersion}
+					readOnly={readOnly}
 				/>
 			</div>
 		</div>
