@@ -50,6 +50,7 @@ import {
 	removeWorktreeAsync,
 	resolveWorktreeOwnerId,
 } from "../../worktree/worktree-manager.js";
+import { buildWorktreeDiff } from "../../git/git-diff-utils.js";
 import { BadRequestError, InternalError, NotFoundError, PreconditionFailedError } from "../errors/http-errors.js";
 
 // dependsOn (single-parent stacking) and waitsFor (many-parent gate) are mutually
@@ -710,65 +711,7 @@ export const getDiffService = async (
 		return { diff: null, error: "No worktree — agent has not started yet" };
 	}
 
-	const committedResult = spawnSync("git", ["diff", `${card.baseRef}...HEAD`, "--no-color", "-U3"], {
-		cwd: worktreePath,
-		encoding: "utf-8",
-		maxBuffer: 4 * 1024 * 1024,
-	});
-
-	if (committedResult.status !== 0 && committedResult.stderr) {
-		return { diff: null, error: committedResult.stderr.trim() };
-	}
-
-	// Also include staged and unstaged changes so the diff is accurate
-	// regardless of whether auto-commit is on or off.
-	const stagedResult = spawnSync("git", ["diff", "--cached", "--no-color", "-U3"], {
-		cwd: worktreePath,
-		encoding: "utf-8",
-		maxBuffer: 4 * 1024 * 1024,
-	});
-	const unstagedResult = spawnSync("git", ["diff", "--no-color", "-U3"], {
-		cwd: worktreePath,
-		encoding: "utf-8",
-		maxBuffer: 4 * 1024 * 1024,
-	});
-
-	// Include untracked new files as synthetic diffs — they're invisible to all
-	// git diff variants but are real changes when auto-commit is disabled.
-	const untrackedResult = spawnSync("git", ["ls-files", "--others", "--exclude-standard"], {
-		cwd: worktreePath,
-		encoding: "utf-8",
-	});
-	const untrackedFiles = (untrackedResult.stdout ?? "")
-		.split("\n")
-		.map((f) => f.trim())
-		.filter(Boolean);
-	const { readFileSync } = await import("node:fs");
-	const untrackedDiffs = untrackedFiles
-		.map((file) => {
-			try {
-				const content = readFileSync(`${worktreePath}/${file}`, "utf-8");
-				const lines = content.split("\n");
-				const addedLines = lines.map((l, _i) => `+${l}`).join("\n");
-				const hunkHeader = `@@ -0,0 +1,${lines.length} @@`;
-				return `diff --git a/${file} b/${file}\nnew file mode 100644\n--- /dev/null\n+++ b/${file}\n${hunkHeader}\n${addedLines}`;
-			} catch {
-				return null;
-			}
-		})
-		.filter((d): d is string => d !== null);
-
-	const diff = [committedResult.stdout, stagedResult.stdout, unstagedResult.stdout, ...untrackedDiffs]
-		.filter((s) => s?.trim())
-		.join("\n");
-
-	const behindResult = spawnSync("git", ["rev-list", "--count", `HEAD..${card.baseRef}`], {
-		cwd: worktreePath,
-		encoding: "utf-8",
-	});
-	const baseBehindCount = parseInt(behindResult.stdout?.trim() ?? "0", 10) || 0;
-
-	return { diff, error: null, baseBehindCount };
+	return buildWorktreeDiff(worktreePath, card.baseRef);
 };
 
 export interface CommitEntry {

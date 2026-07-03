@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.9.1] - 2026-07-03
+
+### Fixed
+- **Duplicate files in the diff view** — the diff endpoint concatenated three separate git diffs
+  (committed + staged + unstaged), so a file changed in more than one of them appeared twice: duplicate
+  entries in the file explorer, a React duplicate-key warning, and double-counted hunks. The diff is now
+  a single `git diff` from the merge-base to the working tree, so every file appears exactly once with
+  one coherent set of changes. Applies to both ticket and companion-session diffs.
+
+### Changed
+- **Diff view is fast on large changesets** — file bodies now render lazily like GitHub: only files near
+  the viewport mount their lines, offscreen files keep a fixed-height placeholder. Previously every line
+  of every file rendered up front, making big diffs slow to open and laggy to interact with.
+- **No more horizontal scroll in diffs** — long lines wrap onto the next line (preserving indentation)
+  instead of forcing the whole diff to scroll sideways.
+
 ## [0.9.0] - 2026-07-01
 
 ### Added

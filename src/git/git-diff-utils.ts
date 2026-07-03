@@ -70,6 +70,66 @@ export function getGitHeadSha(worktreePath: string): string {
 	return git(["rev-parse", "HEAD"], worktreePath);
 }
 
+const DIFF_MAX_BUFFER = 4 * 1024 * 1024;
+
+export interface WorktreeDiffResult {
+	diff: string | null;
+	error: string | null;
+	baseBehindCount?: number;
+}
+
+// One diff from the merge-base to the working tree covers committed, staged and
+// unstaged changes in a single coherent pass. Concatenating separate diffs
+// (base...HEAD + --cached + unstaged) repeats any file that changed in more
+// than one of them, which breaks consumers that key by file path.
+export function buildWorktreeDiff(worktreePath: string, baseRef: string): WorktreeDiffResult {
+	const mergeBaseResult = spawnSync("git", ["merge-base", baseRef, "HEAD"], {
+		cwd: worktreePath,
+		encoding: "utf-8",
+	});
+	if (mergeBaseResult.status !== 0) {
+		return { diff: null, error: mergeBaseResult.stderr?.trim() || "Failed to resolve merge base" };
+	}
+
+	const diffResult = spawnSync("git", ["diff", mergeBaseResult.stdout.trim(), "--no-color", "-U3"], {
+		cwd: worktreePath,
+		encoding: "utf-8",
+		maxBuffer: DIFF_MAX_BUFFER,
+	});
+	if (diffResult.status !== 0 && diffResult.stderr) {
+		return { diff: null, error: diffResult.stderr.trim() };
+	}
+
+	// Untracked new files are invisible to git diff but are real changes when
+	// auto-commit is disabled — include them as synthetic diffs.
+	const untrackedResult = spawnSync("git", ["ls-files", "--others", "--exclude-standard"], {
+		cwd: worktreePath,
+		encoding: "utf-8",
+	});
+	const untrackedDiffs = (untrackedResult.stdout ?? "")
+		.split("\n")
+		.map((f) => f.trim())
+		.filter(Boolean)
+		.map((file) => {
+			const header = `diff --git a/${file} b/${file}\nnew file mode 100644\n--- /dev/null\n+++ b/${file}`;
+			const content = readFileSafe(join(worktreePath, file));
+			if (!content) return header;
+			const lines = content.split("\n");
+			const addedLines = lines.map((l) => `+${l}`).join("\n");
+			return `${header}\n@@ -0,0 +1,${lines.length} @@\n${addedLines}`;
+		});
+
+	const diff = [diffResult.stdout, ...untrackedDiffs].filter((s) => s?.trim()).join("\n");
+
+	const behindResult = spawnSync("git", ["rev-list", "--count", `HEAD..${baseRef}`], {
+		cwd: worktreePath,
+		encoding: "utf-8",
+	});
+	const baseBehindCount = parseInt(behindResult.stdout?.trim() ?? "0", 10) || 0;
+
+	return { diff, error: null, baseBehindCount };
+}
+
 const INLINE_DIFF_LIMIT = 8000;
 
 /** Format the diff block. Inlines when small; otherwise tells the agent how to fetch. */
