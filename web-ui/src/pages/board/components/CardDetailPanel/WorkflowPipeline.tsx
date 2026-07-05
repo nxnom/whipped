@@ -47,7 +47,7 @@ export function WorkflowPipeline({
 							const isFocused = activeStreamId === session.streamId;
 							return (
 								<div key={session.streamId} className="flex flex-col items-center">
-									<Tooltip content={slotName} side="left" triggerAsChild>
+									<Tooltip content={slotName} placement="left" triggerAsChild>
 										<button
 											onClick={() => onSelectSession(session.streamId)}
 											className={classNames(

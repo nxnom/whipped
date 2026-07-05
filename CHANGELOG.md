@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.9.2] - 2026-07-05
+
+- Bump `geckoui` version.
+
 ## [0.9.1] - 2026-07-03
 
 ### Fixed

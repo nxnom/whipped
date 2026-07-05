@@ -84,7 +84,7 @@ export function RecurringAgentDetail({
 							<span className="text-[11px] text-whip-faint flex-1">
 								The agent's notes, carried across runs. It rewrites this each run; you can edit it too.
 							</span>
-							<Tooltip delayDuration={0} content="Save journal" side="bottom" triggerAsChild>
+							<Tooltip delayDuration={0} content="Save journal" placement="bottom" triggerAsChild>
 								<button
 									type="button"
 									onClick={() => onSaveJournal(journal)}

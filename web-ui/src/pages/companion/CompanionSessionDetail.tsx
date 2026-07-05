@@ -49,7 +49,7 @@ export function CompanionSessionDetail({
 				<div className="flex items-center gap-2">
 					{tab === "terminal" && <CanvasPanelHeader canvas={canvas} />}
 					{session.status === "running" && (
-						<Tooltip delayDuration={0} content="Kill this session" side="bottom" triggerAsChild>
+						<Tooltip delayDuration={0} content="Kill this session" placement="bottom" triggerAsChild>
 							<span>
 								<button
 									onClick={onStopSession}

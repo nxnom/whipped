@@ -1,4 +1,4 @@
-import { Menu, MenuTrigger, useMenu } from "@geckoui/geckoui";
+import { Input, Menu, MenuTrigger, useMenu } from "@geckoui/geckoui";
 import type { RuntimeProject } from "@runtime-contract";
 import { ChevronDown, FolderOpen, FolderPlus, Plus, Search } from "lucide-react";
 import { type RefObject, useRef, useState } from "react";
@@ -113,15 +113,12 @@ export function ProjectSwitcher({
 				)}
 			</MenuTrigger>
 
-			<div className="flex items-center gap-2 h-[34px] px-2.5 rounded-md bg-whip-bg border border-whip-border-soft">
-				<Search size={14} className="text-whip-faint shrink-0" />
-				<input
-					value={search}
-					onChange={(e) => setSearch(e.target.value)}
-					placeholder="Find project..."
-					className="flex-1 min-w-0 bg-transparent outline-none text-xs text-whip-text placeholder:text-whip-faint"
-				/>
-			</div>
+			<Input
+				placeholder="Find project..."
+				prefix={<Search size={14} className="text-whip-faint shrink-0" />}
+				value={search}
+				onChange={(e) => setSearch(e.target.value)}
+			/>
 
 			<ProjectList
 				sidebarRef={sidebarRef}

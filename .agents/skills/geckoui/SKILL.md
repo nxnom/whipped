@@ -278,7 +278,7 @@ ConfirmDialog.show({
 ### Tooltip
 
 ```tsx
-<Tooltip content="Helpful text" side="top" triggerAsChild>
+<Tooltip content="Helpful text" placement="top" triggerAsChild>
   <Button>Hover me</Button>
 </Tooltip>
 ```

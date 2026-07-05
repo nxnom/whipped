@@ -106,8 +106,8 @@ importers:
         specifier: ^5.2.5
         version: 5.2.8
       '@geckoui/geckoui':
-        specifier: ^1.3.3
-        version: 1.3.3(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react-hook-form@7.76.1(react@18.3.1))(react@18.3.1)
+        specifier: ^1.6.0
+        version: 1.6.0(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react-hook-form@7.76.1(react@18.3.1))(react@18.3.1)
       '@hello-pangea/dnd':
         specifier: ^18.0.1
         version: 18.0.1(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -721,8 +721,8 @@ packages:
   '@fontsource-variable/geist@5.2.9':
     resolution: {integrity: sha512-TP+QSBG3wxKGPE33CbMy/L0Nu3qvJ6Fy81Yc4LnQ95xH+i+cfEp8fyU8/kfV14YwszxIFPhnoMTbjL71waVpyQ==}
 
-  '@geckoui/geckoui@1.3.3':
-    resolution: {integrity: sha512-3avVpoWKABKxkpbc4rLYW4RziPUJMmhuh+UxZbNIMxphd5k6AWnD8Nv2hbhbPecy1rx4LgpMnaBpzuP7OlFH4w==}
+  '@geckoui/geckoui@1.6.0':
+    resolution: {integrity: sha512-TsAPtvy4oDLtUMB9GWSHJB7onelu7BFSOUPY95VnEii2zZ2SbUovWYdG9OTU3S3I/fM3Ti37zNNkAvCU6dbryA==}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
@@ -3839,7 +3839,7 @@ snapshots:
 
   '@fontsource-variable/geist@5.2.9': {}
 
-  '@geckoui/geckoui@1.3.3(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react-hook-form@7.76.1(react@18.3.1))(react@18.3.1)':
+  '@geckoui/geckoui@1.6.0(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react-hook-form@7.76.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@floating-ui/react': 0.26.28(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       lodash.isequal: 4.5.0

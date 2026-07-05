@@ -131,7 +131,7 @@ export function RecurringAgentBar({
 
 			<div className="flex-1" />
 
-			<Tooltip delayDuration={0} content={running ? "Starting..." : "Run now"} side="top" triggerAsChild>
+			<Tooltip delayDuration={0} content={running ? "Starting..." : "Run now"} placement="top" triggerAsChild>
 				<span>
 					<ActionButton
 						icon={<Play size={13} className="fill-current" />}

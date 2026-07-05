@@ -76,7 +76,7 @@ export function CardDetailHeader({
 			)}
 			{hasStartCommand &&
 				(runSession.status === "running" && runSession.cardId === card.id ? (
-					<Tooltip delayDuration={0} content="Stop" side="bottom" triggerAsChild>
+					<Tooltip delayDuration={0} content="Stop" placement="bottom" triggerAsChild>
 						<button
 							onClick={() => void stopRun()}
 							className={classNames(ACTION_BUTTON, "text-whip-muted hover:text-[#ff3b4d]")}
@@ -88,7 +88,7 @@ export function CardDetailHeader({
 					<Tooltip
 						delayDuration={0}
 						content={runSession.status === "running" ? "Another task is running" : "Run"}
-						side="bottom"
+						placement="bottom"
 						triggerAsChild
 					>
 						<button
@@ -105,7 +105,7 @@ export function CardDetailHeader({
 					<Tooltip
 						delayDuration={0}
 						content={merging ? "Merging..." : `Merge into ${card.baseRef}`}
-						side="bottom"
+						placement="bottom"
 						triggerAsChild
 					>
 						<button
@@ -127,7 +127,7 @@ export function CardDetailHeader({
 							<GitPullRequest size={15} />
 						</a>
 					) : (
-						<Tooltip delayDuration={0} content={`Create PR against ${card.baseRef}`} side="bottom" triggerAsChild>
+						<Tooltip delayDuration={0} content={`Create PR against ${card.baseRef}`} placement="bottom" triggerAsChild>
 							<button
 								onClick={onPR}
 								disabled={merging}
@@ -139,7 +139,7 @@ export function CardDetailHeader({
 					)}
 				</>
 			)}
-			<Tooltip delayDuration={0} content="Delete task" side="bottom" triggerAsChild>
+			<Tooltip delayDuration={0} content="Delete task" placement="bottom" triggerAsChild>
 				<button
 					onClick={onDelete}
 					className="flex items-center justify-center size-[34px] rounded-md text-[#ff3b4d] hover:bg-[#ff3b4d]/10 transition-colors"
