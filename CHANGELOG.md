@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.4] - 2026-07-10
+
+### Added
+- **GPT-5.6** added to the Codex model presets, in its three variants: **Sol** (the new Codex
+  default), **Terra**, and **Luna**.
+
 ## [0.9.3] - 2026-07-10
 
 ### Added
