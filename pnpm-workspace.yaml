@@ -9,6 +9,7 @@ allowBuilds:
 
 minimumReleaseAgeExclude:
   - '@geckoui/geckoui@1.6.2'
+  - '@geckoui/geckoui@1.6.3'
 
 onlyBuiltDependencies:
   - better-sqlite3
