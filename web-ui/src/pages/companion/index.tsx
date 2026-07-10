@@ -68,7 +68,14 @@ export function CompanionPage() {
 	const handleStop = async () => {
 		if (!selected) return;
 		const res = await stop.trigger({ params: { id: selected.id }, query: { workspaceId: wsId } });
-		if (res.error) toast.error("Failed to stop session");
+		if (res.error) {
+			toast.error("Failed to stop session");
+			return;
+		}
+		// Refresh before navigating so the auto-redirect effect doesn't see the
+		// killed session as still running and bounce back to its dead terminal.
+		await list.trigger();
+		navigate(`/${encodeURIComponent(wsId)}/companion`, { replace: true });
 	};
 
 	const handleDiscard = async () => {

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.9.3] - 2026-07-10
+
+### Added
+- **Fable 5** added to the Claude model presets.
+
+### Changed
+- **Companion page** — killing the current session now lands on the new-session screen instead of
+  staying on the killed session's dead terminal. The session remains available under "Or open a past
+  session" for viewing its diff or merging.
+
 ## [0.9.2] - 2026-07-05
 
 - Bump `geckoui` version.
