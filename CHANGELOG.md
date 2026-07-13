@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.9.6] - 2026-07-13
+
+### Added
+- **Auto-trust spawned agent workspaces** — claude, codex, and cursor each show a one-time
+  "do you trust this folder?" prompt the first time they run in a new directory. Since whipped spawns
+  these agents non-interactively in fresh per-task worktrees, that prompt could block a run for anyone
+  who hadn't already manually trusted `~/.whipped`. The daemon now pre-accepts it on startup (claude,
+  cursor) or right before each spawn (codex, which doesn't trust parent folders for subdirectories) by
+  writing directly into each CLI's own trust state.
+
 ## [0.9.5] - 2026-07-11
 
 ### Changed

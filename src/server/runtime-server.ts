@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import * as nodePty from "node-pty";
 import { WebSocketServer } from "ws";
 import { writeClaudeCompanionSettings, writeClaudeTaskHookSettings } from "../agents/agent-hooks.js";
-import { ensureClaudeTrusted } from "../agents/trust.js";
+import { ensureClaudeTrusted, ensureCodexTrusted, ensureCursorTrusted } from "../agents/trust.js";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { tunnelManager } from "../tunnel/cloudflare-tunnel.js";
 import { exchangeCodeForBotToken } from "../slack/slack-setup.js";
@@ -124,13 +124,20 @@ export async function createRuntimeServer(options: ServerOptions) {
 	// Open SQLite DB and run pending migrations before anything else touches state.
 	openDb();
 
-	// Pre-accept claude's per-folder trust dialog for the whipped home dir, once per
-	// startup, so a freshly-spawned session never blocks on it. Trust cascades to
-	// subdirectories, covering every worktree/workspace created under it. Worktrees
-	// always live under ~/.whipped/worktrees (git/merge-operations.ts) even when
-	// WHIPPED_HOME_DIR is overridden, so that root is trusted too.
+	// Pre-accept claude/cursor's per-folder trust dialogs for the whipped home dir, once
+	// per startup, so a freshly-spawned session never blocks on them. Both honor a trusted
+	// parent folder for subdirectories (verified empirically), covering every
+	// worktree/workspace created under it. Worktrees always live under
+	// ~/.whipped/worktrees (git/merge-operations.ts) even when WHIPPED_HOME_DIR is
+	// overridden, so that root is trusted too. Codex trusts by exact path only (no
+	// cascade), so it's instead pre-trusted per-cwd right before each spawn
+	// (agent-runner.ts) — this call just covers someone cding into the bare worktrees
+	// root and running `codex` by hand.
 	ensureClaudeTrusted(WHIPPED_HOME_DIR);
 	ensureClaudeTrusted(join(homedir(), ".whipped"));
+	ensureCursorTrusted(WHIPPED_HOME_DIR);
+	ensureCursorTrusted(join(homedir(), ".whipped"));
+	ensureCodexTrusted(join(homedir(), ".whipped", "worktrees"));
 
 	// Load the machine token into memory before any agent/hook can call back in.
 	setMachineToken(await getOrCreateMachineToken());

@@ -5,6 +5,7 @@ import { logger } from "../core/logger.js";
 
 const CLAUDE_CONFIG_PATH = join(homedir(), ".claude.json");
 const CODEX_CONFIG_PATH = join(homedir(), ".codex", "config.toml");
+const CURSOR_PROJECTS_DIR = join(homedir(), ".cursor", "projects");
 
 interface ClaudeConfig {
 	projects?: Record<string, Record<string, unknown>>;
@@ -82,5 +83,32 @@ export function ensureCodexTrusted(dir: string): void {
 		writeFileSync(CODEX_CONFIG_PATH, contents + block);
 	} catch (err) {
 		logger.warn({ err, dir: real }, "[trust] failed to pre-trust workspace for codex");
+	}
+}
+
+/**
+ * Pre-accepts cursor-agent's "Workspace Trust Required" prompt by writing the same
+ * `.workspace-trusted` marker cursor itself writes under `~/.cursor/projects/<slug>/`
+ * (slug = the realpath with every run of non-alphanumeric characters collapsed to a
+ * single "-", per cursor's own naming, verified empirically). Cursor honors a trusted
+ * parent folder for its subdirectories (verified empirically, like claude), so trusting
+ * the whipped home dir once covers every worktree/workspace created under it.
+ */
+export function ensureCursorTrusted(dir: string): void {
+	const real = resolveRealpath(dir);
+	const slug = real.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+	const projectDir = join(CURSOR_PROJECTS_DIR, slug);
+	const markerPath = join(projectDir, ".workspace-trusted");
+
+	if (existsSync(markerPath)) return;
+
+	try {
+		mkdirSync(projectDir, { recursive: true });
+		writeFileSync(
+			markerPath,
+			JSON.stringify({ trustedAt: new Date().toISOString(), workspacePath: real, trustMethod: "cli-flag" }, null, 2),
+		);
+	} catch (err) {
+		logger.warn({ err, dir: real }, "[trust] failed to pre-trust workspace for cursor");
 	}
 }
