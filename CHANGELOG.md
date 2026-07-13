@@ -1,28 +1,17 @@
 # Changelog
 
-## [0.9.7] - 2026-07-13
-
-### Fixed
-- **Ticket bounced back to Reopened after every fix** — GitHub doesn't dismiss a "changes requested"
-  review when new commits are pushed, so the PR poller kept seeing the same stale review and reopening
-  the card on every cycle, even after the feedback had already been addressed. It now only reopens when
-  a review is against a commit it hasn't already reacted to.
-- **Auto-push silently failed on a diverged PR branch** — if a reviewer pushed directly to the branch or
-  merged base in to catch it up, the agent's next push was rejected and the failure was only logged to a
-  collapsed activity accordion, while the card still moved to Ready for Review as if nothing happened.
-  Pushes now fetch and reconcile with the remote first (a silent fast-forward or auto-merge covers most
-  cases), and a genuine conflict is handed to the same conflict-resolution agent used for base-branch
-  conflicts instead of being swallowed.
-
 ## [0.9.6] - 2026-07-13
 
 ### Added
-- **Auto-trust spawned agent workspaces** — claude, codex, and cursor each show a one-time
-  "do you trust this folder?" prompt the first time they run in a new directory. Since whipped spawns
-  these agents non-interactively in fresh per-task worktrees, that prompt could block a run for anyone
-  who hadn't already manually trusted `~/.whipped`. The daemon now pre-accepts it on startup (claude,
-  cursor) or right before each spawn (codex, which doesn't trust parent folders for subdirectories) by
-  writing directly into each CLI's own trust state.
+- **Auto-trust spawned agent workspaces** — claude, codex, and cursor no longer show a "trust this
+  folder?" prompt when whipped spawns them in a fresh worktree.
+
+### Fixed
+- **Ticket kept bouncing back to Reopened** after a fix was pushed — the poller now tracks which
+  review it already reacted to, so a stale "changes requested" can't reopen the same card twice.
+- **Auto-push failed silently on a diverged PR branch** (reviewer pushed directly, or merged base in
+  to catch up) — pushes now fetch and reconcile first; a real conflict goes to the same
+  conflict-resolution agent used elsewhere instead of being swallowed.
 
 ## [0.9.5] - 2026-07-11
 
