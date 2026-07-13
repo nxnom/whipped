@@ -45,7 +45,7 @@ import { logger } from "../core/logger.js";
 import { resolvePromptText } from "../core/prompt-resolver.js";
 import { getShellInvocation } from "../core/shell.js";
 import { generateTaskId } from "../core/task-id.js";
-import { commitIfDirty, pushBranch } from "../git/merge-operations.js";
+import { commitIfDirty, PushConflictError, pushBranch } from "../git/merge-operations.js";
 import { playNotificationSound } from "../notifications/sound-player.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import { createCompanionCanvas } from "../state/companion-canvases-store.js";
@@ -1445,6 +1445,32 @@ export class TaskScheduler {
 			}
 
 			if (card.columnId === "in_progress") {
+				// Extracted so it can run either right after this run's push, or later —
+				// once the conflict-resolution agent (if one had to run) finishes and
+				// re-pushes — without duplicating the "what happens after a good push" logic.
+				const proceedToReview = async () => {
+					const hookConfig = await loadProjectConfig(workspaceId);
+					const hookWorkflow =
+						hookConfig.workflows.find((w) => w.id === card.workflowId) ??
+						hookConfig.workflows.find((w) => w.isDefault) ??
+						hookConfig.workflows[0];
+					const hookHasReview = (hookWorkflow?.slots ?? []).some(
+						(s) => (s.type === "review" || s.type === "orch") && s.enabled,
+					);
+					if (!hookHasReview) {
+						await moveCard(workspaceId, taskId, "ready_for_review");
+						await appendActivityLog(workspaceId, taskId, "Agent finished → moved to Ready for Review");
+						void playNotificationSound("readyForReview");
+					} else {
+						await appendActivityLog(workspaceId, taskId, "Agent finished → AI review starting");
+					}
+					logger.info(
+						`[scheduler] Hook Stop: task ${taskId} → ${hookHasReview ? "in_progress (review pending)" : "ready_for_review"}`,
+					);
+					this.options.onTaskCompleted(taskId);
+					stateHub.broadcastWorkspaceUpdate(workspaceId);
+				};
+
 				if (card.pr?.url) {
 					const worktreePath = getWorktreePath(resolveWorktreeOwnerId(taskId, board.cards));
 					const taskBranch = getCardBranch(card);
@@ -1455,30 +1481,55 @@ export class TaskScheduler {
 							logger.warn(`[scheduler] commitIfDirty before push failed for ${taskId}: ${String(err)}`),
 						);
 					}
-					await pushBranch(worktreePath, taskBranch).then(
-						() => appendActivityLog(workspaceId, taskId, `Pushed to PR`),
-						(err: Error) => appendActivityLog(workspaceId, taskId, `Push failed: ${err.message}`),
-					);
+					try {
+						await pushBranch(worktreePath, taskBranch);
+						await appendActivityLog(workspaceId, taskId, "Pushed to PR");
+					} catch (err) {
+						if (err instanceof PushConflictError) {
+							// The remote PR branch has real conflicting changes (e.g. the reviewer
+							// pushed a commit, or merged base into it) — hand the worktree to the
+							// same conflict-resolution agent used for base/dependency conflicts
+							// instead of losing those changes or silently pushing over them.
+							await appendActivityLog(
+								workspaceId,
+								taskId,
+								`PR branch has conflicting changes (${err.conflictedFiles.join(", ")}) — resolving...`,
+							);
+							stateHub.broadcastWorkspaceUpdate(workspaceId);
+							await this.startConflictResolution(card, worktreePath, err.conflictedFiles, async (success) => {
+								if (!success) {
+									await appendActivityLog(workspaceId, taskId, "Could not resolve PR branch conflicts → Blocked");
+									await moveCard(workspaceId, taskId, "blocked");
+									stateHub.broadcastWorkspaceUpdate(workspaceId);
+									return;
+								}
+								try {
+									await pushBranch(worktreePath, taskBranch);
+									await appendActivityLog(workspaceId, taskId, "PR branch conflicts resolved → Pushed to PR");
+									await proceedToReview();
+								} catch (retryErr) {
+									await appendActivityLog(
+										workspaceId,
+										taskId,
+										`Push failed after conflict resolution: ${(retryErr as Error).message} → Blocked`,
+									);
+									await moveCard(workspaceId, taskId, "blocked");
+									stateHub.broadcastWorkspaceUpdate(workspaceId);
+								}
+							});
+							// Conflict resolution continues asynchronously (its own onComplete
+							// drives proceedToReview or blocks) — nothing more to do on this pass.
+							return;
+						}
+						await appendActivityLog(workspaceId, taskId, `Push failed: ${(err as Error).message} → Blocked`);
+						await moveCard(workspaceId, taskId, "blocked");
+						this.options.onTaskCompleted(taskId);
+						stateHub.broadcastWorkspaceUpdate(workspaceId);
+						return;
+					}
 				}
-				const hookConfig = await loadProjectConfig(workspaceId);
-				const hookWorkflow =
-					hookConfig.workflows.find((w) => w.id === card.workflowId) ??
-					hookConfig.workflows.find((w) => w.isDefault) ??
-					hookConfig.workflows[0];
-				const hookHasReview = (hookWorkflow?.slots ?? []).some(
-					(s) => (s.type === "review" || s.type === "orch") && s.enabled,
-				);
-				if (!hookHasReview) {
-					await moveCard(workspaceId, taskId, "ready_for_review");
-					await appendActivityLog(workspaceId, taskId, "Agent finished → moved to Ready for Review");
-					void playNotificationSound("readyForReview");
-				} else {
-					await appendActivityLog(workspaceId, taskId, "Agent finished → AI review starting");
-				}
-				logger.info(
-					`[scheduler] Hook Stop: task ${taskId} → ${hookHasReview ? "in_progress (review pending)" : "ready_for_review"}`,
-				);
-				this.options.onTaskCompleted(taskId);
+				await proceedToReview();
+				return;
 			} else {
 				// Card was already moved by the agent (e.g. via kanban_move_card MCP).
 				// Still trigger review in case it hasn't started yet.

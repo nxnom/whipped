@@ -124,12 +124,67 @@ export function abortMerge(repoPath: string): void {
 	git(["merge", "--abort"], repoPath);
 }
 
+// Thrown when the remote branch has diverged and reconciling it hit real conflicting
+// changes (not just a fast-forward or a clean three-way merge). The merge is left
+// in progress in the worktree — conflict markers and all — so a caller can hand it to
+// the same conflict-resolution agent used for base/dependency-branch conflicts
+// (TaskScheduler.startConflictResolution) instead of losing the reviewer's changes or
+// silently giving up.
+export class PushConflictError extends Error {
+	conflictedFiles: string[];
+	constructor(message: string, conflictedFiles: string[]) {
+		super(message);
+		this.name = "PushConflictError";
+		this.conflictedFiles = conflictedFiles;
+	}
+}
+
 // Plain git push — works for any remote (GitHub, GitLab, Bitbucket, SSH, etc.)
-// Auth is handled by the user's git credential store or SSH key.
+// Auth is handled by the user's git credential store or SSH key. Fetches and
+// reconciles with the remote branch first: a pure fast-forward (e.g. a reviewer's
+// direct commit, or a base-branch catch-up merge) is applied silently; a genuine
+// divergence is merged three-way. Only when that merge has real conflicts does this
+// throw — as a PushConflictError, leaving the conflict markers in place — rather than
+// force past the reviewer's changes or push over them.
 export async function pushBranch(worktreePath: string, branch: string): Promise<void> {
 	if (!existsSync(worktreePath)) {
 		throw new Error(`Failed to push: worktree path no longer exists (${worktreePath})`);
 	}
+
+	const fetchResult = git(["fetch", "origin", branch], worktreePath);
+	if (fetchResult.ok) {
+		const local = git(["rev-parse", "HEAD"], worktreePath).stdout;
+		const remote = git(["rev-parse", `origin/${branch}`], worktreePath).stdout;
+
+		if (local !== remote) {
+			const mergeBase = git(["merge-base", "HEAD", `origin/${branch}`], worktreePath).stdout;
+
+			if (local === mergeBase) {
+				// local is purely behind — fast-forward onto the remote's tip
+				const ff = git(["merge", "--ff-only", `origin/${branch}`], worktreePath);
+				if (!ff.ok) {
+					throw new Error(`Failed to push: could not fast-forward onto origin/${branch}: ${ff.stderr}`);
+				}
+			} else if (remote !== mergeBase) {
+				// genuinely diverged — merge the remote in; leave conflicts for the
+				// conflict-resolution agent rather than aborting and losing them
+				const mergeRes = git(
+					["merge", "--no-ff", "-m", `Merge remote-tracking branch 'origin/${branch}'`, `origin/${branch}`],
+					worktreePath,
+				);
+				if (!mergeRes.ok) {
+					const conflictsOut = git(["diff", "--name-only", "--diff-filter=U"], worktreePath);
+					const conflictedFiles = conflictsOut.stdout.split("\n").filter(Boolean);
+					throw new PushConflictError(
+						`origin/${branch} has diverged and could not be merged automatically: ${mergeRes.stderr}`,
+						conflictedFiles,
+					);
+				}
+			}
+			// else: remote === mergeBase — local is ahead, nothing to reconcile
+		}
+	}
+
 	await execFileAsync("git", ["push", "-u", "--force-with-lease", "origin", branch], {
 		cwd: worktreePath,
 		encoding: "utf-8",
@@ -367,6 +422,10 @@ export interface PRInfo {
 	state: "OPEN" | "CLOSED" | "MERGED";
 	mergeable: "MERGEABLE" | "CONFLICTING" | "UNKNOWN";
 	reviewDecision: "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | null;
+	// Commit SHA the most recent changes-requested review was submitted against.
+	// GitHub doesn't dismiss "changes requested" when new commits are pushed, so
+	// callers need this to tell a genuinely new review apart from the same stale one.
+	changesRequestedSha: string | null;
 	author: string;
 	comments: GithubComment[];
 	reviews: GithubComment[];
@@ -396,18 +455,33 @@ export async function fetchPRInfo(prUrl: string, token?: string): Promise<PRInfo
 		const mergeable: PRInfo["mergeable"] =
 			pr.mergeable === true ? "MERGEABLE" : pr.mergeable === false ? "CONFLICTING" : "UNKNOWN";
 
-		// Derive review decision from the latest review per user (ignoring comments/dismissed)
-		const latestReviewByUser = new Map<string, string>();
+		// Derive review decision from the latest review per user (ignoring comments/dismissed).
+		// Keep the full review, not just its state, so a CHANGES_REQUESTED decision can
+		// report which commit it was submitted against (reviews are returned oldest-first,
+		// so later entries overwrite earlier ones per user; submitted_at is compared too as
+		// a safety net against out-of-order responses).
+		const latestReviewByUser = new Map<string, (typeof reviewsResp.data)[number]>();
 		for (const rv of reviewsResp.data) {
-			if (rv.state !== "COMMENTED" && rv.state !== "DISMISSED") {
-				latestReviewByUser.set(rv.user?.login ?? "", rv.state);
+			if (rv.state === "COMMENTED" || rv.state === "DISMISSED") continue;
+			const user = rv.user?.login ?? "";
+			const existing = latestReviewByUser.get(user);
+			if (!existing || (rv.submitted_at ?? "") >= (existing.submitted_at ?? "")) {
+				latestReviewByUser.set(user, rv);
 			}
 		}
-		const reviewStates = Array.from(latestReviewByUser.values());
-		const reviewDecision: PRInfo["reviewDecision"] = reviewStates.includes("CHANGES_REQUESTED")
-			? "CHANGES_REQUESTED"
-			: reviewStates.includes("APPROVED")
-				? "APPROVED"
+		const latestReviews = Array.from(latestReviewByUser.values());
+		const changesRequestedReviews = latestReviews.filter((rv) => rv.state === "CHANGES_REQUESTED");
+		const reviewDecision: PRInfo["reviewDecision"] =
+			changesRequestedReviews.length > 0
+				? "CHANGES_REQUESTED"
+				: latestReviews.some((rv) => rv.state === "APPROVED")
+					? "APPROVED"
+					: null;
+		const changesRequestedSha: PRInfo["changesRequestedSha"] =
+			changesRequestedReviews.length > 0
+				? (changesRequestedReviews.reduce((latest, rv) =>
+						(rv.submitted_at ?? "") > (latest.submitted_at ?? "") ? rv : latest,
+					).commit_id ?? null)
 				: null;
 
 		const comments: GithubComment[] = commentsResp.data
@@ -442,6 +516,7 @@ export async function fetchPRInfo(prUrl: string, token?: string): Promise<PRInfo
 			mergeable,
 			author: pr.user?.login ?? "",
 			reviewDecision,
+			changesRequestedSha,
 			comments,
 			reviews: [...reviewBodies, ...inlineComments],
 		};

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.9.7] - 2026-07-13
+
+### Fixed
+- **Ticket bounced back to Reopened after every fix** — GitHub doesn't dismiss a "changes requested"
+  review when new commits are pushed, so the PR poller kept seeing the same stale review and reopening
+  the card on every cycle, even after the feedback had already been addressed. It now only reopens when
+  a review is against a commit it hasn't already reacted to.
+- **Auto-push silently failed on a diverged PR branch** — if a reviewer pushed directly to the branch or
+  merged base in to catch it up, the agent's next push was rejected and the failure was only logged to a
+  collapsed activity accordion, while the card still moved to Ready for Review as if nothing happened.
+  Pushes now fetch and reconcile with the remote first (a silent fast-forward or auto-merge covers most
+  cases), and a genuine conflict is handed to the same conflict-resolution agent used for base-branch
+  conflicts instead of being swallowed.
+
 ## [0.9.6] - 2026-07-13
 
 ### Added

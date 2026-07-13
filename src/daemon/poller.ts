@@ -4,7 +4,7 @@ import { loadGlobalConfig } from "../config/runtime-config.js";
 import type { RuntimeBoardCard } from "../core/api-contract.js";
 import { logger } from "../core/logger.js";
 import { generateTaskId } from "../core/task-id.js";
-import { fetchCommentBodyHtml, fetchPRInfo } from "../git/merge-operations.js";
+import { fetchCommentBodyHtml, fetchPRInfo, pushBranch } from "../git/merge-operations.js";
 import { playNotificationSound } from "../notifications/sound-player.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
 import {
@@ -119,8 +119,17 @@ async function resolvePRConflicts(
 		});
 
 		if (mergeResult.status === 0) {
-			spawnSync("git", ["push", "origin", taskBranch], { cwd: worktreePath, stdio: "ignore" });
-			await appendActivityLog(workspaceId, card.id, `PR conflict resolved by merging ${card.baseRef} → pushed`);
+			try {
+				await pushBranch(worktreePath, taskBranch);
+				await appendActivityLog(workspaceId, card.id, `PR conflict resolved by merging ${card.baseRef} → pushed`);
+			} catch (err) {
+				await appendActivityLog(
+					workspaceId,
+					card.id,
+					`PR conflict resolved by merging ${card.baseRef}, but push failed: ${String(err)} → Blocked`,
+				);
+				await moveCard(workspaceId, card.id, "blocked");
+			}
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
 			return;
 		}
@@ -141,8 +150,13 @@ async function resolvePRConflicts(
 
 		await scheduler.startConflictResolution(card, worktreePath, conflictedFiles, async (success) => {
 			if (success) {
-				spawnSync("git", ["push", "origin", taskBranch], { cwd: worktreePath, stdio: "ignore" });
-				await appendActivityLog(workspaceId, card.id, `PR conflicts resolved → pushed`);
+				try {
+					await pushBranch(worktreePath, taskBranch);
+					await appendActivityLog(workspaceId, card.id, `PR conflicts resolved → pushed`);
+				} catch (err) {
+					await appendActivityLog(workspaceId, card.id, `PR conflicts resolved, but push failed: ${String(err)} → Blocked`);
+					await moveCard(workspaceId, card.id, "blocked");
+				}
 			} else {
 				spawnSync("git", ["merge", "--abort"], { cwd: worktreePath, stdio: "ignore" });
 				await moveCard(workspaceId, card.id, "blocked");
@@ -412,7 +426,14 @@ export class BoardPoller {
 			}
 
 			const authorCommented = readyEntries.some((e) => e.author === info.author);
-			const changesRequested = info.reviewDecision === "CHANGES_REQUESTED";
+			// GitHub doesn't dismiss a "changes requested" review when new commits land, so
+			// the same stale review would otherwise re-trigger a reopen on every poll after
+			// the card comes back to ready_for_review. Only treat it as actionable if it's
+			// against a commit we haven't already reopened for (fail open to the old
+			// behavior if the commit can't be determined).
+			const changesRequested =
+				info.reviewDecision === "CHANGES_REQUESTED" &&
+				(info.changesRequestedSha === null || info.changesRequestedSha !== card.lastReviewedSha);
 
 			if (info.state === "MERGED") {
 				logger.info(`[poller] PR merged for "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}" → Done`);
@@ -453,7 +474,10 @@ export class BoardPoller {
 			} else if (changesRequested || authorCommented) {
 				const reason = changesRequested ? "Changes Requested review submitted" : `PR author (${info.author}) commented`;
 				logger.info(`[poller] "${card.description?.split("\n")[0]?.slice(0, 60) ?? card.id}": ${reason} → Reopened`);
-				await updateCard(workspaceId, taskId, { autoFixAttempts: 0 });
+				await updateCard(workspaceId, taskId, {
+					autoFixAttempts: 0,
+					...(changesRequested && info.changesRequestedSha ? { lastReviewedSha: info.changesRequestedSha } : {}),
+				});
 				await moveCard(workspaceId, taskId, "reopened");
 				await appendActivityLog(workspaceId, taskId, `${reason} → Reopened`);
 				await clearCardSession(workspaceId, taskId);

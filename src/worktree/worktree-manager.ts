@@ -54,6 +54,25 @@ export interface WorktreeCreateResult extends WorktreeInfo {
 	conflictedFiles: string[];
 }
 
+// Fetch the task branch from the remote and fast-forward the worktree onto it if
+// possible, so a reused worktree (reopened card) starts from any commits a reviewer
+// pushed directly, or a base-branch catch-up merge, rather than stale local state.
+// Only fast-forwards — a real divergence is left for pushBranch to reconcile
+// authoritatively (and fail loudly) right before delivering the work.
+function syncWorktreeBranchWithRemote(worktreePath: string, branch: string): void {
+	const fetchResult = git(["fetch", "origin", branch], worktreePath);
+	if (!fetchResult.ok) return; // remote branch doesn't exist yet, or fetch failed — nothing to sync
+
+	const ffResult = git(["merge", "--ff-only", `origin/${branch}`], worktreePath);
+	if (!ffResult.ok) {
+		logger.warn(
+			`[worktree:create] origin/${branch} has diverged from the local worktree — leaving for push-time reconciliation`,
+		);
+	} else {
+		logger.info(`[worktree:create] Synced worktree branch ${branch} with origin/${branch}`);
+	}
+}
+
 export function createWorktree(
 	taskId: string,
 	repoPath: string,
@@ -73,6 +92,7 @@ export function createWorktree(
 		const actualBranch = git(["rev-parse", "--abbrev-ref", "HEAD"], worktreePath);
 		const resolvedBranch = actualBranch.ok && actualBranch.stdout ? actualBranch.stdout : branch;
 		logger.info(`[worktree:create] Worktree already exists — reusing (branch: ${resolvedBranch})`);
+		syncWorktreeBranchWithRemote(worktreePath, resolvedBranch);
 		return { taskId, path: worktreePath, branch: resolvedBranch, isNew: false, conflictedFiles: [] };
 	}
 

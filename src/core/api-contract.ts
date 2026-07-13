@@ -580,6 +580,11 @@ export const runtimeBoardCardSchema = z.object({
 	activityLog: z.array(runtimeActivityEntrySchema).default([]),
 	terminalSessions: z.array(runtimeTerminalSessionEntrySchema).default([]),
 	githubCommentIds: z.array(z.string()).default([]),
+	// Commit SHA of the GitHub review that most recently reopened this card. GitHub
+	// doesn't dismiss "changes requested" on new commits, so the poller compares a
+	// freshly-flagged review's commit against this before reopening again — same
+	// commit means it's the same stale review, not new feedback.
+	lastReviewedSha: z.string().optional(),
 	worktreePath: z.string().optional(),
 	branchName: z.string().optional(),
 	slackMessageTs: z.string().optional(),

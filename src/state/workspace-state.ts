@@ -56,6 +56,7 @@ interface CardRow {
 	github_issue_url: string | null;
 	pr_json: string | null;
 	github_comment_ids_json: string;
+	last_reviewed_sha: string | null;
 	worktree_path: string | null;
 	branch_name: string | null;
 	depends_on_id: string | null;
@@ -102,6 +103,7 @@ function cardFromRow(row: CardRow, children: ReturnType<typeof loadCardChildren>
 	if (row.workflow_id) card.workflowId = row.workflow_id;
 	if (row.github_issue_url) card.githubIssueUrl = row.github_issue_url;
 	if (pr) card.pr = pr;
+	if (row.last_reviewed_sha) card.lastReviewedSha = row.last_reviewed_sha;
 	if (row.worktree_path) card.worktreePath = row.worktree_path;
 	if (row.branch_name) card.branchName = row.branch_name;
 	if (row.depends_on_id) card.dependsOn = row.depends_on_id;
@@ -221,7 +223,7 @@ function upsertCardRow(
 			id, workspace_id, description, description_attachments_json,
 			column_id, column_position, type, ready_for_dev,
 			agent_id, priority, auto_fix_attempts, base_ref, workflow_id,
-			github_issue_url, pr_json, github_comment_ids_json,
+			github_issue_url, pr_json, github_comment_ids_json, last_reviewed_sha,
 			worktree_path, branch_name, depends_on_id,
 			slack_message_ts, slack_channel_id,
 			plan, active_level, model_config_json, created_at, updated_at
@@ -229,7 +231,7 @@ function upsertCardRow(
 			?, ?, ?, ?,
 			?, ?, ?, ?,
 			?, ?, ?, ?, ?,
-			?, ?, ?,
+			?, ?, ?, ?,
 			?, ?, ?,
 			?, ?,
 			?, ?, ?, ?, ?
@@ -248,6 +250,7 @@ function upsertCardRow(
 			github_issue_url = excluded.github_issue_url,
 			pr_json = excluded.pr_json,
 			github_comment_ids_json = excluded.github_comment_ids_json,
+			last_reviewed_sha = excluded.last_reviewed_sha,
 			worktree_path = excluded.worktree_path,
 			branch_name = excluded.branch_name,
 			depends_on_id = excluded.depends_on_id,
@@ -274,6 +277,7 @@ function upsertCardRow(
 		card.githubIssueUrl ?? null,
 		card.pr ? JSON.stringify(card.pr) : null,
 		JSON.stringify(card.githubCommentIds ?? []),
+		card.lastReviewedSha ?? null,
 		card.worktreePath ?? null,
 		card.branchName ?? null,
 		card.dependsOn ?? null,
@@ -1195,6 +1199,7 @@ export async function updateCard(
 			| "reviewComments"
 			| "autoFixAttempts"
 			| "githubCommentIds"
+			| "lastReviewedSha"
 			| "worktreePath"
 			| "branchName"
 			| "slackMessageTs"

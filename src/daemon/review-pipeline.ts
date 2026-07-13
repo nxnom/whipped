@@ -36,7 +36,7 @@ import { resolvePromptText } from "../core/prompt-resolver.js";
 import { generateTaskId } from "../core/task-id.js";
 import { formatVisualElementsBlock, type VisualElementRef } from "../core/visual-comment.js";
 import { formatDiffBlock, getGitFullDiff, getGitHeadSha, getGitStat } from "../git/git-diff-utils.js";
-import { commitIfDirty, createGithubPR, pushBranch } from "../git/merge-operations.js";
+import { commitIfDirty, createGithubPR, PushConflictError, pushBranch } from "../git/merge-operations.js";
 import type { GithubClient } from "../github/github-client.js";
 import { playNotificationSound } from "../notifications/sound-player.js";
 import type { RuntimeStateHub } from "../server/runtime-state-hub.js";
@@ -645,9 +645,9 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 			stateHub.broadcastWorkspaceUpdate(workspaceId);
 			return;
 		}
-		try {
-			await commitIfDirty(worktreePath, card.pr?.title ?? card.description?.split("\n")[0]?.slice(0, 72) ?? card.id);
-			await pushBranch(worktreePath, taskBranch);
+		// Extracted so it can run either right after this run's push, or later — once the
+		// conflict-resolution agent (if one had to run) finishes and re-pushes.
+		const finishAutoPR = async () => {
 			const devSummary =
 				[...(card.reviewComments ?? [])].reverse().find((c) => c.type === "dev")?.summary ?? card.description;
 			const prTitle = card.pr?.title ?? card.description?.split("\n")[0]?.slice(0, 72) ?? card.id;
@@ -674,11 +674,55 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 				}
 			}
 			await appendActivityLog(workspaceId, card.id, `Auto PR created → ${prUrl}`);
+			stateHub.broadcastWorkspaceUpdate(workspaceId);
+		};
+
+		try {
+			await commitIfDirty(worktreePath, card.pr?.title ?? card.description?.split("\n")[0]?.slice(0, 72) ?? card.id);
+			await pushBranch(worktreePath, taskBranch);
+			await finishAutoPR();
 		} catch (err) {
+			if (err instanceof PushConflictError) {
+				// The remote PR branch has real conflicting changes (e.g. the reviewer pushed
+				// a commit, or merged base into it) — hand the worktree to the same
+				// conflict-resolution agent used for base/dependency conflicts instead of
+				// losing those changes or silently pushing over them.
+				logger.info(`[review] Auto PR: PR branch has conflicts for "${cardDesc60}" — resolving...`);
+				await appendActivityLog(
+					workspaceId,
+					card.id,
+					`PR branch has conflicting changes (${err.conflictedFiles.join(", ")}) — resolving...`,
+				);
+				stateHub.broadcastWorkspaceUpdate(workspaceId);
+				await options.scheduler.startConflictResolution(card, worktreePath, err.conflictedFiles, async (success) => {
+					if (!success) {
+						await appendActivityLog(workspaceId, card.id, "Could not resolve PR branch conflicts → Blocked");
+						await moveCard(workspaceId, card.id, "blocked");
+						stateHub.broadcastWorkspaceUpdate(workspaceId);
+						return;
+					}
+					try {
+						await pushBranch(worktreePath, taskBranch);
+						await appendActivityLog(workspaceId, card.id, "PR branch conflicts resolved → pushed");
+						await finishAutoPR();
+					} catch (retryErr) {
+						logger.error({ err: retryErr }, `[review] Auto PR push failed after conflict resolution for "${cardDesc60}":`);
+						await appendActivityLog(
+							workspaceId,
+							card.id,
+							`Push failed after conflict resolution: ${String(retryErr)} → Blocked`,
+						);
+						await moveCard(workspaceId, card.id, "blocked");
+						stateHub.broadcastWorkspaceUpdate(workspaceId);
+					}
+				});
+				return;
+			}
 			logger.error({ err }, `[review] Auto PR failed for "${cardDesc60}":`);
-			await appendActivityLog(workspaceId, card.id, `Auto PR failed: ${String(err)}`);
+			await appendActivityLog(workspaceId, card.id, `Auto PR failed: ${String(err)} → Blocked`);
+			await moveCard(workspaceId, card.id, "blocked");
+			stateHub.broadcastWorkspaceUpdate(workspaceId);
 		}
-		stateHub.broadcastWorkspaceUpdate(workspaceId);
 	}
 }
 
