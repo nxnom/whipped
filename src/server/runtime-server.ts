@@ -1,10 +1,12 @@
 import { existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as nodePty from "node-pty";
 import { WebSocketServer } from "ws";
 import { writeClaudeCompanionSettings, writeClaudeTaskHookSettings } from "../agents/agent-hooks.js";
+import { ensureClaudeTrusted } from "../agents/trust.js";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { tunnelManager } from "../tunnel/cloudflare-tunnel.js";
 import { exchangeCodeForBotToken } from "../slack/slack-setup.js";
@@ -121,6 +123,14 @@ export async function createRuntimeServer(options: ServerOptions) {
 
 	// Open SQLite DB and run pending migrations before anything else touches state.
 	openDb();
+
+	// Pre-accept claude's per-folder trust dialog for the whipped home dir, once per
+	// startup, so a freshly-spawned session never blocks on it. Trust cascades to
+	// subdirectories, covering every worktree/workspace created under it. Worktrees
+	// always live under ~/.whipped/worktrees (git/merge-operations.ts) even when
+	// WHIPPED_HOME_DIR is overridden, so that root is trusted too.
+	ensureClaudeTrusted(WHIPPED_HOME_DIR);
+	ensureClaudeTrusted(join(homedir(), ".whipped"));
 
 	// Load the machine token into memory before any agent/hook can call back in.
 	setMachineToken(await getOrCreateMachineToken());

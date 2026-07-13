@@ -2,6 +2,7 @@ import * as nodePty from "node-pty";
 import treeKill from "tree-kill";
 import type { EffortLevel, RuntimeAgentId } from "../core/api-contract.js";
 import { buildAgentArgs, getAgentCommand } from "./agent-registry.js";
+import { ensureCodexTrusted } from "./trust.js";
 
 export interface AgentRunOptions {
 	agentId: RuntimeAgentId;
@@ -37,6 +38,10 @@ export interface AgentProcess {
 
 export function spawnAgent(options: AgentRunOptions): AgentProcess {
 	const { agentId, prompt, cwd, env, mode = "interactive", onOutput, onExit } = options;
+
+	// Unlike claude, codex trusts folders by exact path only (no parent-folder cascade),
+	// so each fresh worktree cwd needs its own pre-trust write right before spawn.
+	if (agentId === "codex") ensureCodexTrusted(cwd);
 
 	const command = getAgentCommand(agentId);
 	const args = buildAgentArgs(agentId, prompt, {
