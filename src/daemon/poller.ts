@@ -154,7 +154,11 @@ async function resolvePRConflicts(
 					await pushBranch(worktreePath, taskBranch);
 					await appendActivityLog(workspaceId, card.id, `PR conflicts resolved → pushed`);
 				} catch (err) {
-					await appendActivityLog(workspaceId, card.id, `PR conflicts resolved, but push failed: ${String(err)} → Blocked`);
+					await appendActivityLog(
+						workspaceId,
+						card.id,
+						`PR conflicts resolved, but push failed: ${String(err)} → Blocked`,
+					);
 					await moveCard(workspaceId, card.id, "blocked");
 				}
 			} else {

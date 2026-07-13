@@ -706,7 +706,10 @@ async function handleReviewSuccess(card: RuntimeBoardCard, options: ReviewPipeli
 						await appendActivityLog(workspaceId, card.id, "PR branch conflicts resolved → pushed");
 						await finishAutoPR();
 					} catch (retryErr) {
-						logger.error({ err: retryErr }, `[review] Auto PR push failed after conflict resolution for "${cardDesc60}":`);
+						logger.error(
+							{ err: retryErr },
+							`[review] Auto PR push failed after conflict resolution for "${cardDesc60}":`,
+						);
 						await appendActivityLog(
 							workspaceId,
 							card.id,
