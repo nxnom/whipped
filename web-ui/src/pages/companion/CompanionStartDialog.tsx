@@ -1,8 +1,8 @@
-import { RHFInput, RHFSelect, RHFSwitch, Select, SelectOption, toast } from "@geckoui/geckoui";
+import { ConfirmDialog, RHFInput, RHFSelect, RHFSwitch, Select, SelectOption, toast } from "@geckoui/geckoui";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DEFAULT_AGENT_MODEL_CHOICE, type AgentModelChoice, type Workflow } from "@runtime-contract";
 import { type CompanionStartForm, companionStartFormSchema } from "@runtime-validation/companion";
-import { FileText, GitBranch, Workflow as WorkflowIcon, X } from "lucide-react";
+import { FileText, GitBranch, Trash2, Workflow as WorkflowIcon, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { AgentModelPicker } from "@/components/AgentModelPicker";
@@ -151,7 +151,33 @@ export function CompanionStartDialog({
 								>
 									<SelectOption value="" label="None — start fresh" />
 									{savedCanvases.map((p) => (
-										<SelectOption key={p.id} value={p.id} label={p.title} onRemove={() => onDeleteSavedCanvas(p.id)} />
+										<SelectOption key={p.id} value={p.id} label={p.title}>
+											{() => (
+												<div className="flex items-center justify-between gap-2 w-full">
+													<span className="truncate">{p.title}</span>
+													<button
+														type="button"
+														onClick={(e) => {
+															e.stopPropagation();
+															ConfirmDialog.show({
+																title: "Delete saved canvas",
+																content: `Delete "${p.title}"? This can't be undone.`,
+																confirmButtonLabel: "Delete",
+																cancelButtonLabel: "Cancel",
+																onConfirm: async ({ dismiss }) => {
+																	await onDeleteSavedCanvas(p.id);
+																	dismiss();
+																},
+															});
+														}}
+														className="shrink-0 flex items-center justify-center w-5 h-5 rounded hover:bg-[#ff3b4d20] transition-colors text-whip-faint hover:text-[#ff3b4d]"
+														title="Delete saved canvas"
+													>
+														<Trash2 size={11} />
+													</button>
+												</div>
+											)}
+										</SelectOption>
 									))}
 								</Select>
 							</div>
