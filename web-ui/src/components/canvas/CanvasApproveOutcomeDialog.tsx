@@ -80,15 +80,15 @@ export function CanvasApproveOutcomeDialog({
 				<LoadingButton
 					variant="outlined"
 					size="sm"
-					onClick={onDelete}
-					loading={deleting}
-					loadingText="Deleting..."
-					disabled={saving}
+					onClick={onSave}
+					loading={saving}
+					loadingText="Saving..."
+					disabled={deleting}
 				>
-					Delete
-				</LoadingButton>
-				<LoadingButton size="sm" onClick={onSave} loading={saving} loadingText="Saving..." disabled={deleting}>
 					Save
+				</LoadingButton>
+				<LoadingButton size="sm" onClick={onDelete} loading={deleting} loadingText="Deleting..." disabled={saving}>
+					Delete
 				</LoadingButton>
 			</div>
 		</div>
