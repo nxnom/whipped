@@ -1,6 +1,6 @@
-import { Tooltip } from "@geckoui/geckoui";
+import { LoadingButton, Tooltip } from "@geckoui/geckoui";
 import type { CompanionSession } from "@runtime-contract";
-import { Columns2, OctagonX, TerminalSquare } from "lucide-react";
+import { Columns2, OctagonX, Play, TerminalSquare } from "lucide-react";
 import { useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { classNames } from "@/utils/classNames";
@@ -13,10 +13,14 @@ export function CompanionSessionDetail({
 	session,
 	workspaceId,
 	onStopSession,
+	onResumeSession,
+	resuming,
 }: {
 	session: CompanionSession;
 	workspaceId: string;
 	onStopSession: () => void;
+	onResumeSession: () => void;
+	resuming: boolean;
 }) {
 	const [tab, setTab] = useState<DetailTab>("terminal");
 	const canvas = useCompanionCanvas(session.id, workspaceId);
@@ -68,12 +72,21 @@ export function CompanionSessionDetail({
 			    keyed by session id, so the terminal always stays mounted underneath the
 			    diff tab (unmounting would drop scrollback and require reconnecting). */}
 			<div className="flex-1 min-h-0 flex">
-				<TaskTerminal
-					key={session.id}
-					taskId={session.id}
-					workspaceId={workspaceId}
-					className={classNames("flex-1 min-h-0", tab !== "terminal" && "hidden")}
-				/>
+				<div className={classNames("relative flex-1 min-h-0", tab !== "terminal" && "hidden")}>
+					<TaskTerminal key={session.id} taskId={session.id} workspaceId={workspaceId} className="absolute inset-0" />
+					{/* Selecting a stopped session never auto-relaunches the agent — resuming
+					    is an explicit choice since it opens the CLI's own picker/continue UI. */}
+					{session.status === "stopped" && (
+						<div className="absolute inset-0 flex items-center justify-center bg-whip-bg/70">
+							<LoadingButton onClick={onResumeSession} loading={resuming} loadingText="Resuming...">
+								<span className="flex items-center gap-1.5">
+									<Play size={13} />
+									Resume session
+								</span>
+							</LoadingButton>
+						</div>
+					)}
+				</div>
 				{tab === "terminal" && (
 					<CanvasPanelBody sessionId={session.id} canvas={canvas} readOnly={session.status !== "running"} />
 				)}

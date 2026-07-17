@@ -24,7 +24,7 @@ export function CompanionPage() {
 	const workflows = state?.projectConfig.workflows ?? [];
 	const hasStartCommand = Boolean(state?.projectConfig.startCommand);
 
-	const { list, stop, discard } = useCompanionSessions(wsId);
+	const { list, stop, discard, resume } = useCompanionSessions(wsId);
 	const sessionsLoaded = list.data !== undefined;
 	const sessions = list.data ?? [];
 	const selected = sessions.find((s) => s.id === sessionId) ?? null;
@@ -76,6 +76,16 @@ export function CompanionPage() {
 		// killed session as still running and bounce back to its dead terminal.
 		await list.trigger();
 		navigate(`/${encodeURIComponent(wsId)}/companion`, { replace: true });
+	};
+
+	const handleResume = async () => {
+		if (!selected) return;
+		const res = await resume.trigger({ params: { id: selected.id }, body: { workspaceId: wsId } });
+		if (res.error) {
+			toast.error("Failed to resume session");
+			return;
+		}
+		void list.trigger();
 	};
 
 	const handleDiscard = async () => {
@@ -139,7 +149,13 @@ export function CompanionPage() {
 							<Loader2 size={20} className="animate-spin text-whip-faint" />
 						</div>
 					) : selected ? (
-						<CompanionSessionDetail session={selected} workspaceId={wsId} onStopSession={() => void handleStop()} />
+						<CompanionSessionDetail
+							session={selected}
+							workspaceId={wsId}
+							onStopSession={() => void handleStop()}
+							onResumeSession={() => void handleResume()}
+							resuming={resume.loading}
+						/>
 					) : (
 						<div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-6 overflow-y-auto py-8">
 							<div className="flex items-center justify-center size-16 rounded-full bg-whip-accent/10 shrink-0">

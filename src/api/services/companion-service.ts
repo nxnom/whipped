@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import {
 	DEFAULT_AGENT_MODEL_CHOICE,
 	type CompanionSession,
@@ -74,6 +75,21 @@ export async function createCompanionSessionEntry(
 export async function stopCompanionSessionEntry(id: string, scheduler: TaskScheduler | undefined): Promise<void> {
 	if (!getCompanionSession(id)) throw NotFoundError("Companion session");
 	await scheduler?.stopCompanionAgent(id);
+}
+
+// Relaunches a stopped session's agent process into its own resume/continue UI
+// (see scheduler.resumeCompanionAgent) rather than starting fresh. Only valid for
+// "stopped" sessions whose worktree is still on disk — merged/discarded sessions
+// have already had theirs removed, and a running/installing session has nothing
+// to resume into.
+export async function resumeCompanionSessionEntry(id: string, scheduler: TaskScheduler): Promise<void> {
+	const session = getCompanionSession(id);
+	if (!session) throw NotFoundError("Companion session");
+	if (session.status !== "stopped") throw BadRequestError("Only a stopped session can be resumed");
+	if (!session.worktreePath || !existsSync(session.worktreePath)) {
+		throw BadRequestError("This session's worktree no longer exists");
+	}
+	await scheduler.resumeCompanionAgent(session);
 }
 
 // Stops the session (if live), removes its worktree/branch entirely, and

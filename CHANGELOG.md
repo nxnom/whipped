@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.9.7] - 2026-07-17
+
+### Added
+- **Resume a companion session** — a stopped session's worktree used to be a dead end. A "Resume
+  session" button now relaunches the agent into its own resume/continue UI in that same
+  worktree — claude and cursor open their interactive session picker, codex opens its `resume`
+  picker, and opencode/mimo continue their last session — instead of starting over from scratch.
+  Selecting a stopped session never resumes it automatically; the button only appears over the
+  terminal once you're looking at it.
+- **Delete a saved canvas** from the "Start from saved canvas" picker in the New Companion Session
+  dialog — there was previously no way to remove one from the library.
+
+### Changed
+- **Canvas approve dialog** — Delete is now the primary (filled) button and Save the secondary
+  (outlined) one, since discarding the canvas history is the more common choice there.
+
 ## [0.9.6] - 2026-07-13
 
 ### Added

@@ -16,6 +16,7 @@ import {
 	discardCompanionSessionEntry,
 	getCompanionSessionEntry,
 	listCompanionSessionsEntry,
+	resumeCompanionSessionEntry,
 	stopCompanionSessionEntry,
 } from "../services/companion-service.js";
 import type { AppEnv } from "../types/context.js";
@@ -62,6 +63,20 @@ export const companionSessionsController = new Hono<AppEnv>()
 			const { workspaceId } = c.req.valid("json");
 			const ws = await ctx.ensureWorkspace(workspaceId);
 			await discardCompanionSessionEntry(id, ws.repoPath, ctx.getScheduler(workspaceId));
+			return c.json({ ok: true });
+		},
+	)
+	.post(
+		"/:id/resume",
+		zv("param", z.object({ id: z.string() })),
+		zv("json", z.object({ workspaceId: z.string() })),
+		async (c) => {
+			const ctx = c.var.ctx;
+			const { id } = c.req.valid("param");
+			const { workspaceId } = c.req.valid("json");
+			const scheduler = ctx.getScheduler(workspaceId);
+			if (!scheduler) throw NotFoundError("Workspace");
+			await resumeCompanionSessionEntry(id, scheduler);
 			return c.json({ ok: true });
 		},
 	)

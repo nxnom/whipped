@@ -26,6 +26,8 @@ export interface AgentRunOptions {
 	model?: string | null;
 	// Run the agent read-only (no file writes / shell) — enforced per binary in buildAgentArgs.
 	readOnly?: boolean;
+	// Relaunch into the binary's own session-resume UI instead of a fresh conversation.
+	resume?: boolean;
 	onOutput: (data: string) => void;
 	onExit: (exitCode: number) => void;
 }
@@ -56,6 +58,7 @@ export function spawnAgent(options: AgentRunOptions): AgentProcess {
 		effort: options.effort,
 		model: options.model,
 		readOnly: options.readOnly,
+		resume: options.resume,
 	});
 
 	const spawnEnv: Record<string, string> = {

@@ -193,6 +193,12 @@ export interface AgentArgsContext {
 	// claude → --disallowedTools; opencode → the built-in read-only `plan` agent.
 	// codex/cursor have no clean flag, so they fall back to prompt-only enforcement.
 	readOnly?: boolean;
+	// Relaunch into the binary's own session-resume UI instead of starting a fresh
+	// conversation. No session id is tracked — each binary's picker (or, for
+	// opencode/mimo which have none, --continue) is scoped to cwd, and the companion
+	// session's cwd is already a dedicated worktree, so it naturally lands on the
+	// right history. Only meaningful in interactive mode.
+	resume?: boolean;
 }
 
 // Claude tools withheld in read-only mode — everything that can mutate the repo.
@@ -221,7 +227,13 @@ export function buildAgentArgs(agentId: RuntimeAgentId, prompt: string, ctx: Age
 				for (const f of ctx.files) args.push("--file", f);
 			}
 			if (ctx.effort) args.push("--effort", ctx.effort);
-			if (mode === "interactive" && prompt.trim()) args.push(prompt);
+			// No session id tracked — bare --resume opens claude's own interactive
+			// picker (scoped to this cwd) instead of sending a fresh message.
+			if (mode === "interactive" && ctx.resume) {
+				args.push("--resume");
+			} else if (mode === "interactive" && prompt.trim()) {
+				args.push(prompt);
+			}
 			return args;
 		}
 		case "codex": {
@@ -239,6 +251,10 @@ export function buildAgentArgs(agentId: RuntimeAgentId, prompt: string, ctx: Age
 			if (ctx.model) args.push("-m", ctx.model);
 			if (mode === "print") {
 				args.push("exec", "--dangerously-bypass-approvals-and-sandbox", prompt);
+			} else if (ctx.resume) {
+				// No session id tracked — bare `resume` opens codex's own interactive
+				// picker, cwd-scoped by default, instead of sending a fresh message.
+				args.push("resume", "--dangerously-bypass-approvals-and-sandbox");
 			} else {
 				args.push("--dangerously-bypass-approvals-and-sandbox");
 				if (prompt.trim()) args.push(prompt);
@@ -284,7 +300,15 @@ export function buildAgentArgs(agentId: RuntimeAgentId, prompt: string, ctx: Age
 			// mimo-only: auto-decide without prompting and trust the workspace.
 			if (agentId === "mimo") args.push("--never-ask", "--trust");
 			if (ctx.model) args.push("-m", ctx.model);
-			if (prompt.trim()) args.push("--prompt", prompt);
+			// No interactive resume picker (and no session id tracked) — --continue
+			// deterministically reattaches to the most recent session for this cwd,
+			// which is this companion session's own history since each one gets a
+			// dedicated worktree.
+			if (ctx.resume) {
+				args.push("--continue");
+			} else if (prompt.trim()) {
+				args.push("--prompt", prompt);
+			}
 			return args;
 		}
 		case "cursor": {
@@ -296,6 +320,9 @@ export function buildAgentArgs(agentId: RuntimeAgentId, prompt: string, ctx: Age
 			const fullPrompt = ctx.appendSystemPrompt ? `${ctx.appendSystemPrompt}\n\n${prompt}` : prompt;
 			if (mode === "print") {
 				args.push("-p", fullPrompt);
+			} else if (ctx.resume) {
+				// No session id tracked — bare --resume opens cursor's own interactive picker.
+				args.push("--resume");
 			} else {
 				if (fullPrompt.trim()) args.push(fullPrompt);
 			}

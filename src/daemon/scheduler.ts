@@ -332,7 +332,28 @@ export class TaskScheduler {
 		}
 	}
 
-	private async launchCompanionAgent(session: CompanionSession, cwd: string, isNewWorktree: boolean): Promise<void> {
+	// Relaunches a stopped session's agent process in its existing worktree —
+	// no worktree creation, no install step, and (unlike startCompanionAgent) the
+	// terminal buffer is left intact so prior scrollback stays visible alongside
+	// the resumed picker's output. Caller (companion-service) validates the
+	// session is "stopped" with a worktree still on disk before calling this.
+	async resumeCompanionAgent(session: CompanionSession): Promise<void> {
+		const taskId = session.id;
+		const cwd = session.worktreePath!;
+
+		const existing = this.companionSessions.get(taskId);
+		if (existing) existing.process.kill();
+
+		setCompanionSessionStatus(taskId, "running");
+		void this.launchCompanionAgent(session, cwd, false, true);
+	}
+
+	private async launchCompanionAgent(
+		session: CompanionSession,
+		cwd: string,
+		isNewWorktree: boolean,
+		resume = false,
+	): Promise<void> {
 		const { workspaceId, repoPath, serverUrl, stateHub } = this.options;
 		const taskId = session.id;
 		const agentId = session.agentId;
@@ -459,6 +480,7 @@ export class TaskScheduler {
 				model: session.model ?? null,
 				effort: session.effort ?? null,
 				appendSystemPrompt: isPluginConfigAgent(agentId) ? undefined : appendSystemPrompt,
+				resume,
 				onOutput: (data) => {
 					companionTask.outputBuffer += data;
 					stateHub.broadcastTerminalOutput(workspaceId, taskId, data);
