@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.10.0] - 2026-07-27
+
+### Added
+- **Pick a design by clicking it** — agents push UI options as one selectable canvas, instead of
+  mockups above a detached list of radio buttons.
+- **Delete a companion session from the list**, without opening it first.
+
+### Changed
+- **The canvas is ephemeral** — one per session, held in memory. A new push replaces it, sending or
+  approving clears it, and it's gone when the session ends. No history, no version selector.
+- **An open canvas takes over the terminal pane** for the full width; the "Terminal" toggle brings
+  the terminal back, still running underneath.
+- **Sending feedback returns you to the terminal**, as approving already did. "Send" is now "Send
+  feedback".
+- **The companion session list is a full-width table** — status, base branch, agent and last active,
+  with the header pinned. Sessions sharing an auto-generated name are finally tellable apart.
+- **Agents are told to keep visual work in the canvas**, not in artifacts or hosted previews.
+
+### Removed
+- **Saved canvas library** — the save tool, the "Start from saved canvas" pickers, and the
+  Save/Delete prompt on approve. A migration drops the stored canvases.
+
+### Fixed
+- **Session names rendered centred** in the past-session list — the row was a `<button>`.
+
 ## [0.9.8] - 2026-07-27
 
 ### Added
