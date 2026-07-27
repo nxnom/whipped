@@ -1066,6 +1066,23 @@ const questionLeafInputSchema = z.discriminatedUnion("kind", [
 		allowOther: z.boolean().optional(),
 		required: z.boolean().optional().describe(REQUIRED_FIELD_DESCRIPTION),
 	}),
+	// One agent-designed HTML canvas that IS the picker: every option's clickable
+	// root carries `data-whipped-value="<option value>"`, and the panel wires the
+	// clicks up itself. Use this instead of an `html` block followed by a
+	// detached `single_choice` — a developer choosing between UI directions
+	// should click the design, not a radio underneath it.
+	z.object({
+		kind: z.literal("visual_choice"),
+		name: z.string(),
+		label: z.string().optional(),
+		options: z.array(choiceOptionSchema),
+		body: z
+			.string()
+			.describe(
+				'Raw HTML for the whole chooser, rendered via dangerouslySetInnerHTML at runtime. Put `data-whipped-value="<the matching option value>"` on the clickable root of each design — the panel handles clicks, keyboard selection, and marking the chosen one with a `data-whipped-selected` attribute; a `<style>` rule on `[data-whipped-selected]` in this same body overrides the panel\'s default outline if you want a colour that contrasts better with your design. Do NOT draw your own checkmarks, badges, or selected-state chrome. Like every html block this is not compiled by the app\'s build-time Tailwind setup, so Tailwind utility classes produce no CSS — style it with inline style="..." attributes or a <style> block scoped to unique ids/classes you define here.',
+			),
+		required: z.boolean().optional().describe(REQUIRED_FIELD_DESCRIPTION),
+	}),
 	z.object({
 		kind: z.literal("text"),
 		name: z.string(),

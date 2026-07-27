@@ -1,17 +1,11 @@
 import { Checkbox, Input, Radio, Textarea } from "@geckoui/geckoui";
 import type { QuestionInput } from "@runtime-contract";
+import { RequiredMark } from "./RequiredMark";
 import type { CanvasAnswers } from "./types";
+import { VisualChoiceField } from "./VisualChoiceField";
 
 function titleCase(s: string): string {
 	return s.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
-}
-
-// The developer isn't blocked from sending without answering a required
-// question (see CanvasFeedbackComposer) — this just tells them the agent
-// considers it important, so a comment-only skip is a deliberate choice.
-export function RequiredMark({ required }: { required?: boolean }) {
-	if (!required) return null;
-	return <span className="text-[#ff3b4d]">*</span>;
 }
 
 function SingleChoiceField({
@@ -123,6 +117,14 @@ function LeafField({
 }) {
 	const label = input.label ?? titleCase(input.name);
 	switch (input.kind) {
+		case "visual_choice":
+			return (
+				<VisualChoiceField
+					input={{ ...input, label }}
+					value={answers[input.name] as string | undefined}
+					onChange={(v) => onAnswer(input.name, v)}
+				/>
+			);
 		case "single_choice":
 			return (
 				<SingleChoiceField

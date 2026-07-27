@@ -15,16 +15,16 @@ import type { CanvasAnswers, CanvasComment } from "./types";
 export function CanvasBody({
 	canvas,
 	sendFeedback,
-	onApprove,
+	onDismiss,
 	headerActions,
 	onClose,
 	hideHeader,
 }: {
 	canvas: CanvasDocument;
 	sendFeedback: (text: string) => Promise<void>;
-	// Clears the canvas once an approval has reached the agent — there's nothing
-	// left to act on, so the shell goes back to showing the terminal.
-	onApprove: () => Promise<void>;
+	// Clears the canvas once feedback (or an approval) has reached the agent —
+	// it's had its say, so the shell goes back to showing the terminal.
+	onDismiss: () => Promise<void>;
 	headerActions?: React.ReactNode;
 	// Fires once feedback actually lands. Shells that are a dismissable dialog
 	// (not a pane) can use this to close themselves.
@@ -134,7 +134,7 @@ export function CanvasBody({
 				answers={answers}
 				comments={comments}
 				sendFeedback={sendFeedback}
-				onApprove={onApprove}
+				onDismiss={onDismiss}
 				onSent={() => {
 					setAnswers({});
 					setComments([]);

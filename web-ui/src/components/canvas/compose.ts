@@ -24,7 +24,7 @@ function formatAnswer(input: QuestionInput, answers: CanvasAnswers): string[] {
 	const label = input.label ?? input.name;
 	const empty = value === undefined || (Array.isArray(value) && value.length === 0) || value === "";
 	if (empty) return [`- ${label}: (not answered)`];
-	if (input.kind === "single_choice") {
+	if (input.kind === "single_choice" || input.kind === "visual_choice") {
 		const opt = input.options.find((o) => o.value === value);
 		return [`- ${label}: ${opt?.label ?? value}`];
 	}

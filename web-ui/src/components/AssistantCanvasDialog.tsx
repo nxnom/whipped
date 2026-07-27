@@ -11,13 +11,13 @@ import { CanvasBody } from "@/components/canvas/CanvasBody";
 export function AssistantCanvasDialog({
 	canvas,
 	sendFeedback,
-	onApprove,
+	onDismiss,
 	open,
 	onClose,
 }: {
 	canvas: CanvasDocument;
 	sendFeedback: (text: string) => Promise<void>;
-	onApprove: () => Promise<void>;
+	onDismiss: () => Promise<void>;
 	open: boolean;
 	onClose: () => void;
 }) {
@@ -30,7 +30,7 @@ export function AssistantCanvasDialog({
 				<CanvasBody
 					canvas={canvas}
 					sendFeedback={sendFeedback}
-					onApprove={onApprove}
+					onDismiss={onDismiss}
 					onClose={onClose}
 					headerActions={
 						<button onClick={onClose} className="text-whip-faint hover:text-whip-text transition-colors">

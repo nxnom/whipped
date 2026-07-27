@@ -10,28 +10,33 @@ export function CanvasFeedbackComposer({
 	answers,
 	comments,
 	sendFeedback,
-	onApprove,
+	onDismiss,
 	onSent,
 }: {
 	blocks: CanvasBlock[];
 	answers: CanvasAnswers;
 	comments: CanvasComment[];
 	sendFeedback: (text: string) => Promise<void>;
-	onApprove: () => Promise<void>;
+	onDismiss: () => Promise<void>;
 	onSent: () => void;
 }) {
 	const [note, setNote] = useState("");
 	const [sending, setSending] = useState(false);
 
+	// The only gate on Send: something has to be staged, or the agent gets a
+	// message with nothing in it. Deliberately satisfied by an answer or a block
+	// comment alone, not just the note — picking a design or answering the
+	// questions IS the feedback, and demanding free text on top of that would
+	// mean typing "ok" to get past a field.
 	const hasContent = comments.length > 0 || note.trim().length > 0 || Object.keys(answers).length > 0;
 
-	// "required" is a signal to the agent, not an enforced UI gate — Send/Approve
-	// are never blocked. A developer who only wants to leave a comment (e.g.
-	// "none of these options fit, add one for X") has to be able to submit
-	// without picking a wrong answer just to satisfy a required field. The
-	// composed message always states unanswered questions explicitly (see
-	// compose.ts), so the agent can decide whether to re-ask in its next canvas
-	// rather than assuming silence means "resolved".
+	// A question's `required` flag is a signal to the agent, never an enforced
+	// gate — a developer who'd rather leave a comment ("none of these options
+	// fit, add one for X") must be able to submit without picking a wrong answer
+	// to satisfy it, and Approve stays available unconditionally. The composed
+	// message always states unanswered questions explicitly (see compose.ts), so
+	// the agent decides whether to re-ask rather than reading silence as
+	// "resolved".
 	const send = async (approved: boolean) => {
 		setSending(true);
 		try {
@@ -45,10 +50,12 @@ export function CanvasFeedbackComposer({
 		setSending(false);
 		onSent();
 
-		// Approving retires the canvas — the agent has the go-ahead and there's
-		// nothing left to answer. Clearing is local bookkeeping that happens after
-		// the approval already landed, so a failure here isn't a failed approval.
-		if (approved) await onApprove().catch(() => {});
+		// Sending anything retires the canvas: the message is with the agent, and
+		// what the developer wants next is the terminal, to watch it respond. A
+		// follow-up canvas takes its place when the agent pushes one. Clearing is
+		// local bookkeeping that happens after the message already landed, so a
+		// failure here isn't a failed send.
+		await onDismiss().catch(() => {});
 
 		toast.success(approved ? "Canvas approved" : "Feedback sent");
 	};
@@ -69,7 +76,7 @@ export function CanvasFeedbackComposer({
 				</Button>
 				<Button size="sm" disabled={!hasContent || sending} onClick={() => void send(false)}>
 					<span className="flex items-center gap-1.5">
-						<Send size={13} /> Send
+						<Send size={13} /> Send feedback
 					</span>
 				</Button>
 			</div>

@@ -2,7 +2,8 @@ import type { CanvasBlock } from "@runtime-contract";
 import { HtmlBlock } from "./HtmlBlock";
 import { MarkdownBlock } from "./MarkdownBlock";
 import { MermaidBlock } from "./MermaidBlock";
-import { QuestionBlock, RequiredMark } from "./QuestionBlock";
+import { QuestionBlock } from "./QuestionBlock";
+import { RequiredMark } from "./RequiredMark";
 import type { CanvasAnswers } from "./types";
 
 export function CanvasBlockRenderer({

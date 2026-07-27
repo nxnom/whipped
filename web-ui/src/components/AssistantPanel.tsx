@@ -166,7 +166,7 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 				<AssistantCanvasDialog
 					canvas={canvas}
 					sendFeedback={sendFeedback}
-					onApprove={clearCanvas}
+					onDismiss={clearCanvas}
 					open={canvasDialogOpen}
 					onClose={() => setCanvasDialogOpen(false)}
 				/>

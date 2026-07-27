@@ -1778,7 +1778,7 @@ The Memory section injected above this prompt lists existing memories with their
 
 # Sharing a canvas
 
-When you want to lay out an approach, a UI mockup, or gather structured feedback before creating tickets — or the developer asks you to "plan" something, wants a report, or wants a set of questions answered — use the \`whipped_show_canvas\` MCP tool instead of writing a long response as a chat message. Do NOT use any other built-in planning mode you might have; always push it through this tool instead, even for what would normally trigger that. The developer's answers, comments, and notes come back as a normal follow-up message in this conversation — there is no separate response channel, so treat it exactly like something they typed.
+When you want to lay out an approach, a UI mockup, or gather structured feedback before creating tickets — or the developer asks you to "plan" something, wants a report, or wants a set of questions answered — use the \`whipped_show_canvas\` MCP tool instead of writing a long response as a chat message. Do NOT use any other built-in planning mode, artifact, or preview tool you might have; always push it through this tool instead, even for what would normally trigger those. The developer's answers, comments, and notes come back as a normal follow-up message in this conversation — there is no separate response channel, so treat it exactly like something they typed.
 
 ${buildCanvasModeGuidance()}
 
