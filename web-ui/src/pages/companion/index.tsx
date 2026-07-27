@@ -1,14 +1,14 @@
 import { Button, ConfirmDialog, toast } from "@geckoui/geckoui";
+import type { CompanionSession } from "@runtime-contract";
 import { GitBranch, Loader2, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useWorkspaceState } from "@/stores/board-store";
 import { useRunSession } from "@/stores/run-session-store";
-import { classNames } from "@/utils/classNames";
 import { CompanionBar } from "./CompanionBar";
 import { CompanionSessionDetail } from "./CompanionSessionDetail";
+import { CompanionSessionTable } from "./CompanionSessionTable";
 import { CompanionStartDialog } from "./CompanionStartDialog";
-import { STATUS_DOT_CLASS, STATUS_LABEL } from "./constants";
 import { useCompanionActions } from "./useCompanionActions";
 import { useCompanionSessions } from "./useCompanionSessions";
 
@@ -86,29 +86,29 @@ export function CompanionPage() {
 		void list.trigger();
 	};
 
-	const handleDiscard = async () => {
-		if (!selected) return;
-		const res = await discard.trigger({ params: { id: selected.id }, body: { workspaceId: wsId } });
+	const handleDiscard = async (session: CompanionSession) => {
+		const res = await discard.trigger({ params: { id: session.id }, body: { workspaceId: wsId } });
 		if (res.error) {
 			toast.error("Failed to discard session");
 			return;
 		}
 		toast.success("Session deleted");
-		navigate(`/${encodeURIComponent(wsId)}/companion`, { replace: true });
+		// Deleting from the table leaves you on the table; only the open session
+		// disappearing needs to send you back to the list.
+		if (session.id === sessionId) navigate(`/${encodeURIComponent(wsId)}/companion`, { replace: true });
 		void list.trigger();
 	};
 
-	const confirmDiscard = () => {
-		if (!selected) return;
+	const confirmDiscard = (session: CompanionSession) => {
 		ConfirmDialog.show({
 			title: "Delete companion session",
-			content: selected.useWorktree
-				? `Permanently delete "${selected.name}"? This removes its worktree and branch — any uncommitted work is lost, and this cannot be undone.`
-				: `Permanently delete "${selected.name}"? Nothing was created on disk, but this cannot be undone.`,
+			content: session.useWorktree
+				? `Permanently delete "${session.name}"? This removes its worktree and branch — any uncommitted work is lost, and this cannot be undone.`
+				: `Permanently delete "${session.name}"? Nothing was created on disk, but this cannot be undone.`,
 			confirmButtonLabel: "Delete",
 			cancelButtonLabel: "Cancel",
 			onConfirm: ({ dismiss }) => {
-				void handleDiscard();
+				void handleDiscard(session);
 				dismiss();
 			},
 			onCancel: ({ dismiss }) => dismiss(),
@@ -154,15 +154,22 @@ export function CompanionPage() {
 							onResumeSession={() => void handleResume()}
 							resuming={resume.loading}
 						/>
+					) : sessions.length > 0 ? (
+						<div className="flex-1 min-h-0">
+							<CompanionSessionTable
+								sessions={sessions}
+								onSelect={select}
+								onNewSession={() => setDialogOpen(true)}
+								onDelete={confirmDiscard}
+							/>
+						</div>
 					) : (
-						<div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-6 overflow-y-auto py-8">
+						<div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-6">
 							<div className="flex items-center justify-center size-16 rounded-full bg-whip-accent/10 shrink-0">
 								<GitBranch size={28} className="text-whip-accent" />
 							</div>
 							<div className="flex flex-col gap-1 shrink-0">
-								<span className="text-[16px] font-semibold text-whip-text">
-									{sessions.length ? "Start a new session" : "No companion sessions yet"}
-								</span>
+								<span className="text-[16px] font-semibold text-whip-text">No companion sessions yet</span>
 								<span className="text-[13px] text-whip-faint">
 									Pair directly with a coding agent in its own isolated worktree.
 								</span>
@@ -172,29 +179,6 @@ export function CompanionPage() {
 									<Plus size={14} /> New session
 								</span>
 							</Button>
-
-							{sessions.length > 0 && (
-								<div className="shrink-0 w-full max-w-[420px] flex flex-col gap-2 text-left mt-2">
-									<span className="text-[11px] font-semibold text-whip-faint px-0.5">Or open a past session</span>
-									<div className="flex flex-col gap-1 rounded-lg border border-whip-border bg-whip-surface p-1.5 max-h-[280px] overflow-y-auto">
-										{[...sessions]
-											.sort((a, b) => b.updatedAt - a.updatedAt)
-											.map((s) => (
-												<button
-													key={s.id}
-													onClick={() => select(s.id)}
-													className="flex items-center gap-2.5 rounded-md px-2.5 py-2 hover:bg-whip-panel transition-colors"
-												>
-													<span className={classNames("size-1.5 rounded-full shrink-0", STATUS_DOT_CLASS[s.status])} />
-													<span className="flex-1 min-w-0 text-[13px] font-semibold text-whip-text truncate">
-														{s.name}
-													</span>
-													<span className="shrink-0 text-[11px] text-whip-faint">{STATUS_LABEL[s.status]}</span>
-												</button>
-											))}
-									</div>
-								</div>
-							)}
 						</div>
 					)}
 				</div>
@@ -212,7 +196,7 @@ export function CompanionPage() {
 						canMerge={canMerge}
 						onMerge={handleMerge}
 						onCreatePR={handleCreatePR}
-						onDelete={confirmDiscard}
+						onDelete={() => confirmDiscard(selected)}
 					/>
 				)}
 			</div>
