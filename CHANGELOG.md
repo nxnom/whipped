@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.9.8] - 2026-07-27
+
+### Added
+- **Opus 5** added to the Claude model presets.
+
 ## [0.9.7] - 2026-07-17
 
 ### Added
