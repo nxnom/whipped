@@ -1,13 +1,12 @@
-import { ConfirmDialog, RHFInput, RHFSelect, RHFSwitch, Select, SelectOption, toast } from "@geckoui/geckoui";
+import { RHFInput, RHFSelect, RHFSwitch, SelectOption, toast } from "@geckoui/geckoui";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DEFAULT_AGENT_MODEL_CHOICE, type AgentModelChoice, type Workflow } from "@runtime-contract";
 import { type CompanionStartForm, companionStartFormSchema } from "@runtime-validation/companion";
-import { FileText, GitBranch, Trash2, Workflow as WorkflowIcon, X } from "lucide-react";
+import { GitBranch, Workflow as WorkflowIcon, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { AgentModelPicker } from "@/components/AgentModelPicker";
 import { BranchSelect } from "@/components/BranchSelect";
-import { useSavedCanvases } from "@/components/canvas/useSavedCanvases";
 import { useRead } from "@/runtime/api-client";
 import { useCompanionSessions } from "./useCompanionSessions";
 
@@ -55,18 +54,9 @@ export function CompanionStartDialog({
 	const { control, setValue } = methods;
 
 	const { create } = useCompanionSessions(workspaceId);
-	const { list: savedCanvasesList, remove: removeSavedCanvas } = useSavedCanvases(workspaceId);
-	const savedCanvases = savedCanvasesList.data?.canvases ?? [];
-	const [savedCanvasId, setSavedCanvasId] = useState("");
 
 	const onWorkflowChange = (id: string) => {
 		setModel(modelFromWorkflow(taskWorkflows.find((w) => w.id === id)));
-	};
-
-	const onDeleteSavedCanvas = async (id: string) => {
-		await removeSavedCanvas.trigger({ params: { id } });
-		if (savedCanvasId === id) setSavedCanvasId("");
-		void savedCanvasesList.trigger();
 	};
 
 	const baseRef = useWatch({ control, name: "baseRef" });
@@ -81,7 +71,6 @@ export function CompanionStartDialog({
 				branchName: v.useWorktree ? v.branchName.trim() : undefined,
 				workflowId: v.workflowId || undefined,
 				model,
-				savedCanvasId: savedCanvasId || undefined,
 			},
 		});
 		if (res.error || !res.data) {
@@ -137,49 +126,6 @@ export function CompanionStartDialog({
 							<div className="flex flex-col gap-1.5">
 								<FieldLabel>Branch name</FieldLabel>
 								<RHFInput name="branchName" placeholder="e.g. fix/pagination-bug" prefix={<GitBranch size={13} />} />
-							</div>
-						)}
-
-						{savedCanvases.length > 0 && (
-							<div className="flex flex-col gap-1.5">
-								<FieldLabel>Start from saved canvas (optional)</FieldLabel>
-								<Select
-									value={savedCanvasId}
-									onChange={(v) => setSavedCanvasId(v as string)}
-									placeholder="None — start fresh"
-									prefix={<FileText size={13} className="text-whip-muted" />}
-								>
-									<SelectOption value="" label="None — start fresh" />
-									{savedCanvases.map((p) => (
-										<SelectOption key={p.id} value={p.id} label={p.title}>
-											{() => (
-												<div className="flex items-center justify-between gap-2 w-full">
-													<span className="truncate">{p.title}</span>
-													<button
-														type="button"
-														onClick={(e) => {
-															e.stopPropagation();
-															ConfirmDialog.show({
-																title: "Delete saved canvas",
-																content: `Delete "${p.title}"? This can't be undone.`,
-																confirmButtonLabel: "Delete",
-																cancelButtonLabel: "Cancel",
-																onConfirm: async ({ dismiss }) => {
-																	await onDeleteSavedCanvas(p.id);
-																	dismiss();
-																},
-															});
-														}}
-														className="shrink-0 flex items-center justify-center w-5 h-5 rounded hover:bg-[#ff3b4d20] transition-colors text-whip-faint hover:text-[#ff3b4d]"
-														title="Delete saved canvas"
-													>
-														<Trash2 size={11} />
-													</button>
-												</div>
-											)}
-										</SelectOption>
-									))}
-								</Select>
 							</div>
 						)}
 

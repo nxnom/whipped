@@ -6,8 +6,6 @@ import {
 } from "../../core/api-contract.js";
 import { resolvePromptText } from "../../core/prompt-resolver.js";
 import type { TaskScheduler } from "../../daemon/scheduler.js";
-import { createCompanionCanvas } from "../../state/companion-canvases-store.js";
-import { getCompanionSavedCanvas } from "../../state/companion-saved-canvases-store.js";
 import {
 	createCompanionSession,
 	deleteCompanionSession,
@@ -50,8 +48,7 @@ export async function createCompanionSessionEntry(
 			? { agentId: suggestedPair.binary, model: suggestedPair.model, effort: suggestedPair.effort }
 			: DEFAULT_AGENT_MODEL_CHOICE);
 
-	const savedCanvas = req.savedCanvasId ? getCompanionSavedCanvas(req.savedCanvasId) : null;
-	const name = req.name?.trim() || savedCanvas?.title || (useWorktree ? branchName! : "Main repo session");
+	const name = req.name?.trim() || (useWorktree ? branchName! : "Main repo session");
 
 	const session = createCompanionSession(workspaceId, {
 		name,
@@ -63,10 +60,7 @@ export async function createCompanionSessionEntry(
 		agentId: model.agentId ?? "claude",
 		model: model.model ?? null,
 		effort: model.effort ?? null,
-		savedCanvasId: savedCanvas?.id ?? null,
 	});
-
-	if (savedCanvas) createCompanionCanvas(session.id, workspaceId, savedCanvas.blocks);
 
 	await scheduler.startCompanionAgent(session);
 	return getCompanionSession(session.id) ?? session;

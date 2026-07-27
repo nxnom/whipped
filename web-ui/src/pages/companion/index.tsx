@@ -2,7 +2,6 @@ import { Button, ConfirmDialog, toast } from "@geckoui/geckoui";
 import { GitBranch, Loader2, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useCanvasVersions } from "@/components/canvas/useCanvasVersions";
 import { useWorkspaceState } from "@/stores/board-store";
 import { useRunSession } from "@/stores/run-session-store";
 import { classNames } from "@/utils/classNames";
@@ -38,7 +37,6 @@ export function CompanionPage() {
 	const initializing = !sessionsLoaded || (!sessionId && !!activeSession);
 
 	const { session: runSession, startCompanion: startProjectRun, stop: stopProjectRun } = useRunSession(wsId);
-	const { canvases } = useCanvasVersions(wsId, selected?.id ?? "");
 	const {
 		merging: _merging,
 		handleMerge,
@@ -207,7 +205,6 @@ export function CompanionPage() {
 						sessions={sessions}
 						onSelectSession={select}
 						onNewSession={() => setDialogOpen(true)}
-						canvasVersion={canvases[0]?.version ?? null}
 						hasStartCommand={hasStartCommand}
 						projectRunActive={runSession.status === "running" && runSession.cardId === selected.id}
 						onRunProject={() => void handleRunProject()}

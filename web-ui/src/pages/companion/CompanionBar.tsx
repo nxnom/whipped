@@ -9,7 +9,6 @@ interface CompanionBarProps {
 	sessions: CompanionSession[];
 	onSelectSession: (id: string) => void;
 	onNewSession: () => void;
-	canvasVersion: number | null;
 	hasStartCommand: boolean;
 	projectRunActive: boolean;
 	onRunProject: () => void;
@@ -58,7 +57,6 @@ export function CompanionBar({
 	sessions,
 	onSelectSession,
 	onNewSession,
-	canvasVersion,
 	hasStartCommand,
 	projectRunActive,
 	onRunProject,
@@ -116,12 +114,6 @@ export function CompanionBar({
 				<>
 					<Divider />
 					<Chip>{modelChip}</Chip>
-				</>
-			)}
-			{canvasVersion !== null && (
-				<>
-					<Divider />
-					<Chip>canvas v{canvasVersion}</Chip>
 				</>
 			)}
 

@@ -1,5 +1,5 @@
-import { DEFAULT_GIT_INSTRUCTIONS, type CanvasBlock, type RuntimeProjectSecret } from "../core/api-contract.js";
-import { buildCanvasModeGuidance, serializeCanvasBlocksForPrompt } from "./canvas-mode-prompt.js";
+import { DEFAULT_GIT_INSTRUCTIONS, type RuntimeProjectSecret } from "../core/api-contract.js";
+import { buildCanvasModeGuidance } from "./canvas-mode-prompt.js";
 import { formatDiffBlock, getGitFullDiff, getGitStat } from "../git/git-diff-utils.js";
 import { buildMemoryContext } from "../state/memory-store.js";
 import { buildSecretsSection } from "./review-pipeline.js";
@@ -18,7 +18,6 @@ export function buildCompanionAgentSystemPrompt(
 	systemPrompt?: string,
 	gitInstructions?: string,
 	seedPrompt?: string,
-	resumedCanvas?: { title: string; blocks: CanvasBlock[] },
 ): string {
 	const effectiveGitInstructions = gitInstructions?.trim() || DEFAULT_GIT_INSTRUCTIONS;
 
@@ -41,14 +40,6 @@ Work incrementally and check in with the developer as you go rather than disappe
 When the developer asks you to "plan" something, wants to see a report, findings, or a set of questions answered — or you want to lay out an approach before starting — use the \`whipped_show_canvas\` MCP tool. That's what "plan" (and requests like it) means in this session: push it to the canvas, don't just describe it in chat. Do NOT use any other built-in planning mode you might have; always push through this tool instead, even for what would normally trigger that. Push markdown, raw HTML, mermaid diagrams, and interactive questions — instead of writing a long response as a chat message — whenever you want structured feedback. The developer's answers, comments, and notes come back as a normal follow-up message in this conversation — there is no separate response channel, so treat it exactly like something they typed.
 
 ${buildCanvasModeGuidance()}`);
-
-	if (resumedCanvas) {
-		parts.push(`## Resuming a saved canvas
-
-This session was started from a previously saved canvas titled "${resumedCanvas.title}". Its content is shown in full below — the developer can already see this in their canvas as version 1, but you cannot read it back, so this is the only place you'll see it. Treat it as the current state of the work: continue from here rather than re-planning from scratch, and call \`whipped_save_canvas\` again as you make further progress so the saved canvas stays in sync with what's actually done.
-
-${serializeCanvasBlocksForPrompt(resumedCanvas.blocks)}`);
-	}
 
 	if (seedPrompt?.trim()) parts.push(`## Project-specific instructions\n\n${seedPrompt.trim()}`);
 

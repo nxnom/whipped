@@ -41,14 +41,13 @@ function formatAnswer(input: QuestionInput, answers: CanvasAnswers): string[] {
 // an explicit go-ahead marker without discarding whatever else was staged —
 // approving and leaving feedback aren't mutually exclusive.
 export function composeCanvasFeedbackMessage(
-	version: number,
 	blocks: CanvasBlock[],
 	answers: CanvasAnswers,
 	comments: CanvasComment[],
 	note: string,
 	approved: boolean,
 ): string {
-	const sections: string[] = [`## Feedback on canvas v${version}`];
+	const sections: string[] = ["## Feedback on canvas"];
 
 	if (approved) sections.push("**Approved — go ahead.**");
 

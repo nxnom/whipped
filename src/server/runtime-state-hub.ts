@@ -140,7 +140,7 @@ export class RuntimeStateHub {
 		this.broadcastToWorkspace(workspaceId, { type: "run_session_changed", cardId, status, errorMessage });
 	}
 
-	broadcastCompanionCanvasUpdate(workspaceId: WorkspaceId, sessionId: string, canvas: CanvasDocument): void {
+	broadcastCompanionCanvasUpdate(workspaceId: WorkspaceId, sessionId: string, canvas: CanvasDocument | null): void {
 		this.broadcastToWorkspace(workspaceId, { type: "companion_canvas_updated", sessionId, canvas });
 	}
 

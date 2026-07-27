@@ -27,7 +27,7 @@ export function CompanionSessionDetail({
 
 	return (
 		<div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-			{/* Tab bar — canvas title/version-selector shares this row instead of its own strip */}
+			{/* Tab bar — the canvas title/toggle shares this row instead of its own strip */}
 			<div className="flex items-center justify-between shrink-0 bg-whip-bg border-b border-whip-border pl-5 pr-3">
 				<div className="flex">
 					{(
@@ -70,9 +70,11 @@ export function CompanionSessionDetail({
 
 			{/* Tab content — a companion session is a single persistent terminal stream,
 			    keyed by session id, so the terminal always stays mounted underneath the
-			    diff tab (unmounting would drop scrollback and require reconnecting). */}
+			    diff tab and the canvas (unmounting would drop scrollback and require
+			    reconnecting). An open canvas takes the pane over entirely; the header's
+			    Terminal toggle collapses it to bring the terminal back. */}
 			<div className="flex-1 min-h-0 flex">
-				<div className={classNames("relative flex-1 min-h-0", tab !== "terminal" && "hidden")}>
+				<div className={classNames("relative flex-1 min-h-0", (tab !== "terminal" || canvas.open) && "hidden")}>
 					<TaskTerminal key={session.id} taskId={session.id} workspaceId={workspaceId} className="absolute inset-0" />
 					{/* Selecting a stopped session never auto-relaunches the agent — resuming
 					    is an explicit choice since it opens the CLI's own picker/continue UI. */}
@@ -87,9 +89,7 @@ export function CompanionSessionDetail({
 						</div>
 					)}
 				</div>
-				{tab === "terminal" && (
-					<CanvasPanelBody sessionId={session.id} canvas={canvas} readOnly={session.status !== "running"} />
-				)}
+				{tab === "terminal" && <CanvasPanelBody canvas={canvas} />}
 				{tab === "diff" && <CompanionDiffPanel sessionId={session.id} />}
 			</div>
 		</div>

@@ -1,11 +1,10 @@
-import { Button, Select, SelectOption } from "@geckoui/geckoui";
+import { Button } from "@geckoui/geckoui";
 import { type AgentModelChoice, DEFAULT_AGENT_MODEL_CHOICE } from "@runtime-contract";
-import { Bot, ClipboardList, FileText, Square, X } from "lucide-react";
+import { Bot, ClipboardList, Square, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { AgentModelPicker } from "@/components/AgentModelPicker";
 import { AssistantCanvasDialog } from "@/components/AssistantCanvasDialog";
-import { useCanvasVersions } from "@/components/canvas/useCanvasVersions";
-import { useSavedCanvases } from "@/components/canvas/useSavedCanvases";
+import { useCanvas } from "@/components/canvas/useCanvas";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
 import { useRead, useWrite } from "@/runtime/api-client";
 import { useWorkspaceState } from "@/stores/board-store";
@@ -27,7 +26,6 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 	const [starting, setStarting] = useState(false);
 	const startingRef = useRef(false);
 	const [pickedModel, setPickedModel] = useState<AgentModelChoice | null>(null);
-	const [savedCanvasId, setSavedCanvasId] = useState("");
 	const [canvasDialogOpen, setCanvasDialogOpen] = useState(false);
 	const [width, setWidth] = useState(DEFAULT_WIDTH);
 	const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
@@ -41,23 +39,14 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 	});
 	const { trigger: startSessionRequest } = useWrite((api) => api("agent/session").POST());
 	const { trigger: stopSessionRequest } = useWrite((api) => api("agent/session").DELETE());
-	const { canvases, sendFeedback } = useCanvasVersions(workspaceId, taskId ?? "");
-	const { list: savedCanvasesList, remove: removeSavedCanvas } = useSavedCanvases(workspaceId);
-	const savedCanvases = savedCanvasesList.data?.canvases ?? [];
+	const { canvas, sendFeedback, clearCanvas } = useCanvas(workspaceId, taskId ?? "");
 
-	const onDeleteSavedCanvas = async (id: string) => {
-		await removeSavedCanvas.trigger({ params: { id } });
-		if (savedCanvasId === id) setSavedCanvasId("");
-		void savedCanvasesList.trigger();
-	};
-
-	// A new canvas version arriving is worth surfacing even if the developer
-	// closed a previous one — this only depends on the latest version number,
-	// so it doesn't reopen the dialog on every unrelated re-render.
+	// A newly pushed canvas is worth surfacing even if the developer closed the
+	// previous one — this only depends on when the canvas was pushed, so it
+	// doesn't reopen the dialog on every unrelated re-render.
 	useEffect(() => {
-		if (canvases[0]?.version === undefined) return;
-		setCanvasDialogOpen(true);
-	}, [canvases[0]?.version]);
+		if (canvas) setCanvasDialogOpen(true);
+	}, [canvas?.createdAt]);
 
 	const onDragStart = (e: React.MouseEvent) => {
 		e.preventDefault();
@@ -108,9 +97,7 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 		startingRef.current = true;
 		setStarting(true);
 		try {
-			const { data: result } = await startSessionRequest({
-				body: { workspaceId, override: modelValue, savedCanvasId: savedCanvasId || undefined },
-			});
+			const { data: result } = await startSessionRequest({ body: { workspaceId, override: modelValue } });
 			setTaskId(result?.taskId ?? null);
 		} finally {
 			startingRef.current = false;
@@ -140,7 +127,7 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 						<h2 className="text-sm font-medium text-whip-text">Assistant</h2>
 					</div>
 					<div className="flex items-center gap-2">
-						{canvases.length > 0 && (
+						{canvas && (
 							<Button variant="ghost" size="sm" onClick={() => setCanvasDialogOpen(true)}>
 								<ClipboardList size={13} />
 							</Button>
@@ -165,26 +152,8 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 							<p className="text-sm text-center">
 								Pick a model to start an interactive session for managing your board
 							</p>
-							<div className="w-full max-w-sm flex flex-col gap-2">
+							<div className="w-full max-w-sm">
 								<AgentModelPicker value={modelValue} onChange={setPickedModel} />
-								{savedCanvases.length > 0 && (
-									<Select
-										value={savedCanvasId}
-										onChange={(v) => setSavedCanvasId(v as string)}
-										placeholder="Start from saved canvas (optional)"
-										prefix={<FileText size={13} className="text-whip-muted" />}
-									>
-										<SelectOption value="" label="None — start fresh" />
-										{savedCanvases.map((p) => (
-											<SelectOption
-												key={p.id}
-												value={p.id}
-												label={p.title}
-												onRemove={() => onDeleteSavedCanvas(p.id)}
-											/>
-										))}
-									</Select>
-								)}
 							</div>
 							<Button size="sm" onClick={() => void startSession()} disabled={starting}>
 								{starting ? "Starting..." : "Start Session"}
@@ -193,11 +162,11 @@ export function AssistantPanel({ workspaceId, open, onClose }: Props) {
 					)}
 				</div>
 			</div>
-			{taskId && (
+			{taskId && canvas && (
 				<AssistantCanvasDialog
-					sessionId={taskId}
-					canvases={canvases}
+					canvas={canvas}
 					sendFeedback={sendFeedback}
+					onApprove={clearCanvas}
 					open={canvasDialogOpen}
 					onClose={() => setCanvasDialogOpen(false)}
 				/>

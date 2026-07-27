@@ -16,15 +16,17 @@ function sleep(ms: number): Promise<void> {
 
 // Mirrors useRunSession's WS-subscription pattern: its own /ws connection,
 // subscribes once, and patches the Spoosh cache directly on a matching event —
-// no polling, no refetch on the happy path. Shared by the companion agent
+// no polling, no refetch on the happy path. A session has at most one canvas
+// and it lives only in the daemon's memory, so the event carries the whole
+// document (or null once it's been cleared). Shared by the companion agent
 // (sessionId is a real companion session id) and the assistant agent
 // (sessionId is its synthetic per-workspace id) — sessionId may be empty
 // before an assistant session exists, in which case this stays idle (no
-// fetch, no socket) rather than fetching canvases for a nonsense id.
-export function useCanvasVersions(workspaceId: string, sessionId: string) {
+// fetch, no socket) rather than fetching a canvas for a nonsense id.
+export function useCanvas(workspaceId: string, sessionId: string) {
 	const enabled = Boolean(sessionId);
 	const { data, trigger: refetch } = useRead(
-		(api) => api("companion-sessions/:id/canvases").GET({ params: { id: sessionId } }),
+		(api) => api("companion-sessions/:id/canvas").GET({ params: { id: sessionId } }),
 		{ enabled },
 	);
 	const wsRef = useRef<WebSocket | null>(null);
@@ -54,9 +56,9 @@ export function useCanvasVersions(workspaceId: string, sessionId: string) {
 				const msg = JSON.parse(event.data as string) as RuntimeStateEvent;
 				if (msg.type === "companion_canvas_updated" && msg.sessionId === sessionId) {
 					optimistic((cache) =>
-						cache("companion-sessions/:id/canvases")
+						cache("companion-sessions/:id/canvas")
 							.filter((entry) => entry.params.id === sessionId)
-							.set((current) => ({ canvases: [msg.canvas, ...(current?.canvases ?? [])] })),
+							.set(() => ({ canvas: msg.canvas })),
 					);
 				}
 			} catch {
@@ -94,5 +96,17 @@ export function useCanvasVersions(workspaceId: string, sessionId: string) {
 		[sendCanvasFeedbackTrigger, workspaceId, sessionId],
 	);
 
-	return { canvases: data?.canvases ?? [], sendFeedback };
+	const { trigger: clearCanvasTrigger } = useWrite((api) => api("companion-sessions/:id/canvas").DELETE());
+
+	const clearCanvas = useCallback(async () => {
+		const res = await clearCanvasTrigger({ params: { id: sessionId }, query: { workspaceId } });
+		if (res.error) throw res.error;
+		optimistic((cache) =>
+			cache("companion-sessions/:id/canvas")
+				.filter((entry) => entry.params.id === sessionId)
+				.set(() => ({ canvas: null })),
+		);
+	}, [clearCanvasTrigger, workspaceId, sessionId]);
+
+	return { canvas: data?.canvas ?? null, sendFeedback, clearCanvas };
 }

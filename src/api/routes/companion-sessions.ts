@@ -3,14 +3,17 @@ import { z } from "zod";
 import { canvasBlockSchema, companionSessionCreateRequestSchema } from "../../core/api-contract.js";
 import { NotFoundError } from "../errors/http-errors.js";
 import { zv } from "../middleware/zv.js";
-import { createCompanionCanvasEntry, listCompanionCanvasesEntry } from "../services/companion-canvases-service.js";
+import {
+	clearCompanionCanvasEntry,
+	getCompanionCanvasEntry,
+	setCompanionCanvasEntry,
+} from "../services/companion-canvas-service.js";
 import {
 	getCompanionCommitsService,
 	getCompanionDiffForCommitService,
 	getCompanionDiffService,
 } from "../services/companion-diff-service.js";
 import { commitAndMergeCompanionService, commitAndPRCompanionService } from "../services/companion-merge-service.js";
-import { clearCompanionCanvasesEntry, saveCompanionCanvasEntry } from "../services/companion-saved-canvases-service.js";
 import {
 	createCompanionSessionEntry,
 	discardCompanionSessionEntry,
@@ -144,28 +147,25 @@ export const companionSessionsController = new Hono<AppEnv>()
 			const ctx = c.var.ctx;
 			const { id } = c.req.valid("param");
 			const { workspaceId, blocks } = c.req.valid("json");
-			const canvas = await createCompanionCanvasEntry(id, workspaceId, blocks);
+			const canvas = await setCompanionCanvasEntry(id, blocks);
 			ctx.stateHub.broadcastCompanionCanvasUpdate(workspaceId, id, canvas);
 			return c.json(canvas);
 		},
 	)
-	.get("/:id/canvases", zv("param", z.object({ id: z.string() })), async (c) => {
+	.get("/:id/canvas", zv("param", z.object({ id: z.string() })), async (c) => {
 		const { id } = c.req.valid("param");
-		return c.json(await listCompanionCanvasesEntry(id));
+		return c.json(await getCompanionCanvasEntry(id));
 	})
-	.delete("/:id/canvases", zv("param", z.object({ id: z.string() })), async (c) => {
-		const { id } = c.req.valid("param");
-		await clearCompanionCanvasesEntry(id);
-		return c.json({ ok: true });
-	})
-	.post(
-		"/:id/save-canvas",
+	.delete(
+		"/:id/canvas",
 		zv("param", z.object({ id: z.string() })),
-		zv("json", z.object({ workspaceId: z.string(), title: z.string(), blocks: z.array(canvasBlockSchema) })),
+		zv("query", z.object({ workspaceId: z.string() })),
 		async (c) => {
+			const ctx = c.var.ctx;
 			const { id } = c.req.valid("param");
-			const { workspaceId, title, blocks } = c.req.valid("json");
-			const saved = await saveCompanionCanvasEntry(id, workspaceId, title, blocks);
-			return c.json(saved);
+			const { workspaceId } = c.req.valid("query");
+			await clearCompanionCanvasEntry(id);
+			ctx.stateHub.broadcastCompanionCanvasUpdate(workspaceId, id, null);
+			return c.json({ ok: true });
 		},
 	);

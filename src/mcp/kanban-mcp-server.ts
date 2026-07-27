@@ -65,7 +65,6 @@ const ROUTES: Record<string, RestRoute> = {
 	"recurring.delete": { method: "DELETE", path: (i) => `recurring-agents/${i.id as string}` },
 	"recurring.setJournal": { method: "POST", path: (i) => `recurring-agents/${i.id as string}/journal` },
 	"companion.showCanvas": { method: "POST", path: (i) => `companion-sessions/${i.sessionId as string}/canvas` },
-	"companion.saveCanvas": { method: "POST", path: (i) => `companion-sessions/${i.sessionId as string}/save-canvas` },
 };
 
 // Mutation (POST/PATCH/DELETE): input is the JSON body.
@@ -127,7 +126,7 @@ const RECURRING_OBSERVER_TOOLS = new Set([
 // the one sanctioned "write" here — it pushes to the session's own canvas,
 // not the board, so it's an exception to the read-only rule above, not a
 // contradiction of it.
-const COMPANION_ALLOWED_TOOLS = new Set(["kanban_get_board", "whipped_show_canvas", "whipped_save_canvas"]);
+const COMPANION_ALLOWED_TOOLS = new Set(["kanban_get_board", "whipped_show_canvas"]);
 
 const baseRegisterTool = server.registerTool;
 // Drop-in for server.registerTool that withholds mutating tools from observers.
@@ -1365,7 +1364,7 @@ if (canvasSessionId) {
 		"whipped_show_canvas",
 		{
 			description:
-				"Push structured, interactive content — a plan, a report, findings, or a set of questions — to the developer's canvas: markdown, raw HTML, mermaid diagrams, and interactive questions. Use markdown for reasoning, steps, and options; use an html block whenever the developer wants to see UI, layout, or visual design — a dashboard, a page structure, a component arrangement — since a real mockup shows it and markdown can only describe it in prose. HTML blocks are rendered unsanitized via dangerouslySetInnerHTML at runtime — NOT compiled by the app's build-time Tailwind setup, so Tailwind utility classes in that HTML produce no styling; style mockups with inline style attributes or a <style> block instead. Each call appends a new version; it does not overwrite the last one. Call this AT MOST ONCE per turn — never call it twice in a row before the developer has replied. If you're not happy with a version before they've responded, that's still one call: think it through and send the version you actually want, don't push a draft and then immediately push a fix. The developer's answers, comments, and notes come back as a normal follow-up chat message — there is no separate response channel.",
+				"Push structured, interactive content — a plan, a report, findings, or a set of questions — to the developer's canvas: markdown, raw HTML, mermaid diagrams, and interactive questions. Use markdown for reasoning, steps, and options; use an html block whenever the developer wants to see UI, layout, or visual design — a dashboard, a page structure, a component arrangement — since a real mockup shows it and markdown can only describe it in prose. HTML blocks are rendered unsanitized via dangerouslySetInnerHTML at runtime — NOT compiled by the app's build-time Tailwind setup, so Tailwind utility classes in that HTML produce no styling; style mockups with inline style attributes or a <style> block instead. The canvas holds one document with no history: each call REPLACES what's currently on it, and it is discarded entirely when the session ends — so carry forward anything that still matters instead of relying on the developer being able to look back. Call this AT MOST ONCE per turn — never call it twice in a row before the developer has replied. If you're not happy with what you were about to send, that's still one call: think it through and send the version you actually want, don't push a draft and then immediately push a fix. The developer's answers, comments, and notes come back as a normal follow-up chat message — there is no separate response channel.",
 			inputSchema: {
 				blocks: z.array(canvasBlockSchema).describe("Ordered canvas blocks: markdown, html, diagram, or question"),
 			},
@@ -1376,35 +1375,6 @@ if (canvasSessionId) {
 				return { content: [{ type: "text", text: "Canvas sent to the developer." }] };
 			} catch (err) {
 				return { content: [{ type: "text", text: `Failed to send canvas: ${(err as Error).message}` }] };
-			}
-		},
-	);
-
-	registerTool(
-		"whipped_save_canvas",
-		{
-			description:
-				"Consolidate everything proposed across this session's canvas versions into ONE final, coherent canvas and save it to the project's reusable canvas library, so it can seed future work later. If this session already has a saved canvas (resumed from one, or already saved once), this UPDATES that same canvas instead of creating a duplicate — call it again whenever you finish a meaningful chunk of work, describing what's done explicitly in the blocks, so a future resumption knows what's already handled and what's left.",
-			inputSchema: {
-				title: z.string().describe("Short, descriptive title for the saved canvas"),
-				blocks: z
-					.array(canvasBlockSchema)
-					.describe(
-						"The final, consolidated canvas — merge every prior version's content into one coherent canvas, don't just resend the latest version verbatim",
-					),
-			},
-		},
-		async ({ title, blocks }) => {
-			try {
-				const saved = await apiMutate<{ title: string }>("companion.saveCanvas", {
-					sessionId: canvasSessionId,
-					workspaceId,
-					title,
-					blocks,
-				});
-				return { content: [{ type: "text", text: `Canvas saved as "${saved.title}".` }] };
-			} catch (err) {
-				return { content: [{ type: "text", text: `Failed to save canvas: ${(err as Error).message}` }] };
 			}
 		},
 	);

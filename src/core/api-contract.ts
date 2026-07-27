@@ -1005,7 +1005,6 @@ export const companionSessionSchema = z.object({
 	model: z.string().nullable(),
 	effort: effortLevelSchema.nullable(),
 	status: companionSessionStatusSchema.default("stopped"),
-	savedCanvasId: z.string().nullable(),
 	createdAt: z.number(),
 	updatedAt: z.number(),
 });
@@ -1018,7 +1017,6 @@ export const companionSessionCreateRequestSchema = z.object({
 	branchName: z.string().optional(),
 	workflowId: z.string().optional(),
 	model: agentModelChoiceSchema.optional(),
-	savedCanvasId: z.string().optional(),
 });
 export type CompanionSessionCreateRequest = z.infer<typeof companionSessionCreateRequestSchema>;
 
@@ -1028,10 +1026,11 @@ export type CompanionSessionCreateRequest = z.infer<typeof companionSessionCreat
 // and interactive question blocks interleaved. Not just for plans — a canvas
 // is equally the right surface for a set of questions, a report, or findings;
 // "plan" is one trigger phrase among several that opens it, not the whole
-// concept. Versioned (each push appends, never overwrites); the developer's
-// answers/comments are composed into one message and typed into the agent's
-// terminal — there is no separate response channel, so nothing here is ever
-// sent back as structured data.
+// concept. Ephemeral and unversioned: a session has at most one canvas, held in
+// the daemon's memory (see server/companion-canvas-store.ts), replaced by the
+// next push and gone when the session ends. The developer's answers/comments are
+// composed into one message and typed into the agent's terminal — there is no
+// separate response channel, so nothing here is ever sent back as structured data.
 
 export const choiceOptionSchema = z.object({
 	value: z.string(),
@@ -1048,7 +1047,7 @@ export type ChoiceOption = z.infer<typeof choiceOptionSchema>;
 // every question explicitly (answered, or "(not answered)") so the agent can
 // judge for itself whether to re-ask a required-but-skipped question next time.
 const REQUIRED_FIELD_DESCRIPTION =
-	'Signal only — not enforced by the panel, the developer can send/approve without answering. If this comes back "(not answered)" and you still need it, ask again in your next canvas version.';
+	'Signal only — not enforced by the panel, the developer can send/approve without answering. If this comes back "(not answered)" and you still need it, ask again in your next canvas.';
 
 const questionLeafInputSchema = z.discriminatedUnion("kind", [
 	z.object({
@@ -1111,27 +1110,10 @@ export const canvasBlockSchema = z.discriminatedUnion("type", [
 export type CanvasBlock = z.infer<typeof canvasBlockSchema>;
 
 export const canvasDocumentSchema = z.object({
-	version: z.number(),
 	createdAt: z.number(),
 	blocks: z.array(canvasBlockSchema),
 });
 export type CanvasDocument = z.infer<typeof canvasDocumentSchema>;
-
-// A canvas consolidated (by the agent, via `whipped_save_canvas`) from a
-// session's version history and saved to the workspace's reusable canvas
-// library. A session linked to one (via `CompanionSession.savedCanvasId`)
-// updates the same row on subsequent saves instead of creating duplicates —
-// see companion-saved-canvases-service.ts.
-export const companionSavedCanvasSchema = z.object({
-	id: z.string(),
-	workspaceId: z.string(),
-	title: z.string(),
-	blocks: z.array(canvasBlockSchema),
-	sourceSessionId: z.string().nullable(),
-	createdAt: z.number(),
-	updatedAt: z.number(),
-});
-export type CompanionSavedCanvas = z.infer<typeof companionSavedCanvasSchema>;
 
 // ─── WebSocket events ─────────────────────────────────────────────────────────
 
@@ -1142,7 +1124,7 @@ export type RuntimeStateEvent =
 	| { type: "workspace_updated"; state: RuntimeWorkspaceStateResponse }
 	| { type: "terminal_output"; taskId: string; data: string }
 	| { type: "run_session_changed"; cardId: string | null; status: RunSessionStatus; errorMessage?: string }
-	| { type: "companion_canvas_updated"; sessionId: string; canvas: CanvasDocument }
+	| { type: "companion_canvas_updated"; sessionId: string; canvas: CanvasDocument | null }
 	| { type: "update_available"; latestVersion: string };
 
 // ─── Projects layout ─────────────────────────────────────────────────────────

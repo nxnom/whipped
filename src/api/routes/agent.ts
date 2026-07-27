@@ -9,7 +9,6 @@ import type { AppEnv } from "../types/context.js";
 const startSessionBodySchema = z.object({
 	workspaceId: z.string(),
 	override: agentModelChoiceSchema.optional(),
-	savedCanvasId: z.string().optional(),
 });
 
 export const agentController = new Hono<AppEnv>()
@@ -20,15 +19,15 @@ export const agentController = new Hono<AppEnv>()
 	})
 	.post("/session", zv("json", startSessionBodySchema), async (c) => {
 		const ctx = c.var.ctx;
-		const { workspaceId, override, savedCanvasId } = c.req.valid("json");
+		const { workspaceId, override } = c.req.valid("json");
 		const scheduler = ctx.getScheduler(workspaceId);
 		if (!scheduler) {
 			await ctx.ensureWorkspace(workspaceId);
 			const retried = ctx.getScheduler(workspaceId);
 			if (!retried) throw NotFoundError("Workspace");
-			return c.json(await startAgentSession(retried, override, savedCanvasId));
+			return c.json(await startAgentSession(retried, override));
 		}
-		return c.json(await startAgentSession(scheduler, override, savedCanvasId));
+		return c.json(await startAgentSession(scheduler, override));
 	})
 	.delete("/session", zv("query", z.object({ workspaceId: z.string() })), async (c) => {
 		const ctx = c.var.ctx;

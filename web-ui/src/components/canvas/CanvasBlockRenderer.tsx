@@ -9,12 +9,10 @@ export function CanvasBlockRenderer({
 	block,
 	answers,
 	onAnswer,
-	disabled,
 }: {
 	block: CanvasBlock;
 	answers: CanvasAnswers;
 	onAnswer: (name: string, value: string | string[]) => void;
-	disabled?: boolean;
 }) {
 	switch (block.type) {
 		case "markdown":
@@ -29,7 +27,7 @@ export function CanvasBlockRenderer({
 					<span className="text-[13px] font-medium text-whip-text">
 						{block.prompt} {block.input.kind !== "composite" && <RequiredMark required={block.input.required} />}
 					</span>
-					<QuestionBlock input={block.input} answers={answers} onAnswer={onAnswer} disabled={disabled} />
+					<QuestionBlock input={block.input} answers={answers} onAnswer={onAnswer} />
 				</div>
 			);
 	}
