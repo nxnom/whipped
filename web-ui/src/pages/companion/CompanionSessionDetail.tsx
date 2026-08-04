@@ -1,8 +1,9 @@
 import { LoadingButton, Tooltip } from "@geckoui/geckoui";
 import type { CompanionSession } from "@runtime-contract";
-import { Columns2, OctagonX, Play, TerminalSquare } from "lucide-react";
+import { Columns2, Maximize2, Minimize2, OctagonX, Play, TerminalSquare } from "lucide-react";
 import { useState } from "react";
 import { TaskTerminal } from "@/components/terminal/TaskTerminal";
+import { useFullscreen } from "@/runtime/url-state";
 import { classNames } from "@/utils/classNames";
 import { CanvasPanelBody, CanvasPanelHeader, useCompanionCanvas } from "./canvas/CanvasPanel";
 import { CompanionDiffPanel } from "./CompanionDiffPanel";
@@ -25,10 +26,20 @@ export function CompanionSessionDetail({
 	const [tab, setTab] = useState<DetailTab>("terminal");
 	const canvas = useCompanionCanvas(session.id, workspaceId);
 
+	const terminalHidden = tab !== "terminal" || canvas.open;
+	const { fullscreen, setFullscreen } = useFullscreen();
+
 	return (
 		<div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-			{/* Tab bar — the canvas title/toggle shares this row instead of its own strip */}
-			<div className="flex items-center justify-between shrink-0 bg-whip-bg border-b border-whip-border pl-5 pr-3">
+			{/* Tab bar — the canvas title/toggle shares this row instead of its own strip.
+			    Fullscreen drops it along with the app's top/bottom bars, leaving the
+			    terminal alone on screen. */}
+			<div
+				className={classNames(
+					"flex items-center justify-between shrink-0 bg-whip-bg border-b border-whip-border pl-5 pr-3",
+					fullscreen && "hidden",
+				)}
+			>
 				<div className="flex">
 					{(
 						[
@@ -52,6 +63,18 @@ export function CompanionSessionDetail({
 				</div>
 				<div className="flex items-center gap-2">
 					{tab === "terminal" && <CanvasPanelHeader canvas={canvas} />}
+					{!terminalHidden && (
+						<Tooltip delayDuration={0} content="Full screen terminal" placement="bottom" triggerAsChild>
+							<span>
+								<button
+									onClick={() => setFullscreen(true)}
+									className="flex items-center p-1.5 rounded-md text-whip-faint hover:text-whip-text transition-colors shrink-0"
+								>
+									<Maximize2 size={13} />
+								</button>
+							</span>
+						</Tooltip>
+					)}
 					{session.status === "running" && (
 						<Tooltip delayDuration={0} content="Kill this session" placement="bottom" triggerAsChild>
 							<span>
@@ -74,8 +97,20 @@ export function CompanionSessionDetail({
 			    reconnecting). An open canvas takes the pane over entirely; the header's
 			    Terminal toggle collapses it to bring the terminal back. */}
 			<div className="flex-1 min-h-0 flex">
-				<div className={classNames("relative flex-1 min-h-0", (tab !== "terminal" || canvas.open) && "hidden")}>
+				<div className={classNames("group relative flex-1 min-h-0", terminalHidden && "hidden")}>
 					<TaskTerminal key={session.id} taskId={session.id} workspaceId={workspaceId} className="absolute inset-0" />
+					{/* Fullscreen leaves no chrome to exit from, so the way out is this
+					    button — revealed on hover instead of always covering output. Esc is
+					    deliberately not bound: the terminal owns that key. */}
+					{fullscreen && (
+						<button
+							onClick={() => setFullscreen(false)}
+							className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-whip-border bg-whip-panel text-xs font-semibold text-whip-muted opacity-0 group-hover:opacity-100 hover:text-whip-text transition-opacity"
+						>
+							<Minimize2 size={13} />
+							Exit full screen
+						</button>
+					)}
 					{/* Selecting a stopped session never auto-relaunches the agent — resuming
 					    is an explicit choice since it opens the CLI's own picker/continue UI. */}
 					{session.status === "stopped" && (

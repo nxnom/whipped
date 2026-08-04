@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.10.1] - 2026-08-05
+
+### Added
+- **Full-screen companion terminal** — the expand button in the terminal tab row drops the top bar,
+  the session bar and the tab row itself, leaving only the terminal. Hovering reveals an "Exit full
+  screen" button in the corner, and since the state lives in the URL the browser back button leaves
+  it too. Esc is deliberately not bound — the terminal owns that key.
+
+### Fixed
+- **Adding a project bounced you back to the previous one** — the board redirected off the new
+  workspace because it checked a project list that hadn't refetched yet.
+
 ## [0.10.0] - 2026-07-27
 
 ### Added

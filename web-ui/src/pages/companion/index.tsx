@@ -3,6 +3,7 @@ import type { CompanionSession } from "@runtime-contract";
 import { GitBranch, Loader2, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useFullscreen } from "@/runtime/url-state";
 import { useWorkspaceState } from "@/stores/board-store";
 import { useRunSession } from "@/stores/run-session-store";
 import { CompanionBar } from "./CompanionBar";
@@ -19,6 +20,7 @@ export function CompanionPage() {
 	const { workspaceId, sessionId } = useParams<{ workspaceId: string; sessionId: string }>();
 	const wsId = workspaceId!;
 
+	const { fullscreen } = useFullscreen();
 	const { state } = useWorkspaceState(wsId);
 	const workflows = state?.projectConfig.workflows ?? [];
 	const hasStartCommand = Boolean(state?.projectConfig.startCommand);
@@ -183,7 +185,7 @@ export function CompanionPage() {
 					)}
 				</div>
 
-				{selected && (
+				{selected && !fullscreen && (
 					<CompanionBar
 						session={selected}
 						sessions={sessions}

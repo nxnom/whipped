@@ -12,6 +12,7 @@ import { CompanionPage } from "@/pages/companion";
 import { RecurringAgentsPage } from "@/pages/recurring-agents";
 import { SettingsPage } from "@/pages/settings";
 import { useRead } from "@/runtime/api-client";
+import { useFullscreen } from "@/runtime/url-state";
 import { firstSortedProjectId } from "@/utils/projects";
 
 function HomeRoute({ onAddProject }: { onAddProject: () => void }) {
@@ -79,12 +80,17 @@ function NotFoundPage() {
 export default function App() {
 	const navigate = useNavigate();
 	const location = useLocation();
+	const { fullscreen } = useFullscreen();
 
 	const pathSegments = location.pathname.split("/").filter(Boolean);
 	const activeWorkspaceId = pathSegments[0] ?? null;
 	// Recurring Agents has its own bottom bar with session/run controls, so the
 	// global one would just duplicate it.
 	const isRecurringAgents = pathSegments[1] === "recurring-agents";
+	// A fullscreen companion terminal takes over the whole window — the app's
+	// chrome steps aside. Scoped to the companion route so the flag can't strand
+	// another page without a way out.
+	const companionFullscreen = pathSegments[1] === "companion" && fullscreen;
 	const [agentOpen, setAgentOpen] = useState(false);
 	const [showAddProject, setShowAddProject] = useState(false);
 
@@ -102,7 +108,9 @@ export default function App() {
 	return (
 		<>
 			<div className="flex flex-col h-screen bg-whip-bg text-whip-text overflow-hidden">
-				{activeWorkspaceId && <Topbar workspaceId={activeWorkspaceId} onOpenAgent={() => setAgentOpen((v) => !v)} />}
+				{activeWorkspaceId && !companionFullscreen && (
+					<Topbar workspaceId={activeWorkspaceId} onOpenAgent={() => setAgentOpen((v) => !v)} />
+				)}
 				<div className="flex-1 overflow-hidden flex">
 					<main className="flex-1 overflow-hidden flex flex-col">
 						<div className="flex-1 overflow-hidden flex flex-col min-h-0">
@@ -121,7 +129,9 @@ export default function App() {
 								</Routes>
 							</ErrorBoundary>
 						</div>
-						{activeWorkspaceId && !isRecurringAgents && <RunBar workspaceId={activeWorkspaceId} />}
+						{activeWorkspaceId && !isRecurringAgents && !companionFullscreen && (
+							<RunBar workspaceId={activeWorkspaceId} />
+						)}
 					</main>
 
 					{activeWorkspaceId && (

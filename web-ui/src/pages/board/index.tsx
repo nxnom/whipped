@@ -14,19 +14,23 @@ export function BoardPage() {
 
 	// Declarative reads — adding/removing a project is a `projects` write, so the
 	// list (and layout) auto-invalidate and refetch; no manual reload needed.
-	const { data: projectList } = useRead((api) => api("projects").GET());
+	const { data: projectList, fetching: projectsFetching } = useRead((api) => api("projects").GET());
 	const { data: layout } = useRead((api) => api("projects/layout").GET());
 
 	const projects = projectList ?? [];
 	const activeProject = projects.find((p) => p.workspaceId === workspaceId) ?? null;
 
 	// Redirect to a valid project whenever the current workspaceId isn't one of them.
+	// Skipped while the list is refetching: a freshly added project navigates here
+	// before its `projects` invalidation lands, and the stale list would bounce
+	// straight back to the previous project.
 	useEffect(() => {
+		if (projectsFetching) return;
 		if (projects.length === 0) return;
 		if (projects.some((p) => p.workspaceId === workspaceId)) return;
 		const id = (layout ? firstSortedProjectId(layout, projects) : null) ?? projects[0]!.workspaceId;
 		navigate(`/${encodeURIComponent(id)}/board`);
-	}, [projectList, layout, workspaceId, navigate]);
+	}, [projectList, projectsFetching, layout, workspaceId, navigate]);
 
 	return (
 		<div className="flex-1 overflow-hidden flex flex-col min-h-0">
