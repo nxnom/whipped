@@ -35,6 +35,7 @@ export const EFFORT_OPTIONS: ReadonlyArray<{ value: EffortLevel; label: string }
 // the aliases ("opus"/"sonnet"/"haiku") also work but drift over time.
 export const MODEL_OPTIONS: Record<RuntimeAgentId, ReadonlyArray<{ value: string; label: string }>> = {
 	claude: [
+		{ value: "claude-fable-5-1", label: "Fable 5.1" },
 		{ value: "claude-fable-5", label: "Fable 5" },
 		{ value: "claude-opus-5", label: "Opus 5" },
 		{ value: "claude-sonnet-5", label: "Sonnet 5" },
@@ -46,14 +47,12 @@ export const MODEL_OPTIONS: Record<RuntimeAgentId, ReadonlyArray<{ value: string
 		{ value: "claude-haiku-4-5", label: "Haiku 4.5" },
 	],
 	codex: [
+		{ value: "gpt-6-astra", label: "GPT-6 Astra" },
 		{ value: "gpt-5.6-sol", label: "GPT-5.6 Sol (default)" },
 		{ value: "gpt-5.6-terra", label: "GPT-5.6 Terra" },
 		{ value: "gpt-5.6-luna", label: "GPT-5.6 Luna" },
 		{ value: "gpt-5.5", label: "GPT-5.5" },
-		{ value: "gpt-5.4", label: "GPT-5.4" },
 		{ value: "gpt-5.4-mini", label: "GPT-5.4 Mini" },
-		{ value: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
-		{ value: "gpt-5.2", label: "GPT-5.2" },
 	],
 	// opencode supports any provider/model string — no fixed presets.
 	// The UI renders a free-form text input for opencode model selection.

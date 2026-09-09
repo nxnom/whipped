@@ -102,7 +102,7 @@ export function ModelSelect({
 								? "e.g. claude-opus-4-7-thinking-max"
 								: agentId === "claude"
 									? "e.g. claude-opus-4-7"
-									: "e.g. gpt-5-codex"
+									: "e.g. gpt-5.6-sol"
 					}
 				/>
 			)}

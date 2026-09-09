@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.10.2] - 2026-09-09
+
+### Added
+- **Fable 5.1** added to the Claude model presets.
+- **GPT-6 Astra** added to the Codex model presets. It needs codex CLI 0.155 or newer — older
+  versions don't get it from the model endpoint.
+
+### Removed
+- **Codex models OpenAI no longer serves** — GPT-5.4, GPT-5.3 Codex and GPT-5.2 are gone from the
+  presets. The model endpoint stopped listing them, so picking one would just fail.
+
 ## [0.10.1] - 2026-08-05
 
 ### Added
