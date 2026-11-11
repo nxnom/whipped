@@ -783,7 +783,7 @@ registerTool(
 										.string()
 										.nullable()
 										.optional()
-										.describe("Model override, or null for the agent default (e.g. 'claude-opus-4-6', 'gpt-5.5')."),
+										.describe("Model override, or null for the agent default (e.g. 'claude-opus-4-6', 'gpt-6.1-sol')."),
 									effort: z
 										.enum(["low", "medium", "high", "xhigh", "max"])
 										.nullable()
@@ -1195,7 +1195,7 @@ const scheduleShape = {
 		.enum(["claude", "codex", "opencode", "cursor", "mimo"])
 		.optional()
 		.describe("Which agent runs this; defaults to claude"),
-	model: z.string().optional().describe("Model id, e.g. 'claude-opus-4-8' or 'gpt-5.5'"),
+	model: z.string().optional().describe("Model id, e.g. 'claude-opus-4-8' or 'gpt-6.1-sol'"),
 	effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
 	enabled: z.boolean().optional(),
 };

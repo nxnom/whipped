@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.10.3] - 2026-11-11
+
+### Added
+- **New Claude models** — Fable 5.2, Opus 5.5, Sonnet 5.5 and Haiku 5.5 added to the Claude model
+  presets.
+- **New Codex models** — GPT-6.1 Sol (now the default), GPT-6.1 Terra, GPT-6 Sol and GPT-6 Luna added
+  to the Codex model presets. They need a recent codex CLI (seen on 0.167) — older versions may not
+  get them from the model endpoint.
+
+### Removed
+- **Codex models OpenAI no longer serves** — GPT-5.5 and GPT-5.4 Mini are gone from the presets. The
+  model endpoint stopped listing them, so picking one would just fail.
+
 ## [0.10.2] - 2026-09-09
 
 ### Added
